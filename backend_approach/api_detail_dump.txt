@@ -1,0 +1,2102 @@
+
+================================================================================
+SHEET: Auth shape=(6, 7)
+================================================================================
+000| [0]API Name | [1]Method | [2]URL | [3]Purpose | [4]Request Payload (example) | [5]Response (example) | [6]Test Cases
+001| [0]Login | [1]POST | [2]/api/v1/auth/login | [3]Authenticate a user with login ID and password; returns a JWT/session token, role and menu permissions. | [4]{
+  "loginId": "rahul.sharma",
+  "password": "\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+} | [5]{
+  "token": "eyJhbGciOi...",
+  "user": {
+    "userId": 12,
+    "employeeName": "Rahul Sharma",
+    "roleCode": "STORE_MANAGER",
+    "entityId": 1,
+    "buAccessScope": "ALL"
+  },
+  "expiresIn": 3600
+} | [6]1. Valid credentials return 200 with token and user profile
+2. Invalid password returns 401 and increments usr_failed_attempts
+3. Account locked (5+ failed attempts) returns 423 Locked
+4. Disabled account (usr_account_status = Disabled) returns 403
+5. Non-existent loginId returns 401 (generic message, no user enumeration)
+6. force_password_reset=true returns 200 with mustChangePassword flag
+002| [0]Logout | [1]POST | [2]/api/v1/auth/logout | [3]Invalidate the current session/token. | [4]None (token in Authorization header) | [5]{
+  "message": "Logged out successfully"
+} | [6]1. Valid token invalidates session, returns 200
+2. Already-expired token returns 401
+3. Token reused after logout returns 401
+003| [0]Get Current User & Permissions | [1]GET | [2]/api/v1/auth/me | [3]Return the logged-in user's profile, role, OU access scope and effective menu permissions (role defaults merged with user exceptions). | [4]None (token in Authorization header) | [5]{
+  "userId": 12,
+  "employeeName": "Rahul Sharma",
+  "role": "STORE_MANAGER",
+  "buAccessScope": "SPECIFIC",
+  "allowedBuIds": [
+    3,
+    7
+  ],
+  "menuPermissions": [
+    {
+      "menuCode": "grn-list",
+      "view": true,
+      "create": true,
+      "approve": false
+    }
+  ]
+} | [6]1. Valid token returns merged role + exception permissions
+2. Expired token returns 401
+3. Response reflects an active Grant/Revoke exception correctly
+004| [0]Change Password | [1]POST | [2]/api/v1/auth/change-password | [3]Change the logged-in user's own password. | [4]{
+  "oldPassword": "\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+  "newPassword": "\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+  "confirmPassword": "\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+} | [5]{
+  "message": "Password changed successfully"
+} | [6]1. Correct old password + valid new password returns 200
+2. Incorrect old password returns 400
+3. newPassword != confirmPassword returns 400
+4. New password failing complexity policy returns 400
+005| [0]Forgot Password | [1]POST | [2]/api/v1/auth/forgot-password | [3]Trigger a password-reset email/OTP for a login ID. | [4]{
+  "loginId": "rahul.sharma"
+} | [5]{
+  "message": "Password reset link sent to registered email"
+} | [6]1. Valid loginId returns 200 (generic message even if not found, to prevent enumeration)
+2. Rate limiting: >5 requests/hour from same IP returns 429
+
+================================================================================
+SHEET: Masters - Setup shape=(28, 7)
+================================================================================
+000| [0]API Name | [1]Method | [2]URL | [3]Purpose | [4]Request Payload (example) | [5]Response (example) | [6]Test Cases
+001| [0]List Unit | [1]GET | [2]/api/v1/units?page=1&pageSize=20&search=&isActive=true | [3]Retrieve a paginated, searchable list of unit for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "unitId": 1,
+      "unitCode": "PCS",
+      "unitName": "Pieces",
+      "desc": "Pieces",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+002| [0]Get Unit by ID | [1]GET | [2]/api/v1/units/{id} | [3]Retrieve a single unit record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "unitId": 1,
+  "unitCode": "PCS",
+  "unitName": "Pieces",
+  "desc": "Pieces",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+003| [0]Create Unit | [1]POST | [2]/api/v1/units | [3]Create a new unit record. | [4]{
+  "unitId": 1,
+  "unitCode": "PCS",
+  "unitName": "Pieces",
+  "desc": "Pieces",
+  "isActive": true
+} | [5]{
+  "unitId": 1,
+  "unitCode": "PCS",
+  "unitName": "Pieces",
+  "desc": "Pieces",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Unit created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate unitCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+004| [0]Update Unit | [1]PUT | [2]/api/v1/units/{id} | [3]Update an existing unit record (full update). | [4]{
+  "unitId": 1,
+  "unitCode": "PCS",
+  "unitName": "Pieces",
+  "desc": "Pieces",
+  "isActive": true
+} | [5]{
+  "unitId": 1,
+  "unitCode": "PCS",
+  "unitName": "Pieces",
+  "desc": "Pieces",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Unit updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+005| [0]Delete / Deactivate Unit | [1]DELETE | [2]/api/v1/units/{id} | [3]Soft-delete (deactivate) a unit record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Unit deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+006| [0]List Category | [1]GET | [2]/api/v1/categories?page=1&pageSize=20&search=&isActive=true | [3]Retrieve a paginated, searchable list of category for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "categoryId": 1,
+      "categoryCode": "CAT-IT",
+      "categoryName": "IT Assets",
+      "desc": "IT related assets",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+007| [0]Get Category by ID | [1]GET | [2]/api/v1/categories/{id} | [3]Retrieve a single category record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "categoryId": 1,
+  "categoryCode": "CAT-IT",
+  "categoryName": "IT Assets",
+  "desc": "IT related assets",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+008| [0]Create Category | [1]POST | [2]/api/v1/categories | [3]Create a new category record. | [4]{
+  "categoryId": 1,
+  "categoryCode": "CAT-IT",
+  "categoryName": "IT Assets",
+  "desc": "IT related assets",
+  "isActive": true
+} | [5]{
+  "categoryId": 1,
+  "categoryCode": "CAT-IT",
+  "categoryName": "IT Assets",
+  "desc": "IT related assets",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Category created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate categoryCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+009| [0]Update Category | [1]PUT | [2]/api/v1/categories/{id} | [3]Update an existing category record (full update). | [4]{
+  "categoryId": 1,
+  "categoryCode": "CAT-IT",
+  "categoryName": "IT Assets",
+  "desc": "IT related assets",
+  "isActive": true
+} | [5]{
+  "categoryId": 1,
+  "categoryCode": "CAT-IT",
+  "categoryName": "IT Assets",
+  "desc": "IT related assets",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Category updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+010| [0]Delete / Deactivate Category | [1]DELETE | [2]/api/v1/categories/{id} | [3]Soft-delete (deactivate) a category record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Category deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+011| [0]List Sub-Category | [1]GET | [2]/api/v1/subcategories?page=1&pageSize=20&search=&isActive=true&categoryId= | [3]Retrieve a paginated, searchable list of sub-category for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "subcategoryId": 1,
+      "subcategoryCode": "SUB-LAP",
+      "subcategoryName": "Laptop",
+      "categoryId": 1,
+      "categoryName": "IT Assets",
+      "desc": "Laptops",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+012| [0]Get Sub-Category by ID | [1]GET | [2]/api/v1/subcategories/{id} | [3]Retrieve a single sub-category record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "subcategoryId": 1,
+  "subcategoryCode": "SUB-LAP",
+  "subcategoryName": "Laptop",
+  "categoryId": 1,
+  "categoryName": "IT Assets",
+  "desc": "Laptops",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+013| [0]Create Sub-Category | [1]POST | [2]/api/v1/subcategories | [3]Create a new sub-category record. | [4]{
+  "subcategoryId": 1,
+  "subcategoryCode": "SUB-LAP",
+  "subcategoryName": "Laptop",
+  "categoryId": 1,
+  "categoryName": "IT Assets",
+  "desc": "Laptops",
+  "isActive": true
+} | [5]{
+  "subcategoryId": 1,
+  "subcategoryCode": "SUB-LAP",
+  "subcategoryName": "Laptop",
+  "categoryId": 1,
+  "categoryName": "IT Assets",
+  "desc": "Laptops",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Sub-Category created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate subcategoryCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+014| [0]Update Sub-Category | [1]PUT | [2]/api/v1/subcategories/{id} | [3]Update an existing sub-category record (full update). | [4]{
+  "subcategoryId": 1,
+  "subcategoryCode": "SUB-LAP",
+  "subcategoryName": "Laptop",
+  "categoryId": 1,
+  "categoryName": "IT Assets",
+  "desc": "Laptops",
+  "isActive": true
+} | [5]{
+  "subcategoryId": 1,
+  "subcategoryCode": "SUB-LAP",
+  "subcategoryName": "Laptop",
+  "categoryId": 1,
+  "categoryName": "IT Assets",
+  "desc": "Laptops",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Sub-Category updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+015| [0]Delete / Deactivate Sub-Category | [1]DELETE | [2]/api/v1/subcategories/{id} | [3]Soft-delete (deactivate) a sub-category record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Sub-Category deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+016| [0]Get Sub-Categories by Category | [1]GET | [2]/api/v1/categories/{categoryId}/subcategories | [3]Return active sub-categories under a given category, for cascading dropdowns (Item Master form). | [4]None (path param only) | [5][
+  {
+    "subcategoryId": 1,
+    "subcategoryCode": "SUB-LAP",
+    "subcategoryName": "Laptop"
+  }
+] | [6]1. Valid categoryId returns its active sub-categories
+2. Category with no sub-categories returns empty array
+3. Non-existent categoryId returns 404
+017| [0]List General Type | [1]GET | [2]/api/v1/general-types?page=1&pageSize=20&search=&isActive=true | [3]Retrieve a paginated, searchable list of general type for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "gentypeId": 1,
+      "typeCode": "GTY-PYT",
+      "typeName": "Payment Terms",
+      "desc": "Payment terms lookup group",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+018| [0]Get General Type by ID | [1]GET | [2]/api/v1/general-types/{id} | [3]Retrieve a single general type record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "gentypeId": 1,
+  "typeCode": "GTY-PYT",
+  "typeName": "Payment Terms",
+  "desc": "Payment terms lookup group",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+019| [0]Create General Type | [1]POST | [2]/api/v1/general-types | [3]Create a new general type record. | [4]{
+  "gentypeId": 1,
+  "typeCode": "GTY-PYT",
+  "typeName": "Payment Terms",
+  "desc": "Payment terms lookup group",
+  "isActive": true
+} | [5]{
+  "gentypeId": 1,
+  "typeCode": "GTY-PYT",
+  "typeName": "Payment Terms",
+  "desc": "Payment terms lookup group",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "General Type created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate typeCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+020| [0]Update General Type | [1]PUT | [2]/api/v1/general-types/{id} | [3]Update an existing general type record (full update). | [4]{
+  "gentypeId": 1,
+  "typeCode": "GTY-PYT",
+  "typeName": "Payment Terms",
+  "desc": "Payment terms lookup group",
+  "isActive": true
+} | [5]{
+  "gentypeId": 1,
+  "typeCode": "GTY-PYT",
+  "typeName": "Payment Terms",
+  "desc": "Payment terms lookup group",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "General Type updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+021| [0]Delete / Deactivate General Type | [1]DELETE | [2]/api/v1/general-types/{id} | [3]Soft-delete (deactivate) a general type record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "General Type deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+022| [0]List General Master Value | [1]GET | [2]/api/v1/general-masters?page=1&pageSize=20&search=&isActive=true&gentypeId= | [3]Retrieve a paginated, searchable list of general master value for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "genmasterId": 1,
+      "valueCode": "GNM-N30",
+      "valueName": "Net 30",
+      "gentypeId": 1,
+      "sortOrder": 1,
+      "desc": "Net 30 days",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+023| [0]Get General Master Value by ID | [1]GET | [2]/api/v1/general-masters/{id} | [3]Retrieve a single general master value record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "genmasterId": 1,
+  "valueCode": "GNM-N30",
+  "valueName": "Net 30",
+  "gentypeId": 1,
+  "sortOrder": 1,
+  "desc": "Net 30 days",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+024| [0]Create General Master Value | [1]POST | [2]/api/v1/general-masters | [3]Create a new general master value record. | [4]{
+  "genmasterId": 1,
+  "valueCode": "GNM-N30",
+  "valueName": "Net 30",
+  "gentypeId": 1,
+  "sortOrder": 1,
+  "desc": "Net 30 days",
+  "isActive": true
+} | [5]{
+  "genmasterId": 1,
+  "valueCode": "GNM-N30",
+  "valueName": "Net 30",
+  "gentypeId": 1,
+  "sortOrder": 1,
+  "desc": "Net 30 days",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "General Master Value created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate valueCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+025| [0]Update General Master Value | [1]PUT | [2]/api/v1/general-masters/{id} | [3]Update an existing general master value record (full update). | [4]{
+  "genmasterId": 1,
+  "valueCode": "GNM-N30",
+  "valueName": "Net 30",
+  "gentypeId": 1,
+  "sortOrder": 1,
+  "desc": "Net 30 days",
+  "isActive": true
+} | [5]{
+  "genmasterId": 1,
+  "valueCode": "GNM-N30",
+  "valueName": "Net 30",
+  "gentypeId": 1,
+  "sortOrder": 1,
+  "desc": "Net 30 days",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "General Master Value updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+026| [0]Delete / Deactivate General Master Value | [1]DELETE | [2]/api/v1/general-masters/{id} | [3]Soft-delete (deactivate) a general master value record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "General Master Value deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+027| [0]Get General Master Values by Type | [1]GET | [2]/api/v1/general-types/{typeCode}/values | [3]Return active general-master values under a given type code, sorted by sort_order — powers every generic dropdown (Department, Payment Terms, Priority, etc.) across the app. | [4]None (path param only) | [5][
+  {
+    "genmasterId": 5,
+    "valueCode": "GNM-DEPT-STR",
+    "valueName": "Stores",
+    "sortOrder": 1
+  }
+] | [6]1. Valid typeCode returns values sorted by sortOrder
+2. Unknown typeCode returns 404
+3. Inactive values are excluded
+4. Result is cacheable (ETag / 304 support)
+
+================================================================================
+SHEET: Masters - Organization shape=(16, 7)
+================================================================================
+000| [0]API Name | [1]Method | [2]URL | [3]Purpose | [4]Request Payload (example) | [5]Response (example) | [6]Test Cases
+001| [0]List Entity (Organization) | [1]GET | [2]/api/v1/entities?page=1&pageSize=20&search=&isActive=true | [3]Retrieve a paginated, searchable list of entity (organization) for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "entityId": 1,
+      "entityCode": "ORG-001",
+      "entityName": "Micropro India 4",
+      "shortName": "MP-IN4",
+      "gstin": "27ABCDE1234F1Z5",
+      "panNo": "ABCDE1234F",
+      "city": "Nagpur",
+      "state": "Maharashtra",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+002| [0]Get Entity (Organization) by ID | [1]GET | [2]/api/v1/entities/{id} | [3]Retrieve a single entity (organization) record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "entityId": 1,
+  "entityCode": "ORG-001",
+  "entityName": "Micropro India 4",
+  "shortName": "MP-IN4",
+  "gstin": "27ABCDE1234F1Z5",
+  "panNo": "ABCDE1234F",
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+003| [0]Create Entity (Organization) | [1]POST | [2]/api/v1/entities | [3]Create a new entity (organization) record. | [4]{
+  "entityId": 1,
+  "entityCode": "ORG-001",
+  "entityName": "Micropro India 4",
+  "shortName": "MP-IN4",
+  "gstin": "27ABCDE1234F1Z5",
+  "panNo": "ABCDE1234F",
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true
+} | [5]{
+  "entityId": 1,
+  "entityCode": "ORG-001",
+  "entityName": "Micropro India 4",
+  "shortName": "MP-IN4",
+  "gstin": "27ABCDE1234F1Z5",
+  "panNo": "ABCDE1234F",
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Entity (Organization) created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate entityCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+004| [0]Update Entity (Organization) | [1]PUT | [2]/api/v1/entities/{id} | [3]Update an existing entity (organization) record (full update). | [4]{
+  "entityId": 1,
+  "entityCode": "ORG-001",
+  "entityName": "Micropro India 4",
+  "shortName": "MP-IN4",
+  "gstin": "27ABCDE1234F1Z5",
+  "panNo": "ABCDE1234F",
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true
+} | [5]{
+  "entityId": 1,
+  "entityCode": "ORG-001",
+  "entityName": "Micropro India 4",
+  "shortName": "MP-IN4",
+  "gstin": "27ABCDE1234F1Z5",
+  "panNo": "ABCDE1234F",
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Entity (Organization) updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+005| [0]Delete / Deactivate Entity (Organization) | [1]DELETE | [2]/api/v1/entities/{id} | [3]Soft-delete (deactivate) a entity (organization) record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Entity (Organization) deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+006| [0]List Operating Unit (Business Unit) | [1]GET | [2]/api/v1/business-units?page=1&pageSize=20&search=&isActive=true&entityId= | [3]Retrieve a paginated, searchable list of operating unit (business unit) for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "buId": 1,
+      "buCode": "OU-NGP-01",
+      "buName": "Nagpur Plant",
+      "entityId": 1,
+      "buType": "Plant",
+      "managerEmpId": 5,
+      "city": "Nagpur",
+      "state": "Maharashtra",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+007| [0]Get Operating Unit (Business Unit) by ID | [1]GET | [2]/api/v1/business-units/{id} | [3]Retrieve a single operating unit (business unit) record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "buId": 1,
+  "buCode": "OU-NGP-01",
+  "buName": "Nagpur Plant",
+  "entityId": 1,
+  "buType": "Plant",
+  "managerEmpId": 5,
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+008| [0]Create Operating Unit (Business Unit) | [1]POST | [2]/api/v1/business-units | [3]Create a new operating unit (business unit) record. | [4]{
+  "buId": 1,
+  "buCode": "OU-NGP-01",
+  "buName": "Nagpur Plant",
+  "entityId": 1,
+  "buType": "Plant",
+  "managerEmpId": 5,
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true
+} | [5]{
+  "buId": 1,
+  "buCode": "OU-NGP-01",
+  "buName": "Nagpur Plant",
+  "entityId": 1,
+  "buType": "Plant",
+  "managerEmpId": 5,
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Operating Unit (Business Unit) created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate buCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+009| [0]Update Operating Unit (Business Unit) | [1]PUT | [2]/api/v1/business-units/{id} | [3]Update an existing operating unit (business unit) record (full update). | [4]{
+  "buId": 1,
+  "buCode": "OU-NGP-01",
+  "buName": "Nagpur Plant",
+  "entityId": 1,
+  "buType": "Plant",
+  "managerEmpId": 5,
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true
+} | [5]{
+  "buId": 1,
+  "buCode": "OU-NGP-01",
+  "buName": "Nagpur Plant",
+  "entityId": 1,
+  "buType": "Plant",
+  "managerEmpId": 5,
+  "city": "Nagpur",
+  "state": "Maharashtra",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Operating Unit (Business Unit) updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+010| [0]Delete / Deactivate Operating Unit (Business Unit) | [1]DELETE | [2]/api/v1/business-units/{id} | [3]Soft-delete (deactivate) a operating unit (business unit) record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Operating Unit (Business Unit) deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+011| [0]List Location (Store) | [1]GET | [2]/api/v1/locations?page=1&pageSize=20&search=&isActive=true&entityId=&buId=&locationType= | [3]Retrieve a paginated, searchable list of location (store) for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "locationId": 1,
+      "locationCode": "STR-NGP-01",
+      "locationName": "Nagpur Main Store",
+      "locationType": "General Store",
+      "entityId": 1,
+      "buId": 1,
+      "managerEmpId": 8,
+      "city": "Nagpur",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+012| [0]Get Location (Store) by ID | [1]GET | [2]/api/v1/locations/{id} | [3]Retrieve a single location (store) record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "locationId": 1,
+  "locationCode": "STR-NGP-01",
+  "locationName": "Nagpur Main Store",
+  "locationType": "General Store",
+  "entityId": 1,
+  "buId": 1,
+  "managerEmpId": 8,
+  "city": "Nagpur",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+013| [0]Create Location (Store) | [1]POST | [2]/api/v1/locations | [3]Create a new location (store) record. | [4]{
+  "locationId": 1,
+  "locationCode": "STR-NGP-01",
+  "locationName": "Nagpur Main Store",
+  "locationType": "General Store",
+  "entityId": 1,
+  "buId": 1,
+  "managerEmpId": 8,
+  "city": "Nagpur",
+  "isActive": true
+} | [5]{
+  "locationId": 1,
+  "locationCode": "STR-NGP-01",
+  "locationName": "Nagpur Main Store",
+  "locationType": "General Store",
+  "entityId": 1,
+  "buId": 1,
+  "managerEmpId": 8,
+  "city": "Nagpur",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Location (Store) created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate locationCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+014| [0]Update Location (Store) | [1]PUT | [2]/api/v1/locations/{id} | [3]Update an existing location (store) record (full update). | [4]{
+  "locationId": 1,
+  "locationCode": "STR-NGP-01",
+  "locationName": "Nagpur Main Store",
+  "locationType": "General Store",
+  "entityId": 1,
+  "buId": 1,
+  "managerEmpId": 8,
+  "city": "Nagpur",
+  "isActive": true
+} | [5]{
+  "locationId": 1,
+  "locationCode": "STR-NGP-01",
+  "locationName": "Nagpur Main Store",
+  "locationType": "General Store",
+  "entityId": 1,
+  "buId": 1,
+  "managerEmpId": 8,
+  "city": "Nagpur",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Location (Store) updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+015| [0]Delete / Deactivate Location (Store) | [1]DELETE | [2]/api/v1/locations/{id} | [3]Soft-delete (deactivate) a location (store) record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Location (Store) deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+
+================================================================================
+SHEET: Masters - Item & Vendor shape=(15, 7)
+================================================================================
+000| [0]API Name | [1]Method | [2]URL | [3]Purpose | [4]Request Payload (example) | [5]Response (example) | [6]Test Cases
+001| [0]List Item / Asset | [1]GET | [2]/api/v1/items?page=1&pageSize=20&search=&isActive=true&itemType=Asset|Consumable&categoryId=&subcategoryId= | [3]Retrieve a paginated, searchable list of item / asset for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "itemId": 1,
+      "itemCode": "ITM-001",
+      "itemName": "Dell Latitude 5440",
+      "itemType": "Asset",
+      "categoryId": 1,
+      "subcategoryId": 1,
+      "uomId": 1,
+      "standardCost": 65000.0,
+      "assetType": "IT",
+      "makeBrand": "Dell",
+      "model": "Latitude 5440",
+      "serialNo": "SN-88213",
+      "isSerialized": true,
+      "isReturnable": true,
+      "assignedToEmpId": null,
+      "currentLocationId": 1,
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+002| [0]Get Item / Asset by ID | [1]GET | [2]/api/v1/items/{id} | [3]Retrieve a single item / asset record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "itemId": 1,
+  "itemCode": "ITM-001",
+  "itemName": "Dell Latitude 5440",
+  "itemType": "Asset",
+  "categoryId": 1,
+  "subcategoryId": 1,
+  "uomId": 1,
+  "standardCost": 65000.0,
+  "assetType": "IT",
+  "makeBrand": "Dell",
+  "model": "Latitude 5440",
+  "serialNo": "SN-88213",
+  "isSerialized": true,
+  "isReturnable": true,
+  "assignedToEmpId": null,
+  "currentLocationId": 1,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+003| [0]Create Item / Asset | [1]POST | [2]/api/v1/items | [3]Create a new item / asset record. | [4]{
+  "itemId": 1,
+  "itemCode": "ITM-001",
+  "itemName": "Dell Latitude 5440",
+  "itemType": "Asset",
+  "categoryId": 1,
+  "subcategoryId": 1,
+  "uomId": 1,
+  "standardCost": 65000.0,
+  "assetType": "IT",
+  "makeBrand": "Dell",
+  "model": "Latitude 5440",
+  "serialNo": "SN-88213",
+  "isSerialized": true,
+  "isReturnable": true,
+  "assignedToEmpId": null,
+  "currentLocationId": 1,
+  "isActive": true
+} | [5]{
+  "itemId": 1,
+  "itemCode": "ITM-001",
+  "itemName": "Dell Latitude 5440",
+  "itemType": "Asset",
+  "categoryId": 1,
+  "subcategoryId": 1,
+  "uomId": 1,
+  "standardCost": 65000.0,
+  "assetType": "IT",
+  "makeBrand": "Dell",
+  "model": "Latitude 5440",
+  "serialNo": "SN-88213",
+  "isSerialized": true,
+  "isReturnable": true,
+  "assignedToEmpId": null,
+  "currentLocationId": 1,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Item / Asset created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate itemCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+004| [0]Update Item / Asset | [1]PUT | [2]/api/v1/items/{id} | [3]Update an existing item / asset record (full update). | [4]{
+  "itemId": 1,
+  "itemCode": "ITM-001",
+  "itemName": "Dell Latitude 5440",
+  "itemType": "Asset",
+  "categoryId": 1,
+  "subcategoryId": 1,
+  "uomId": 1,
+  "standardCost": 65000.0,
+  "assetType": "IT",
+  "makeBrand": "Dell",
+  "model": "Latitude 5440",
+  "serialNo": "SN-88213",
+  "isSerialized": true,
+  "isReturnable": true,
+  "assignedToEmpId": null,
+  "currentLocationId": 1,
+  "isActive": true
+} | [5]{
+  "itemId": 1,
+  "itemCode": "ITM-001",
+  "itemName": "Dell Latitude 5440",
+  "itemType": "Asset",
+  "categoryId": 1,
+  "subcategoryId": 1,
+  "uomId": 1,
+  "standardCost": 65000.0,
+  "assetType": "IT",
+  "makeBrand": "Dell",
+  "model": "Latitude 5440",
+  "serialNo": "SN-88213",
+  "isSerialized": true,
+  "isReturnable": true,
+  "assignedToEmpId": null,
+  "currentLocationId": 1,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Item / Asset updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+005| [0]Delete / Deactivate Item / Asset | [1]DELETE | [2]/api/v1/items/{id} | [3]Soft-delete (deactivate) a item / asset record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Item / Asset deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+006| [0]Get Item Stock Ledger | [1]GET | [2]/api/v1/items/{itemId}/stock-ledger?locationId=&fromDate=&toDate= | [3]Return the movement history (GRN/Issue/Transfer/Return/Adjustment) for an item, optionally filtered by location and date range. | [4]None (query params only) | [5][
+  {
+    "date": "2026-07-20",
+    "docType": "GRN",
+    "docNo": "GRNP-2026-0045",
+    "inQty": 10,
+    "outQty": 0,
+    "balanceQty": 34
+  }
+] | [6]1. Valid itemId returns chronological ledger
+2. Date range filters correctly
+3. Item with no transactions returns empty array
+4. Non-existent itemId returns 404
+007| [0]Upload Item Image | [1]POST | [2]/api/v1/items/{itemId}/image | [3]Upload/replace the image for an item (multipart/form-data); stores URL in itm_image_url. | [4]multipart/form-data: file=<image binary> | [5]{
+  "itemId": 1,
+  "imageUrl": "https://cdn.caims.app/items/ITM-001.jpg"
+} | [6]1. Valid JPEG/PNG under size limit uploads and returns URL
+2. File exceeding max size (e.g. 5MB) returns 413
+3. Unsupported file type returns 415
+4. Non-existent itemId returns 404
+008| [0]List Vendor | [1]GET | [2]/api/v1/vendors?page=1&pageSize=20&search=&isActive=true&partyType= | [3]Retrieve a paginated, searchable list of vendor for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "vendorId": 1,
+      "vendorCode": "VND-001",
+      "vendorName": "Kirloskar Traders",
+      "partyType": "Vendor",
+      "gstin": "27XXXXX0000X1Z1",
+      "rating": 4,
+      "city": "Nagpur",
+      "phone": "9822012345",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+009| [0]Get Vendor by ID | [1]GET | [2]/api/v1/vendors/{id} | [3]Retrieve a single vendor record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "vendorId": 1,
+  "vendorCode": "VND-001",
+  "vendorName": "Kirloskar Traders",
+  "partyType": "Vendor",
+  "gstin": "27XXXXX0000X1Z1",
+  "rating": 4,
+  "city": "Nagpur",
+  "phone": "9822012345",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+010| [0]Create Vendor | [1]POST | [2]/api/v1/vendors | [3]Create a new vendor record. | [4]{
+  "vendorId": 1,
+  "vendorCode": "VND-001",
+  "vendorName": "Kirloskar Traders",
+  "partyType": "Vendor",
+  "gstin": "27XXXXX0000X1Z1",
+  "rating": 4,
+  "city": "Nagpur",
+  "phone": "9822012345",
+  "isActive": true
+} | [5]{
+  "vendorId": 1,
+  "vendorCode": "VND-001",
+  "vendorName": "Kirloskar Traders",
+  "partyType": "Vendor",
+  "gstin": "27XXXXX0000X1Z1",
+  "rating": 4,
+  "city": "Nagpur",
+  "phone": "9822012345",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Vendor created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate vendorCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+011| [0]Update Vendor | [1]PUT | [2]/api/v1/vendors/{id} | [3]Update an existing vendor record (full update). | [4]{
+  "vendorId": 1,
+  "vendorCode": "VND-001",
+  "vendorName": "Kirloskar Traders",
+  "partyType": "Vendor",
+  "gstin": "27XXXXX0000X1Z1",
+  "rating": 4,
+  "city": "Nagpur",
+  "phone": "9822012345",
+  "isActive": true
+} | [5]{
+  "vendorId": 1,
+  "vendorCode": "VND-001",
+  "vendorName": "Kirloskar Traders",
+  "partyType": "Vendor",
+  "gstin": "27XXXXX0000X1Z1",
+  "rating": 4,
+  "city": "Nagpur",
+  "phone": "9822012345",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Vendor updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+012| [0]Delete / Deactivate Vendor | [1]DELETE | [2]/api/v1/vendors/{id} | [3]Soft-delete (deactivate) a vendor record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Vendor deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+013| [0]List Stock Balances | [1]GET | [2]/api/v1/stock?itemId=&locationId=&belowReorderLevel=false&page=1&pageSize=20 | [3]Retrieve current on-hand stock balances, system-maintained (read-only) — powers the Inventory view. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 120,
+  "data": [
+    {
+      "stockId": 1,
+      "itemId": 1,
+      "itemCode": "ITM-001",
+      "locationId": 1,
+      "currentQty": 34,
+      "reservedQty": 5,
+      "availableQty": 29,
+      "avgRate": 62000.0,
+      "stockValue": 2108000.0,
+      "reorderLevel": 10
+    }
+  ]
+} | [6]1. belowReorderLevel=true returns only rows where currentQty <= reorderLevel
+2. Filtering by itemId + locationId returns a single row
+3. Item with zero stock still returns a row with currentQty: 0
+4. Unauthorized request returns 401
+014| [0]Get Stock Balance for Item @ Location | [1]GET | [2]/api/v1/stock/{itemId}/{locationId} | [3]Return the current available quantity for a specific item at a specific location — used by transaction forms (txd_available_stock) to validate issue/transfer/return quantities in real time. | [4]None (path params only) | [5]{
+  "itemId": 1,
+  "locationId": 1,
+  "currentQty": 34,
+  "reservedQty": 5,
+  "availableQty": 29,
+  "batchLotNo": null
+} | [6]1. Existing item+location combination returns correct availableQty
+2. No stock row for the combination returns availableQty: 0 (not 404)
+3. Batch/lot-tracked item returns per-batch breakdown
+
+================================================================================
+SHEET: Masters - Security shape=(28, 7)
+================================================================================
+000| [0]API Name | [1]Method | [2]URL | [3]Purpose | [4]Request Payload (example) | [5]Response (example) | [6]Test Cases
+001| [0]Get Menu Tree | [1]GET | [2]/api/v1/menus?group= | [3]Return the full application menu tree (read-only, maintained with the codebase) — drives the sidebar and the Role/Exception permission grids. | [4]None (query params only) | [5][
+  {
+    "menuId": 1,
+    "menuCode": "grn-list",
+    "menuLabel": "Goods Receipt Note (GRN)",
+    "menuGroup": "Transactions",
+    "sortOrder": 3,
+    "docType": "GRN",
+    "supportsView": true,
+    "supportsCreate": true,
+    "supportsApprove": true
+  }
+] | [6]1. Returns full tree ordered by group and sortOrder
+2. group filter narrows to that sidebar group
+3. Inactive menu items are excluded
+4. Response includes supports_* flags for permission-grid rendering
+002| [0]List Role | [1]GET | [2]/api/v1/roles?page=1&pageSize=20&search=&isActive=true | [3]Retrieve a paginated, searchable list of role for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "roleId": 1,
+      "roleCode": "STORE_MANAGER",
+      "roleName": "Store Manager",
+      "roleLevel": 6,
+      "desc": "Manages store operations and approves requisitions",
+      "isSystemRole": false,
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+003| [0]Get Role by ID | [1]GET | [2]/api/v1/roles/{id} | [3]Retrieve a single role record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "roleId": 1,
+  "roleCode": "STORE_MANAGER",
+  "roleName": "Store Manager",
+  "roleLevel": 6,
+  "desc": "Manages store operations and approves requisitions",
+  "isSystemRole": false,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+004| [0]Create Role | [1]POST | [2]/api/v1/roles | [3]Create a new role record. | [4]{
+  "roleId": 1,
+  "roleCode": "STORE_MANAGER",
+  "roleName": "Store Manager",
+  "roleLevel": 6,
+  "desc": "Manages store operations and approves requisitions",
+  "isSystemRole": false,
+  "isActive": true
+} | [5]{
+  "roleId": 1,
+  "roleCode": "STORE_MANAGER",
+  "roleName": "Store Manager",
+  "roleLevel": 6,
+  "desc": "Manages store operations and approves requisitions",
+  "isSystemRole": false,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Role created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate roleCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+005| [0]Update Role | [1]PUT | [2]/api/v1/roles/{id} | [3]Update an existing role record (full update). | [4]{
+  "roleId": 1,
+  "roleCode": "STORE_MANAGER",
+  "roleName": "Store Manager",
+  "roleLevel": 6,
+  "desc": "Manages store operations and approves requisitions",
+  "isSystemRole": false,
+  "isActive": true
+} | [5]{
+  "roleId": 1,
+  "roleCode": "STORE_MANAGER",
+  "roleName": "Store Manager",
+  "roleLevel": 6,
+  "desc": "Manages store operations and approves requisitions",
+  "isSystemRole": false,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Role updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+006| [0]Delete / Deactivate Role | [1]DELETE | [2]/api/v1/roles/{id} | [3]Soft-delete (deactivate) a role record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Role deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+007| [0]Get Role Permissions | [1]GET | [2]/api/v1/roles/{roleId}/permissions | [3]Return the per-module permission grid (view/create/edit/delete/approve/reject/print/export) for a role. | [4]None (path param only) | [5][
+  {
+    "module": "Requisitions",
+    "canView": true,
+    "canCreate": true,
+    "canEdit": true,
+    "canDelete": false,
+    "canApprove": true,
+    "canReject": true,
+    "canPrint": true,
+    "canExport": true
+  }
+] | [6]1. Valid roleId returns one row per module
+2. New role with no rows returns all-false defaults
+3. Non-existent roleId returns 404
+008| [0]Save Role Permissions | [1]PUT | [2]/api/v1/roles/{roleId}/permissions | [3]Replace the full permission grid for a role (bulk upsert of sysm_rolepermission_dtl rows). | [4][
+  {
+    "module": "Requisitions",
+    "canView": true,
+    "canCreate": true,
+    "canEdit": true,
+    "canDelete": false,
+    "canApprove": true,
+    "canReject": true,
+    "canPrint": true,
+    "canExport": true
+  }
+] | [5]{
+  "message": "Permissions updated successfully"
+} | [6]1. Valid grid saves and returns 200
+2. Attempt to modify a system role (rol_is_system_role=true) beyond allowed scope returns 403
+3. Unknown module name in payload returns 400
+4. Non-existent roleId returns 404
+009| [0]List Employee | [1]GET | [2]/api/v1/employees?page=1&pageSize=20&search=&isActive=true&department=&roleId=&baseLocationId= | [3]Retrieve a paginated, searchable list of employee for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "employeeId": 1,
+      "employeeCode": "EMP-001",
+      "firstName": "Rahul",
+      "lastName": "Sharma",
+      "email": "rahul.sharma@company.com",
+      "phone": "9822011111",
+      "designation": "Store Manager",
+      "department": "Warehouse",
+      "roleId": 1,
+      "baseLocationId": 1,
+      "reportingToEmpId": null,
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+010| [0]Get Employee by ID | [1]GET | [2]/api/v1/employees/{id} | [3]Retrieve a single employee record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "employeeId": 1,
+  "employeeCode": "EMP-001",
+  "firstName": "Rahul",
+  "lastName": "Sharma",
+  "email": "rahul.sharma@company.com",
+  "phone": "9822011111",
+  "designation": "Store Manager",
+  "department": "Warehouse",
+  "roleId": 1,
+  "baseLocationId": 1,
+  "reportingToEmpId": null,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+011| [0]Create Employee | [1]POST | [2]/api/v1/employees | [3]Create a new employee record. | [4]{
+  "employeeId": 1,
+  "employeeCode": "EMP-001",
+  "firstName": "Rahul",
+  "lastName": "Sharma",
+  "email": "rahul.sharma@company.com",
+  "phone": "9822011111",
+  "designation": "Store Manager",
+  "department": "Warehouse",
+  "roleId": 1,
+  "baseLocationId": 1,
+  "reportingToEmpId": null,
+  "isActive": true
+} | [5]{
+  "employeeId": 1,
+  "employeeCode": "EMP-001",
+  "firstName": "Rahul",
+  "lastName": "Sharma",
+  "email": "rahul.sharma@company.com",
+  "phone": "9822011111",
+  "designation": "Store Manager",
+  "department": "Warehouse",
+  "roleId": 1,
+  "baseLocationId": 1,
+  "reportingToEmpId": null,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Employee created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate employeeCode returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+012| [0]Update Employee | [1]PUT | [2]/api/v1/employees/{id} | [3]Update an existing employee record (full update). | [4]{
+  "employeeId": 1,
+  "employeeCode": "EMP-001",
+  "firstName": "Rahul",
+  "lastName": "Sharma",
+  "email": "rahul.sharma@company.com",
+  "phone": "9822011111",
+  "designation": "Store Manager",
+  "department": "Warehouse",
+  "roleId": 1,
+  "baseLocationId": 1,
+  "reportingToEmpId": null,
+  "isActive": true
+} | [5]{
+  "employeeId": 1,
+  "employeeCode": "EMP-001",
+  "firstName": "Rahul",
+  "lastName": "Sharma",
+  "email": "rahul.sharma@company.com",
+  "phone": "9822011111",
+  "designation": "Store Manager",
+  "department": "Warehouse",
+  "roleId": 1,
+  "baseLocationId": 1,
+  "reportingToEmpId": null,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "Employee updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+013| [0]Delete / Deactivate Employee | [1]DELETE | [2]/api/v1/employees/{id} | [3]Soft-delete (deactivate) a employee record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "Employee deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+014| [0]Get Employee Subordinates | [1]GET | [2]/api/v1/employees/{employeeId}/subordinates | [3]Return employees reporting to a given employee (self-referencing hierarchy) — used for org-chart / approval-routing views. | [4]None (path param only) | [5][
+  {
+    "employeeId": 9,
+    "employeeCode": "EMP-009",
+    "firstName": "Anita",
+    "designation": "Store Executive"
+  }
+] | [6]1. Manager with subordinates returns list
+2. Employee with none returns empty array
+3. Non-existent employeeId returns 404
+015| [0]List User Login | [1]GET | [2]/api/v1/users?page=1&pageSize=20&search=&isActive=true&accountStatus= | [3]Retrieve a paginated, searchable list of user login for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "userId": 1,
+      "employeeId": 1,
+      "loginId": "rahul.sharma",
+      "roleId": 1,
+      "accountStatus": "Active",
+      "entityId": 1,
+      "buAccessScope": "SPECIFIC",
+      "locationId": 1,
+      "forcePasswordReset": false,
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+016| [0]Get User Login by ID | [1]GET | [2]/api/v1/users/{userId} | [3]Retrieve a single user login record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "userId": 1,
+  "employeeId": 1,
+  "loginId": "rahul.sharma",
+  "roleId": 1,
+  "accountStatus": "Active",
+  "entityId": 1,
+  "buAccessScope": "SPECIFIC",
+  "locationId": 1,
+  "forcePasswordReset": false,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+017| [0]Create User Login | [1]POST | [2]/api/v1/users | [3]Create a new user login record. | [4]{
+  "employeeId": 1,
+  "loginId": "rahul.sharma",
+  "roleId": 1,
+  "accountStatus": "Active",
+  "entityId": 1,
+  "buAccessScope": "SPECIFIC",
+  "locationId": 1,
+  "forcePasswordReset": false,
+  "isActive": true
+} | [5]{
+  "userId": 1,
+  "employeeId": 1,
+  "loginId": "rahul.sharma",
+  "roleId": 1,
+  "accountStatus": "Active",
+  "entityId": 1,
+  "buAccessScope": "SPECIFIC",
+  "locationId": 1,
+  "forcePasswordReset": false,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "User Login created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new userId
+2. Duplicate loginId returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+018| [0]Update User Login | [1]PUT | [2]/api/v1/users/{userId} | [3]Update an existing user login record (full update). | [4]{
+  "employeeId": 1,
+  "loginId": "rahul.sharma",
+  "roleId": 1,
+  "accountStatus": "Active",
+  "entityId": 1,
+  "buAccessScope": "SPECIFIC",
+  "locationId": 1,
+  "forcePasswordReset": false,
+  "isActive": true
+} | [5]{
+  "userId": 1,
+  "employeeId": 1,
+  "loginId": "rahul.sharma",
+  "roleId": 1,
+  "accountStatus": "Active",
+  "entityId": 1,
+  "buAccessScope": "SPECIFIC",
+  "locationId": 1,
+  "forcePasswordReset": false,
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "User Login updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+019| [0]Delete / Deactivate User Login | [1]DELETE | [2]/api/v1/users/{userId} | [3]Soft-delete (deactivate) a user login record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "User Login deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+020| [0]Reset User Password (Admin) | [1]POST | [2]/api/v1/users/{userId}/reset-password | [3]Admin-initiated password reset; sets a temporary password and forcePasswordReset=true. | [4]None (path param only) | [5]{
+  "message": "Password reset. Temporary password sent to user's email."
+} | [6]1. Valid userId resets password and returns 200
+2. Non-existent userId returns 404
+3. Caller without Admin module permission returns 403
+021| [0]Lock / Unlock User Account | [1]POST | [2]/api/v1/users/{userId}/lock-status | [3]Manually lock or unlock a user account, or clear failed-attempt counter. | [4]{
+  "action": "unlock"
+} | [5]{
+  "userId": 1,
+  "accountStatus": "Active",
+  "message": "Account unlocked"
+} | [6]1. action=lock sets accountStatus=Locked, returns 200
+2. action=unlock resets failed_attempts to 0
+3. Invalid action value returns 400
+4. Non-existent userId returns 404
+022| [0]Get / Set User OU Access | [1]GET | [2]/api/v1/users/{userId}/ou-access | [3]Return (GET) or replace (PUT — same endpoint) the list of Operating Units a SPECIFIC-scope login can see (sysm_user_bu_mapping_dtl). | [4]PUT body: { "buIds": [3, 7, 9] } | [5]{
+  "userId": 1,
+  "buAccessScope": "SPECIFIC",
+  "buIds": [
+    3,
+    7,
+    9
+  ]
+} | [6]1. GET for ALL-scope user returns empty buIds with a note that all OUs are visible
+2. PUT with valid buIds replaces the mapping set and returns 200
+3. PUT containing a non-existent buId returns 400
+4. Non-existent userId returns 404
+023| [0]List User Access Exception | [1]GET | [2]/api/v1/access-exceptions?page=1&pageSize=20&search=&isActive=true&employeeId=&exceptionType= | [3]Retrieve a paginated, searchable list of user access exception for grid/dropdown binding. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 42,
+  "data": [
+    {
+      "exceptionId": 1,
+      "employeeId": 1,
+      "exceptionType": "Grant",
+      "menuCode": "vendor-list",
+      "reason": "Temporary cover for Vendor Master during AM's leave",
+      "validFrom": "2026-08-01",
+      "validUntil": "2026-08-15",
+      "isActive": true,
+      "createdBy": "admin",
+      "createdOn": "2026-01-10T10:00:00"
+    }
+  ]
+} | [6]1. Returns records matching search term (partial, case-insensitive)
+2. isActive=true returns only active records
+3. Pagination returns correct page/pageSize and totalRecords
+4. Empty result set returns 200 with data: []
+5. Unauthorized request returns 401
+024| [0]Get User Access Exception by ID | [1]GET | [2]/api/v1/access-exceptions/{id} | [3]Retrieve a single user access exception record by its primary key, for edit-form binding. | [4]None (path param only) | [5]{
+  "exceptionId": 1,
+  "employeeId": 1,
+  "exceptionType": "Grant",
+  "menuCode": "vendor-list",
+  "reason": "Temporary cover for Vendor Master during AM's leave",
+  "validFrom": "2026-08-01",
+  "validUntil": "2026-08-15",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00"
+} | [6]1. Valid ID returns 200 with full record
+2. Non-existent ID returns 404
+3. Non-numeric / malformed ID returns 400
+4. Unauthorized request returns 401
+025| [0]Create User Access Exception | [1]POST | [2]/api/v1/access-exceptions | [3]Create a new user access exception record. | [4]{
+  "exceptionId": 1,
+  "employeeId": 1,
+  "exceptionType": "Grant",
+  "menuCode": "vendor-list",
+  "reason": "Temporary cover for Vendor Master during AM's leave",
+  "validFrom": "2026-08-01",
+  "validUntil": "2026-08-15",
+  "isActive": true
+} | [5]{
+  "exceptionId": 1,
+  "employeeId": 1,
+  "exceptionType": "Grant",
+  "menuCode": "vendor-list",
+  "reason": "Temporary cover for Vendor Master during AM's leave",
+  "validFrom": "2026-08-01",
+  "validUntil": "2026-08-15",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "User Access Exception created successfully"
+} | [6]1. Valid payload creates record and returns 201 with new id
+2. Duplicate exceptionId returns 409 Conflict
+3. Missing mandatory field returns 400
+4. Field exceeding max length returns 400
+5. Unauthorized / no create-permission user returns 403
+026| [0]Update User Access Exception | [1]PUT | [2]/api/v1/access-exceptions/{id} | [3]Update an existing user access exception record (full update). | [4]{
+  "exceptionId": 1,
+  "employeeId": 1,
+  "exceptionType": "Grant",
+  "menuCode": "vendor-list",
+  "reason": "Temporary cover for Vendor Master during AM's leave",
+  "validFrom": "2026-08-01",
+  "validUntil": "2026-08-15",
+  "isActive": true
+} | [5]{
+  "exceptionId": 1,
+  "employeeId": 1,
+  "exceptionType": "Grant",
+  "menuCode": "vendor-list",
+  "reason": "Temporary cover for Vendor Master during AM's leave",
+  "validFrom": "2026-08-01",
+  "validUntil": "2026-08-15",
+  "isActive": true,
+  "createdBy": "admin",
+  "createdOn": "2026-01-10T10:00:00",
+  "message": "User Access Exception updated successfully"
+} | [6]1. Valid payload updates record and returns 200
+2. Non-existent ID returns 404
+3. Changing code to a value already used by another record returns 409
+4. Concurrent edit / stale record returns 409 (optimistic lock) if enabled
+5. Unauthorized / no edit-permission user returns 403
+027| [0]Delete / Deactivate User Access Exception | [1]DELETE | [2]/api/v1/access-exceptions/{id} | [3]Soft-delete (deactivate) a user access exception record. Blocked if the record is referenced elsewhere. | [4]None (path param only) | [5]{
+  "message": "User Access Exception deactivated successfully"
+} | [6]1. Valid ID with no dependent references deactivates record, returns 200
+2. Record referenced by a child/foreign key (e.g. item, transaction) returns 409 with a descriptive error
+3. Non-existent ID returns 404
+4. Unauthorized / no delete-permission user returns 403
+
+================================================================================
+SHEET: Transactions - GRN shape=(10, 7)
+================================================================================
+000| [0]API Name | [1]Method | [2]URL | [3]Purpose | [4]Request Payload (example) | [5]Response (example) | [6]Test Cases
+001| [0]List GRN | [1]GET | [2]/api/v1/grn?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20 | [3]Retrieve a paginated, filterable list of GRN documents for the list/grid screen. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 30,
+  "data": [
+    {
+      "docId": 101,
+      "docNo": "GRNP-2026-0045",
+      "docType": "GRN",
+      "docDate": "2026-07-29",
+      "postingDate": "2026-07-29",
+      "locationId": 1
+    }
+  ]
+} | [6]1. status filter (Draft/Pending Approval/Approved/Rejected/Completed) returns matching rows only
+2. fromDate/toDate filters by docDate range
+3. locationId filter narrows to that store
+4. Pagination metadata is correct
+5. Unauthorized request returns 401
+002| [0]Get GRN by ID | [1]GET | [2]/api/v1/grn/{docId} | [3]Retrieve a single GRN document with its header and all detail lines, for view/edit/print. | [4]None (path param only) | [5]{
+  "docId": 101,
+  "docNo": "GRNP-2026-0045",
+  "docType": "GRN",
+  "docDate": "2026-07-29",
+  "postingDate": "2026-07-29",
+  "locationId": 1,
+  "partyId": 4,
+  "invoiceNo": "INV-9981",
+  "invoiceDate": "2026-07-25",
+  "poNo": "PO-2026-0110",
+  "poDate": "2026-07-15",
+  "inspectedByEmpId": 6,
+  "totalOrderedQty": 100,
+  "totalReceivedQty": 100,
+  "totalAcceptedQty": 98,
+  "totalRejectedQty": 2,
+  "totalAmount": 245000.0,
+  "status": "Pending Approval",
+  "remarks": "Partial rejection due to damaged packaging",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 1,
+      "uomId": 1,
+      "orderedQty": 50,
+      "receivedQty": 50,
+      "acceptedQty": 49,
+      "rejectedQty": 1,
+      "availableStock": 34,
+      "amount": 122500.0,
+      "locationId": 1,
+      "remark": "1 unit damaged"
+    }
+  ]
+} | [6]1. Valid docId returns header + lines
+2. Non-existent docId returns 404
+3. User outside their OU access scope requesting a document returns 403
+003| [0]Create GRN | [1]POST | [2]/api/v1/grn | [3]Create a new GRN document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series. | [4]{
+  "docType": "GRN",
+  "docDate": "2026-07-29",
+  "postingDate": "2026-07-29",
+  "locationId": 1,
+  "partyId": 4,
+  "invoiceNo": "INV-9981",
+  "invoiceDate": "2026-07-25",
+  "poNo": "PO-2026-0110",
+  "poDate": "2026-07-15",
+  "inspectedByEmpId": 6,
+  "totalOrderedQty": 100,
+  "totalReceivedQty": 100,
+  "totalAcceptedQty": 98,
+  "totalRejectedQty": 2,
+  "totalAmount": 245000.0,
+  "remarks": "Partial rejection due to damaged packaging",
+  "docSubmitAction": "SUBMIT | SAVE_DRAFT",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 1,
+      "uomId": 1,
+      "orderedQty": 50,
+      "receivedQty": 50,
+      "acceptedQty": 49,
+      "rejectedQty": 1,
+      "availableStock": 34,
+      "amount": 122500.0,
+      "locationId": 1,
+      "remark": "1 unit damaged"
+    }
+  ]
+} | [5]{
+  "docId": 101,
+  "docNo": "GRNP-2026-0045",
+  "docType": "GRN",
+  "docDate": "2026-07-29",
+  "postingDate": "2026-07-29",
+  "locationId": 1,
+  "partyId": 4,
+  "invoiceNo": "INV-9981",
+  "invoiceDate": "2026-07-25",
+  "poNo": "PO-2026-0110",
+  "poDate": "2026-07-15",
+  "inspectedByEmpId": 6,
+  "totalOrderedQty": 100,
+  "totalReceivedQty": 100,
+  "totalAcceptedQty": 98,
+  "totalRejectedQty": 2,
+  "totalAmount": 245000.0,
+  "status": "Pending Approval",
+  "remarks": "Partial rejection due to damaged packaging",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 1,
+      "uomId": 1,
+      "orderedQty": 50,
+      "receivedQty": 50,
+      "acceptedQty": 49,
+      "rejectedQty": 1,
+      "availableStock": 34,
+      "amount": 122500.0,
+      "locationId": 1,
+      "remark": "1 unit damaged"
+    }
+  ],
+  "message": "GRN created successfully"
+} | [6]1. Valid payload with at least one line creates document and returns 201 with generated docNo
+2. Empty lines array returns 400 ('at least one line item required')
+3. Line quantity <= 0 returns 400
+4. Issue/Transfer/Return: requested qty > available stock returns 409 (unless allow_negative_stock)
+5. docSubmitAction=SAVE_DRAFT sets status=Draft; SUBMIT sets status=Pending Approval (or Completed if no approval step)
+6. Unauthorized / no create-permission user returns 403
+004| [0]Update GRN | [1]PUT | [2]/api/v1/grn/{docId} | [3]Update a GRN document while it is still editable (typically status = Draft). | [4]{
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 1,
+      "uomId": 1,
+      "orderedQty": 50,
+      "receivedQty": 50,
+      "acceptedQty": 49,
+      "rejectedQty": 1,
+      "availableStock": 34,
+      "amount": 122500.0,
+      "locationId": 1,
+      "remark": "1 unit damaged"
+    }
+  ],
+  "remarks": "Updated remarks"
+} | [5]{
+  "docId": 101,
+  "docNo": "GRNP-2026-0045",
+  "docType": "GRN",
+  "docDate": "2026-07-29",
+  "postingDate": "2026-07-29",
+  "locationId": 1,
+  "partyId": 4,
+  "invoiceNo": "INV-9981",
+  "invoiceDate": "2026-07-25",
+  "poNo": "PO-2026-0110",
+  "poDate": "2026-07-15",
+  "inspectedByEmpId": 6,
+  "totalOrderedQty": 100,
+  "totalReceivedQty": 100,
+  "totalAcceptedQty": 98,
+  "totalRejectedQty": 2,
+  "totalAmount": 245000.0,
+  "status": "Pending Approval",
+  "remarks": "Partial rejection due to damaged packaging",
+  "message": "GRN updated successfully"
+} | [6]1. Draft document updates successfully and returns 200
+2. Attempt to edit an Approved/Completed document returns 409 ('document is not editable in its current status')
+3. Non-existent docId returns 404
+4. Unauthorized / no edit-permission user returns 403
+005| [0]Delete GRN | [1]DELETE | [2]/api/v1/grn/{docId} | [3]Delete a GRN document. Only permitted while status = Draft; posted documents must be cancelled, not deleted. | [4]None (path param only) | [5]{
+  "message": "GRN deleted successfully"
+} | [6]1. Draft document deletes successfully, returns 200
+2. Attempt to delete a non-Draft document returns 409
+3. Non-existent docId returns 404
+4. Unauthorized / no delete-permission user returns 403
+006| [0]Approve GRN | [1]POST | [2]/api/v1/grn/{docId}/approve | [3]Approve a GRN document that is Pending Approval; stamps approved_by / approved_date and moves status forward. | [4]{
+  "remarks": "Approved \u2014 quantities verified"
+} | [5]{
+  "docId": 101,
+  "status": "Approved",
+  "approvedBy": "Rahul Sharma",
+  "approvedDate": "2026-07-29",
+  "message": "Approved successfully"
+} | [6]1. Document in Pending Approval status approves successfully, returns 200
+2. Document not in an approvable status returns 409
+3. User without approve-permission for this module returns 403
+4. Non-existent docId returns 404
+007| [0]Reject GRN | [1]POST | [2]/api/v1/grn/{docId}/reject | [3]Reject a GRN document that is Pending Approval, with a mandatory reason. | [4]{
+  "reason": "Quantities do not match physical count"
+} | [5]{
+  "docId": 101,
+  "status": "Rejected",
+  "message": "Rejected successfully"
+} | [6]1. Document in Pending Approval status rejects successfully, returns 200
+2. Missing reason returns 400
+3. Document not in an approvable status returns 409
+4. User without reject-permission returns 403
+008| [0]Print GRN | [1]GET | [2]/api/v1/grn/{docId}/print | [3]Generate a printable PDF for a GRN document. | [4]None (path param only) | [5]Binary: application/pdf | [6]1. Valid docId streams a PDF with correct Content-Type
+2. Non-existent docId returns 404
+3. User without print-permission returns 403
+009| [0]Export GRN List | [1]GET | [2]/api/v1/grn/export?format=xlsx&status=&fromDate=&toDate= | [3]Export the filtered GRN list to Excel/CSV. | [4]None (query params only) | [5]Binary: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet | [6]1. Valid filters export matching rows
+2. format=csv returns text/csv
+3. No matching rows exports a file with header row only
+4. User without export-permission returns 403
+
+================================================================================
+SHEET: Transactions - Opening Stock shape=(5, 7)
+================================================================================
+000| [0]API Name | [1]Method | [2]URL | [3]Purpose | [4]Request Payload (example) | [5]Response (example) | [6]Test Cases
+001| [0]List Opening Stock | [1]GET | [2]/api/v1/opening-stock?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&entityId= | [3]Retrieve a paginated, filterable list of Opening Stock documents for the list/grid screen. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 30,
+  "data": [
+    {
+      "docId": 601,
+      "docNo": "OST-2026-0004",
+      "docType": "OPENING_STOCK",
+      "docDate": "2026-04-01",
+      "entityId": 1,
+      "locationId": 1
+    }
+  ]
+} | [6]1. status filter (Draft/Pending Approval/Approved/Rejected/Completed) returns matching rows only
+2. fromDate/toDate filters by docDate range
+3. locationId filter narrows to that store
+4. Pagination metadata is correct
+5. Unauthorized request returns 401
+002| [0]Get Opening Stock by ID | [1]GET | [2]/api/v1/opening-stock/{docId} | [3]Retrieve a single Opening Stock document with its header and all detail lines, for view/edit/print. | [4]None (path param only) | [5]{
+  "docId": 601,
+  "docNo": "OST-2026-0004",
+  "docType": "OPENING_STOCK",
+  "docDate": "2026-04-01",
+  "entityId": 1,
+  "locationId": 1,
+  "initiatedByEmpId": 3,
+  "status": "Completed",
+  "remarks": "FY2026-27 opening balance",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 8,
+      "qty": 120,
+      "rate": 450.0,
+      "mrp": 500.0,
+      "batchLotNo": "B-2026-01",
+      "mfgDate": "2026-01-15",
+      "expiryDate": "2027-01-15",
+      "locationBin": "Rack A-12-B3",
+      "remark": ""
+    }
+  ]
+} | [6]1. Valid docId returns header + lines
+2. Non-existent docId returns 404
+3. User outside their OU access scope requesting a document returns 403
+003| [0]Create Opening Stock | [1]POST | [2]/api/v1/opening-stock | [3]Create a new Opening Stock document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series. | [4]{
+  "docType": "OPENING_STOCK",
+  "docDate": "2026-04-01",
+  "entityId": 1,
+  "locationId": 1,
+  "initiatedByEmpId": 3,
+  "remarks": "FY2026-27 opening balance",
+  "docSubmitAction": "SUBMIT | SAVE_DRAFT",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 8,
+      "qty": 120,
+      "rate": 450.0,
+      "mrp": 500.0,
+      "batchLotNo": "B-2026-01",
+      "mfgDate": "2026-01-15",
+      "expiryDate": "2027-01-15",
+      "locationBin": "Rack A-12-B3",
+      "remark": ""
+    }
+  ]
+} | [5]{
+  "docId": 601,
+  "docNo": "OST-2026-0004",
+  "docType": "OPENING_STOCK",
+  "docDate": "2026-04-01",
+  "entityId": 1,
+  "locationId": 1,
+  "initiatedByEmpId": 3,
+  "status": "Completed",
+  "remarks": "FY2026-27 opening balance",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 8,
+      "qty": 120,
+      "rate": 450.0,
+      "mrp": 500.0,
+      "batchLotNo": "B-2026-01",
+      "mfgDate": "2026-01-15",
+      "expiryDate": "2027-01-15",
+      "locationBin": "Rack A-12-B3",
+      "remark": ""
+    }
+  ],
+  "message": "Opening Stock created successfully"
+} | [6]1. Valid payload with at least one line creates document and returns 201 with generated docNo
+2. Empty lines array returns 400 ('at least one line item required')
+3. Line quantity <= 0 returns 400
+4. Issue/Transfer/Return: requested qty > available stock returns 409 (unless allow_negative_stock)
+5. docSubmitAction=SAVE_DRAFT sets status=Draft; SUBMIT sets status=Pending Approval (or Completed if no approval step)
+6. Unauthorized / no create-permission user returns 403
+004| [0]Update Opening Stock | [1]PUT | [2]/api/v1/opening-stock/{docId} | [3]Update a Opening Stock document while it is still editable (typically status = Draft). | [4]{
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 8,
+      "qty": 120,
+      "rate": 450.0,
+      "mrp": 500.0,
+      "batchLotNo": "B-2026-01",
+      "mfgDate": "2026-01-15",
+      "expiryDate": "2027-01-15",
+      "locationBin": "Rack A-12-B3",
+      "remark": ""
+    }
+  ],
+  "remarks": "Updated remarks"
+} | [5]{
+  "docId": 601,
+  "docNo": "OST-2026-0004",
+  "docType": "OPENING_STOCK",
+  "docDate": "2026-04-01",
+  "entityId": 1,
+  "locationId": 1,
+  "initiatedByEmpId": 3,
+  "status": "Completed",
+  "remarks": "FY2026-27 opening balance",
+  "message": "Opening Stock updated successfully"
+} | [6]1. Draft document updates successfully and returns 200
+2. Attempt to edit an Approved/Completed document returns 409 ('document is not editable in its current status')
+3. Non-existent docId returns 404
+4. Unauthorized / no edit-permission user returns 403
+
+================================================================================
+SHEET: Transactions - Material Issue shape=(7, 7)
+================================================================================
+000| [0]API Name | [1]Method | [2]URL | [3]Purpose | [4]Request Payload (example) | [5]Response (example) | [6]Test Cases
+001| [0]List Material Issue | [1]GET | [2]/api/v1/material-issues?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&refTxnHeaderId= | [3]Retrieve a paginated, filterable list of Material Issue documents for the list/grid screen. | [4]None (query params only) | [5]{
+  "page": 1,
+  "pageSize": 20,
+  "totalRecords": 30,
+  "data": [
+    {
+      "docId": 501,
+      "docNo": "MI-2026-0075",
+      "docType": "MATERIAL_ISSUE",
+      "docDate": "2026-07-29",
+      "requiredByDate": "2026-08-02",
+      "toLocationId": 2
+    }
+  ]
+} | [6]1. status filter (Draft/Pending Approval/Approved/Rejected/Completed) returns matching rows only
+2. fromDate/toDate filters by docDate range
+3. locationId filter narrows to that store
+4. Pagination metadata is correct
+5. Unauthorized request returns 401
+002| [0]Get Material Issue by ID | [1]GET | [2]/api/v1/material-issues/{docId} | [3]Retrieve a single Material Issue document with its header and all detail lines, for view/edit/print. | [4]None (path param only) | [5]{
+  "docId": 501,
+  "docNo": "MI-2026-0075",
+  "docType": "MATERIAL_ISSUE",
+  "docDate": "2026-07-29",
+  "requiredByDate": "2026-08-02",
+  "toLocationId": 2,
+  "departmentId": 3,
+  "refTxnHeaderId": 401,
+  "initiatedByEmpId": 14,
+  "receivedByEmpId": 14,
+  "receivedDate": "2026-07-29",
+  "status": "Completed",
+  "remarks": "Issued against MR-2026-0088",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 12,
+      "uomId": 1,
+      "requestedQty": 5,
+      "availableStock": 35,
+      "locationId": 2,
+      "remark": ""
+    }
+  ]
+} | [6]1. Valid docId returns header + lines
+2. Non-existent docId returns 404
+3. User outside their OU access scope requesting a document returns 403
+003| [0]Create Material Issue | [1]POST | [2]/api/v1/material-issues | [3]Create a new Material Issue document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series. | [4]{
+  "docType": "MATERIAL_ISSUE",
+  "docDate": "2026-07-29",
+  "requiredByDate": "2026-08-02",
+  "toLocationId": 2,
+  "departmentId": 3,
+  "refTxnHeaderId": 401,
+  "initiatedByEmpId": 14,
+  "receivedByEmpId": 14,
+  "receivedDate": "2026-07-29",
+  "remarks": "Issued against MR-2026-0088",
+  "docSubmitAction": "SUBMIT | SAVE_DRAFT",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 12,
+      "uomId": 1,
+      "requestedQty": 5,
+      "availableStock": 35,
+      "locationId": 2,
+      "remark": ""
+    }
+  ]
+} | [5]{
+  "docId": 501,
+  "docNo": "MI-2026-0075",
+  "docType": "MATERIAL_ISSUE",
+  "docDate": "2026-07-29",
+  "requiredByDate": "2026-08-02",
+  "toLocationId": 2,
+  "departmentId": 3,
+  "refTxnHeaderId": 401,
+  "initiatedByEmpId": 14,
+  "receivedByEmpId": 14,
+  "receivedDate": "2026-07-29",
+  "status": "Completed",
+  "remarks": "Issued against MR-2026-0088",
+  "lines": [
+    {
+      "srNo": 1,
+      "itemId": 12,
+      "uomId": 1,
+      "requestedQty": 5,
+      "availableStock": 35,
+      "locationId": 2,
+      "remark": ""
+    }
+  ],
+  "message": "Material Issue created successfully"
+} | [6]1. Valid payload with at least one line creates document and returns 201 with generated docNo
+2. Empty lines array returns 400 ('at least one line item required')
+3. Line quantity <= 0 returns 400
+4. Issue/Transfer/Return: requested qty > available stock returns 409 (unless allow_negative_stock)
+5. docSubmitAction=SAVE_DRAFT sets status=Draft; SUBMIT sets status=Pending Approval (or Completed if no approval step)
+6. Unauthorized / no create-permission user returns 403
+004| [0]Delete Material Issue | [1]DELETE | [2]/api/v1/material-issues/{docId} | [3]Delete a Material Issue document. Only permitted while status = Draft; posted documents must be cancelled, not deleted. | [4]None (path param only) | [5]{
+  "message": "Material Issue deleted successfully"
+} | [6]1. Draft document deletes successfully, returns 200
+2. Attempt to delete a non-Draft document returns 409
+3. Non-existent docId returns 404
+4. Unauthorized / no delete-permission user returns 403
+005| [0]Print Material Issue | [1]GET | [2]/api/v1/material-issues/{docId}/print | [3]Generate a printable PDF for a Material Issue document. | [4]None (path param only) | [5]Binary: application/pdf | [6]1. Valid docId streams a PDF with correct Content-Type
+2. Non-existent docId returns 404
+3. User without print-permission returns 403
+006| [0]Get Pending Requisitions for Issue | [1]GET | [2]/api/v1/material-issues/pending-requisitions?locationId= | [3]Return Approved Material Requisitions not yet fully issued, to populate the 'issue against requisition' picker. | [4]None (query params only) | [5][
+  {
+    "docId": 401,
+    "docNo": "MR-2026-0088",
+    "requiredByDate": "2026-08-02",
+    "pendingLines": 1
+  }
+] | [6]1. Returns only Approved, not-fully-issued requisitions
+2. locationId filters to that deliver-to location
+3. Fully issued requisitions are excluded

@@ -1,0 +1,2090 @@
+{
+  "POST /api/v1/auth/login": {
+    "sheet": "Auth",
+    "apiName": "Login",
+    "method": "POST",
+    "path": "/api/v1/auth/login",
+    "requestFields": {
+      "loginId": "str",
+      "password": "str"
+    },
+    "responseFields": {}
+  },
+  "POST /api/v1/auth/logout": {
+    "sheet": "Auth",
+    "apiName": "Logout",
+    "method": "POST",
+    "path": "/api/v1/auth/logout",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/auth/me": {
+    "sheet": "Auth",
+    "apiName": "Get Current User & Permissions",
+    "method": "GET",
+    "path": "/api/v1/auth/me",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/auth/change-password": {
+    "sheet": "Auth",
+    "apiName": "Change Password",
+    "method": "POST",
+    "path": "/api/v1/auth/change-password",
+    "requestFields": {
+      "oldPassword": "str",
+      "newPassword": "str",
+      "confirmPassword": "str"
+    },
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "POST /api/v1/auth/forgot-password": {
+    "sheet": "Auth",
+    "apiName": "Forgot Password",
+    "method": "POST",
+    "path": "/api/v1/auth/forgot-password",
+    "requestFields": {
+      "loginId": "str"
+    },
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/units": {
+    "sheet": "Masters - Setup",
+    "apiName": "List Unit",
+    "method": "GET",
+    "path": "/api/v1/units",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/units/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Get Unit by ID",
+    "method": "GET",
+    "path": "/api/v1/units/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "unitId": "int",
+      "unitCode": "str",
+      "unitName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/units": {
+    "sheet": "Masters - Setup",
+    "apiName": "Create Unit",
+    "method": "POST",
+    "path": "/api/v1/units",
+    "requestFields": {
+      "unitId": "int",
+      "unitCode": "str",
+      "unitName": "str",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "unitId": "int",
+      "unitCode": "str",
+      "unitName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/units/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Update Unit",
+    "method": "PUT",
+    "path": "/api/v1/units/{id}",
+    "requestFields": {
+      "unitId": "int",
+      "unitCode": "str",
+      "unitName": "str",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "unitId": "int",
+      "unitCode": "str",
+      "unitName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/units/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Delete / Deactivate Unit",
+    "method": "DELETE",
+    "path": "/api/v1/units/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/categories": {
+    "sheet": "Masters - Setup",
+    "apiName": "List Category",
+    "method": "GET",
+    "path": "/api/v1/categories",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/categories/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Get Category by ID",
+    "method": "GET",
+    "path": "/api/v1/categories/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "categoryId": "int",
+      "categoryCode": "str",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/categories": {
+    "sheet": "Masters - Setup",
+    "apiName": "Create Category",
+    "method": "POST",
+    "path": "/api/v1/categories",
+    "requestFields": {
+      "categoryId": "int",
+      "categoryCode": "str",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "categoryId": "int",
+      "categoryCode": "str",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/categories/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Update Category",
+    "method": "PUT",
+    "path": "/api/v1/categories/{id}",
+    "requestFields": {
+      "categoryId": "int",
+      "categoryCode": "str",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "categoryId": "int",
+      "categoryCode": "str",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/categories/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Delete / Deactivate Category",
+    "method": "DELETE",
+    "path": "/api/v1/categories/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/subcategories": {
+    "sheet": "Masters - Setup",
+    "apiName": "List Sub-Category",
+    "method": "GET",
+    "path": "/api/v1/subcategories",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/subcategories/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Get Sub-Category by ID",
+    "method": "GET",
+    "path": "/api/v1/subcategories/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "subcategoryId": "int",
+      "subcategoryCode": "str",
+      "subcategoryName": "str",
+      "categoryId": "int",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/subcategories": {
+    "sheet": "Masters - Setup",
+    "apiName": "Create Sub-Category",
+    "method": "POST",
+    "path": "/api/v1/subcategories",
+    "requestFields": {
+      "subcategoryId": "int",
+      "subcategoryCode": "str",
+      "subcategoryName": "str",
+      "categoryId": "int",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "subcategoryId": "int",
+      "subcategoryCode": "str",
+      "subcategoryName": "str",
+      "categoryId": "int",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/subcategories/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Update Sub-Category",
+    "method": "PUT",
+    "path": "/api/v1/subcategories/{id}",
+    "requestFields": {
+      "subcategoryId": "int",
+      "subcategoryCode": "str",
+      "subcategoryName": "str",
+      "categoryId": "int",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "subcategoryId": "int",
+      "subcategoryCode": "str",
+      "subcategoryName": "str",
+      "categoryId": "int",
+      "categoryName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/subcategories/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Delete / Deactivate Sub-Category",
+    "method": "DELETE",
+    "path": "/api/v1/subcategories/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/categories/{categoryId}/subcategories": {
+    "sheet": "Masters - Setup",
+    "apiName": "Get Sub-Categories by Category",
+    "method": "GET",
+    "path": "/api/v1/categories/{categoryId}/subcategories",
+    "requestFields": {},
+    "responseFields": {
+      "subcategoryId": "int",
+      "subcategoryCode": "str",
+      "subcategoryName": "str"
+    }
+  },
+  "GET /api/v1/general-types": {
+    "sheet": "Masters - Setup",
+    "apiName": "List General Type",
+    "method": "GET",
+    "path": "/api/v1/general-types",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/general-types/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Get General Type by ID",
+    "method": "GET",
+    "path": "/api/v1/general-types/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "gentypeId": "int",
+      "typeCode": "str",
+      "typeName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/general-types": {
+    "sheet": "Masters - Setup",
+    "apiName": "Create General Type",
+    "method": "POST",
+    "path": "/api/v1/general-types",
+    "requestFields": {
+      "gentypeId": "int",
+      "typeCode": "str",
+      "typeName": "str",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "gentypeId": "int",
+      "typeCode": "str",
+      "typeName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/general-types/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Update General Type",
+    "method": "PUT",
+    "path": "/api/v1/general-types/{id}",
+    "requestFields": {
+      "gentypeId": "int",
+      "typeCode": "str",
+      "typeName": "str",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "gentypeId": "int",
+      "typeCode": "str",
+      "typeName": "str",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/general-types/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Delete / Deactivate General Type",
+    "method": "DELETE",
+    "path": "/api/v1/general-types/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/general-masters": {
+    "sheet": "Masters - Setup",
+    "apiName": "List General Master Value",
+    "method": "GET",
+    "path": "/api/v1/general-masters",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/general-masters/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Get General Master Value by ID",
+    "method": "GET",
+    "path": "/api/v1/general-masters/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "genmasterId": "int",
+      "valueCode": "str",
+      "valueName": "str",
+      "gentypeId": "int",
+      "sortOrder": "int",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/general-masters": {
+    "sheet": "Masters - Setup",
+    "apiName": "Create General Master Value",
+    "method": "POST",
+    "path": "/api/v1/general-masters",
+    "requestFields": {
+      "genmasterId": "int",
+      "valueCode": "str",
+      "valueName": "str",
+      "gentypeId": "int",
+      "sortOrder": "int",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "genmasterId": "int",
+      "valueCode": "str",
+      "valueName": "str",
+      "gentypeId": "int",
+      "sortOrder": "int",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/general-masters/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Update General Master Value",
+    "method": "PUT",
+    "path": "/api/v1/general-masters/{id}",
+    "requestFields": {
+      "genmasterId": "int",
+      "valueCode": "str",
+      "valueName": "str",
+      "gentypeId": "int",
+      "sortOrder": "int",
+      "desc": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "genmasterId": "int",
+      "valueCode": "str",
+      "valueName": "str",
+      "gentypeId": "int",
+      "sortOrder": "int",
+      "desc": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/general-masters/{id}": {
+    "sheet": "Masters - Setup",
+    "apiName": "Delete / Deactivate General Master Value",
+    "method": "DELETE",
+    "path": "/api/v1/general-masters/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/general-types/{typeCode}/values": {
+    "sheet": "Masters - Setup",
+    "apiName": "Get General Master Values by Type",
+    "method": "GET",
+    "path": "/api/v1/general-types/{typeCode}/values",
+    "requestFields": {},
+    "responseFields": {
+      "genmasterId": "int",
+      "valueCode": "str",
+      "valueName": "str",
+      "sortOrder": "int"
+    }
+  },
+  "GET /api/v1/entities": {
+    "sheet": "Masters - Organization",
+    "apiName": "List Entity (Organization)",
+    "method": "GET",
+    "path": "/api/v1/entities",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/entities/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Get Entity (Organization) by ID",
+    "method": "GET",
+    "path": "/api/v1/entities/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "entityId": "int",
+      "entityCode": "str",
+      "entityName": "str",
+      "shortName": "str",
+      "gstin": "str",
+      "panNo": "str",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/entities": {
+    "sheet": "Masters - Organization",
+    "apiName": "Create Entity (Organization)",
+    "method": "POST",
+    "path": "/api/v1/entities",
+    "requestFields": {
+      "entityId": "int",
+      "entityCode": "str",
+      "entityName": "str",
+      "shortName": "str",
+      "gstin": "str",
+      "panNo": "str",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "entityId": "int",
+      "entityCode": "str",
+      "entityName": "str",
+      "shortName": "str",
+      "gstin": "str",
+      "panNo": "str",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/entities/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Update Entity (Organization)",
+    "method": "PUT",
+    "path": "/api/v1/entities/{id}",
+    "requestFields": {
+      "entityId": "int",
+      "entityCode": "str",
+      "entityName": "str",
+      "shortName": "str",
+      "gstin": "str",
+      "panNo": "str",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "entityId": "int",
+      "entityCode": "str",
+      "entityName": "str",
+      "shortName": "str",
+      "gstin": "str",
+      "panNo": "str",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/entities/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Delete / Deactivate Entity (Organization)",
+    "method": "DELETE",
+    "path": "/api/v1/entities/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/business-units": {
+    "sheet": "Masters - Organization",
+    "apiName": "List Operating Unit (Business Unit)",
+    "method": "GET",
+    "path": "/api/v1/business-units",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/business-units/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Get Operating Unit (Business Unit) by ID",
+    "method": "GET",
+    "path": "/api/v1/business-units/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "buId": "int",
+      "buCode": "str",
+      "buName": "str",
+      "entityId": "int",
+      "buType": "str",
+      "managerEmpId": "int",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/business-units": {
+    "sheet": "Masters - Organization",
+    "apiName": "Create Operating Unit (Business Unit)",
+    "method": "POST",
+    "path": "/api/v1/business-units",
+    "requestFields": {
+      "buId": "int",
+      "buCode": "str",
+      "buName": "str",
+      "entityId": "int",
+      "buType": "str",
+      "managerEmpId": "int",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "buId": "int",
+      "buCode": "str",
+      "buName": "str",
+      "entityId": "int",
+      "buType": "str",
+      "managerEmpId": "int",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/business-units/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Update Operating Unit (Business Unit)",
+    "method": "PUT",
+    "path": "/api/v1/business-units/{id}",
+    "requestFields": {
+      "buId": "int",
+      "buCode": "str",
+      "buName": "str",
+      "entityId": "int",
+      "buType": "str",
+      "managerEmpId": "int",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "buId": "int",
+      "buCode": "str",
+      "buName": "str",
+      "entityId": "int",
+      "buType": "str",
+      "managerEmpId": "int",
+      "city": "str",
+      "state": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/business-units/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Delete / Deactivate Operating Unit (Business Unit)",
+    "method": "DELETE",
+    "path": "/api/v1/business-units/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/locations": {
+    "sheet": "Masters - Organization",
+    "apiName": "List Location (Store)",
+    "method": "GET",
+    "path": "/api/v1/locations",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/locations/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Get Location (Store) by ID",
+    "method": "GET",
+    "path": "/api/v1/locations/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "locationId": "int",
+      "locationCode": "str",
+      "locationName": "str",
+      "locationType": "str",
+      "entityId": "int",
+      "buId": "int",
+      "managerEmpId": "int",
+      "city": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/locations": {
+    "sheet": "Masters - Organization",
+    "apiName": "Create Location (Store)",
+    "method": "POST",
+    "path": "/api/v1/locations",
+    "requestFields": {
+      "locationId": "int",
+      "locationCode": "str",
+      "locationName": "str",
+      "locationType": "str",
+      "entityId": "int",
+      "buId": "int",
+      "managerEmpId": "int",
+      "city": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "locationId": "int",
+      "locationCode": "str",
+      "locationName": "str",
+      "locationType": "str",
+      "entityId": "int",
+      "buId": "int",
+      "managerEmpId": "int",
+      "city": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/locations/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Update Location (Store)",
+    "method": "PUT",
+    "path": "/api/v1/locations/{id}",
+    "requestFields": {
+      "locationId": "int",
+      "locationCode": "str",
+      "locationName": "str",
+      "locationType": "str",
+      "entityId": "int",
+      "buId": "int",
+      "managerEmpId": "int",
+      "city": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "locationId": "int",
+      "locationCode": "str",
+      "locationName": "str",
+      "locationType": "str",
+      "entityId": "int",
+      "buId": "int",
+      "managerEmpId": "int",
+      "city": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/locations/{id}": {
+    "sheet": "Masters - Organization",
+    "apiName": "Delete / Deactivate Location (Store)",
+    "method": "DELETE",
+    "path": "/api/v1/locations/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/items": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "List Item / Asset",
+    "method": "GET",
+    "path": "/api/v1/items",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/items/{id}": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Get Item / Asset by ID",
+    "method": "GET",
+    "path": "/api/v1/items/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "itemId": "int",
+      "itemCode": "str",
+      "itemName": "str",
+      "itemType": "str",
+      "categoryId": "int",
+      "subcategoryId": "int",
+      "uomId": "int",
+      "standardCost": "float",
+      "assetType": "str",
+      "makeBrand": "str",
+      "model": "str",
+      "serialNo": "str",
+      "isSerialized": "bool",
+      "isReturnable": "bool",
+      "assignedToEmpId": "NoneType",
+      "currentLocationId": "int",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/items": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Create Item / Asset",
+    "method": "POST",
+    "path": "/api/v1/items",
+    "requestFields": {
+      "itemId": "int",
+      "itemCode": "str",
+      "itemName": "str",
+      "itemType": "str",
+      "categoryId": "int",
+      "subcategoryId": "int",
+      "uomId": "int",
+      "standardCost": "float",
+      "assetType": "str",
+      "makeBrand": "str",
+      "model": "str",
+      "serialNo": "str",
+      "isSerialized": "bool",
+      "isReturnable": "bool",
+      "assignedToEmpId": "NoneType",
+      "currentLocationId": "int",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "itemId": "int",
+      "itemCode": "str",
+      "itemName": "str",
+      "itemType": "str",
+      "categoryId": "int",
+      "subcategoryId": "int",
+      "uomId": "int",
+      "standardCost": "float",
+      "assetType": "str",
+      "makeBrand": "str",
+      "model": "str",
+      "serialNo": "str",
+      "isSerialized": "bool",
+      "isReturnable": "bool",
+      "assignedToEmpId": "NoneType",
+      "currentLocationId": "int",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/items/{id}": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Update Item / Asset",
+    "method": "PUT",
+    "path": "/api/v1/items/{id}",
+    "requestFields": {
+      "itemId": "int",
+      "itemCode": "str",
+      "itemName": "str",
+      "itemType": "str",
+      "categoryId": "int",
+      "subcategoryId": "int",
+      "uomId": "int",
+      "standardCost": "float",
+      "assetType": "str",
+      "makeBrand": "str",
+      "model": "str",
+      "serialNo": "str",
+      "isSerialized": "bool",
+      "isReturnable": "bool",
+      "assignedToEmpId": "NoneType",
+      "currentLocationId": "int",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "itemId": "int",
+      "itemCode": "str",
+      "itemName": "str",
+      "itemType": "str",
+      "categoryId": "int",
+      "subcategoryId": "int",
+      "uomId": "int",
+      "standardCost": "float",
+      "assetType": "str",
+      "makeBrand": "str",
+      "model": "str",
+      "serialNo": "str",
+      "isSerialized": "bool",
+      "isReturnable": "bool",
+      "assignedToEmpId": "NoneType",
+      "currentLocationId": "int",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/items/{id}": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Delete / Deactivate Item / Asset",
+    "method": "DELETE",
+    "path": "/api/v1/items/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/items/{itemId}/stock-ledger": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Get Item Stock Ledger",
+    "method": "GET",
+    "path": "/api/v1/items/{itemId}/stock-ledger",
+    "requestFields": {},
+    "responseFields": {
+      "date": "str",
+      "docType": "str",
+      "docNo": "str",
+      "inQty": "int",
+      "outQty": "int",
+      "balanceQty": "int"
+    }
+  },
+  "POST /api/v1/items/{itemId}/image": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Upload Item Image",
+    "method": "POST",
+    "path": "/api/v1/items/{itemId}/image",
+    "requestFields": {},
+    "responseFields": {
+      "itemId": "int",
+      "imageUrl": "str"
+    }
+  },
+  "GET /api/v1/vendors": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "List Vendor",
+    "method": "GET",
+    "path": "/api/v1/vendors",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/vendors/{id}": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Get Vendor by ID",
+    "method": "GET",
+    "path": "/api/v1/vendors/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "vendorId": "int",
+      "vendorCode": "str",
+      "vendorName": "str",
+      "partyType": "str",
+      "gstin": "str",
+      "rating": "int",
+      "city": "str",
+      "phone": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/vendors": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Create Vendor",
+    "method": "POST",
+    "path": "/api/v1/vendors",
+    "requestFields": {
+      "vendorId": "int",
+      "vendorCode": "str",
+      "vendorName": "str",
+      "partyType": "str",
+      "gstin": "str",
+      "rating": "int",
+      "city": "str",
+      "phone": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "vendorId": "int",
+      "vendorCode": "str",
+      "vendorName": "str",
+      "partyType": "str",
+      "gstin": "str",
+      "rating": "int",
+      "city": "str",
+      "phone": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/vendors/{id}": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Update Vendor",
+    "method": "PUT",
+    "path": "/api/v1/vendors/{id}",
+    "requestFields": {
+      "vendorId": "int",
+      "vendorCode": "str",
+      "vendorName": "str",
+      "partyType": "str",
+      "gstin": "str",
+      "rating": "int",
+      "city": "str",
+      "phone": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "vendorId": "int",
+      "vendorCode": "str",
+      "vendorName": "str",
+      "partyType": "str",
+      "gstin": "str",
+      "rating": "int",
+      "city": "str",
+      "phone": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/vendors/{id}": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Delete / Deactivate Vendor",
+    "method": "DELETE",
+    "path": "/api/v1/vendors/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/stock": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "List Stock Balances",
+    "method": "GET",
+    "path": "/api/v1/stock",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/stock/{itemId}/{locationId}": {
+    "sheet": "Masters - Item & Vendor",
+    "apiName": "Get Stock Balance for Item @ Location",
+    "method": "GET",
+    "path": "/api/v1/stock/{itemId}/{locationId}",
+    "requestFields": {},
+    "responseFields": {
+      "itemId": "int",
+      "locationId": "int",
+      "currentQty": "int",
+      "reservedQty": "int",
+      "availableQty": "int",
+      "batchLotNo": "NoneType"
+    }
+  },
+  "GET /api/v1/menus": {
+    "sheet": "Masters - Security",
+    "apiName": "Get Menu Tree",
+    "method": "GET",
+    "path": "/api/v1/menus",
+    "requestFields": {},
+    "responseFields": {
+      "menuId": "int",
+      "menuCode": "str",
+      "menuLabel": "str",
+      "menuGroup": "str",
+      "sortOrder": "int",
+      "docType": "str",
+      "supportsView": "bool",
+      "supportsCreate": "bool",
+      "supportsApprove": "bool"
+    }
+  },
+  "GET /api/v1/roles": {
+    "sheet": "Masters - Security",
+    "apiName": "List Role",
+    "method": "GET",
+    "path": "/api/v1/roles",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/roles/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Get Role by ID",
+    "method": "GET",
+    "path": "/api/v1/roles/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "roleId": "int",
+      "roleCode": "str",
+      "roleName": "str",
+      "roleLevel": "int",
+      "desc": "str",
+      "isSystemRole": "bool",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/roles": {
+    "sheet": "Masters - Security",
+    "apiName": "Create Role",
+    "method": "POST",
+    "path": "/api/v1/roles",
+    "requestFields": {
+      "roleId": "int",
+      "roleCode": "str",
+      "roleName": "str",
+      "roleLevel": "int",
+      "desc": "str",
+      "isSystemRole": "bool",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "roleId": "int",
+      "roleCode": "str",
+      "roleName": "str",
+      "roleLevel": "int",
+      "desc": "str",
+      "isSystemRole": "bool",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/roles/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Update Role",
+    "method": "PUT",
+    "path": "/api/v1/roles/{id}",
+    "requestFields": {
+      "roleId": "int",
+      "roleCode": "str",
+      "roleName": "str",
+      "roleLevel": "int",
+      "desc": "str",
+      "isSystemRole": "bool",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "roleId": "int",
+      "roleCode": "str",
+      "roleName": "str",
+      "roleLevel": "int",
+      "desc": "str",
+      "isSystemRole": "bool",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/roles/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Delete / Deactivate Role",
+    "method": "DELETE",
+    "path": "/api/v1/roles/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/roles/{roleId}/permissions": {
+    "sheet": "Masters - Security",
+    "apiName": "Get Role Permissions",
+    "method": "GET",
+    "path": "/api/v1/roles/{roleId}/permissions",
+    "requestFields": {},
+    "responseFields": {
+      "module": "str",
+      "canView": "bool",
+      "canCreate": "bool",
+      "canEdit": "bool",
+      "canDelete": "bool",
+      "canApprove": "bool",
+      "canReject": "bool",
+      "canPrint": "bool",
+      "canExport": "bool"
+    }
+  },
+  "PUT /api/v1/roles/{roleId}/permissions": {
+    "sheet": "Masters - Security",
+    "apiName": "Save Role Permissions",
+    "method": "PUT",
+    "path": "/api/v1/roles/{roleId}/permissions",
+    "requestFields": {
+      "module": "str",
+      "canView": "bool",
+      "canCreate": "bool",
+      "canEdit": "bool",
+      "canDelete": "bool",
+      "canApprove": "bool",
+      "canReject": "bool",
+      "canPrint": "bool",
+      "canExport": "bool"
+    },
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/employees": {
+    "sheet": "Masters - Security",
+    "apiName": "List Employee",
+    "method": "GET",
+    "path": "/api/v1/employees",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/employees/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Get Employee by ID",
+    "method": "GET",
+    "path": "/api/v1/employees/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "employeeId": "int",
+      "employeeCode": "str",
+      "firstName": "str",
+      "lastName": "str",
+      "email": "str",
+      "phone": "str",
+      "designation": "str",
+      "department": "str",
+      "roleId": "int",
+      "baseLocationId": "int",
+      "reportingToEmpId": "NoneType",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/employees": {
+    "sheet": "Masters - Security",
+    "apiName": "Create Employee",
+    "method": "POST",
+    "path": "/api/v1/employees",
+    "requestFields": {
+      "employeeId": "int",
+      "employeeCode": "str",
+      "firstName": "str",
+      "lastName": "str",
+      "email": "str",
+      "phone": "str",
+      "designation": "str",
+      "department": "str",
+      "roleId": "int",
+      "baseLocationId": "int",
+      "reportingToEmpId": "NoneType",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "employeeId": "int",
+      "employeeCode": "str",
+      "firstName": "str",
+      "lastName": "str",
+      "email": "str",
+      "phone": "str",
+      "designation": "str",
+      "department": "str",
+      "roleId": "int",
+      "baseLocationId": "int",
+      "reportingToEmpId": "NoneType",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/employees/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Update Employee",
+    "method": "PUT",
+    "path": "/api/v1/employees/{id}",
+    "requestFields": {
+      "employeeId": "int",
+      "employeeCode": "str",
+      "firstName": "str",
+      "lastName": "str",
+      "email": "str",
+      "phone": "str",
+      "designation": "str",
+      "department": "str",
+      "roleId": "int",
+      "baseLocationId": "int",
+      "reportingToEmpId": "NoneType",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "employeeId": "int",
+      "employeeCode": "str",
+      "firstName": "str",
+      "lastName": "str",
+      "email": "str",
+      "phone": "str",
+      "designation": "str",
+      "department": "str",
+      "roleId": "int",
+      "baseLocationId": "int",
+      "reportingToEmpId": "NoneType",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/employees/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Delete / Deactivate Employee",
+    "method": "DELETE",
+    "path": "/api/v1/employees/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/employees/{employeeId}/subordinates": {
+    "sheet": "Masters - Security",
+    "apiName": "Get Employee Subordinates",
+    "method": "GET",
+    "path": "/api/v1/employees/{employeeId}/subordinates",
+    "requestFields": {},
+    "responseFields": {
+      "employeeId": "int",
+      "employeeCode": "str",
+      "firstName": "str",
+      "designation": "str"
+    }
+  },
+  "GET /api/v1/users": {
+    "sheet": "Masters - Security",
+    "apiName": "List User Login",
+    "method": "GET",
+    "path": "/api/v1/users",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/users/{userId}": {
+    "sheet": "Masters - Security",
+    "apiName": "Get User Login by ID",
+    "method": "GET",
+    "path": "/api/v1/users/{userId}",
+    "requestFields": {},
+    "responseFields": {
+      "userId": "int",
+      "employeeId": "int",
+      "loginId": "str",
+      "roleId": "int",
+      "accountStatus": "str",
+      "entityId": "int",
+      "buAccessScope": "str",
+      "locationId": "int",
+      "forcePasswordReset": "bool",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/users": {
+    "sheet": "Masters - Security",
+    "apiName": "Create User Login",
+    "method": "POST",
+    "path": "/api/v1/users",
+    "requestFields": {
+      "employeeId": "int",
+      "loginId": "str",
+      "roleId": "int",
+      "accountStatus": "str",
+      "entityId": "int",
+      "buAccessScope": "str",
+      "locationId": "int",
+      "forcePasswordReset": "bool",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "userId": "int",
+      "employeeId": "int",
+      "loginId": "str",
+      "roleId": "int",
+      "accountStatus": "str",
+      "entityId": "int",
+      "buAccessScope": "str",
+      "locationId": "int",
+      "forcePasswordReset": "bool",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/users/{userId}": {
+    "sheet": "Masters - Security",
+    "apiName": "Update User Login",
+    "method": "PUT",
+    "path": "/api/v1/users/{userId}",
+    "requestFields": {
+      "employeeId": "int",
+      "loginId": "str",
+      "roleId": "int",
+      "accountStatus": "str",
+      "entityId": "int",
+      "buAccessScope": "str",
+      "locationId": "int",
+      "forcePasswordReset": "bool",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "userId": "int",
+      "employeeId": "int",
+      "loginId": "str",
+      "roleId": "int",
+      "accountStatus": "str",
+      "entityId": "int",
+      "buAccessScope": "str",
+      "locationId": "int",
+      "forcePasswordReset": "bool",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/users/{userId}": {
+    "sheet": "Masters - Security",
+    "apiName": "Delete / Deactivate User Login",
+    "method": "DELETE",
+    "path": "/api/v1/users/{userId}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "POST /api/v1/users/{userId}/reset-password": {
+    "sheet": "Masters - Security",
+    "apiName": "Reset User Password (Admin)",
+    "method": "POST",
+    "path": "/api/v1/users/{userId}/reset-password",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "POST /api/v1/users/{userId}/lock-status": {
+    "sheet": "Masters - Security",
+    "apiName": "Lock / Unlock User Account",
+    "method": "POST",
+    "path": "/api/v1/users/{userId}/lock-status",
+    "requestFields": {
+      "action": "str"
+    },
+    "responseFields": {
+      "userId": "int",
+      "accountStatus": "str",
+      "message": "str"
+    }
+  },
+  "GET /api/v1/users/{userId}/ou-access": {
+    "sheet": "Masters - Security",
+    "apiName": "Get / Set User OU Access",
+    "method": "GET",
+    "path": "/api/v1/users/{userId}/ou-access",
+    "requestFields": {
+      "buIds": "array"
+    },
+    "responseFields": {
+      "userId": "int",
+      "buAccessScope": "str",
+      "buIds": "array"
+    }
+  },
+  "GET /api/v1/access-exceptions": {
+    "sheet": "Masters - Security",
+    "apiName": "List User Access Exception",
+    "method": "GET",
+    "path": "/api/v1/access-exceptions",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/access-exceptions/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Get User Access Exception by ID",
+    "method": "GET",
+    "path": "/api/v1/access-exceptions/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "exceptionId": "int",
+      "employeeId": "int",
+      "exceptionType": "str",
+      "menuCode": "str",
+      "reason": "str",
+      "validFrom": "str",
+      "validUntil": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str"
+    }
+  },
+  "POST /api/v1/access-exceptions": {
+    "sheet": "Masters - Security",
+    "apiName": "Create User Access Exception",
+    "method": "POST",
+    "path": "/api/v1/access-exceptions",
+    "requestFields": {
+      "exceptionId": "int",
+      "employeeId": "int",
+      "exceptionType": "str",
+      "menuCode": "str",
+      "reason": "str",
+      "validFrom": "str",
+      "validUntil": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "exceptionId": "int",
+      "employeeId": "int",
+      "exceptionType": "str",
+      "menuCode": "str",
+      "reason": "str",
+      "validFrom": "str",
+      "validUntil": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "PUT /api/v1/access-exceptions/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Update User Access Exception",
+    "method": "PUT",
+    "path": "/api/v1/access-exceptions/{id}",
+    "requestFields": {
+      "exceptionId": "int",
+      "employeeId": "int",
+      "exceptionType": "str",
+      "menuCode": "str",
+      "reason": "str",
+      "validFrom": "str",
+      "validUntil": "str",
+      "isActive": "bool"
+    },
+    "responseFields": {
+      "exceptionId": "int",
+      "employeeId": "int",
+      "exceptionType": "str",
+      "menuCode": "str",
+      "reason": "str",
+      "validFrom": "str",
+      "validUntil": "str",
+      "isActive": "bool",
+      "createdBy": "str",
+      "createdOn": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/access-exceptions/{id}": {
+    "sheet": "Masters - Security",
+    "apiName": "Delete / Deactivate User Access Exception",
+    "method": "DELETE",
+    "path": "/api/v1/access-exceptions/{id}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/grn": {
+    "sheet": "Transactions - GRN",
+    "apiName": "List GRN",
+    "method": "GET",
+    "path": "/api/v1/grn",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/grn/{docId}": {
+    "sheet": "Transactions - GRN",
+    "apiName": "Get GRN by ID",
+    "method": "GET",
+    "path": "/api/v1/grn/{docId}",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/grn": {
+    "sheet": "Transactions - GRN",
+    "apiName": "Create GRN",
+    "method": "POST",
+    "path": "/api/v1/grn",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "PUT /api/v1/grn/{docId}": {
+    "sheet": "Transactions - GRN",
+    "apiName": "Update GRN",
+    "method": "PUT",
+    "path": "/api/v1/grn/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "docId": "int",
+      "docNo": "str",
+      "docType": "str",
+      "docDate": "str",
+      "postingDate": "str",
+      "locationId": "int",
+      "partyId": "int",
+      "invoiceNo": "str",
+      "invoiceDate": "str",
+      "poNo": "str",
+      "poDate": "str",
+      "inspectedByEmpId": "int",
+      "totalOrderedQty": "int",
+      "totalReceivedQty": "int",
+      "totalAcceptedQty": "int",
+      "totalRejectedQty": "int",
+      "totalAmount": "float",
+      "status": "str",
+      "remarks": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/grn/{docId}": {
+    "sheet": "Transactions - GRN",
+    "apiName": "Delete GRN",
+    "method": "DELETE",
+    "path": "/api/v1/grn/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "POST /api/v1/grn/{docId}/approve": {
+    "sheet": "Transactions - GRN",
+    "apiName": "Approve GRN",
+    "method": "POST",
+    "path": "/api/v1/grn/{docId}/approve",
+    "requestFields": {
+      "remarks": "str"
+    },
+    "responseFields": {
+      "docId": "int",
+      "status": "str",
+      "approvedBy": "str",
+      "approvedDate": "str",
+      "message": "str"
+    }
+  },
+  "POST /api/v1/grn/{docId}/reject": {
+    "sheet": "Transactions - GRN",
+    "apiName": "Reject GRN",
+    "method": "POST",
+    "path": "/api/v1/grn/{docId}/reject",
+    "requestFields": {
+      "reason": "str"
+    },
+    "responseFields": {
+      "docId": "int",
+      "status": "str",
+      "message": "str"
+    }
+  },
+  "GET /api/v1/grn/{docId}/print": {
+    "sheet": "Transactions - GRN",
+    "apiName": "Print GRN",
+    "method": "GET",
+    "path": "/api/v1/grn/{docId}/print",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/grn/export": {
+    "sheet": "Transactions - GRN",
+    "apiName": "Export GRN List",
+    "method": "GET",
+    "path": "/api/v1/grn/export",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/gatepass/inward": {
+    "sheet": "Transactions - Gatepass Inward",
+    "apiName": "List Gatepass Inward",
+    "method": "GET",
+    "path": "/api/v1/gatepass/inward",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/gatepass/inward/{docId}": {
+    "sheet": "Transactions - Gatepass Inward",
+    "apiName": "Get Gatepass Inward by ID",
+    "method": "GET",
+    "path": "/api/v1/gatepass/inward/{docId}",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/gatepass/inward": {
+    "sheet": "Transactions - Gatepass Inward",
+    "apiName": "Create Gatepass Inward",
+    "method": "POST",
+    "path": "/api/v1/gatepass/inward",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "DELETE /api/v1/gatepass/inward/{docId}": {
+    "sheet": "Transactions - Gatepass Inward",
+    "apiName": "Delete Gatepass Inward",
+    "method": "DELETE",
+    "path": "/api/v1/gatepass/inward/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "POST /api/v1/gatepass/inward/{docId}/approve": {
+    "sheet": "Transactions - Gatepass Inward",
+    "apiName": "Approve Returnable Inward",
+    "method": "POST",
+    "path": "/api/v1/gatepass/inward/{docId}/approve",
+    "requestFields": {
+      "remarks": "str"
+    },
+    "responseFields": {
+      "docId": "int",
+      "status": "str",
+      "message": "str"
+    }
+  },
+  "GET /api/v1/gatepass/inward/{docId}/print": {
+    "sheet": "Transactions - Gatepass Inward",
+    "apiName": "Print Gatepass Inward",
+    "method": "GET",
+    "path": "/api/v1/gatepass/inward/{docId}/print",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/gatepass/outward": {
+    "sheet": "Transactions - Gatepass Outward",
+    "apiName": "List Gatepass Outward",
+    "method": "GET",
+    "path": "/api/v1/gatepass/outward",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/gatepass/outward/{docId}": {
+    "sheet": "Transactions - Gatepass Outward",
+    "apiName": "Get Gatepass Outward by ID",
+    "method": "GET",
+    "path": "/api/v1/gatepass/outward/{docId}",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/gatepass/outward": {
+    "sheet": "Transactions - Gatepass Outward",
+    "apiName": "Create Gatepass Outward",
+    "method": "POST",
+    "path": "/api/v1/gatepass/outward",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "PUT /api/v1/gatepass/outward/{docId}": {
+    "sheet": "Transactions - Gatepass Outward",
+    "apiName": "Update Gatepass Outward",
+    "method": "PUT",
+    "path": "/api/v1/gatepass/outward/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "docId": "int",
+      "docNo": "str",
+      "docType": "str",
+      "docDate": "str",
+      "partyId": "int",
+      "shipTo": "str",
+      "departmentId": "int",
+      "returnFlag": "str",
+      "purpose": "str",
+      "handedOverToEmpId": "int",
+      "handoverDate": "str",
+      "receivedByName": "str",
+      "receivedDesignation": "str",
+      "totalAmount": "float",
+      "footerRemark": "str",
+      "status": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/gatepass/outward/{docId}": {
+    "sheet": "Transactions - Gatepass Outward",
+    "apiName": "Delete Gatepass Outward",
+    "method": "DELETE",
+    "path": "/api/v1/gatepass/outward/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/gatepass/outward/{docId}/print": {
+    "sheet": "Transactions - Gatepass Outward",
+    "apiName": "Print Gatepass Outward",
+    "method": "GET",
+    "path": "/api/v1/gatepass/outward/{docId}/print",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/requisitions": {
+    "sheet": "Transactions - Material Requisi",
+    "apiName": "List Material Requisition",
+    "method": "GET",
+    "path": "/api/v1/requisitions",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/requisitions/{docId}": {
+    "sheet": "Transactions - Material Requisi",
+    "apiName": "Get Material Requisition by ID",
+    "method": "GET",
+    "path": "/api/v1/requisitions/{docId}",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/requisitions": {
+    "sheet": "Transactions - Material Requisi",
+    "apiName": "Create Material Requisition",
+    "method": "POST",
+    "path": "/api/v1/requisitions",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "PUT /api/v1/requisitions/{docId}": {
+    "sheet": "Transactions - Material Requisi",
+    "apiName": "Update Material Requisition",
+    "method": "PUT",
+    "path": "/api/v1/requisitions/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "docId": "int",
+      "docNo": "str",
+      "docType": "str",
+      "docDate": "str",
+      "requiredByDate": "str",
+      "toLocationId": "int",
+      "departmentId": "int",
+      "initiatedByEmpId": "int",
+      "employeeRefCode": "str",
+      "designation": "str",
+      "status": "str",
+      "remarks": "str",
+      "message": "str"
+    }
+  },
+  "DELETE /api/v1/requisitions/{docId}": {
+    "sheet": "Transactions - Material Requisi",
+    "apiName": "Delete Material Requisition",
+    "method": "DELETE",
+    "path": "/api/v1/requisitions/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "POST /api/v1/requisitions/{docId}/approve": {
+    "sheet": "Transactions - Material Requisi",
+    "apiName": "Approve Material Requisition",
+    "method": "POST",
+    "path": "/api/v1/requisitions/{docId}/approve",
+    "requestFields": {
+      "remarks": "str"
+    },
+    "responseFields": {
+      "docId": "int",
+      "status": "str",
+      "approvedBy": "str",
+      "approvedDate": "str",
+      "message": "str"
+    }
+  },
+  "POST /api/v1/requisitions/{docId}/reject": {
+    "sheet": "Transactions - Material Requisi",
+    "apiName": "Reject Material Requisition",
+    "method": "POST",
+    "path": "/api/v1/requisitions/{docId}/reject",
+    "requestFields": {
+      "reason": "str"
+    },
+    "responseFields": {
+      "docId": "int",
+      "status": "str",
+      "message": "str"
+    }
+  },
+  "GET /api/v1/requisitions/{docId}/print": {
+    "sheet": "Transactions - Material Requisi",
+    "apiName": "Print Material Requisition",
+    "method": "GET",
+    "path": "/api/v1/requisitions/{docId}/print",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/material-issues": {
+    "sheet": "Transactions - Material Issue",
+    "apiName": "List Material Issue",
+    "method": "GET",
+    "path": "/api/v1/material-issues",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/material-issues/{docId}": {
+    "sheet": "Transactions - Material Issue",
+    "apiName": "Get Material Issue by ID",
+    "method": "GET",
+    "path": "/api/v1/material-issues/{docId}",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/material-issues": {
+    "sheet": "Transactions - Material Issue",
+    "apiName": "Create Material Issue",
+    "method": "POST",
+    "path": "/api/v1/material-issues",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "DELETE /api/v1/material-issues/{docId}": {
+    "sheet": "Transactions - Material Issue",
+    "apiName": "Delete Material Issue",
+    "method": "DELETE",
+    "path": "/api/v1/material-issues/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "message": "str"
+    }
+  },
+  "GET /api/v1/material-issues/{docId}/print": {
+    "sheet": "Transactions - Material Issue",
+    "apiName": "Print Material Issue",
+    "method": "GET",
+    "path": "/api/v1/material-issues/{docId}/print",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/material-issues/pending-requisitions": {
+    "sheet": "Transactions - Material Issue",
+    "apiName": "Get Pending Requisitions for Issue",
+    "method": "GET",
+    "path": "/api/v1/material-issues/pending-requisitions",
+    "requestFields": {},
+    "responseFields": {
+      "docId": "int",
+      "docNo": "str",
+      "requiredByDate": "str",
+      "pendingLines": "int"
+    }
+  },
+  "GET /api/v1/opening-stock": {
+    "sheet": "Transactions - Opening Stock",
+    "apiName": "List Opening Stock",
+    "method": "GET",
+    "path": "/api/v1/opening-stock",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/opening-stock/{docId}": {
+    "sheet": "Transactions - Opening Stock",
+    "apiName": "Get Opening Stock by ID",
+    "method": "GET",
+    "path": "/api/v1/opening-stock/{docId}",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/opening-stock": {
+    "sheet": "Transactions - Opening Stock",
+    "apiName": "Create Opening Stock",
+    "method": "POST",
+    "path": "/api/v1/opening-stock",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "PUT /api/v1/opening-stock/{docId}": {
+    "sheet": "Transactions - Opening Stock",
+    "apiName": "Update Opening Stock",
+    "method": "PUT",
+    "path": "/api/v1/opening-stock/{docId}",
+    "requestFields": {},
+    "responseFields": {
+      "docId": "int",
+      "docNo": "str",
+      "docType": "str",
+      "docDate": "str",
+      "entityId": "int",
+      "locationId": "int",
+      "initiatedByEmpId": "int",
+      "status": "str",
+      "remarks": "str",
+      "message": "str"
+    }
+  },
+  "GET /api/v1/transfers": {
+    "sheet": "Transactions - Material Transfe",
+    "apiName": "List Material Transfer",
+    "method": "GET",
+    "path": "/api/v1/transfers",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/transfers/{docId}": {
+    "sheet": "Transactions - Material Transfe",
+    "apiName": "Get Material Transfer by ID",
+    "method": "GET",
+    "path": "/api/v1/transfers/{docId}",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/transfers": {
+    "sheet": "Transactions - Material Transfe",
+    "apiName": "Create Material Transfer",
+    "method": "POST",
+    "path": "/api/v1/transfers",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/transfers/{docId}/print": {
+    "sheet": "Transactions - Material Transfe",
+    "apiName": "Print Material Transfer",
+    "method": "GET",
+    "path": "/api/v1/transfers/{docId}/print",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/returns": {
+    "sheet": "Transactions - Material Return",
+    "apiName": "List Material Return",
+    "method": "GET",
+    "path": "/api/v1/returns",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/returns/{docId}": {
+    "sheet": "Transactions - Material Return",
+    "apiName": "Get Material Return by ID",
+    "method": "GET",
+    "path": "/api/v1/returns/{docId}",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "POST /api/v1/returns": {
+    "sheet": "Transactions - Material Return",
+    "apiName": "Create Material Return",
+    "method": "POST",
+    "path": "/api/v1/returns",
+    "requestFields": {},
+    "responseFields": {}
+  },
+  "GET /api/v1/returns/{docId}/print": {
+    "sheet": "Transactions - Material Return",
+    "apiName": "Print Material Return",
+    "method": "GET",
+    "path": "/api/v1/returns/{docId}/print",
+    "requestFields": {},
+    "responseFields": {}
+  }
+}

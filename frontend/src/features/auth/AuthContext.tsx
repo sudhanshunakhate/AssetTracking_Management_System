@@ -1,11 +1,12 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { loginApi, logoutApi, setToken, getToken } from '@/api/client'
 
-type AuthUser = { loginId: string; displayName: string; role: string }
+type AuthUser = { loginId: string; displayName: string; role: string; userId?: number }
 
 type AuthContextValue = {
   user: AuthUser | null
-  login: (loginId: string, password: string) => { ok: boolean; error?: string }
-  logout: () => void
+  login: (loginId: string, password: string) => Promise<{ ok: boolean; error?: string }>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -21,29 +22,41 @@ function readStored(): AuthUser | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => readStored())
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    const stored = readStored()
+    if (stored && !getToken()) {
+      sessionStorage.removeItem(STORAGE_KEY)
+      return null
+    }
+    return stored
+  })
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
-      login: (loginId, password) => {
+      login: async (loginId, password) => {
         if (!loginId.trim() || !password) {
           return { ok: false, error: 'Enter Login ID and password to continue.' }
         }
-        const next: AuthUser = {
-          loginId: loginId.trim().toLowerCase(),
-          displayName: loginId
-            .trim()
-            .split('.')
-            .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-            .join(' '),
-          role: 'Super Administrator',
+        try {
+          const res = await loginApi(loginId.trim(), password)
+          setToken(res.token)
+          const next: AuthUser = {
+            loginId: loginId.trim().toLowerCase(),
+            displayName: res.user.employeeName,
+            role: res.user.roleCode,
+            userId: res.user.userId,
+          }
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+          setUser(next)
+          return { ok: true }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Login failed'
+          return { ok: false, error: message }
         }
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-        setUser(next)
-        return { ok: true }
       },
-      logout: () => {
+      logout: async () => {
+        await logoutApi()
         sessionStorage.removeItem(STORAGE_KEY)
         setUser(null)
       },

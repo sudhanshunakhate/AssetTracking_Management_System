@@ -6,11 +6,25 @@
 
 | Layer | Technology |
 |-------|------------|
-| UI (Phase 1–2) | React 19, Vite, TypeScript, Tailwind CSS 4 |
-| Planned API | Java 21 |
-| Planned DB | PostgreSQL |
+| UI | React 19, Vite, TypeScript, Tailwind CSS 4 |
+| API | Java 21, Spring Boot 3.3, JWT |
+| DB | PostgreSQL schema `caits_local` |
 
-## Run the UI
+## Run backend
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+API: `http://localhost:8080/api/v1`
+
+Seeded login (first start):
+
+- Login ID: `aditya.kulkarni`
+- Password: `Admin@123`
+
+## Run UI
 
 ```bash
 cd frontend
@@ -18,27 +32,23 @@ npm install
 npm run dev
 ```
 
-Open the printed local URL. Demo login: any password works (prefilled `aditya.kulkarni`).
+Vite proxies `/api` → `http://localhost:8080`. Auth and Unit/Category masters call the live API; other screens still use mock data until wired the same way.
 
-## Phase 1 + 2 scope
-
-- Attractive login (React Bits accents)
-- App shell (sidebar / topbar) — **no icons**
-- Dashboard
-- All Master list + form screens
-- Transactions: Opening Stock, Requisitions, GRN, Gatepass, Issue, Transfer, Return
-- Reports: Stock Register, Full Report
-- Mock data only — **no API or database yet**
-
-Java 21 + PostgreSQL come in a later phase.
-
-## Folder map
+## Backend layout
 
 ```
-frontend/src/
-  components/{layout,ui,react-bits}
-  features/{auth,dashboard,masters,transactions,reports}
-  config/  data/mock/  styles/
-metadata/          AI agent map (index + features)
-wireframe/         Source HTML wireframe
+backend/src/main/java/com/caits/
+  modules/auth|masters|transactions|reports|dashboard
+  domain/entity|repository
+  security/  config/  common/
 ```
+
+API contract source: `backend_approach/CAIMS_API_Documentation.xlsx`  
+DB design source: `db_approach/`
+
+## Phase status
+
+- Phase 1–2 UI complete
+- PostgreSQL schema `caits_local` created
+- Backend APIs implemented for auth, masters, transactions, reports, dashboard
+- UI ↔ API: login + units + categories live; remaining masters/transactions can reuse the same `api/` helpers

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { Route, Routes, useNavigate } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Pill } from '@/components/ui/Badge'
@@ -7,6 +7,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { statusColumn, type Column } from '@/components/ui/DataTable'
 import { Field, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { createMaster, mapCategory, mapUnit, updateMaster, useMasterList } from '@/api/masters'
 import {
   employees,
   exceptions,
@@ -54,6 +55,7 @@ function MastersRoutes({
   formTitle,
   getDefaults,
   renderExtraForm,
+  onSave,
 }: {
   base: string
   title: string
@@ -69,6 +71,7 @@ function MastersRoutes({
     values: Record<string, unknown>,
     set: (k: string, v: unknown) => void,
   ) => ReactNode
+  onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
 }) {
   return (
     <Routes>
@@ -87,6 +90,7 @@ function MastersRoutes({
             formTitle={formTitle}
             getDefaults={getDefaults}
             renderExtraForm={renderExtraForm}
+            onSave={onSave}
           />
         }
       />
@@ -105,6 +109,7 @@ function MastersRoutes({
             formTitle={formTitle}
             getDefaults={getDefaults}
             renderExtraForm={renderExtraForm}
+            onSave={onSave}
           />
         }
       />
@@ -113,6 +118,8 @@ function MastersRoutes({
 }
 
 export function UnitsMaster() {
+  const mapUnitStable = useCallback(mapUnit, [])
+  const { rows, loading, error, reload } = useMasterList('units', mapUnitStable)
   const columns: Column<Unit>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -126,17 +133,32 @@ export function UnitsMaster() {
     { name: 'status', label: 'Mark as Active', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes
-      base="/masters/units"
-      title="Unit Master"
-      description="All measurement units defined in the system."
-      rows={units}
-      columns={columns as never}
-      fields={fields}
-      searchPlaceholder="Search unit code / name…"
-      saveLabel="Save Unit"
-      formTitle="Unit Information"
-    />
+    <>
+      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
+      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading units…</div>}
+      <MastersRoutes
+        base="/masters/units"
+        title="Unit Master"
+        description="All measurement units defined in the system."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        searchPlaceholder="Search unit code / name…"
+        saveLabel="Save Unit"
+        formTitle="Unit Information"
+        onSave={async (id, values) => {
+          const body = {
+            unitCode: String(values.code ?? ''),
+            unitName: String(values.name ?? ''),
+            desc: String(values.description ?? ''),
+            isActive: values.status !== false,
+          }
+          if (id === 'new') await createMaster('units', body)
+          else await updateMaster('units', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
@@ -268,6 +290,8 @@ export function StoresMaster() {
 }
 
 export function InventoryCategoriesMaster() {
+  const mapCategoryStable = useCallback(mapCategory, [])
+  const { rows, loading, error, reload } = useMasterList('categories', mapCategoryStable)
   const columns: Column<InventoryCategory>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -281,7 +305,31 @@ export function InventoryCategoriesMaster() {
     { name: 'status', label: 'Mark as Active', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/inventory-categories" title="Inventory Category Master" description="Top level classification for asset & inventory items." rows={inventoryCategories} columns={columns as never} fields={fields} saveLabel="Save Category" formTitle="Category Information" />
+    <>
+      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
+      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading categories…</div>}
+      <MastersRoutes
+        base="/masters/inventory-categories"
+        title="Inventory Category Master"
+        description="Top level classification for asset & inventory items."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Category"
+        formTitle="Category Information"
+        onSave={async (id, values) => {
+          const body = {
+            categoryCode: String(values.code ?? ''),
+            categoryName: String(values.name ?? ''),
+            desc: String(values.description ?? ''),
+            isActive: values.status !== false,
+          }
+          if (id === 'new') await createMaster('categories', body)
+          else await updateMaster('categories', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 

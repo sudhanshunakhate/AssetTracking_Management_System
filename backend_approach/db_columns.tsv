@@ -1,0 +1,374 @@
+﻿table_name	column_name	data_type	character_maximum_length	is_nullable
+category_mst	cat_category_id	integer		NO
+category_mst	cat_category_code	character varying	20	NO
+category_mst	cat_category_name	character varying	100	NO
+category_mst	cat_desc	character varying	255	YES
+category_mst	cat_isactive	boolean		NO
+category_mst	cat_created_by	character varying	50	YES
+category_mst	cat_created_on	timestamp without time zone		NO
+category_mst	cat_modified_by	character varying	50	YES
+category_mst	cat_modified_on	timestamp without time zone		YES
+genmaster_mst	gmst_genmaster_id	integer		NO
+genmaster_mst	gmst_value_code	character varying	20	NO
+genmaster_mst	gmst_value_name	character varying	100	NO
+genmaster_mst	gmst_gentype_id_gtyp	integer		NO
+genmaster_mst	gmst_sort_order	integer		YES
+genmaster_mst	gmst_desc	character varying	255	YES
+genmaster_mst	gmst_isactive	boolean		NO
+genmaster_mst	gmst_created_by	character varying	50	YES
+genmaster_mst	gmst_created_on	timestamp without time zone		NO
+genmaster_mst	gmst_modified_by	character varying	50	YES
+genmaster_mst	gmst_modified_on	timestamp without time zone		YES
+gentype_mst	gtyp_gentype_id	integer		NO
+gentype_mst	gtyp_type_code	character varying	20	NO
+gentype_mst	gtyp_type_name	character varying	100	NO
+gentype_mst	gtyp_desc	character varying	255	YES
+gentype_mst	gtyp_isactive	boolean		NO
+gentype_mst	gtyp_created_by	character varying	50	YES
+gentype_mst	gtyp_created_on	timestamp without time zone		NO
+gentype_mst	gtyp_modified_by	character varying	50	YES
+gentype_mst	gtyp_modified_on	timestamp without time zone		YES
+hrc_employee_mst	emp_employee_id	integer		NO
+hrc_employee_mst	emp_employee_code	character varying	20	NO
+hrc_employee_mst	emp_first_name	character varying	50	NO
+hrc_employee_mst	emp_last_name	character varying	50	YES
+hrc_employee_mst	emp_gender	character	1	YES
+hrc_employee_mst	emp_dob	date		YES
+hrc_employee_mst	emp_joining_date	date		YES
+hrc_employee_mst	emp_employment_type	character varying	20	YES
+hrc_employee_mst	emp_designation	character varying	100	YES
+hrc_employee_mst	emp_department	character varying	100	YES
+hrc_employee_mst	emp_email	character varying	100	NO
+hrc_employee_mst	emp_phone	character varying	15	YES
+hrc_employee_mst	emp_alt_phone	character varying	15	YES
+hrc_employee_mst	emp_role_id_rol	integer		NO
+hrc_employee_mst	emp_base_location_id_loc	integer		YES
+hrc_employee_mst	emp_reporting_to_emp_id_emp	integer		YES
+hrc_employee_mst	emp_isactive	boolean		NO
+hrc_employee_mst	emp_created_by	character varying	50	YES
+hrc_employee_mst	emp_created_on	timestamp without time zone		NO
+hrc_employee_mst	emp_modified_by	character varying	50	YES
+hrc_employee_mst	emp_modified_on	timestamp without time zone		YES
+inv_item_mst	itm_item_id	integer		NO
+inv_item_mst	itm_item_code	character varying	30	NO
+inv_item_mst	itm_item_name	character varying	150	NO
+inv_item_mst	itm_item_type	character varying	20	NO
+inv_item_mst	itm_category_id_cat	integer		YES
+inv_item_mst	itm_subcategory_id_scat	integer		YES
+inv_item_mst	itm_uom_id_unt	integer		NO
+inv_item_mst	itm_standard_cost	numeric		YES
+inv_item_mst	itm_image_url	character varying	255	YES
+inv_item_mst	itm_desc	character varying	500	YES
+inv_item_mst	itm_remarks	character varying	255	YES
+inv_item_mst	itm_asset_type	character varying	50	YES
+inv_item_mst	itm_make_brand	character varying	100	YES
+inv_item_mst	itm_model	character varying	100	YES
+inv_item_mst	itm_serial_no	character varying	100	YES
+inv_item_mst	itm_purchase_date	date		YES
+inv_item_mst	itm_purchase_cost	numeric		YES
+inv_item_mst	itm_useful_life_years	numeric		YES
+inv_item_mst	itm_warranty_expiry	date		YES
+inv_item_mst	itm_depreciation_method	character varying	30	YES
+inv_item_mst	itm_depreciation_rate	numeric		YES
+inv_item_mst	itm_assigned_to_emp_id_emp	integer		YES
+inv_item_mst	itm_current_location_id_loc	integer		YES
+inv_item_mst	itm_is_serialized	boolean		YES
+inv_item_mst	itm_is_returnable	boolean		YES
+inv_item_mst	itm_is_under_amc	boolean		YES
+inv_item_mst	itm_is_insurance_required	boolean		YES
+inv_item_mst	itm_consumable_type	character varying	30	YES
+inv_item_mst	itm_shelf_bin	character varying	30	YES
+inv_item_mst	itm_expiry_date	date		YES
+inv_item_mst	itm_batch_lot_no	character varying	50	YES
+inv_item_mst	itm_track_batch_lot	boolean		YES
+inv_item_mst	itm_track_expiry	boolean		YES
+inv_item_mst	itm_is_consumable	boolean		YES
+inv_item_mst	itm_allow_negative_stock	boolean		YES
+inv_item_mst	itm_isactive	boolean		NO
+inv_item_mst	itm_created_by	character varying	50	YES
+inv_item_mst	itm_created_on	timestamp without time zone		NO
+inv_item_mst	itm_modified_by	character varying	50	YES
+inv_item_mst	itm_modified_on	timestamp without time zone		YES
+inv_stock_mst	stk_stock_id	integer		NO
+inv_stock_mst	stk_item_id_itm	integer		NO
+inv_stock_mst	stk_location_id_loc	integer		NO
+inv_stock_mst	stk_location_bin	character varying	50	YES
+inv_stock_mst	stk_batch_lot_no	character varying	50	YES
+inv_stock_mst	stk_uom_id_unt	integer		NO
+inv_stock_mst	stk_opening_qty	numeric		YES
+inv_stock_mst	stk_inward_qty	numeric		YES
+inv_stock_mst	stk_issued_qty	numeric		YES
+inv_stock_mst	stk_transferred_in_qty	numeric		YES
+inv_stock_mst	stk_transferred_out_qty	numeric		YES
+inv_stock_mst	stk_returned_qty	numeric		YES
+inv_stock_mst	stk_adjusted_qty	numeric		YES
+inv_stock_mst	stk_current_qty	numeric		NO
+inv_stock_mst	stk_reserved_qty	numeric		YES
+inv_stock_mst	stk_available_qty	numeric		YES
+inv_stock_mst	stk_reorder_level	numeric		YES
+inv_stock_mst	stk_min_stock_level	numeric		YES
+inv_stock_mst	stk_max_stock_level	numeric		YES
+inv_stock_mst	stk_avg_rate	numeric		YES
+inv_stock_mst	stk_stock_value	numeric		YES
+inv_stock_mst	stk_expiry_date	date		YES
+inv_stock_mst	stk_last_txn_header_id_txh	integer		YES
+inv_stock_mst	stk_last_transaction_date	date		YES
+inv_stock_mst	stk_isactive	boolean		NO
+inv_stock_mst	stk_created_by	character varying	50	YES
+inv_stock_mst	stk_created_on	timestamp without time zone		NO
+inv_stock_mst	stk_modified_by	character varying	50	YES
+inv_stock_mst	stk_modified_on	timestamp without time zone		YES
+inv_vendor_mst	vnd_vendor_id	integer		NO
+inv_vendor_mst	vnd_vendor_code	character varying	20	NO
+inv_vendor_mst	vnd_vendor_name	character varying	150	NO
+inv_vendor_mst	vnd_party_type	character varying	20	NO
+inv_vendor_mst	vnd_gstin	character varying	20	YES
+inv_vendor_mst	vnd_pan_no	character varying	15	YES
+inv_vendor_mst	vnd_rating	smallint		YES
+inv_vendor_mst	vnd_add1	character varying	150	YES
+inv_vendor_mst	vnd_add2	character varying	150	YES
+inv_vendor_mst	vnd_city	character varying	50	YES
+inv_vendor_mst	vnd_state	character varying	50	YES
+inv_vendor_mst	vnd_pin	character varying	10	YES
+inv_vendor_mst	vnd_country	character varying	50	YES
+inv_vendor_mst	vnd_contact_person	character varying	100	YES
+inv_vendor_mst	vnd_phone	character varying	15	NO
+inv_vendor_mst	vnd_alt_phone	character varying	15	YES
+inv_vendor_mst	vnd_email	character varying	100	YES
+inv_vendor_mst	vnd_website	character varying	150	YES
+inv_vendor_mst	vnd_notes	character varying	255	YES
+inv_vendor_mst	vnd_isactive	boolean		NO
+inv_vendor_mst	vnd_created_by	character varying	50	YES
+inv_vendor_mst	vnd_created_on	timestamp without time zone		NO
+inv_vendor_mst	vnd_modified_by	character varying	50	YES
+inv_vendor_mst	vnd_modified_on	timestamp without time zone		YES
+org_businessunit_mst	bu_bu_id	integer		NO
+org_businessunit_mst	bu_bu_code	character varying	20	NO
+org_businessunit_mst	bu_bu_name	character varying	150	NO
+org_businessunit_mst	bu_entity_id_ent	integer		NO
+org_businessunit_mst	bu_bu_type	character varying	30	YES
+org_businessunit_mst	bu_manager_emp_id_emp	integer		YES
+org_businessunit_mst	bu_add1	character varying	150	YES
+org_businessunit_mst	bu_add2	character varying	150	YES
+org_businessunit_mst	bu_city	character varying	50	YES
+org_businessunit_mst	bu_state	character varying	50	YES
+org_businessunit_mst	bu_pin	character varying	10	YES
+org_businessunit_mst	bu_isactive	boolean		NO
+org_businessunit_mst	bu_created_by	character varying	50	YES
+org_businessunit_mst	bu_created_on	timestamp without time zone		NO
+org_businessunit_mst	bu_modified_by	character varying	50	YES
+org_businessunit_mst	bu_modified_on	timestamp without time zone		YES
+org_entity_mst	ent_entity_id	integer		NO
+org_entity_mst	ent_entity_code	character varying	20	NO
+org_entity_mst	ent_entity_name	character varying	150	NO
+org_entity_mst	ent_short_name	character varying	30	YES
+org_entity_mst	ent_legal_name	character varying	200	YES
+org_entity_mst	ent_gstin	character varying	20	YES
+org_entity_mst	ent_pan_no	character varying	15	YES
+org_entity_mst	ent_cin	character varying	25	YES
+org_entity_mst	ent_add1	character varying	150	YES
+org_entity_mst	ent_add2	character varying	150	YES
+org_entity_mst	ent_city	character varying	50	YES
+org_entity_mst	ent_state	character varying	50	YES
+org_entity_mst	ent_pin	character varying	10	YES
+org_entity_mst	ent_country	character varying	50	YES
+org_entity_mst	ent_contact_person	character varying	100	YES
+org_entity_mst	ent_phone	character varying	15	YES
+org_entity_mst	ent_email	character varying	100	YES
+org_entity_mst	ent_isactive	boolean		NO
+org_entity_mst	ent_created_by	character varying	50	YES
+org_entity_mst	ent_created_on	timestamp without time zone		NO
+org_entity_mst	ent_modified_by	character varying	50	YES
+org_entity_mst	ent_modified_on	timestamp without time zone		YES
+org_location_mst	loc_location_id	integer		NO
+org_location_mst	loc_location_code	character varying	20	NO
+org_location_mst	loc_location_name	character varying	150	NO
+org_location_mst	loc_location_type	character varying	30	YES
+org_location_mst	loc_entity_id_ent	integer		NO
+org_location_mst	loc_bu_id_bu	integer		NO
+org_location_mst	loc_manager_emp_id_emp	integer		YES
+org_location_mst	loc_add1	character varying	150	YES
+org_location_mst	loc_add2	character varying	150	YES
+org_location_mst	loc_city	character varying	50	YES
+org_location_mst	loc_pin	character varying	10	YES
+org_location_mst	loc_isactive	boolean		NO
+org_location_mst	loc_created_by	character varying	50	YES
+org_location_mst	loc_created_on	timestamp without time zone		NO
+org_location_mst	loc_modified_by	character varying	50	YES
+org_location_mst	loc_modified_on	timestamp without time zone		YES
+subcategory_mst	scat_subcategory_id	integer		NO
+subcategory_mst	scat_subcategory_code	character varying	20	NO
+subcategory_mst	scat_subcategory_name	character varying	100	NO
+subcategory_mst	scat_category_id_cat	integer		NO
+subcategory_mst	scat_desc	character varying	255	YES
+subcategory_mst	scat_isactive	boolean		NO
+subcategory_mst	scat_created_by	character varying	50	YES
+subcategory_mst	scat_created_on	timestamp without time zone		NO
+subcategory_mst	scat_modified_by	character varying	50	YES
+subcategory_mst	scat_modified_on	timestamp without time zone		YES
+sysm_menutree_mst	mtree_menu_id	integer		NO
+sysm_menutree_mst	mtree_menu_code	character varying	50	NO
+sysm_menutree_mst	mtree_menu_label	character varying	100	NO
+sysm_menutree_mst	mtree_menu_group	character varying	50	NO
+sysm_menutree_mst	mtree_sort_order	integer		NO
+sysm_menutree_mst	mtree_icon	character varying	10	YES
+sysm_menutree_mst	mtree_doc_type	character varying	30	YES
+sysm_menutree_mst	mtree_supports_view	boolean		NO
+sysm_menutree_mst	mtree_supports_create	boolean		NO
+sysm_menutree_mst	mtree_supports_edit	boolean		NO
+sysm_menutree_mst	mtree_supports_delete	boolean		NO
+sysm_menutree_mst	mtree_supports_approve	boolean		NO
+sysm_menutree_mst	mtree_supports_reject	boolean		NO
+sysm_menutree_mst	mtree_supports_print	boolean		NO
+sysm_menutree_mst	mtree_supports_export	boolean		NO
+sysm_menutree_mst	mtree_is_system_menu	boolean		YES
+sysm_menutree_mst	mtree_isactive	boolean		NO
+sysm_menutree_mst	mtree_created_by	character varying	50	YES
+sysm_menutree_mst	mtree_created_on	timestamp without time zone		NO
+sysm_menutree_mst	mtree_modified_by	character varying	50	YES
+sysm_menutree_mst	mtree_modified_on	timestamp without time zone		YES
+sysm_rolepermission_dtl	rlpm_role_permission_id	integer		NO
+sysm_rolepermission_dtl	rlpm_role_id_rol	integer		NO
+sysm_rolepermission_dtl	rlpm_module_name	character varying	50	NO
+sysm_rolepermission_dtl	rlpm_can_view	boolean		YES
+sysm_rolepermission_dtl	rlpm_can_create	boolean		YES
+sysm_rolepermission_dtl	rlpm_can_edit	boolean		YES
+sysm_rolepermission_dtl	rlpm_can_delete	boolean		YES
+sysm_rolepermission_dtl	rlpm_can_approve	boolean		YES
+sysm_rolepermission_dtl	rlpm_can_reject	boolean		YES
+sysm_rolepermission_dtl	rlpm_can_print	boolean		YES
+sysm_rolepermission_dtl	rlpm_can_export	boolean		YES
+sysm_roles_mst	rol_role_id	integer		NO
+sysm_roles_mst	rol_role_code	character varying	50	NO
+sysm_roles_mst	rol_role_name	character varying	100	NO
+sysm_roles_mst	rol_role_level	smallint		NO
+sysm_roles_mst	rol_desc	character varying	255	YES
+sysm_roles_mst	rol_is_system_role	boolean		YES
+sysm_roles_mst	rol_isactive	boolean		NO
+sysm_roles_mst	rol_created_by	character varying	50	YES
+sysm_roles_mst	rol_created_on	timestamp without time zone		NO
+sysm_roles_mst	rol_modified_by	character varying	50	YES
+sysm_roles_mst	rol_modified_on	timestamp without time zone		YES
+sysm_user_bu_mapping_dtl	uboa_user_bu_access_id	integer		NO
+sysm_user_bu_mapping_dtl	uboa_user_id_usr	integer		NO
+sysm_user_bu_mapping_dtl	uboa_bu_id_bu	integer		NO
+sysm_useraccess_exception_dtl	uexc_exception_id	integer		NO
+sysm_useraccess_exception_dtl	uexc_employee_id_emp	integer		NO
+sysm_useraccess_exception_dtl	uexc_exception_type	character varying	10	NO
+sysm_useraccess_exception_dtl	uexc_menu_code_mtree	character varying	50	NO
+sysm_useraccess_exception_dtl	uexc_reason	character varying	255	NO
+sysm_useraccess_exception_dtl	uexc_valid_from	date		YES
+sysm_useraccess_exception_dtl	uexc_valid_until	date		YES
+sysm_useraccess_exception_dtl	uexc_isactive	boolean		NO
+sysm_useraccess_exception_dtl	uexc_created_by	character varying	50	YES
+sysm_useraccess_exception_dtl	uexc_created_on	timestamp without time zone		NO
+sysm_useraccess_exception_dtl	uexc_modified_by	character varying	50	YES
+sysm_useraccess_exception_dtl	uexc_modified_on	timestamp without time zone		YES
+sysm_userlogin_mst	usr_user_id	integer		NO
+sysm_userlogin_mst	usr_employee_id_emp	integer		NO
+sysm_userlogin_mst	usr_login_id	character varying	50	NO
+sysm_userlogin_mst	usr_password_hash	character varying	255	NO
+sysm_userlogin_mst	usr_role_id_rol	integer		NO
+sysm_userlogin_mst	usr_account_status	character varying	20	NO
+sysm_userlogin_mst	usr_entity_id_ent	integer		NO
+sysm_userlogin_mst	usr_bu_access_scope	character varying	10	NO
+sysm_userlogin_mst	usr_location_id_loc	integer		YES
+sysm_userlogin_mst	usr_force_password_reset	boolean		YES
+sysm_userlogin_mst	usr_isactive	boolean		NO
+sysm_userlogin_mst	usr_last_login_on	timestamp without time zone		YES
+sysm_userlogin_mst	usr_last_login_ip	character varying	45	YES
+sysm_userlogin_mst	usr_failed_attempts	integer		YES
+sysm_userlogin_mst	usr_created_by	character varying	50	YES
+sysm_userlogin_mst	usr_created_on	timestamp without time zone		NO
+sysm_userlogin_mst	usr_modified_by	character varying	50	YES
+sysm_userlogin_mst	usr_modified_on	timestamp without time zone		YES
+txn_detail_dtl	txd_txn_detail_id	integer		NO
+txn_detail_dtl	txd_txn_header_id_txh	integer		NO
+txn_detail_dtl	txd_doc_type	character varying	30	NO
+txn_detail_dtl	txd_sr_no	integer		NO
+txn_detail_dtl	txd_item_id_itm	integer		NO
+txn_detail_dtl	txd_uom_id_unt	integer		YES
+txn_detail_dtl	txd_unit	character varying	20	YES
+txn_detail_dtl	txd_ordered_qty	numeric		YES
+txn_detail_dtl	txd_received_qty	numeric		YES
+txn_detail_dtl	txd_accepted_qty	numeric		YES
+txn_detail_dtl	txd_rejected_qty	numeric		YES
+txn_detail_dtl	txd_requested_qty	numeric		YES
+txn_detail_dtl	txd_qty	numeric		YES
+txn_detail_dtl	txd_available_stock	numeric		YES
+txn_detail_dtl	txd_amount	numeric		YES
+txn_detail_dtl	txd_rate	numeric		YES
+txn_detail_dtl	txd_mrp	numeric		YES
+txn_detail_dtl	txd_batch_lot_no	character varying	50	YES
+txn_detail_dtl	txd_mfg_date	date		YES
+txn_detail_dtl	txd_expiry_date	date		YES
+txn_detail_dtl	txd_location_id_loc	integer		YES
+txn_detail_dtl	txd_location_bin	character varying	50	YES
+txn_detail_dtl	txd_item_condition	character varying	20	YES
+txn_detail_dtl	txd_remark	character varying	255	YES
+txn_header_mst	txh_txn_header_id	integer		NO
+txn_header_mst	txh_doc_type	character varying	30	NO
+txn_header_mst	txh_doc_no	character varying	30	NO
+txn_header_mst	txh_doc_date	date		NO
+txn_header_mst	txh_posting_date	date		YES
+txn_header_mst	txh_required_by_date	date		YES
+txn_header_mst	txh_entity_id_ent	integer		YES
+txn_header_mst	txh_location_id_loc	integer		YES
+txn_header_mst	txh_from_location_id_loc	integer		YES
+txn_header_mst	txh_to_location_id_loc	integer		YES
+txn_header_mst	txh_party_id_vnd	integer		YES
+txn_header_mst	txh_party_add	character varying	255	YES
+txn_header_mst	txh_party_contact_person	character varying	100	YES
+txn_header_mst	txh_party_phone	character varying	15	YES
+txn_header_mst	txh_party_gstin	character varying	20	YES
+txn_header_mst	txh_ship_to	character varying	255	YES
+txn_header_mst	txh_department_id_gmst	integer		YES
+txn_header_mst	txh_initiated_by_emp_id_emp	integer		YES
+txn_header_mst	txh_employee_ref_code	character varying	20	YES
+txn_header_mst	txh_designation	character varying	100	YES
+txn_header_mst	txh_doc_subtype	character varying	30	YES
+txn_header_mst	txh_return_flag	character varying	20	YES
+txn_header_mst	txh_ref_txn_header_id_txh	integer		YES
+txn_header_mst	txh_reference_no	character varying	30	YES
+txn_header_mst	txh_invoice_no	character varying	30	YES
+txn_header_mst	txh_invoice_date	date		YES
+txn_header_mst	txh_po_no	character varying	30	YES
+txn_header_mst	txh_po_date	date		YES
+txn_header_mst	txh_purpose	character varying	100	YES
+txn_header_mst	txh_attachment_url	character varying	255	YES
+txn_header_mst	txh_inspected_by_emp_id_emp	integer		YES
+txn_header_mst	txh_inspection_date	date		YES
+txn_header_mst	txh_handed_over_to_emp_id_emp	integer		YES
+txn_header_mst	txh_handover_designation	character varying	100	YES
+txn_header_mst	txh_handover_date	date		YES
+txn_header_mst	txh_received_by_emp_id_emp	integer		YES
+txn_header_mst	txh_received_by_name	character varying	100	YES
+txn_header_mst	txh_received_designation	character varying	100	YES
+txn_header_mst	txh_received_date	date		YES
+txn_header_mst	txh_condition_on_return	character varying	20	YES
+txn_header_mst	txh_total_ordered_qty	numeric		YES
+txn_header_mst	txh_total_received_qty	numeric		YES
+txn_header_mst	txh_total_accepted_qty	numeric		YES
+txn_header_mst	txh_total_rejected_qty	numeric		YES
+txn_header_mst	txh_total_pending_qty	numeric		YES
+txn_header_mst	txh_total_amount	numeric		YES
+txn_header_mst	txh_prepared_date	date		YES
+txn_header_mst	txh_approved_by_emp_id_emp	integer		YES
+txn_header_mst	txh_approved_date	date		YES
+txn_header_mst	txh_footer_remark	character varying	500	YES
+txn_header_mst	txh_remarks	character varying	500	YES
+txn_header_mst	txh_status	character varying	20	NO
+txn_header_mst	txh_created_by	character varying	50	YES
+txn_header_mst	txh_created_on	timestamp without time zone		NO
+txn_header_mst	txh_modified_by	character varying	50	YES
+txn_header_mst	txh_modified_on	timestamp without time zone		YES
+unit_mst	unt_unit_id	integer		NO
+unit_mst	unt_unit_code	character varying	20	NO
+unit_mst	unt_unit_name	character varying	100	NO
+unit_mst	unt_desc	character varying	255	YES
+unit_mst	unt_isactive	boolean		NO
+unit_mst	unt_created_by	character varying	50	YES
+unit_mst	unt_created_on	timestamp without time zone		NO
+unit_mst	unt_modified_by	character varying	50	YES
+unit_mst	unt_modified_on	timestamp without time zone		YES
+(372 rows)

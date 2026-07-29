@@ -5,7 +5,7 @@ import { Pill, StatusBadge } from '@/components/ui/Badge'
 import { dashboardData } from '@/data/mock'
 
 export function DashboardPage() {
-  const maxCat = Math.max(...dashboardData.categoryValues.map((c) => c.value))
+  const maxCat = Math.max(1, ...dashboardData.categoryValues.map((c) => c.value))
 
   return (
     <div>

@@ -12,9 +12,10 @@
     "frontend/src/features/masters": "modules/features-masters.json",
     "frontend/src/features/transactions": "modules/features-transactions.json",
     "frontend/src/features/reports": "modules/features-reports.json",
-    "frontend/src/components/react-bits": "modules/react-bits.json"
+    "frontend/src/components/react-bits": "modules/react-bits.json",
+    "backend": "modules/backend-api.json"
   },
   "api": {},
-  "db_tables": [],
-  "last_updated": "2026-07-29T08:00:00Z"
+  "db_tables": ["caits_local.*"],
+  "last_updated": "2026-07-29T15:45:00Z"
 }

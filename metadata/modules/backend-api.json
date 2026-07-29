@@ -1,0 +1,19 @@
+{
+  "id": "backend-api",
+  "title": "CAITS Java Backend API",
+  "summary": "Spring Boot 3 / Java 21 API on PostgreSQL schema caits_local. JWT auth, master CRUD, shared txn_header/detail transactions, reports, dashboard.",
+  "entryPoints": [
+    "backend/src/main/java/com/caits/CaitsApplication.java",
+    "backend/src/main/resources/application.yml",
+    "backend/src/main/java/com/caits/modules/auth/AuthController.java",
+    "backend/src/main/java/com/caits/modules/masters/controller/SetupMastersController.java",
+    "backend/src/main/java/com/caits/modules/transactions/TransactionControllers.java"
+  ],
+  "dependsOn": ["caits_local schema", "API docs in backend_approach/CAIMS_API_Documentation.xlsx"],
+  "notes": [
+    "Base path /api/v1",
+    "Seed user aditya.kulkarni / Admin@123",
+    "Transactions use DocType discriminator on txn_header_mst / txn_detail_dtl",
+    "Frontend client: frontend/src/api/client.ts"
+  ]
+}

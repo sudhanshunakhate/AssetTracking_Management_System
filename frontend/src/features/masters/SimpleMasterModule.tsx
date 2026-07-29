@@ -34,6 +34,7 @@ interface SimpleMasterProps<T extends Row> {
   getDefaults?: () => Record<string, unknown>
   extraListContent?: ReactNode
   renderExtraForm?: (values: Record<string, unknown>, set: (k: string, v: unknown) => void) => ReactNode
+  onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
 }
 
 export function SimpleMasterModule<T extends Row>({
@@ -50,6 +51,7 @@ export function SimpleMasterModule<T extends Row>({
   getDefaults,
   extraListContent,
   renderExtraForm,
+  onSave,
 }: SimpleMasterProps<T>) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -65,6 +67,8 @@ export function SimpleMasterModule<T extends Row>({
         fields={fields}
         formTitle={formTitle}
         saveLabel={saveLabel}
+        recordId={id}
+        onSave={onSave}
         initial={
           editing
             ? (editing as Record<string, unknown>)
@@ -107,6 +111,8 @@ function MasterForm({
   formTitle,
   saveLabel,
   initial,
+  recordId,
+  onSave,
   renderExtraForm,
 }: {
   title: string
@@ -116,6 +122,8 @@ function MasterForm({
   formTitle: string
   saveLabel: string
   initial: Record<string, unknown>
+  recordId: string
+  onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
   renderExtraForm?: (values: Record<string, unknown>, set: (k: string, v: unknown) => void) => ReactNode
 }) {
   const navigate = useNavigate()
@@ -123,10 +131,29 @@ function MasterForm({
     ...initial,
     status: initial.status === 'Active' || initial.status === true,
   }))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const set = (k: string, v: unknown) => setValues((prev) => ({ ...prev, [k]: v }))
 
   const gridClass = useMemo(() => 'grid gap-2.5 grid-cols-1 md:grid-cols-2 xl:grid-cols-4', [])
+
+  const handleSave = async () => {
+    if (!onSave) {
+      navigate(basePath)
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      await onSave(recordId, values)
+      navigate(basePath)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <FadeContent>
@@ -215,6 +242,8 @@ function MasterForm({
 
       {renderExtraForm?.(values, set)}
 
+      {error && <div className="mt-3 text-sm text-[var(--danger)]">{error}</div>}
+
       <FormActions
         onClear={() =>
           setValues({
@@ -223,8 +252,8 @@ function MasterForm({
           })
         }
         onBack={() => navigate(basePath)}
-        onSave={() => navigate(basePath)}
-        saveLabel={saveLabel}
+        onSave={() => void handleSave()}
+        saveLabel={saving ? 'Saving…' : saveLabel}
       />
     </FadeContent>
   )

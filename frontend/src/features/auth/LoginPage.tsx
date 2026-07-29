@@ -14,21 +14,28 @@ import { useAuth } from './AuthContext'
 export function LoginPage() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
-  const [loginId, setLoginId] = useState('aditya.kulkarni')
+  const [loginId, setLoginId] = useState('admin')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   if (user) return <Navigate to="/dashboard" replace />
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    const result = login(loginId, password || 'demo')
-    if (!result.ok) {
-      setError(result.error ?? 'Invalid credentials')
-      return
+    setSubmitting(true)
+    setError('')
+    try {
+      const result = await login(loginId, password)
+      if (!result.ok) {
+        setError(result.error ?? 'Invalid credentials')
+        return
+      }
+      navigate('/dashboard', { replace: true })
+    } finally {
+      setSubmitting(false)
     }
-    navigate('/dashboard', { replace: true })
   }
 
   return (
@@ -165,14 +172,16 @@ export function LoginPage() {
 
               <button
                 type="submit"
-                className="w-full rounded-lg bg-[var(--accent)] py-[11px] text-[13.5px] font-bold text-white transition hover:bg-[#1d4ed8]"
+                disabled={submitting}
+                className="w-full rounded-lg bg-[var(--accent)] py-[11px] text-[13.5px] font-bold text-white transition hover:bg-[#1d4ed8] disabled:opacity-60"
               >
-                Sign In
+                {submitting ? 'Signing in…' : 'Sign In'}
               </button>
 
               <div className="mt-5 rounded-lg border border-dashed border-[var(--accent-mid)] bg-[var(--accent-lt)] px-3 py-2.5 text-[11px] leading-relaxed text-[var(--text2)]">
-                <b className="text-[var(--accent)]">Demo mode</b> — UI prototype only. Any password
-                signs you in. Try Login ID <b className="text-[var(--accent)]">aditya.kulkarni</b>.
+                <b className="text-[var(--accent)]">Admin login</b> — Login ID{' '}
+                <b className="text-[var(--accent)]">admin</b> / password{' '}
+                <b className="text-[var(--accent)]">Admin@123</b>.
               </div>
             </form>
           </StarBorder>

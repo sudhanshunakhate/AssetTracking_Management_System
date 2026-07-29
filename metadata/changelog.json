@@ -1,4 +1,5 @@
 [
+  "2026-07-29: Backend phase — Spring Boot API (auth/JWT, masters, transactions, reports, dashboard) on caits_local; UI login + units/categories wired to live API; seed user aditya.kulkarni/Admin@123.",
   "2026-07-29: Rebranded product name to CAITS (Centralized Asset and Inventory Tracking System) across UI and docs.",
   "2026-07-29: Phase 2 UI — transactions (OPN/SR/GRN/GP/ISS/TRF/RTN), Stock Register, Full Report; removed duplicate Add New on list screens.",
   "2026-07-29: Phase 1 UI scaffold — CAITS React app with login, shell, dashboard, and all master screens (mock data, no API/DB)."
