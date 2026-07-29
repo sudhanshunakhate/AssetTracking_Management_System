@@ -1,0 +1,11 @@
+{
+  "path": "frontend/src/features/reports",
+  "purpose": "Stock Register and Full Report filtered tables.",
+  "key_files": {
+    "StockRegisterPage.tsx": "Item/location stock position with totals",
+    "FullReportPage.tsx": "Cross-transaction trail with filter strip"
+  },
+  "depends_on": ["frontend/src/data/mock"],
+  "used_by": ["frontend/src/App.tsx"],
+  "updated": "2026-07-29"
+}

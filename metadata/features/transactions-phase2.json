@@ -1,0 +1,17 @@
+{
+  "id": "transactions-phase2",
+  "status": "done",
+  "description": "Phase 2 transaction UIs: Opening Stock, Store Requisitions, GRN, Gatepass (Inward/Outward tabs), Store Issue, Material Transfer, Material Return — mock data, no API.",
+  "files": [
+    "frontend/src/features/transactions/TransactionPages.tsx",
+    "frontend/src/features/transactions/GatepassPage.tsx",
+    "frontend/src/types/transactions.ts",
+    "frontend/src/data/mock/index.ts",
+    "frontend/src/config/navigation.ts"
+  ],
+  "api_endpoints": [],
+  "db_tables": [],
+  "depends_on": ["app-shell", "masters-phase1"],
+  "notes": "List pages use a single Add button in PageHeader (no duplicate toolbar Add). Gatepass is a tabbed single page, not list/form.",
+  "updated": "2026-07-29"
+}

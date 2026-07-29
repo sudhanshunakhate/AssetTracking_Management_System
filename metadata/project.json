@@ -1,0 +1,10 @@
+{
+  "stack": "React 19 + Vite + TypeScript + Tailwind CSS 4 (UI). Planned backend: Java 21, PostgreSQL.",
+  "conventions": {
+    "folders": "frontend/src feature-based: features/*, components/{ui,layout,react-bits}, data/mock, config",
+    "ui": "CAITS wireframe IT palette (#2563eb accent, #f4f6fb bg). No icons/emoji in chrome.",
+    "api_style": "None yet — Phase 1–2 UI only with mock data",
+    "react_bits": "Vendored adapters under components/react-bits (Aurora, GhostCursor, CountUp, FadeContent, SpotlightCard, ShinyText, Magnet, ClickSpark, BlurText, TextType, GradientText, StarBorder, AnimatedContent)"
+  },
+  "product": "CAITS — Centralized Asset and Inventory Tracking System"
+}

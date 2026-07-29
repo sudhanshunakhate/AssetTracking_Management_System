@@ -1,0 +1,16 @@
+{
+  "id": "app-shell",
+  "status": "done",
+  "description": "Collapsible text-only sidebar, topbar breadcrumbs, profile menu, protected outlet shell matching wireframe layout.",
+  "files": [
+    "frontend/src/components/layout/AppShell.tsx",
+    "frontend/src/components/layout/Sidebar.tsx",
+    "frontend/src/components/layout/Topbar.tsx",
+    "frontend/src/config/navigation.ts"
+  ],
+  "api_endpoints": [],
+  "db_tables": [],
+  "depends_on": ["auth-login"],
+  "notes": "No icons/emoji in nav. Collapsed mode shows badge abbreviations. Transactions + Stock/Full Report live under Phase 2 nav groups.",
+  "updated": "2026-07-29"
+}

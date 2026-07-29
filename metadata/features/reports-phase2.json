@@ -1,0 +1,14 @@
+{
+  "id": "reports-phase2",
+  "status": "done",
+  "description": "Stock Register and Full Report screens with client-side filters and mock aggregates.",
+  "files": [
+    "frontend/src/features/reports/StockRegisterPage.tsx",
+    "frontend/src/features/reports/FullReportPage.tsx"
+  ],
+  "api_endpoints": [],
+  "db_tables": [],
+  "depends_on": ["app-shell", "transactions-phase2"],
+  "notes": "Export buttons are UI-only stubs.",
+  "updated": "2026-07-29"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "dashboard",
+  "status": "done",
+  "description": "KPI cards with CountUp/SpotlightCard, category bars, low stock, activity, store stock — mock data only.",
+  "files": ["frontend/src/features/dashboard/DashboardPage.tsx", "frontend/src/data/mock/index.ts"],
+  "api_endpoints": [],
+  "db_tables": [],
+  "depends_on": ["app-shell"],
+  "notes": "No charts library; CSS bars for category distribution.",
+  "updated": "2026-07-29"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "masters-phase1",
+  "status": "done",
+  "description": "All Phase 1 master list/form screens from wireframe: Unit, Item, Inv Category/Sub, General Type/Master, Vendor, Org, OU, Store, Role (+perm matrix), Employee, User Login, Menu Access, Access Exception.",
+  "files": [
+    "frontend/src/features/masters/MasterPages.tsx",
+    "frontend/src/features/masters/SimpleMasterModule.tsx",
+    "frontend/src/data/mock/index.ts",
+    "frontend/src/types/masters.ts"
+  ],
+  "api_endpoints": [],
+  "db_tables": [],
+  "depends_on": ["app-shell"],
+  "notes": "Forms are UI-only; Save returns to list without persistence. Transactions and Stock/Full Report are Phase 2.",
+  "updated": "2026-07-29"
+}

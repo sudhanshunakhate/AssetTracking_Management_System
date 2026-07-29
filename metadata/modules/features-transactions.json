@@ -1,0 +1,11 @@
+{
+  "path": "frontend/src/features/transactions",
+  "purpose": "Phase 2 transaction list/form screens and Gatepass tabbed UI.",
+  "key_files": {
+    "TransactionPages.tsx": "Opening Stock, Requisitions, GRN, Issue, Transfer, Return modules",
+    "GatepassPage.tsx": "Material Inward + Outward Form tabs"
+  },
+  "depends_on": ["frontend/src/features/masters/SimpleMasterModule.tsx", "frontend/src/data/mock"],
+  "used_by": ["frontend/src/App.tsx"],
+  "updated": "2026-07-29"
+}
