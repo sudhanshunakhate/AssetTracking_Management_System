@@ -50,25 +50,30 @@ export function Switch({
   onChange,
   label,
   id,
+  disabled = false,
 }: {
   checked: boolean
   onChange: (v: boolean) => void
   label: string
   id?: string
+  disabled?: boolean
 }) {
   const sid = id ?? label.replace(/\s+/g, '-').toLowerCase()
   return (
-    <div className="flex items-center gap-2.5">
+    <div className={`flex items-center gap-2.5 ${disabled ? 'opacity-60' : ''}`}>
       <label className="relative h-[22px] w-[38px] shrink-0">
         <input
           id={sid}
           type="checkbox"
           className="absolute h-0 w-0 opacity-0"
           checked={checked}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
         />
         <span
-          className={`absolute inset-0 cursor-pointer rounded-[11px] border transition ${
+          className={`absolute inset-0 rounded-[11px] border transition ${
+            disabled ? 'cursor-not-allowed' : 'cursor-pointer'
+          } ${
             checked
               ? 'border-[var(--accent)] bg-[var(--accent)]'
               : 'border-[var(--border)] bg-[var(--border2)]'
@@ -81,7 +86,10 @@ export function Switch({
           />
         </span>
       </label>
-      <label htmlFor={sid} className="cursor-pointer text-[12.5px] font-medium text-[var(--text2)]">
+      <label
+        htmlFor={sid}
+        className={`${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} text-[12.5px] font-medium text-[var(--text2)]`}
+      >
         {label}
       </label>
     </div>

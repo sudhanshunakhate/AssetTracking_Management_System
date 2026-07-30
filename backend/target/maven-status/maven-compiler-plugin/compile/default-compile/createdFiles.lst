@@ -1,2 +1,3 @@
+com\caits\config\DataSeeder$MenuDef.class
 com\caits\modules\transactions\TxnDocumentService$1.class
 com\caits\modules\auth\AuthController.class

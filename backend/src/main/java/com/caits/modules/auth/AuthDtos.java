@@ -15,7 +15,17 @@ public final class AuthDtos {
 
     public record ForgotPasswordRequest(String loginId) {}
 
-    public record MenuPermissionDto(String menuCode, boolean view, boolean create, boolean approve) {}
+    public record MenuPermissionDto(
+            String menuCode,
+            boolean view,
+            boolean create,
+            boolean edit,
+            boolean delete,
+            boolean approve,
+            boolean reject,
+            boolean print,
+            boolean export
+    ) {}
 
     public record MeResponse(
             Integer userId,

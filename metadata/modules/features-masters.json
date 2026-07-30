@@ -1,11 +1,11 @@
 {
   "path": "frontend/src/features/masters",
-  "purpose": "Reusable list/form master module pattern and all Phase 1 master screens.",
+  "purpose": "Reusable list/form master module pattern and all Phase 1 master screens wired to live API.",
   "key_files": {
     "SimpleMasterModule.tsx": "Shared list + form shell driven by field/column config",
-    "MasterPages.tsx": "Concrete master route modules wired to mock data"
+    "MasterPages.tsx": "Concrete master route modules using useMasterList + create/updateMaster"
   },
-  "depends_on": ["frontend/src/data/mock", "frontend/src/components/ui"],
+  "depends_on": ["frontend/src/api/masters.ts", "frontend/src/api/client.ts", "frontend/src/components/ui"],
   "used_by": ["frontend/src/App.tsx"],
   "updated": "2026-07-29"
 }

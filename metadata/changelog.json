@@ -1,4 +1,12 @@
 [
+  "2026-07-30: Fixed edit-form field patching on all master/txn screens (wait for list row + re-sync select/switch values).",
+  "2026-07-30: Merged Menu Access into Access Role form; removed separate Menu Access sidebar item (old /menu-access redirects to roles).",
+  "2026-07-30: Menu Edit permission now returned from /auth/me and enforced on master/txn screens; Menu Access column select-all; Access Role fake matrix removed.",
+  "2026-07-29: Employee Master full form (personal/professional/system access) + API fields gender/dob/joining/employmentType/phones/reportingTo + optional auto user login.",
+  "2026-07-29: Sidebar now filters by GET /auth/me menuPermissions.view (was static nav); Menu Access save refreshes session permissions.",
+  "2026-07-29: Seeded 25 menus into sysm_menutree_mst + ADMIN full access into sysm_rolepermission_dtl; DataSeeder + Menu Access UI wired to menus/permissions APIs.",
+  "2026-07-29: Wired transactions, gatepass, stock register, full report, and dashboard KPIs to live /api/v1; all txn list GETs verified with JWT.",
+  "2026-07-29: Wired all master list/form screens to live /api/v1 (JWT); verified master GET lists return PageResponse; GET /menus remains raw array.",
   "2026-07-29: Backend phase — Spring Boot API (auth/JWT, masters, transactions, reports, dashboard) on caits_local; UI login + units/categories wired to live API; seed user aditya.kulkarni/Admin@123.",
   "2026-07-29: Rebranded product name to CAITS (Centralized Asset and Inventory Tracking System) across UI and docs.",
   "2026-07-29: Phase 2 UI — transactions (OPN/SR/GRN/GP/ISS/TRF/RTN), Stock Register, Full Report; removed duplicate Add New on list screens.",

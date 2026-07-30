@@ -1,11 +1,11 @@
 {
   "path": "frontend/src/features/transactions",
-  "purpose": "Phase 2 transaction list/form screens and Gatepass tabbed UI.",
+  "purpose": "Transaction list/form screens and gatepass window wired to shared TxnDocumentService APIs.",
   "key_files": {
-    "TransactionPages.tsx": "Opening Stock, Requisitions, GRN, Issue, Transfer, Return modules",
-    "GatepassPage.tsx": "Material Inward + Outward Form tabs"
+    "TransactionPages.tsx": "OPN/SR/GRN/ISS/TRF/RTN list+draft create via useTxnList/createTxn",
+    "GatepassPage.tsx": "Inward/outward tabs with live lists and draft create"
   },
-  "depends_on": ["frontend/src/features/masters/SimpleMasterModule.tsx", "frontend/src/data/mock"],
+  "depends_on": ["frontend/src/api/transactions.ts", "frontend/src/api/masters.ts"],
   "used_by": ["frontend/src/App.tsx"],
   "updated": "2026-07-29"
 }

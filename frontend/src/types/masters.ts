@@ -113,11 +113,19 @@ export interface Employee {
   code: string
   firstName: string
   lastName: string
+  gender?: string
+  dob?: string
+  joiningDate?: string
+  employmentType?: string
   designation: string
   department: string
   email: string
+  phone?: string
+  altPhone?: string
   role: string
   baseStore: string
+  reportingTo?: string
+  hasLogin?: boolean
   status: Status
 }
 

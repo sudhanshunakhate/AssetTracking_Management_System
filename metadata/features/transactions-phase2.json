@@ -1,17 +1,26 @@
 {
   "id": "transactions-phase2",
   "status": "done",
-  "description": "Phase 2 transaction UIs: Opening Stock, Store Requisitions, GRN, Gatepass (Inward/Outward tabs), Store Issue, Material Transfer, Material Return — mock data, no API.",
+  "description": "Phase 2 transaction UIs wired to live /api/v1 lists + draft create: Opening Stock, Requisitions, GRN, Gatepass inward/outward, Issues, Transfers, Returns. Dropdowns from masters APIs. Saves require at least one line (item+qty) as SAVE_DRAFT.",
   "files": [
     "frontend/src/features/transactions/TransactionPages.tsx",
     "frontend/src/features/transactions/GatepassPage.tsx",
+    "frontend/src/api/transactions.ts",
     "frontend/src/types/transactions.ts",
-    "frontend/src/data/mock/index.ts",
     "frontend/src/config/navigation.ts"
   ],
-  "api_endpoints": [],
-  "db_tables": [],
-  "depends_on": ["app-shell", "masters-phase1"],
-  "notes": "List pages use a single Add button in PageHeader (no duplicate toolbar Add). Gatepass is a tabbed single page, not list/form.",
+  "api_endpoints": [
+    "GET/POST /opening-stock",
+    "GET/POST/PUT /requisitions",
+    "GET/POST/PUT /grn",
+    "GET/POST /gatepass/inward",
+    "GET/POST /gatepass/outward",
+    "GET/POST /material-issues",
+    "GET/POST /transfers",
+    "GET/POST /returns"
+  ],
+  "db_tables": ["txn_header_mst", "txn_detail_dtl", "inv_stock_mst"],
+  "depends_on": ["app-shell", "masters-phase1", "auth-login"],
+  "notes": "List shape is TxnDtos.ListItem (header-level). Line-level item/qty shown on create forms. Issues/transfers/returns have no PUT on backend. Approve/submit stock posting not wired in UI yet.",
   "updated": "2026-07-29"
 }

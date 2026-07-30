@@ -1,11 +1,14 @@
 {
   "id": "dashboard",
   "status": "done",
-  "description": "KPI cards with CountUp/SpotlightCard, category bars, low stock, activity, store stock — mock data only.",
-  "files": ["frontend/src/features/dashboard/DashboardPage.tsx", "frontend/src/data/mock/index.ts"],
-  "api_endpoints": [],
-  "db_tables": [],
-  "depends_on": ["app-shell"],
-  "notes": "No charts library; CSS bars for category distribution.",
+  "description": "Dashboard KPI cards from GET /dashboard/summary (items, vendors, transactions, low stock, stock rows).",
+  "files": [
+    "frontend/src/features/dashboard/DashboardPage.tsx",
+    "frontend/src/api/transactions.ts"
+  ],
+  "api_endpoints": ["GET /dashboard/summary"],
+  "db_tables": ["inv_item_mst", "inv_vendor_mst", "inv_stock_mst", "txn_header_mst"],
+  "depends_on": ["app-shell", "auth-login"],
+  "notes": "Category bars / activity / store tables removed until dedicated APIs exist; summary KPIs are live.",
   "updated": "2026-07-29"
 }

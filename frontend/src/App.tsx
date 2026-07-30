@@ -4,14 +4,12 @@ import { AuthProvider, useAuth } from '@/features/auth/AuthContext'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import {
-  EmployeesMaster,
   ExceptionsMaster,
   GeneralMastersMaster,
   GeneralTypesMaster,
   InventoryCategoriesMaster,
   InventorySubCategoriesMaster,
   ItemsMaster,
-  MenuAccessPage,
   OperatingUnitsMaster,
   OrganizationsMaster,
   RolesMaster,
@@ -20,6 +18,7 @@ import {
   UsersMaster,
   VendorsMaster,
 } from '@/features/masters/MasterPages'
+import { EmployeesMaster } from '@/features/masters/EmployeeMasterPages'
 import { FullReportPage } from '@/features/reports/FullReportPage'
 import { StockRegisterPage } from '@/features/reports/StockRegisterPage'
 import { GatepassPage } from '@/features/transactions/GatepassPage'
@@ -58,7 +57,7 @@ export default function App() {
           <Route path="/masters/roles/*" element={<RolesMaster />} />
           <Route path="/masters/employees/*" element={<EmployeesMaster />} />
           <Route path="/masters/users/*" element={<UsersMaster />} />
-          <Route path="/masters/menu-access" element={<MenuAccessPage />} />
+          <Route path="/masters/menu-access" element={<Navigate to="/masters/roles" replace />} />
           <Route path="/masters/exceptions/*" element={<ExceptionsMaster />} />
 
           <Route path="/transactions/opening-stock/*" element={<OpeningStockPages />} />

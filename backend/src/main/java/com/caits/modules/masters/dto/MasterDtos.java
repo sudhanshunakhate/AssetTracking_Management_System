@@ -73,7 +73,9 @@ public final class MasterDtos {
                                  BigDecimal availableQty, String batchLotNo) {}
 
     public record MenuDto(Integer menuId, String menuCode, String menuLabel, String menuGroup, Integer sortOrder,
-                          String docType, Boolean supportsView, Boolean supportsCreate, Boolean supportsApprove) {}
+                          String docType, Boolean supportsView, Boolean supportsCreate, Boolean supportsEdit,
+                          Boolean supportsDelete, Boolean supportsApprove, Boolean supportsReject,
+                          Boolean supportsPrint, Boolean supportsExport) {}
 
     public record RoleDto(Integer roleId, String roleCode, String roleName, Integer roleLevel, String desc,
                           Boolean isSystemRole, Boolean isActive, String createdBy, LocalDateTime createdOn,
@@ -83,21 +85,28 @@ public final class MasterDtos {
     public record PermissionDto(String module, Boolean canView, Boolean canCreate, Boolean canEdit, Boolean canDelete,
                                 Boolean canApprove, Boolean canReject, Boolean canPrint, Boolean canExport) {}
 
-    public record EmployeeDto(Integer employeeId, String employeeCode, String firstName, String lastName, String email,
-                              String phone, String designation, String department, Integer roleId, Integer baseLocationId,
-                              Integer reportingToEmpId, Boolean isActive, String createdBy, LocalDateTime createdOn,
+    public record EmployeeDto(Integer employeeId, String employeeCode, String firstName, String lastName,
+                              String gender, java.time.LocalDate dob, java.time.LocalDate joiningDate, String employmentType,
+                              String email, String phone, String altPhone, String designation, String department,
+                              Integer roleId, Integer baseLocationId, Integer reportingToEmpId, Boolean isActive,
+                              Boolean hasLogin, String createdBy, LocalDateTime createdOn,
                               String modifiedBy, LocalDateTime modifiedOn, String message) {}
-    public record EmployeeRequest(Integer employeeId, String employeeCode, String firstName, String lastName, String email,
-                                  String phone, String designation, String department, Integer roleId, Integer baseLocationId,
-                                  Integer reportingToEmpId, Boolean isActive) {}
+    public record EmployeeRequest(Integer employeeId, String employeeCode, String firstName, String lastName,
+                                  String gender, java.time.LocalDate dob, java.time.LocalDate joiningDate,
+                                  String employmentType, String email, String phone, String altPhone,
+                                  String designation, String department, Integer roleId, Integer baseLocationId,
+                                  Integer reportingToEmpId, Boolean isActive,
+                                  Boolean createLogin, String loginId, String password, String confirmPassword,
+                                  Integer entityId) {}
     public record SubordinateDto(Integer employeeId, String employeeCode, String firstName, String designation) {}
 
     public record UserDto(Integer userId, Integer employeeId, String loginId, Integer roleId, String accountStatus,
                           Integer entityId, String buAccessScope, Integer locationId, Boolean forcePasswordReset,
                           Boolean isActive, String createdBy, LocalDateTime createdOn, String modifiedBy,
                           LocalDateTime modifiedOn, String message) {}
-    public record UserRequest(Integer employeeId, String loginId, Integer roleId, String accountStatus, Integer entityId,
-                              String buAccessScope, Integer locationId, Boolean forcePasswordReset, Boolean isActive) {}
+    public record UserRequest(Integer employeeId, String loginId, String password, Integer roleId, String accountStatus,
+                              Integer entityId, String buAccessScope, Integer locationId, Boolean forcePasswordReset,
+                              Boolean isActive) {}
     public record LockStatusRequest(String action) {}
     public record LockStatusResponse(Integer userId, String accountStatus, String message) {}
     public record OuAccessDto(Integer userId, String buAccessScope, List<Integer> buIds) {}

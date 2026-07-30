@@ -94,8 +94,22 @@ export async function meApi() {
     role: string
     buAccessScope: string
     allowedBuIds: number[]
+    menuPermissions: MenuPermission[]
   }>('/auth/me')
 }
+
+export type MenuPermission = {
+  menuCode: string
+  view: boolean
+  create: boolean
+  edit: boolean
+  delete: boolean
+  approve: boolean
+  reject: boolean
+  print: boolean
+  export: boolean
+}
+
 
 /** Map backend master DTO (unitId/isActive) → UI row (id/status). */
 export function mapMasterRow<T extends Record<string, unknown>>(

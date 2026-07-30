@@ -29,12 +29,14 @@ public class SecurityMastersService {
     private final SysmUserloginMstRepository userRepo;
     private final SysmUserBuMappingDtlRepository buMappingRepo;
     private final SysmUseraccessExceptionDtlRepository exceptionRepo;
+    private final OrgEntityMstRepository entityRepo;
     private final PasswordEncoder passwordEncoder;
 
     public SecurityMastersService(SysmMenutreeMstRepository menuRepo, SysmRolesMstRepository roleRepo,
                                   SysmRolepermissionDtlRepository rolePermRepo, HrcEmployeeMstRepository employeeRepo,
                                   SysmUserloginMstRepository userRepo, SysmUserBuMappingDtlRepository buMappingRepo,
-                                  SysmUseraccessExceptionDtlRepository exceptionRepo, PasswordEncoder passwordEncoder) {
+                                  SysmUseraccessExceptionDtlRepository exceptionRepo, OrgEntityMstRepository entityRepo,
+                                  PasswordEncoder passwordEncoder) {
         this.menuRepo = menuRepo;
         this.roleRepo = roleRepo;
         this.rolePermRepo = rolePermRepo;
@@ -42,6 +44,7 @@ public class SecurityMastersService {
         this.userRepo = userRepo;
         this.buMappingRepo = buMappingRepo;
         this.exceptionRepo = exceptionRepo;
+        this.entityRepo = entityRepo;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -51,7 +54,9 @@ public class SecurityMastersService {
         return menuRepo.findByMtreeIsactiveTrueOrderByMtreeSortOrderAsc().stream()
                 .map(m -> new MenuDto(m.getMtreeMenuId(), m.getMtreeMenuCode(), m.getMtreeMenuLabel(),
                         m.getMtreeMenuGroup(), m.getMtreeSortOrder(), m.getMtreeDocType(),
-                        m.getMtreeSupportsView(), m.getMtreeSupportsCreate(), m.getMtreeSupportsApprove()))
+                        m.getMtreeSupportsView(), m.getMtreeSupportsCreate(), m.getMtreeSupportsEdit(),
+                        m.getMtreeSupportsDelete(), m.getMtreeSupportsApprove(), m.getMtreeSupportsReject(),
+                        m.getMtreeSupportsPrint(), m.getMtreeSupportsExport()))
                 .toList();
     }
 
@@ -205,7 +210,14 @@ public class SecurityMastersService {
         applyEmp(e, req);
         e.setEmpCreatedBy(SecurityUtils.requireLoginId());
         e.setEmpCreatedOn(LocalDateTime.now());
-        return toEmpDto(employeeRepo.save(e), "Employee created successfully");
+        e = employeeRepo.save(e);
+
+        String message = "Employee created successfully";
+        if (Boolean.TRUE.equals(req.createLogin())) {
+            provisionLogin(e, req);
+            message = "Employee created successfully. User login was created automatically.";
+        }
+        return toEmpDto(e, message);
     }
 
     @Transactional
@@ -219,7 +231,14 @@ public class SecurityMastersService {
         applyEmp(e, req);
         e.setEmpModifiedBy(SecurityUtils.requireLoginId());
         e.setEmpModifiedOn(LocalDateTime.now());
-        return toEmpDto(employeeRepo.save(e), "Employee updated successfully");
+        e = employeeRepo.save(e);
+
+        String message = "Employee updated successfully";
+        if (Boolean.TRUE.equals(req.createLogin()) && !userRepo.existsByUsrEmployeeIdEmp(e.getEmpEmployeeId())) {
+            provisionLogin(e, req);
+            message = "Employee updated successfully. User login was created automatically.";
+        }
+        return toEmpDto(e, message);
     }
 
     @Transactional
@@ -237,24 +256,98 @@ public class SecurityMastersService {
     }
 
     private void applyEmp(HrcEmployeeMst e, EmployeeRequest req) {
-        e.setEmpEmployeeCode(req.employeeCode());
-        e.setEmpFirstName(req.firstName());
-        e.setEmpLastName(req.lastName());
-        e.setEmpEmail(req.email());
-        e.setEmpPhone(req.phone());
-        e.setEmpDesignation(req.designation());
-        e.setEmpDepartment(req.department());
+        if (req.employeeCode() != null) e.setEmpEmployeeCode(req.employeeCode().trim().toUpperCase());
+        if (req.firstName() != null) e.setEmpFirstName(req.firstName().trim());
+        e.setEmpLastName(blankToNull(req.lastName()));
+        e.setEmpGender(normalizeGender(req.gender()));
+        e.setEmpDob(req.dob());
+        e.setEmpJoiningDate(req.joiningDate());
+        e.setEmpEmploymentType(blankToNull(req.employmentType()));
+        if (req.email() != null) e.setEmpEmail(req.email().trim());
+        e.setEmpPhone(blankToNull(req.phone()));
+        e.setEmpAltPhone(blankToNull(req.altPhone()));
+        e.setEmpDesignation(blankToNull(req.designation()));
+        e.setEmpDepartment(blankToNull(req.department()));
         if (req.roleId() != null) e.setEmpRoleIdRol(req.roleId());
         e.setEmpBaseLocationIdLoc(req.baseLocationId());
         e.setEmpReportingToEmpIdEmp(req.reportingToEmpId());
         e.setEmpIsactive(req.isActive() == null || req.isActive());
     }
 
+    private void provisionLogin(HrcEmployeeMst emp, EmployeeRequest req) {
+        require(req.password(), "password");
+        if (req.confirmPassword() == null || !req.confirmPassword().equals(req.password())) {
+            throw ApiException.badRequest("Password and Confirm Password do not match");
+        }
+        if (req.password().length() < 8) {
+            throw ApiException.badRequest("Password must be at least 8 characters");
+        }
+        String loginId = req.loginId();
+        if (loginId == null || loginId.isBlank()) {
+            String first = emp.getEmpFirstName() == null ? "" : emp.getEmpFirstName().trim().toLowerCase();
+            String last = emp.getEmpLastName() == null ? "" : emp.getEmpLastName().trim().toLowerCase();
+            loginId = (first + (last.isEmpty() ? "" : "." + last)).replaceAll("\\s+", "");
+        } else {
+            loginId = loginId.trim().toLowerCase();
+        }
+        if (loginId.isBlank()) {
+            throw ApiException.badRequest("loginId is required to create a user login");
+        }
+        if (userRepo.existsByUsrLoginIdIgnoreCase(loginId)) {
+            throw ApiException.conflict("Login ID already exists");
+        }
+        Integer entityId = req.entityId();
+        if (entityId == null) {
+            entityId = entityRepo.findAll().stream()
+                    .filter(ent -> Boolean.TRUE.equals(ent.getEntIsactive()))
+                    .map(OrgEntityMst::getEntEntityId)
+                    .findFirst()
+                    .orElseThrow(() -> ApiException.badRequest("entityId is required to create a user login (no active organization found)"));
+        }
+
+        SysmUserloginMst user = new SysmUserloginMst();
+        user.setUsrEmployeeIdEmp(emp.getEmpEmployeeId());
+        user.setUsrLoginId(loginId);
+        user.setUsrPasswordHash(passwordEncoder.encode(req.password()));
+        user.setUsrRoleIdRol(emp.getEmpRoleIdRol());
+        user.setUsrAccountStatus("Active");
+        user.setUsrEntityIdEnt(entityId);
+        user.setUsrBuAccessScope("ALL");
+        user.setUsrLocationIdLoc(emp.getEmpBaseLocationIdLoc());
+        user.setUsrForcePasswordReset(false);
+        user.setUsrIsactive(true);
+        user.setUsrFailedAttempts(0);
+        user.setUsrCreatedBy(SecurityUtils.requireLoginId());
+        user.setUsrCreatedOn(LocalDateTime.now());
+        userRepo.save(user);
+    }
+
     private EmployeeDto toEmpDto(HrcEmployeeMst e, String message) {
-        return new EmployeeDto(e.getEmpEmployeeId(), e.getEmpEmployeeCode(), e.getEmpFirstName(), e.getEmpLastName(),
-                e.getEmpEmail(), e.getEmpPhone(), e.getEmpDesignation(), e.getEmpDepartment(), e.getEmpRoleIdRol(),
-                e.getEmpBaseLocationIdLoc(), e.getEmpReportingToEmpIdEmp(), e.getEmpIsactive(),
-                e.getEmpCreatedBy(), e.getEmpCreatedOn(), e.getEmpModifiedBy(), e.getEmpModifiedOn(), message);
+        boolean hasLogin = userRepo.existsByUsrEmployeeIdEmp(e.getEmpEmployeeId());
+        return new EmployeeDto(
+                e.getEmpEmployeeId(), e.getEmpEmployeeCode(), e.getEmpFirstName(), e.getEmpLastName(),
+                e.getEmpGender(), e.getEmpDob(), e.getEmpJoiningDate(), e.getEmpEmploymentType(),
+                e.getEmpEmail(), e.getEmpPhone(), e.getEmpAltPhone(), e.getEmpDesignation(), e.getEmpDepartment(),
+                e.getEmpRoleIdRol(), e.getEmpBaseLocationIdLoc(), e.getEmpReportingToEmpIdEmp(), e.getEmpIsactive(),
+                hasLogin, e.getEmpCreatedBy(), e.getEmpCreatedOn(), e.getEmpModifiedBy(), e.getEmpModifiedOn(), message);
+    }
+
+    private static String blankToNull(String v) {
+        if (v == null) return null;
+        String t = v.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private static String normalizeGender(String gender) {
+        if (gender == null || gender.isBlank()) return null;
+        String g = gender.trim();
+        if (g.length() == 1) return g.toUpperCase();
+        return switch (g.toLowerCase()) {
+            case "male" -> "M";
+            case "female" -> "F";
+            case "other" -> "O";
+            default -> g.substring(0, 1).toUpperCase();
+        };
     }
 
     // ---- Users ----
@@ -275,23 +368,8 @@ public class SecurityMastersService {
 
     @Transactional
     public UserDto createUser(UserRequest req) {
-        require(req.loginId(), "loginId");
-        if (req.employeeId() == null || req.roleId() == null || req.entityId() == null) {
-            throw ApiException.badRequest("employeeId, roleId and entityId are required");
-        }
-        findEmployee(req.employeeId());
-        findRole(req.roleId());
-        if (userRepo.existsByUsrLoginIdIgnoreCase(req.loginId())) {
-            throw ApiException.conflict("Login ID already exists");
-        }
-        SysmUserloginMst e = new SysmUserloginMst();
-        applyUser(e, req);
-        e.setUsrPasswordHash(passwordEncoder.encode("Welcome@123"));
-        e.setUsrForcePasswordReset(true);
-        e.setUsrFailedAttempts(0);
-        e.setUsrCreatedBy(SecurityUtils.requireLoginId());
-        e.setUsrCreatedOn(LocalDateTime.now());
-        return toUserDto(userRepo.save(e), "User created successfully");
+        throw ApiException.badRequest(
+                "User logins are created from Employee Master (Create User Login on Save). Use User Login Master only for role/org mapping.");
     }
 
     @Transactional
@@ -304,6 +382,14 @@ public class SecurityMastersService {
         if (req.employeeId() != null) findEmployee(req.employeeId());
         if (req.roleId() != null) findRole(req.roleId());
         applyUser(e, req);
+        if (req.password() != null && !req.password().isBlank()) {
+            if (req.password().length() < 8) {
+                throw ApiException.badRequest("Password must be at least 8 characters");
+            }
+            e.setUsrPasswordHash(passwordEncoder.encode(req.password()));
+            e.setUsrForcePasswordReset(false);
+            e.setUsrFailedAttempts(0);
+        }
         e.setUsrModifiedBy(SecurityUtils.requireLoginId());
         e.setUsrModifiedOn(LocalDateTime.now());
         return toUserDto(userRepo.save(e), "User updated successfully");

@@ -1,11 +1,11 @@
 {
   "path": "frontend/src/features/reports",
-  "purpose": "Stock Register and Full Report filtered tables.",
+  "purpose": "Stock register and full transaction report screens using reports APIs.",
   "key_files": {
-    "StockRegisterPage.tsx": "Item/location stock position with totals",
-    "FullReportPage.tsx": "Cross-transaction trail with filter strip"
+    "StockRegisterPage.tsx": "GET /reports/stock-register",
+    "FullReportPage.tsx": "GET /reports/full-report"
   },
-  "depends_on": ["frontend/src/data/mock"],
+  "depends_on": ["frontend/src/api/transactions.ts", "frontend/src/api/masters.ts"],
   "used_by": ["frontend/src/App.tsx"],
   "updated": "2026-07-29"
 }

@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
 import { navGroups } from '@/config/navigation'
+import { useAuth } from '@/features/auth/AuthContext'
 
 interface SidebarProps {
   collapsed: boolean
@@ -7,6 +9,19 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+  const { canViewMenu, permissionsReady } = useAuth()
+
+  const visibleGroups = useMemo(() => {
+    // While permissions load, keep static nav visible to avoid a blank flash.
+    if (!permissionsReady) return navGroups
+    return navGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => canViewMenu(item.menuCode)),
+      }))
+      .filter((group) => group.items.length > 0)
+  }, [canViewMenu, permissionsReady])
+
   return (
     <aside
       className={`fixed top-0 bottom-0 left-0 z-[200] flex flex-col overflow-hidden border-r border-[var(--border)] bg-[var(--surface)] transition-[width] duration-200 ${
@@ -28,7 +43,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       <nav className="flex-1 overflow-x-hidden overflow-y-auto py-2.5">
-        {navGroups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.id} className="mb-0.5">
             {!collapsed && (
               <span className="block px-[18px] pt-2 pb-1 text-[10px] font-bold tracking-[0.9px] text-[var(--text3)] uppercase">

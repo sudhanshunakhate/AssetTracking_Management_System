@@ -27,21 +27,23 @@ export function FormActions({
   onSave,
   saveLabel = 'Save',
 }: {
-  onClear: () => void
+  onClear?: () => void
   onBack: () => void
-  onSave: () => void
+  onSave?: () => void
   saveLabel?: string
 }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       <div className="flex-1" />
-      <Button variant="danger" onClick={onClear}>
-        Clear
-      </Button>
+      {onClear && (
+        <Button variant="danger" onClick={onClear}>
+          Clear
+        </Button>
+      )}
       <Button variant="ghost" onClick={onBack}>
         Back to List
       </Button>
-      <Button onClick={onSave}>{saveLabel}</Button>
+      {onSave && <Button onClick={onSave}>{saveLabel}</Button>}
     </div>
   )
 }

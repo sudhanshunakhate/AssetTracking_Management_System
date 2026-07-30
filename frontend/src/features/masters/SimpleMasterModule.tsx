@@ -1,11 +1,12 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, statusColumn, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
+import { useAuth } from '@/features/auth/AuthContext'
 
 export type FieldDef = {
   name: string
@@ -31,10 +32,38 @@ interface SimpleMasterProps<T extends Row> {
   formTitle?: string
   saveLabel?: string
   addLabel?: string
+  /** When false, hides Add New and blocks /new form. */
+  allowCreate?: boolean
+  /** Menu code used for create/edit permission checks. */
+  menuCode?: string
+  /** True while the parent list is still loading (avoids empty edit form). */
+  listLoading?: boolean
   getDefaults?: () => Record<string, unknown>
   extraListContent?: ReactNode
-  renderExtraForm?: (values: Record<string, unknown>, set: (k: string, v: unknown) => void) => ReactNode
+  renderExtraForm?: (
+    values: Record<string, unknown>,
+    set: (k: string, v: unknown) => void,
+    recordId: string,
+  ) => ReactNode
   onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
+  /** Field names that should be read-only on the edit form. */
+  readOnlyFields?: string[]
+}
+
+function toFormValues(initial: Record<string, unknown>, fields: FieldDef[]): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...initial }
+  next.status = initial.status === 'Active' || initial.status === true
+  for (const f of fields) {
+    const v = next[f.name]
+    if (f.type === 'switch') {
+      next[f.name] = Boolean(v)
+    } else if (f.type === 'select') {
+      next[f.name] = v == null || v === '' ? '' : String(v)
+    } else if (v == null) {
+      next[f.name] = ''
+    }
+  }
+  return next
 }
 
 export function SimpleMasterModule<T extends Row>({
@@ -48,19 +77,54 @@ export function SimpleMasterModule<T extends Row>({
   formTitle = 'Details',
   saveLabel = 'Save',
   addLabel = 'Add New',
+  allowCreate = true,
+  menuCode,
+  listLoading = false,
   getDefaults,
   extraListContent,
   renderExtraForm,
   onSave,
+  readOnlyFields = [],
 }: SimpleMasterProps<T>) {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { canCreateMenu, canEditMenu } = useAuth()
+  const canCreate = allowCreate && (!menuCode || canCreateMenu(menuCode))
+  const canEdit = !menuCode || canEditMenu(menuCode)
   const isForm = id === 'new' || (id != null && id.length > 0 && id !== undefined)
-  const editing = id && id !== 'new' ? rows.find((r) => r.id === id) : undefined
+  const editing = id && id !== 'new' ? rows.find((r) => String(r.id) === String(id)) : undefined
+  const isNew = id === 'new'
+  const formReadOnly = isNew ? !canCreate : !canEdit
+
+  if (id === 'new' && !canCreate) {
+    return <Navigate to={basePath} replace />
+  }
 
   if (isForm && id) {
+    // Wait until list row is available so fields patch correctly (every master screen).
+    if (!isNew && !editing) {
+      const stillLoading = listLoading || rows.length === 0
+      return (
+        <FadeContent>
+          <div className="mb-3 flex justify-end">
+            <Button variant="ghost" onClick={() => navigate(basePath)}>
+              Back to List
+            </Button>
+          </div>
+          <div className="text-sm text-[var(--text3)]">
+            {stillLoading ? 'Loading record…' : `Record #${id} was not found.`}
+          </div>
+        </FadeContent>
+      )
+    }
+
+    const initial = editing
+      ? (editing as Record<string, unknown>)
+      : (getDefaults?.() ?? { status: true })
+
     return (
       <MasterForm
+        key={id}
         title={title}
         description={description}
         basePath={basePath}
@@ -69,11 +133,9 @@ export function SimpleMasterModule<T extends Row>({
         saveLabel={saveLabel}
         recordId={id}
         onSave={onSave}
-        initial={
-          editing
-            ? (editing as Record<string, unknown>)
-            : (getDefaults?.() ?? { status: true })
-        }
+        readOnly={formReadOnly}
+        readOnlyFields={readOnlyFields}
+        initial={initial}
         renderExtraForm={renderExtraForm}
       />
     )
@@ -85,7 +147,7 @@ export function SimpleMasterModule<T extends Row>({
         title={title}
         description={description}
         actions={
-          <Button onClick={() => navigate(`${basePath}/new`)}>{addLabel}</Button>
+          canCreate ? <Button onClick={() => navigate(`${basePath}/new`)}>{addLabel}</Button> : undefined
         }
       />
       <Card>
@@ -114,6 +176,8 @@ function MasterForm({
   recordId,
   onSave,
   renderExtraForm,
+  readOnly = false,
+  readOnlyFields = [],
 }: {
   title: string
   description: string
@@ -124,22 +188,36 @@ function MasterForm({
   initial: Record<string, unknown>
   recordId: string
   onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
-  renderExtraForm?: (values: Record<string, unknown>, set: (k: string, v: unknown) => void) => ReactNode
+  renderExtraForm?: (
+    values: Record<string, unknown>,
+    set: (k: string, v: unknown) => void,
+    recordId: string,
+  ) => ReactNode
+  readOnly?: boolean
+  readOnlyFields?: string[]
 }) {
   const navigate = useNavigate()
-  const [values, setValues] = useState<Record<string, unknown>>(() => ({
-    ...initial,
-    status: initial.status === 'Active' || initial.status === true,
-  }))
+  const [values, setValues] = useState<Record<string, unknown>>(() => toFormValues(initial, fields))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // Re-patch only when record data actually changes (not on every parent re-render).
+  const patchKey = useMemo(() => {
+    const parts = fields.map((f) => `${f.name}=${String(initial[f.name] ?? '')}`)
+    return `${recordId}|${String(initial.status ?? '')}|${parts.join('&')}`
+  }, [recordId, initial, fields])
+
+  useEffect(() => {
+    setValues(toFormValues(initial, fields))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- patchKey captures field values
+  }, [patchKey])
 
   const set = (k: string, v: unknown) => setValues((prev) => ({ ...prev, [k]: v }))
 
   const gridClass = useMemo(() => 'grid gap-2.5 grid-cols-1 md:grid-cols-2 xl:grid-cols-4', [])
 
   const handleSave = async () => {
-    if (!onSave) {
+    if (readOnly || !onSave) {
       navigate(basePath)
       return
     }
@@ -161,9 +239,16 @@ function MasterForm({
         <div>
           <div className="text-lg font-bold tracking-[-0.3px] text-[var(--text)]">
             {title}{' '}
-            <span className="text-[13px] font-medium text-[var(--text3)]">— Add / Edit</span>
+            <span className="text-[13px] font-medium text-[var(--text3)]">
+              — {readOnly ? 'View' : 'Add / Edit'}
+            </span>
           </div>
           <div className="mt-0.5 text-[12.5px] text-[var(--text2)]">{description}</div>
+          {readOnly && (
+            <div className="mt-1 text-[12px] text-[var(--danger)]">
+              You do not have Edit permission for this screen. Ask an admin to grant Edit on Access Role.
+            </div>
+          )}
         </div>
         <Button variant="ghost" onClick={() => navigate(basePath)}>
           Back to List
@@ -183,6 +268,7 @@ function MasterForm({
                     : f.span === 2
                       ? 'md:col-span-2'
                       : ''
+              const fieldReadOnly = readOnly || readOnlyFields.includes(f.name)
               if (f.type === 'switch') {
                 return (
                   <div key={f.name} className={`pt-1 ${span}`}>
@@ -190,6 +276,7 @@ function MasterForm({
                       label={f.label}
                       checked={Boolean(values[f.name])}
                       onChange={(v) => set(f.name, v)}
+                      disabled={fieldReadOnly}
                     />
                   </div>
                 )
@@ -207,15 +294,17 @@ function MasterForm({
                       value={String(values[f.name] ?? '')}
                       onChange={(e) => set(f.name, e.target.value)}
                       placeholder={f.hint}
+                      disabled={fieldReadOnly}
                     />
                   ) : f.type === 'select' ? (
                     <Select
                       value={String(values[f.name] ?? '')}
                       onChange={(e) => set(f.name, e.target.value)}
+                      disabled={fieldReadOnly}
                     >
                       <option value="">— Select —</option>
                       {f.options?.map((o) => (
-                        <option key={o.value} value={o.value}>
+                        <option key={o.value} value={String(o.value)}>
                           {o.label}
                         </option>
                       ))}
@@ -231,6 +320,8 @@ function MasterForm({
                         )
                       }
                       placeholder={f.hint}
+                      readOnly={fieldReadOnly}
+                      disabled={fieldReadOnly}
                     />
                   )}
                 </Field>
@@ -240,19 +331,22 @@ function MasterForm({
         </CardBody>
       </Card>
 
-      {renderExtraForm?.(values, set)}
+      {renderExtraForm?.(values, set, recordId)}
 
       {error && <div className="mt-3 text-sm text-[var(--danger)]">{error}</div>}
 
       <FormActions
-        onClear={() =>
-          setValues({
-            ...Object.fromEntries(fields.map((f) => [f.name, f.type === 'switch' ? true : ''])),
-            status: true,
-          })
+        onClear={
+          readOnly
+            ? undefined
+            : () =>
+                setValues({
+                  ...Object.fromEntries(fields.map((f) => [f.name, f.type === 'switch' ? true : ''])),
+                  status: true,
+                })
         }
         onBack={() => navigate(basePath)}
-        onSave={() => void handleSave()}
+        onSave={readOnly ? undefined : () => void handleSave()}
         saveLabel={saving ? 'Saving…' : saveLabel}
       />
     </FadeContent>

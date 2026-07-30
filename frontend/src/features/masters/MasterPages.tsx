@@ -1,34 +1,38 @@
-import { useCallback, useState, type ReactNode } from 'react'
-import { Route, Routes, useNavigate } from 'react-router-dom'
-import { FadeContent } from '@/components/react-bits'
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { Pill } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { statusColumn, type Column } from '@/components/ui/DataTable'
-import { Field, Select } from '@/components/ui/Field'
-import { PageHeader } from '@/components/ui/PageHeader'
-import { createMaster, mapCategory, mapUnit, updateMaster, useMasterList } from '@/api/masters'
 import {
-  employees,
-  exceptions,
-  generalMasters,
-  generalTypes,
-  inventoryCategories,
-  inventorySubCategories,
-  items,
-  menuAccessMatrix,
-  operatingUnits,
-  organizations,
-  roles,
-  stores,
-  units,
-  users,
-  vendors,
-} from '@/data/mock'
+  createMaster,
+  getRolePermissions,
+  isActiveFromForm,
+  listMenus,
+  mapAccessException,
+  mapBusinessUnit,
+  mapCategory,
+  mapEmployee,
+  mapEntity,
+  mapGenmaster,
+  mapGentype,
+  mapItem,
+  mapLocation,
+  mapRole,
+  mapSubcategory,
+  mapUnit,
+  mapUser,
+  mapVendor,
+  numOrUndef,
+  putRolePermissions,
+  updateMaster,
+  useMasterList,
+  type ApiMasterRow,
+  type MenuApi,
+  type RolePermissionApi,
+} from '@/api/masters'
 import type {
   AccessException,
   AccessRole,
-  Employee,
   GeneralMaster,
   GeneralType,
   InventoryCategory,
@@ -41,6 +45,7 @@ import type {
   UserLogin,
   Vendor,
 } from '@/types/masters'
+import { useAuth } from '@/features/auth/AuthContext'
 import { SimpleMasterModule, type FieldDef } from './SimpleMasterModule'
 
 function MastersRoutes({
@@ -56,6 +61,10 @@ function MastersRoutes({
   getDefaults,
   renderExtraForm,
   onSave,
+  allowCreate = true,
+  readOnlyFields,
+  menuCode,
+  listLoading = false,
 }: {
   base: string
   title: string
@@ -70,8 +79,13 @@ function MastersRoutes({
   renderExtraForm?: (
     values: Record<string, unknown>,
     set: (k: string, v: unknown) => void,
+    recordId: string,
   ) => ReactNode
   onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
+  allowCreate?: boolean
+  readOnlyFields?: string[]
+  menuCode?: string
+  listLoading?: boolean
 }) {
   return (
     <Routes>
@@ -91,6 +105,10 @@ function MastersRoutes({
             getDefaults={getDefaults}
             renderExtraForm={renderExtraForm}
             onSave={onSave}
+            allowCreate={allowCreate}
+            readOnlyFields={readOnlyFields}
+            menuCode={menuCode}
+            listLoading={listLoading}
           />
         }
       />
@@ -110,11 +128,28 @@ function MastersRoutes({
             getDefaults={getDefaults}
             renderExtraForm={renderExtraForm}
             onSave={onSave}
+            allowCreate={allowCreate}
+            readOnlyFields={readOnlyFields}
+            menuCode={menuCode}
+            listLoading={listLoading}
           />
         }
       />
     </Routes>
   )
+}
+
+function ListStatus({ loading, error, label }: { loading: boolean; error: string | null; label: string }) {
+  return (
+    <>
+      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
+      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading {label}…</div>}
+    </>
+  )
+}
+
+function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} – ${r.name}`) {
+  return rows.map((r) => ({ value: r.id, label: label(r) }))
 }
 
 export function UnitsMaster() {
@@ -134,10 +169,11 @@ export function UnitsMaster() {
   ]
   return (
     <>
-      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
-      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading units…</div>}
+      <ListStatus loading={loading} error={error} label="units" />
       <MastersRoutes
+        listLoading={loading}
         base="/masters/units"
+        menuCode="UOM"
         title="Unit Master"
         description="All measurement units defined in the system."
         rows={rows as never}
@@ -151,7 +187,7 @@ export function UnitsMaster() {
             unitCode: String(values.code ?? ''),
             unitName: String(values.name ?? ''),
             desc: String(values.description ?? ''),
-            isActive: values.status !== false,
+            isActive: isActiveFromForm(values.status),
           }
           if (id === 'new') await createMaster('units', body)
           else await updateMaster('units', id, body)
@@ -163,43 +199,87 @@ export function UnitsMaster() {
 }
 
 export function ItemsMaster() {
+  const mapItemStable = useCallback(mapItem, [])
+  const mapCatStable = useCallback(mapCategory, [])
+  const mapSubStable = useCallback(mapSubcategory, [])
+  const mapUnitStable = useCallback(mapUnit, [])
+  const { rows, loading, error, reload } = useMasterList('items', mapItemStable)
+  const { rows: categories } = useMasterList('categories', mapCatStable)
+  const { rows: subCategories } = useMasterList('subcategories', mapSubStable)
+  const { rows: units } = useMasterList('units', mapUnitStable)
+
+  const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
+  const uomById = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
+
   const columns: Column<Item>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
     { key: 'type', header: 'Type', searchText: (r) => r.itemType, render: (r) => <Pill>{r.itemType}</Pill> },
-    { key: 'category', header: 'Category', searchText: (r) => r.category, render: (r) => r.category },
-    { key: 'uom', header: 'UOM', searchText: (r) => r.uom, render: (r) => r.uom },
-    { key: 'cost', header: 'Std Cost', searchText: (r) => String(r.standardCost), render: (r) => `₹ ${r.standardCost.toLocaleString('en-IN')}` },
+    {
+      key: 'category',
+      header: 'Category',
+      searchText: (r) => catById[r.category]?.name ?? r.category,
+      render: (r) => catById[r.category]?.name ?? r.category,
+    },
+    {
+      key: 'uom',
+      header: 'UOM',
+      searchText: (r) => uomById[r.uom]?.code ?? r.uom,
+      render: (r) => uomById[r.uom]?.code ?? r.uom,
+    },
+    { key: 'cost', header: 'Std Cost', searchText: (r) => String(r.standardCost), render: (r) => `₹ ${Number(r.standardCost).toLocaleString('en-IN')}` },
     statusColumn(),
   ]
   const fields: FieldDef[] = [
     { name: 'itemType', label: 'Item Type', type: 'select', required: true, options: [{ value: 'asset', label: 'Asset' }, { value: 'consumable', label: 'Consumable' }] },
     { name: 'code', label: 'Item Code', required: true, uppercase: true, hint: 'ITM-001' },
     { name: 'name', label: 'Item / Asset Name', required: true, span: 2 },
-    { name: 'category', label: 'Category', type: 'select', span: 2, options: inventoryCategories.map((c) => ({ value: c.name, label: `${c.code} – ${c.name}` })) },
-    { name: 'subCategory', label: 'Sub Category', type: 'select', span: 2, options: inventorySubCategories.map((c) => ({ value: c.name, label: `${c.code} – ${c.name}` })) },
-    { name: 'uom', label: 'Unit of Measure', type: 'select', required: true, options: units.map((u) => ({ value: u.code, label: `${u.code} – ${u.name}` })) },
+    { name: 'category', label: 'Category', type: 'select', span: 2, options: opt(categories) },
+    { name: 'subCategory', label: 'Sub Category', type: 'select', span: 2, options: opt(subCategories) },
+    { name: 'uom', label: 'Unit of Measure', type: 'select', required: true, options: opt(units) },
     { name: 'standardCost', label: 'Standard Cost (₹)', type: 'number' },
     { name: 'description', label: 'Item Description', type: 'textarea', span: 2 },
     { name: 'status', label: 'Active', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes
-      base="/masters/items"
-      title="Item Master"
-      description="All registered assets and consumables."
-      rows={items}
-      columns={columns as never}
-      fields={fields}
-      searchPlaceholder="Search item code / name…"
-      saveLabel="Save Item"
-      formTitle="Basic Information"
-      getDefaults={() => ({ itemType: 'asset', status: true, uom: 'PCS' })}
-    />
+    <>
+      <ListStatus loading={loading} error={error} label="items" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/items"
+        menuCode="AIM"
+        title="Item Master"
+        description="All registered assets and consumables."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        searchPlaceholder="Search item code / name…"
+        saveLabel="Save Item"
+        formTitle="Basic Information"
+        getDefaults={() => ({ itemType: 'asset', status: true })}
+        onSave={async (id, values) => {
+          const body = {
+            itemCode: String(values.code ?? ''),
+            itemName: String(values.name ?? ''),
+            itemType: String(values.itemType ?? 'asset'),
+            categoryId: numOrUndef(values.category),
+            subcategoryId: numOrUndef(values.subCategory),
+            uomId: numOrUndef(values.uom),
+            standardCost: numOrUndef(values.standardCost) ?? 0,
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('items', body)
+          else await updateMaster('items', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
 export function VendorsMaster() {
+  const mapVendorStable = useCallback(mapVendor, [])
+  const { rows, loading, error, reload } = useMasterList('vendors', mapVendorStable)
   const columns: Column<Vendor>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -218,11 +298,42 @@ export function VendorsMaster() {
     { name: 'status', label: 'Active Vendor', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/vendors" title="Vendor / Party Master" description="All registered vendors, suppliers and contractors." rows={vendors} columns={columns as never} fields={fields} searchPlaceholder="Search vendor…" saveLabel="Save Vendor" formTitle="Party Identity" />
+    <>
+      <ListStatus loading={loading} error={error} label="vendors" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/vendors"
+        menuCode="VPM"
+        title="Vendor / Party Master"
+        description="All registered vendors, suppliers and contractors."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        searchPlaceholder="Search vendor…"
+        saveLabel="Save Vendor"
+        formTitle="Party Identity"
+        onSave={async (id, values) => {
+          const body = {
+            vendorCode: String(values.code ?? ''),
+            vendorName: String(values.name ?? ''),
+            partyType: String(values.partyType ?? ''),
+            gstin: String(values.gstin ?? ''),
+            city: String(values.city ?? ''),
+            phone: String(values.phone ?? ''),
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('vendors', body)
+          else await updateMaster('vendors', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
 export function OrganizationsMaster() {
+  const mapEntityStable = useCallback(mapEntity, [])
+  const { rows, loading, error, reload } = useMasterList('entities', mapEntityStable)
   const columns: Column<Organization>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -240,15 +351,54 @@ export function OrganizationsMaster() {
     { name: 'status', label: 'Active Entity', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/organizations" title="Organization (Entity) Master" description="Top level legal entities under which Operating Units and Stores are defined." rows={organizations} columns={columns as never} fields={fields} saveLabel="Save Organization" formTitle="Entity Identity" />
+    <>
+      <ListStatus loading={loading} error={error} label="organizations" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/organizations"
+        menuCode="ORG"
+        title="Organization (Entity) Master"
+        description="Top level legal entities under which Operating Units and Stores are defined."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Organization"
+        formTitle="Entity Identity"
+        onSave={async (id, values) => {
+          const body = {
+            entityCode: String(values.code ?? ''),
+            entityName: String(values.name ?? ''),
+            shortName: String(values.shortName ?? ''),
+            city: String(values.city ?? ''),
+            gstin: String(values.gstin ?? ''),
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('entities', body)
+          else await updateMaster('entities', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
 export function OperatingUnitsMaster() {
+  const mapBuStable = useCallback(mapBusinessUnit, [])
+  const mapEntityStable = useCallback(mapEntity, [])
+  const { rows, loading, error, reload } = useMasterList('business-units', mapBuStable)
+  const { rows: orgs } = useMasterList('entities', mapEntityStable)
+
+  const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
+
   const columns: Column<OperatingUnit>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
-    { key: 'org', header: 'Organization', searchText: (r) => r.orgName, render: (r) => r.orgName },
+    {
+      key: 'org',
+      header: 'Organization',
+      searchText: (r) => orgById[r.orgCode]?.name ?? r.orgCode,
+      render: (r) => orgById[r.orgCode]?.name ?? r.orgCode,
+    },
     { key: 'type', header: 'Type', searchText: (r) => r.ouType, render: (r) => r.ouType },
     { key: 'city', header: 'City', searchText: (r) => r.city, render: (r) => r.city },
     statusColumn(),
@@ -256,22 +406,61 @@ export function OperatingUnitsMaster() {
   const fields: FieldDef[] = [
     { name: 'code', label: 'OU Code', required: true, uppercase: true },
     { name: 'name', label: 'Operating Unit Name', required: true, span: 2 },
-    { name: 'orgCode', label: 'Organization (Entity)', type: 'select', required: true, options: organizations.map((o) => ({ value: o.code, label: `${o.code} – ${o.name}` })) },
+    { name: 'orgCode', label: 'Organization (Entity)', type: 'select', required: true, options: opt(orgs) },
     { name: 'ouType', label: 'OU Type', type: 'select', options: ['Branch', 'Region', 'Plant', 'Zone', 'Corporate', 'Other'].map((v) => ({ value: v, label: v })) },
     { name: 'city', label: 'City' },
     { name: 'status', label: 'Active', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/operating-units" title="Operating Unit Master" description="Business / operating locations under each Organization (Entity)." rows={operatingUnits} columns={columns as never} fields={fields} saveLabel="Save Operating Unit" formTitle="Operating Unit Details" />
+    <>
+      <ListStatus loading={loading} error={error} label="operating units" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/operating-units"
+        menuCode="OU"
+        title="Operating Unit Master"
+        description="Business / operating locations under each Organization (Entity)."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Operating Unit"
+        formTitle="Operating Unit Details"
+        onSave={async (id, values) => {
+          const body = {
+            buCode: String(values.code ?? ''),
+            buName: String(values.name ?? ''),
+            entityId: numOrUndef(values.orgCode),
+            buType: String(values.ouType ?? ''),
+            city: String(values.city ?? ''),
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('business-units', body)
+          else await updateMaster('business-units', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
 export function StoresMaster() {
+  const mapLocStable = useCallback(mapLocation, [])
+  const mapEntityStable = useCallback(mapEntity, [])
+  const mapBuStable = useCallback(mapBusinessUnit, [])
+  const { rows, loading, error, reload } = useMasterList('locations', mapLocStable)
+  const { rows: orgs } = useMasterList('entities', mapEntityStable)
+  const { rows: ous } = useMasterList('business-units', mapBuStable)
+
   const columns: Column<Store>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
     { key: 'type', header: 'Type', searchText: (r) => r.storeType, render: (r) => r.storeType },
-    { key: 'ou', header: 'OU', searchText: (r) => r.ouCode, render: (r) => r.ouCode },
+    {
+      key: 'ou',
+      header: 'OU',
+      searchText: (r) => r.ouCode,
+      render: (r) => ous.find((o) => o.id === r.ouCode)?.code ?? r.ouCode,
+    },
     { key: 'city', header: 'City', searchText: (r) => r.city, render: (r) => r.city },
     statusColumn(),
   ]
@@ -279,13 +468,41 @@ export function StoresMaster() {
     { name: 'code', label: 'Store Code', required: true, uppercase: true },
     { name: 'name', label: 'Store Name', required: true, span: 2 },
     { name: 'storeType', label: 'Store Type', type: 'select', options: ['FM', 'General Store', 'IT Store', 'Quarantine', 'Rejected', 'Warehouse'].map((v) => ({ value: v, label: v })) },
-    { name: 'orgCode', label: 'Organization', type: 'select', required: true, options: organizations.map((o) => ({ value: o.code, label: `${o.code} – ${o.name}` })) },
-    { name: 'ouCode', label: 'Operating Unit', type: 'select', required: true, options: operatingUnits.map((o) => ({ value: o.code, label: `${o.code} – ${o.name}` })) },
+    { name: 'orgCode', label: 'Organization', type: 'select', required: true, options: opt(orgs) },
+    { name: 'ouCode', label: 'Operating Unit', type: 'select', required: true, options: opt(ous) },
     { name: 'city', label: 'City' },
     { name: 'status', label: 'Active Store', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/stores" title="Store Master" description="Stores defined entity / location-wise, mapped to an Organization and Operating Unit." rows={stores} columns={columns as never} fields={fields} saveLabel="Save Store" formTitle="Store Details" />
+    <>
+      <ListStatus loading={loading} error={error} label="stores" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/stores"
+        menuCode="STR"
+        title="Store Master"
+        description="Stores defined entity / location-wise, mapped to an Organization and Operating Unit."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Store"
+        formTitle="Store Details"
+        onSave={async (id, values) => {
+          const body = {
+            locationCode: String(values.code ?? ''),
+            locationName: String(values.name ?? ''),
+            locationType: String(values.storeType ?? ''),
+            entityId: numOrUndef(values.orgCode),
+            buId: numOrUndef(values.ouCode),
+            city: String(values.city ?? ''),
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('locations', body)
+          else await updateMaster('locations', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
@@ -306,10 +523,11 @@ export function InventoryCategoriesMaster() {
   ]
   return (
     <>
-      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
-      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading categories…</div>}
+      <ListStatus loading={loading} error={error} label="categories" />
       <MastersRoutes
+        listLoading={loading}
         base="/masters/inventory-categories"
+        menuCode="ICM"
         title="Inventory Category Master"
         description="Top level classification for asset & inventory items."
         rows={rows as never}
@@ -322,7 +540,7 @@ export function InventoryCategoriesMaster() {
             categoryCode: String(values.code ?? ''),
             categoryName: String(values.name ?? ''),
             desc: String(values.description ?? ''),
-            isActive: values.status !== false,
+            isActive: isActiveFromForm(values.status),
           }
           if (id === 'new') await createMaster('categories', body)
           else await updateMaster('categories', id, body)
@@ -334,25 +552,58 @@ export function InventoryCategoriesMaster() {
 }
 
 export function InventorySubCategoriesMaster() {
+  const mapSubStable = useCallback(mapSubcategory, [])
+  const mapCatStable = useCallback(mapCategory, [])
+  const { rows, loading, error, reload } = useMasterList('subcategories', mapSubStable)
+  const { rows: categories } = useMasterList('categories', mapCatStable)
+
   const columns: Column<InventorySubCategory>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
-    { key: 'parent', header: 'Parent Category', searchText: (r) => r.parentName, render: (r) => `${r.parentCode} – ${r.parentName}` },
+    { key: 'parent', header: 'Parent Category', searchText: (r) => r.parentName, render: (r) => r.parentName || r.parentCode },
     statusColumn(),
   ]
   const fields: FieldDef[] = [
     { name: 'code', label: 'Sub-Category Code', required: true, uppercase: true },
     { name: 'name', label: 'Sub-Category Name', required: true, span: 2 },
-    { name: 'parentCode', label: 'Parent Category', type: 'select', required: true, span: 2, options: inventoryCategories.map((c) => ({ value: c.code, label: `${c.code} – ${c.name}` })) },
+    { name: 'parentCode', label: 'Parent Category', type: 'select', required: true, span: 2, options: opt(categories) },
     { name: 'description', label: 'Description', type: 'textarea', span: 3 },
     { name: 'status', label: 'Mark as Active', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/inventory-sub-categories" title="Inventory Sub-Category Master" description="Second level classification, mapped to a parent Inventory Category." rows={inventorySubCategories} columns={columns as never} fields={fields} saveLabel="Save Sub-Category" formTitle="Sub-Category Information" />
+    <>
+      <ListStatus loading={loading} error={error} label="sub-categories" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/inventory-sub-categories"
+        menuCode="ISC"
+        title="Inventory Sub-Category Master"
+        description="Second level classification, mapped to a parent Inventory Category."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Sub-Category"
+        formTitle="Sub-Category Information"
+        onSave={async (id, values) => {
+          const body = {
+            subcategoryCode: String(values.code ?? ''),
+            subcategoryName: String(values.name ?? ''),
+            categoryId: numOrUndef(values.parentCode),
+            desc: String(values.description ?? ''),
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('subcategories', body)
+          else await updateMaster('subcategories', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
 export function GeneralTypesMaster() {
+  const mapGentypeStable = useCallback(mapGentype, [])
+  const { rows, loading, error, reload } = useMasterList('general-types', mapGentypeStable)
   const columns: Column<GeneralType>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -366,32 +617,105 @@ export function GeneralTypesMaster() {
     { name: 'status', label: 'Mark as Active', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/general-types" title="General Type Master" description="Generic lookup groups used to organize General Master values." rows={generalTypes} columns={columns as never} fields={fields} saveLabel="Save Type" formTitle="Type Information" />
+    <>
+      <ListStatus loading={loading} error={error} label="general types" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/general-types"
+        menuCode="GTY"
+        title="General Type Master"
+        description="Generic lookup groups used to organize General Master values."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Type"
+        formTitle="Type Information"
+        onSave={async (id, values) => {
+          const body = {
+            typeCode: String(values.code ?? ''),
+            typeName: String(values.name ?? ''),
+            desc: String(values.description ?? ''),
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('general-types', body)
+          else await updateMaster('general-types', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
 export function GeneralMastersMaster() {
+  const mapGmStable = useCallback(mapGenmaster, [])
+  const mapGtStable = useCallback(mapGentype, [])
+  const { rows, loading, error, reload } = useMasterList('general-masters', mapGmStable)
+  const { rows: types } = useMasterList('general-types', mapGtStable)
+
+  const typeById = useMemo(() => Object.fromEntries(types.map((t) => [t.id, t])), [types])
+
   const columns: Column<GeneralMaster>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
-    { key: 'type', header: 'Parent Type', searchText: (r) => r.typeName, render: (r) => `${r.typeCode} – ${r.typeName}` },
+    {
+      key: 'type',
+      header: 'Parent Type',
+      searchText: (r) => {
+        const t = typeById[r.typeCode]
+        return t ? `${t.code} – ${t.name}` : r.typeCode
+      },
+      render: (r) => {
+        const t = typeById[r.typeCode]
+        return t ? `${t.code} – ${t.name}` : r.typeCode
+      },
+    },
     { key: 'sort', header: 'Sort', searchText: (r) => String(r.sortOrder), render: (r) => r.sortOrder },
     statusColumn(),
   ]
   const fields: FieldDef[] = [
     { name: 'code', label: 'Value Code', required: true, uppercase: true },
     { name: 'name', label: 'Value Name', required: true, span: 2 },
-    { name: 'typeCode', label: 'Parent Type', type: 'select', required: true, span: 2, options: generalTypes.map((t) => ({ value: t.code, label: `${t.code} – ${t.name}` })) },
+    { name: 'typeCode', label: 'Parent Type', type: 'select', required: true, span: 2, options: opt(types) },
     { name: 'sortOrder', label: 'Sort Order', type: 'number' },
     { name: 'description', label: 'Description', type: 'textarea', span: 3 },
     { name: 'status', label: 'Mark as Active', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/general-masters" title="General Master" description="Values / entries mapped to a parent General Type — used to power generic dropdowns across the system." rows={generalMasters} columns={columns as never} fields={fields} saveLabel="Save Value" formTitle="Value Information" />
+    <>
+      <ListStatus loading={loading} error={error} label="general masters" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/general-masters"
+        menuCode="GNM"
+        title="General Master"
+        description="Values / entries mapped to a parent General Type — used to power generic dropdowns across the system."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Value"
+        formTitle="Value Information"
+        onSave={async (id, values) => {
+          const body = {
+            valueCode: String(values.code ?? ''),
+            valueName: String(values.name ?? ''),
+            gentypeId: numOrUndef(values.typeCode),
+            sortOrder: numOrUndef(values.sortOrder) ?? 0,
+            desc: String(values.description ?? ''),
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('general-masters', body)
+          else await updateMaster('general-masters', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
 export function RolesMaster() {
+  const { refreshPermissions } = useAuth()
+  const mapRoleStable = useCallback(mapRole, [])
+  const { rows, loading, error, reload } = useMasterList('roles', mapRoleStable)
   const columns: Column<AccessRole>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -407,102 +731,186 @@ export function RolesMaster() {
     { name: 'systemRole', label: 'System Role', type: 'switch' },
     { name: 'status', label: 'Active', type: 'switch' },
   ]
-  const modules = ['Item Master', 'Vendor / Party', 'Store', 'Inventory', 'Reports', 'Admin']
-  const perms = ['View', 'Create', 'Edit', 'Delete', 'Approve', 'Export']
   return (
-    <MastersRoutes
-      base="/masters/roles"
-      title="Access Role Master"
-      description="All access roles and their permission levels."
-      rows={roles}
-      columns={columns as never}
-      fields={fields}
-      saveLabel="Save Role"
-      formTitle="Role Identity"
-      renderExtraForm={() => (
-        <Card>
-          <CardHeader title="Module Permissions" subtitle="Granular access per module — check to grant" />
-          <CardBody className="overflow-x-auto p-0">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th className="bg-[var(--surface2)] px-3 py-2 text-left text-[10px] font-bold tracking-[0.7px] text-[var(--text3)] uppercase">Module</th>
-                  {perms.map((p) => (
-                    <th key={p} className="bg-[var(--surface2)] px-3 py-2 text-center text-[10px] font-bold tracking-[0.7px] text-[var(--text3)] uppercase">{p}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {modules.map((m) => (
-                  <tr key={m} className="hover:bg-[#f8faff]">
-                    <td className="border-b border-[var(--border)] px-3 py-2.5 text-left text-[12.5px] font-semibold">{m}</td>
-                    {perms.map((p) => (
-                      <td key={p} className="border-b border-[var(--border)] px-3 py-2.5 text-center">
-                        <input type="checkbox" defaultChecked={p === 'View'} className="accent-[var(--accent)]" />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardBody>
-        </Card>
-      )}
-    />
+    <>
+      <ListStatus loading={loading} error={error} label="roles" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/roles"
+        menuCode="ARM"
+        title="Access Role Master"
+        description="Define the role and grant View / Create / Edit rights for each screen on the same form."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Role & Access"
+        formTitle="Role Identity"
+        onSave={async (id, values) => {
+          const body = {
+            roleCode: String(values.code ?? ''),
+            roleName: String(values.name ?? ''),
+            roleLevel: numOrUndef(values.level) ?? 1,
+            desc: String(values.description ?? ''),
+            isSystemRole: Boolean(values.systemRole),
+            isActive: isActiveFromForm(values.status),
+          }
+          let roleId = id
+          if (id === 'new') {
+            const created = await createMaster<typeof body, { roleId: number }>('roles', body)
+            roleId = String(created.roleId)
+          } else {
+            await updateMaster('roles', id, body)
+          }
+          const matrix = values.__menuPerms as Record<string, PermFlags> | undefined
+          if (matrix && roleId && roleId !== 'new') {
+            const perms: RolePermissionApi[] = Object.entries(matrix).map(([module, flags]) => ({
+              module,
+              ...flags,
+            }))
+            await putRolePermissions(roleId, perms)
+            await refreshPermissions()
+          }
+          await reload()
+        }}
+        renderExtraForm={(_values, set, recordId) => (
+          <RoleMenuAccessPanel
+            roleId={recordId === 'new' ? null : recordId}
+            onMatrixChange={(matrix) => set('__menuPerms', matrix)}
+          />
+        )}
+      />
+    </>
   )
 }
 
-export function EmployeesMaster() {
-  const columns: Column<Employee>[] = [
-    { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
-    { key: 'name', header: 'Name', searchText: (r) => `${r.firstName} ${r.lastName}`, render: (r) => `${r.firstName} ${r.lastName}` },
-    { key: 'designation', header: 'Designation', searchText: (r) => r.designation, render: (r) => r.designation },
-    { key: 'dept', header: 'Department', searchText: (r) => r.department, render: (r) => r.department },
-    { key: 'role', header: 'Role', searchText: (r) => r.role, render: (r) => <Pill>{r.role}</Pill> },
-    statusColumn(),
-  ]
-  const fields: FieldDef[] = [
-    { name: 'code', label: 'Employee Code', required: true, uppercase: true },
-    { name: 'firstName', label: 'First Name', required: true, span: 2 },
-    { name: 'lastName', label: 'Last Name' },
-    { name: 'designation', label: 'Designation', span: 2 },
-    { name: 'department', label: 'Department', span: 2 },
-    { name: 'email', label: 'Email', required: true, span: 2 },
-    { name: 'role', label: 'Access Role', type: 'select', required: true, span: 2, options: roles.map((r) => ({ value: r.code, label: `${r.code} – ${r.name}` })) },
-    { name: 'baseStore', label: 'Base Store', type: 'select', span: 2, options: stores.map((s) => ({ value: s.code, label: `${s.code} – ${s.name}` })) },
-    { name: 'status', label: 'Active Employee', type: 'switch', span: 4 },
-  ]
-  return (
-    <MastersRoutes base="/masters/employees" title="Employee Master" description="All system users with roles and locations." rows={employees} columns={columns as never} fields={fields} saveLabel="Save Employee" formTitle="Personal & Professional Details" />
-  )
-}
+export { EmployeesMaster } from './EmployeeMasterPages'
 
 export function UsersMaster() {
+  const mapUserStable = useCallback(mapUser, [])
+  const mapEmpStable = useCallback(mapEmployee, [])
+  const mapRoleStable = useCallback(mapRole, [])
+  const mapEntityStable = useCallback(mapEntity, [])
+  const { rows, loading, error, reload } = useMasterList('users', mapUserStable)
+  const { rows: employees } = useMasterList('employees', mapEmpStable)
+  const { rows: roles } = useMasterList('roles', mapRoleStable)
+  const { rows: orgs } = useMasterList('entities', mapEntityStable)
+
+  const empById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
+  const roleById = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, r])), [roles])
+  const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
+
   const columns: Column<UserLogin>[] = [
     { key: 'login', header: 'Login ID', searchText: (r) => r.loginId, render: (r) => <span className="font-mono">{r.loginId}</span> },
-    { key: 'emp', header: 'Employee', searchText: (r) => r.employeeName, render: (r) => `${r.employeeCode} – ${r.employeeName}` },
-    { key: 'role', header: 'Role', searchText: (r) => r.role, render: (r) => <Pill>{r.role}</Pill> },
-    { key: 'org', header: 'Org', searchText: (r) => r.orgCode, render: (r) => r.orgCode },
+    {
+      key: 'emp',
+      header: 'Employee',
+      searchText: (r) => {
+        const emp = empById[r.employeeCode]
+        return emp ? `${emp.code} ${emp.firstName} ${emp.lastName}` : r.employeeCode
+      },
+      render: (r) => {
+        const emp = empById[r.employeeCode]
+        return emp ? `${emp.code} – ${emp.firstName} ${emp.lastName}` : r.employeeCode
+      },
+    },
+    {
+      key: 'role',
+      header: 'Role',
+      searchText: (r) => roleById[r.role]?.code ?? r.role,
+      render: (r) => <Pill>{roleById[r.role]?.code ?? r.role}</Pill>,
+    },
+    {
+      key: 'org',
+      header: 'Org',
+      searchText: (r) => orgById[r.orgCode]?.code ?? r.orgCode,
+      render: (r) => orgById[r.orgCode]?.code ?? r.orgCode,
+    },
     { key: 'acct', header: 'Account', searchText: (r) => r.accountStatus, render: (r) => r.accountStatus },
     statusColumn(),
   ]
   const fields: FieldDef[] = [
-    { name: 'employeeCode', label: 'Employee Mapping', type: 'select', required: true, span: 2, options: employees.map((e) => ({ value: e.code, label: `${e.code} – ${e.firstName} ${e.lastName}` })) },
-    { name: 'loginId', label: 'Login ID', required: true },
-    { name: 'role', label: 'Role Assignment', type: 'select', required: true, options: roles.map((r) => ({ value: r.code, label: `${r.code} – ${r.name}` })) },
-    { name: 'orgCode', label: 'Organization', type: 'select', required: true, options: organizations.map((o) => ({ value: o.code, label: `${o.code} – ${o.name}` })) },
-    { name: 'ouScope', label: 'OU Access', type: 'select', required: true, options: [{ value: 'All', label: 'All Operating Units' }, ...operatingUnits.map((o) => ({ value: o.code, label: `${o.code} – ${o.name}` }))] },
+    {
+      name: 'employeeCode',
+      label: 'Employee',
+      type: 'select',
+      span: 2,
+      options: employees.map((e) => ({
+        value: e.id,
+        label: `${e.code} – ${e.firstName} ${e.lastName}`,
+      })),
+      hint: 'Set when login was created on Employee Master',
+    },
+    { name: 'loginId', label: 'Login ID', hint: 'Created on Employee Master' },
+    { name: 'role', label: 'Role Assignment', type: 'select', required: true, options: opt(roles) },
+    { name: 'orgCode', label: 'Organization', type: 'select', required: true, options: opt(orgs) },
+    {
+      name: 'ouScope',
+      label: 'OU Access',
+      type: 'select',
+      required: true,
+      options: [
+        { value: 'ALL', label: 'All Operating Units' },
+        { value: 'SELECTED', label: 'Selected Operating Units' },
+      ],
+    },
     { name: 'accountStatus', label: 'Account Status', type: 'select', options: ['Active', 'Locked', 'Disabled'].map((v) => ({ value: v, label: v })) },
     { name: 'status', label: 'Active', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/users" title="User Login Master" description="System login credentials mapped to an Employee, Role, Organization, Operating Unit and Store." rows={users} columns={columns as never} fields={fields} saveLabel="Save User" formTitle="Login Credentials" />
+    <>
+      <ListStatus loading={loading} error={error} label="users" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/users"
+        menuCode="USR"
+        title="User Login Master"
+        description="Map existing logins (created on Employee Master) to Role, Organization, OU access and account status."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Mapping"
+        formTitle="Role & Access Mapping"
+        allowCreate={false}
+        readOnlyFields={['employeeCode', 'loginId']}
+        onSave={async (id, values) => {
+          if (id === 'new') throw new Error('Create login from Employee Master only')
+          await updateMaster('users', id, {
+            employeeId: numOrUndef(values.employeeCode),
+            loginId: String(values.loginId ?? ''),
+            roleId: numOrUndef(values.role),
+            entityId: numOrUndef(values.orgCode),
+            buAccessScope: String(values.ouScope ?? 'ALL'),
+            accountStatus: String(values.accountStatus ?? 'Active'),
+            isActive: isActiveFromForm(values.status),
+          })
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
 export function ExceptionsMaster() {
+  const mapExStable = useCallback(mapAccessException, [])
+  const mapEmpStable = useCallback(mapEmployee, [])
+  const { rows, loading, error, reload } = useMasterList('access-exceptions', mapExStable)
+  const { rows: employees } = useMasterList('employees', mapEmpStable)
+
+  const empById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
+
   const columns: Column<AccessException>[] = [
-    { key: 'emp', header: 'Employee', searchText: (r) => r.employeeName, render: (r) => `${r.employeeCode} – ${r.employeeName}` },
+    {
+      key: 'emp',
+      header: 'Employee',
+      searchText: (r) => {
+        const emp = empById[r.employeeCode]
+        return emp ? `${emp.code} ${emp.firstName} ${emp.lastName}` : r.employeeCode
+      },
+      render: (r) => {
+        const emp = empById[r.employeeCode]
+        return emp ? `${emp.code} – ${emp.firstName} ${emp.lastName}` : r.employeeCode
+      },
+    },
     { key: 'type', header: 'Type', searchText: (r) => r.exceptionType, render: (r) => <Pill>{r.exceptionType}</Pill> },
     { key: 'menu', header: 'Menu Item', searchText: (r) => r.menuItem, render: (r) => r.menuItem },
     { key: 'reason', header: 'Reason', searchText: (r) => r.reason, render: (r) => r.reason },
@@ -510,74 +918,308 @@ export function ExceptionsMaster() {
     statusColumn(),
   ]
   const fields: FieldDef[] = [
-    { name: 'employeeCode', label: 'Employee', type: 'select', required: true, span: 2, options: employees.map((e) => ({ value: e.code, label: `${e.code} – ${e.firstName} ${e.lastName}` })) },
+    {
+      name: 'employeeCode',
+      label: 'Employee',
+      type: 'select',
+      required: true,
+      span: 2,
+      options: employees.map((e) => ({
+        value: e.id,
+        label: `${e.code} – ${e.firstName} ${e.lastName}`,
+      })),
+    },
     { name: 'exceptionType', label: 'Exception Type', type: 'select', required: true, options: [{ value: 'Grant', label: 'Grant Access' }, { value: 'Revoke', label: 'Revoke Access' }] },
-    { name: 'menuItem', label: 'Menu Item', required: true, span: 3 },
+    { name: 'menuItem', label: 'Menu Code', required: true, span: 3 },
     { name: 'reason', label: 'Reason / Remarks', required: true, span: 2 },
     { name: 'validFrom', label: 'Valid From' },
     { name: 'validUntil', label: 'Valid Until' },
     { name: 'status', label: 'Active Exception', type: 'switch', span: 4 },
   ]
   return (
-    <MastersRoutes base="/masters/exceptions" title="User Access Exception" description="Grant or revoke specific menu permissions for individual users, irrespective of their assigned role." rows={exceptions} columns={columns as never} fields={fields} saveLabel="Save Exception" formTitle="Exception Details" />
+    <>
+      <ListStatus loading={loading} error={error} label="access exceptions" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/exceptions"
+        menuCode="UAE"
+        title="User Access Exception"
+        description="Grant or revoke specific menu permissions for individual users, irrespective of their assigned role."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Exception"
+        formTitle="Exception Details"
+        onSave={async (id, values) => {
+          const body = {
+            employeeId: numOrUndef(values.employeeCode),
+            exceptionType: String(values.exceptionType ?? 'Grant'),
+            menuCode: String(values.menuItem ?? ''),
+            reason: String(values.reason ?? ''),
+            validFrom: String(values.validFrom || '') || null,
+            validUntil: String(values.validUntil || '') || null,
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('access-exceptions', body)
+          else await updateMaster('access-exceptions', id, body)
+          await reload()
+        }}
+      />
+    </>
   )
 }
 
-export function MenuAccessPage() {
-  const navigate = useNavigate()
-  const [role, setRole] = useState(roles[0]?.code ?? '')
+type PermFlags = {
+  canView: boolean
+  canCreate: boolean
+  canEdit: boolean
+  canDelete: boolean
+  canApprove: boolean
+  canReject: boolean
+  canPrint: boolean
+  canExport: boolean
+}
+
+const PERM_COLS: { key: keyof PermFlags; label: string; supportKey: keyof MenuApi }[] = [
+  { key: 'canView', label: 'View', supportKey: 'supportsView' },
+  { key: 'canCreate', label: 'Create', supportKey: 'supportsCreate' },
+  { key: 'canEdit', label: 'Edit', supportKey: 'supportsEdit' },
+  { key: 'canDelete', label: 'Delete', supportKey: 'supportsDelete' },
+  { key: 'canApprove', label: 'Approve', supportKey: 'supportsApprove' },
+  { key: 'canReject', label: 'Reject', supportKey: 'supportsReject' },
+  { key: 'canPrint', label: 'Print', supportKey: 'supportsPrint' },
+  { key: 'canExport', label: 'Export', supportKey: 'supportsExport' },
+]
+
+function emptyPerms(): PermFlags {
+  return {
+    canView: false,
+    canCreate: false,
+    canEdit: false,
+    canDelete: false,
+    canApprove: false,
+    canReject: false,
+    canPrint: false,
+    canExport: false,
+  }
+}
+
+function menuSupports(menu: MenuApi, supportKey: keyof MenuApi): boolean {
+  const v = menu[supportKey]
+  // If support flag missing, allow the checkbox so Edit/Create stay assignable.
+  if (v === undefined || v === null) return true
+  return Boolean(v)
+}
+
+function RoleMenuAccessPanel({
+  roleId,
+  onMatrixChange,
+  readOnly = false,
+}: {
+  roleId: string | null
+  onMatrixChange: (matrix: Record<string, PermFlags>) => void
+  readOnly?: boolean
+}) {
+  const [menus, setMenus] = useState<MenuApi[]>([])
+  const [matrix, setMatrix] = useState<Record<string, PermFlags>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const list = await listMenus()
+        // Menu Access is merged into Access Role — hide standalone MNU row.
+        const filtered = (list ?? []).filter((m) => m.menuCode !== 'MNU')
+        if (!cancelled) setMenus(filtered)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load menus')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const next: Record<string, PermFlags> = {}
+        for (const m of menus) next[m.menuCode] = emptyPerms()
+        if (roleId) {
+          const perms = await getRolePermissions(roleId)
+          if (cancelled) return
+          for (const p of perms ?? []) {
+            if (p.module === 'MNU') continue
+            next[p.module] = {
+              canView: Boolean(p.canView),
+              canCreate: Boolean(p.canCreate),
+              canEdit: Boolean(p.canEdit),
+              canDelete: Boolean(p.canDelete),
+              canApprove: Boolean(p.canApprove),
+              canReject: Boolean(p.canReject),
+              canPrint: Boolean(p.canPrint),
+              canExport: Boolean(p.canExport),
+            }
+          }
+        }
+        if (cancelled) return
+        setMatrix(next)
+        onMatrixChange(next)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load permissions')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // Intentionally omit onMatrixChange to avoid reload loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleId, menus])
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, MenuApi[]>()
+    for (const m of menus) {
+      const g = m.menuGroup || 'Other'
+      if (!map.has(g)) map.set(g, [])
+      map.get(g)!.push(m)
+    }
+    return [...map.entries()]
+  }, [menus])
+
+  const applyMatrix = (updater: (prev: Record<string, PermFlags>) => Record<string, PermFlags>) => {
+    setMatrix((prev) => {
+      const next = updater(prev)
+      onMatrixChange(next)
+      return next
+    })
+  }
+
+  const toggle = (menuCode: string, key: keyof PermFlags) => {
+    if (readOnly) return
+    applyMatrix((prev) => ({
+      ...prev,
+      [menuCode]: {
+        ...(prev[menuCode] ?? emptyPerms()),
+        [key]: !(prev[menuCode]?.[key] ?? false),
+      },
+    }))
+  }
+
+  const toggleColumn = (col: (typeof PERM_COLS)[number], checked: boolean) => {
+    if (readOnly) return
+    applyMatrix((prev) => {
+      const next = { ...prev }
+      for (const m of menus) {
+        if (!menuSupports(m, col.supportKey)) continue
+        next[m.menuCode] = {
+          ...(next[m.menuCode] ?? emptyPerms()),
+          [col.key]: checked,
+        }
+      }
+      return next
+    })
+  }
+
+  const columnAllChecked = (col: (typeof PERM_COLS)[number]) => {
+    const eligible = menus.filter((m) => menuSupports(m, col.supportKey))
+    return eligible.length > 0 && eligible.every((m) => Boolean(matrix[m.menuCode]?.[col.key]))
+  }
+
   return (
-    <FadeContent>
-      <PageHeader
-        title="User Menu Access — Role & Menu Mapping"
-        description="Map which menu areas each role can open. UI-only matrix for Phase 1."
+    <Card>
+      <CardHeader
+        title="Menu Access"
+        subtitle={
+          roleId
+            ? 'Grant View / Create / Edit and other rights for this role. Header checkboxes apply to all screens.'
+            : 'Set screen rights now — they are saved together with the new role.'
+        }
       />
-      <Card>
-        <CardBody>
-          <div className="mb-4 max-w-sm">
-            <Field label="Preview Role">
-              <Select value={role} onChange={(e) => setRole(e.target.value)}>
-                {roles.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    {r.code} – {r.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
+      <CardBody>
+        {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
+        {loading ? (
+          <div className="text-sm text-[var(--text3)]">Loading menu access…</div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="bg-[var(--surface2)]">
-                  {['Role', 'Dashboard', 'Masters', 'Transactions', 'Reports', 'Admin'].map((h) => (
-                    <th key={h} className="border-b-2 border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase">
-                      {h}
+                  <th className="border-b-2 border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase">
+                    Menu
+                  </th>
+                  <th className="border-b-2 border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase">
+                    Code
+                  </th>
+                  {PERM_COLS.map((c) => (
+                    <th
+                      key={c.key}
+                      className="border-b-2 border-[var(--border)] px-3 py-2 text-center text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <span>{c.label}</span>
+                        <input
+                          type="checkbox"
+                          className="accent-[var(--accent)]"
+                          title={`Toggle ${c.label} for all screens`}
+                          checked={columnAllChecked(c)}
+                          disabled={readOnly}
+                          onChange={(e) => toggleColumn(c, e.target.checked)}
+                        />
+                      </div>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {menuAccessMatrix.map((row) => (
-                  <tr key={row.role} className={`hover:bg-[#f0f5ff] ${row.role === role ? 'bg-[var(--accent-lt)]' : ''}`}>
-                    <td className="border-b border-[var(--border)] px-3 py-2 font-mono font-semibold">{row.role}</td>
-                    {(['dashboard', 'masters', 'transactions', 'reports', 'admin'] as const).map((k) => (
-                      <td key={k} className="border-b border-[var(--border)] px-3 py-2 text-center">
-                        <input type="checkbox" checked={row[k]} readOnly className="accent-[var(--accent)]" />
+                {grouped.map(([group, items]) => (
+                  <Fragment key={`g-${group}`}>
+                    <tr>
+                      <td
+                        colSpan={2 + PERM_COLS.length}
+                        className="bg-[var(--surface2)] px-3 py-2 text-[11px] font-bold tracking-[0.4px] text-[var(--text2)] uppercase"
+                      >
+                        {group}
                       </td>
+                    </tr>
+                    {items.map((m) => (
+                      <tr key={m.menuCode} className="hover:bg-[#f0f5ff]">
+                        <td className="border-b border-[var(--border)] px-3 py-2 font-medium">{m.menuLabel}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{m.menuCode}</td>
+                        {PERM_COLS.map((c) => {
+                          const supported = menuSupports(m, c.supportKey)
+                          return (
+                            <td key={c.key} className="border-b border-[var(--border)] px-3 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                className="accent-[var(--accent)]"
+                                checked={supported && Boolean(matrix[m.menuCode]?.[c.key])}
+                                disabled={readOnly || !supported}
+                                onChange={() => toggle(m.menuCode, c.key)}
+                              />
+                            </td>
+                          )
+                        })}
+                      </tr>
                     ))}
-                  </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => navigate('/masters/roles')}>
-              Open Roles
-            </Button>
-            <Button onClick={() => undefined}>Save Mapping</Button>
-          </div>
-        </CardBody>
-      </Card>
-    </FadeContent>
+        )}
+      </CardBody>
+    </Card>
   )
+}
+
+/** @deprecated Merged into Access Role — redirects for old bookmarks. */
+export function MenuAccessPage() {
+  return <Navigate to="/masters/roles" replace />
 }

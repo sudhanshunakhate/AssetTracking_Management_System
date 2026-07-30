@@ -161,12 +161,17 @@ public class AuthService {
             SysmRolepermissionDtl perm = byModule.get(code);
             boolean view = perm != null && Boolean.TRUE.equals(perm.getRlpmCanView());
             boolean create = perm != null && Boolean.TRUE.equals(perm.getRlpmCanCreate());
+            boolean edit = perm != null && Boolean.TRUE.equals(perm.getRlpmCanEdit());
+            boolean delete = perm != null && Boolean.TRUE.equals(perm.getRlpmCanDelete());
             boolean approve = perm != null && Boolean.TRUE.equals(perm.getRlpmCanApprove());
+            boolean reject = perm != null && Boolean.TRUE.equals(perm.getRlpmCanReject());
+            boolean print = perm != null && Boolean.TRUE.equals(perm.getRlpmCanPrint());
+            boolean export = perm != null && Boolean.TRUE.equals(perm.getRlpmCanExport());
             if (granted.contains(code)) {
                 view = true;
             }
-            if (view || create || approve || granted.contains(code)) {
-                result.add(new MenuPermissionDto(code, view, create, approve));
+            if (view || create || edit || delete || approve || reject || print || export || granted.contains(code)) {
+                result.add(new MenuPermissionDto(code, view, create, edit, delete, approve, reject, print, export));
             }
         }
         return result;

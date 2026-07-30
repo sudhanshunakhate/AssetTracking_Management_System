@@ -1,11 +1,51 @@
+import { useEffect, useState } from 'react'
 import { AnimatedContent, CountUp, FadeContent, SpotlightCard } from '@/components/react-bits'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Pill, StatusBadge } from '@/components/ui/Badge'
-import { dashboardData } from '@/data/mock'
+import { fetchDashboardSummary, type DashboardSummary } from '@/api/transactions'
+
+const emptySummary: DashboardSummary = {
+  totalItems: 0,
+  totalVendors: 0,
+  totalTransactions: 0,
+  lowStockCount: 0,
+  stockRows: 0,
+}
 
 export function DashboardPage() {
-  const maxCat = Math.max(1, ...dashboardData.categoryValues.map((c) => c.value))
+  const [summary, setSummary] = useState<DashboardSummary>(emptySummary)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await fetchDashboardSummary()
+        if (!cancelled) setSummary(data)
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load dashboard')
+          setSummary(emptySummary)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const kpis = [
+    { id: 'items', label: 'Total Items', value: summary.totalItems, hint: 'Active item master rows' },
+    { id: 'vendors', label: 'Vendors', value: summary.totalVendors, hint: 'Registered parties' },
+    { id: 'txns', label: 'Transactions', value: summary.totalTransactions, hint: 'All document headers' },
+    { id: 'low', label: 'Low Stock', value: summary.lowStockCount, hint: 'At or below reorder' },
+    { id: 'stock', label: 'Stock Rows', value: summary.stockRows, hint: 'inv_stock_mst rows' },
+  ]
 
   return (
     <div>
@@ -13,9 +53,11 @@ export function DashboardPage() {
         title="Dashboard"
         description="Live snapshot of assets, inventory, stores and system activity."
       />
+      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
+      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading dashboard…</div>}
 
       <div className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.5">
-        {dashboardData.kpis.map((kpi, i) => (
+        {kpis.map((kpi, i) => (
           <AnimatedContent key={kpi.id} delay={i * 0.06}>
             <SpotlightCard>
               <div className="p-4">
@@ -32,126 +74,20 @@ export function DashboardPage() {
         ))}
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <FadeContent delay={0.1}>
-          <Card>
-            <CardHeader
-              title="Stock Value by Category"
-              subtitle="Closing stock value across inventory categories"
-            />
-            <CardBody>
-              <div className="space-y-3">
-                {dashboardData.categoryValues.map((c) => (
-                  <div key={c.name}>
-                    <div className="mb-1 flex justify-between text-[12px]">
-                      <span className="font-medium text-[var(--text)]">{c.name}</span>
-                      <span className="font-mono text-[var(--text2)]">₹{c.value}L</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-[var(--surface2)]">
-                      <div
-                        className="h-full rounded-full bg-[var(--accent)] transition-all"
-                        style={{ width: `${(c.value / maxCat) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardBody>
-          </Card>
-        </FadeContent>
-
-        <FadeContent delay={0.15}>
-          <Card>
-            <CardHeader title="Low Stock Alerts" subtitle="Items at or below reorder level" />
-            <CardBody className="p-0">
-              <table className="w-full border-collapse text-xs">
-                <thead>
-                  <tr className="bg-[var(--surface2)]">
-                    {['Code', 'Item', 'Store', 'Qty', 'Reorder'].map((h) => (
-                      <th
-                        key={h}
-                        className="border-b border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboardData.lowStock.map((row) => (
-                    <tr key={row.code} className="hover:bg-[#f0f5ff]">
-                      <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{row.code}</td>
-                      <td className="border-b border-[var(--border)] px-3 py-2">{row.name}</td>
-                      <td className="border-b border-[var(--border)] px-3 py-2">{row.store}</td>
-                      <td className="border-b border-[var(--border)] px-3 py-2">
-                        <Pill>{String(row.qty)}</Pill>
-                      </td>
-                      <td className="border-b border-[var(--border)] px-3 py-2">{row.reorder}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardBody>
-          </Card>
-        </FadeContent>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <FadeContent delay={0.1}>
         <Card>
-          <CardHeader title="Recent Activity" subtitle="Latest transactions across the system" />
-          <CardBody className="p-0">
-            <ul>
-              {dashboardData.activity.map((a, i) => (
-                <li
-                  key={i}
-                  className="flex items-start justify-between gap-3 border-b border-[var(--border)] px-3.5 py-3 last:border-0"
-                >
-                  <div>
-                    <div className="text-[12.5px] font-medium text-[var(--text)]">{a.text}</div>
-                    <div className="mt-0.5 text-[11px] text-[var(--text3)]">{a.by}</div>
-                  </div>
-                  <span className="shrink-0 text-[11px] text-[var(--text3)]">{a.when}</span>
-                </li>
-              ))}
-            </ul>
+          <CardHeader
+            title="System snapshot"
+            subtitle="Detailed category / activity panels will fill as masters and transactions are posted"
+          />
+          <CardBody>
+            <p className="text-[13px] text-[var(--text2)]">
+              KPI cards above are live from <code className="font-mono text-[12px]">GET /dashboard/summary</code>.
+              Add items, vendors, locations and post opening stock / GRN / issues to grow these counts.
+            </p>
           </CardBody>
         </Card>
-
-        <Card>
-          <CardHeader title="Store-wise Stock" subtitle="Item count and value by store" />
-          <CardBody className="p-0">
-            <table className="w-full border-collapse text-xs">
-              <thead>
-                <tr className="bg-[var(--surface2)]">
-                  {['Store', 'Items', 'Value (₹L)', 'Status'].map((h) => (
-                    <th
-                      key={h}
-                      className="border-b border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {dashboardData.storeStock.map((s) => (
-                  <tr key={s.code} className="hover:bg-[#f0f5ff]">
-                    <td className="border-b border-[var(--border)] px-3 py-2">
-                      <div className="font-medium">{s.name}</div>
-                      <div className="font-mono text-[10px] text-[var(--text3)]">{s.code}</div>
-                    </td>
-                    <td className="border-b border-[var(--border)] px-3 py-2">{s.items}</td>
-                    <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{s.value}</td>
-                    <td className="border-b border-[var(--border)] px-3 py-2">
-                      <StatusBadge status="Active" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardBody>
-        </Card>
-      </div>
+      </FadeContent>
     </div>
   )
 }

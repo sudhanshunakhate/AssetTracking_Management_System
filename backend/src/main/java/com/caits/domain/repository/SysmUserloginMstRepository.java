@@ -9,4 +9,6 @@ import java.util.Optional;
 public interface SysmUserloginMstRepository extends JpaRepository<SysmUserloginMst, Integer>, JpaSpecificationExecutor<SysmUserloginMst> {
     Optional<SysmUserloginMst> findByUsrLoginIdIgnoreCase(String loginId);
     boolean existsByUsrLoginIdIgnoreCase(String loginId);
+    Optional<SysmUserloginMst> findByUsrEmployeeIdEmp(Integer employeeId);
+    boolean existsByUsrEmployeeIdEmp(Integer employeeId);
 }

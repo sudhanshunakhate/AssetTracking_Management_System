@@ -1,35 +1,93 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { inventoryCategories, stockRegister, stores } from '@/data/mock'
+import { fetchStockRegister } from '@/api/transactions'
+import { mapCategory, mapLocation, mapUnit, useMasterList } from '@/api/masters'
+import type { StockRegisterRow } from '@/types/transactions'
 
 export function StockRegisterPage() {
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
   const [store, setStore] = useState('')
   const [status, setStatus] = useState('')
+  const [rows, setRows] = useState<StockRegisterRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const rows = useMemo(() => {
-    return stockRegister.filter((r) => {
-      const term = q.trim().toLowerCase()
-      if (term && !`${r.itemCode} ${r.itemName}`.toLowerCase().includes(term)) return false
-      if (cat && r.category !== cat) return false
-      if (store && r.store !== store) return false
-      if (status && r.status !== status) return false
-      return true
-    })
-  }, [q, cat, store, status])
+  const mapCat = useCallback(mapCategory, [])
+  const mapLoc = useCallback(mapLocation, [])
+  const mapUnt = useCallback(mapUnit, [])
+  const { rows: categories } = useMasterList('categories', mapCat)
+  const { rows: stores } = useMasterList('locations', mapLoc)
+  const { rows: units } = useMasterList('units', mapUnt)
+
+  const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
+  const storeById = useMemo(() => Object.fromEntries(stores.map((s) => [s.id, s])), [stores])
+  const uomById = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
+
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const page = await fetchStockRegister({
+        page: 1,
+        pageSize: 200,
+        search: q || undefined,
+        categoryId: cat || undefined,
+        locationId: store || undefined,
+      })
+      setRows(
+        (page.data ?? []).map((r) => {
+          const locationId = String(r.locationId ?? '')
+          const categoryId = String(r.categoryId ?? '')
+          const uomId = String(r.uomId ?? '')
+          const closing = Number(r.closing ?? 0)
+          const reorder = Number(r.reorderLevel ?? 0)
+          const apiStatus = String(r.status ?? '')
+          return {
+            id: String(r.id ?? `${r.itemId}-${r.locationId}`),
+            itemCode: String(r.itemCode ?? ''),
+            itemName: String(r.itemName ?? ''),
+            category: catById[categoryId]?.name ?? categoryId,
+            uom: uomById[uomId]?.code ?? uomId,
+            store: storeById[locationId]?.code ?? locationId,
+            opening: Number(r.opening ?? 0),
+            inward: Number(r.inward ?? 0),
+            outward: Number(r.outward ?? 0),
+            closing,
+            reorderLevel: reorder,
+            value: Number(r.value ?? 0),
+            status: (apiStatus as StockRegisterRow['status']) || 'In Stock',
+          }
+        }),
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load stock register')
+      setRows([])
+    } finally {
+      setLoading(false)
+    }
+  }, [q, cat, store, catById, storeById, uomById])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  const filtered = useMemo(() => {
+    if (!status) return rows
+    return rows.filter((r) => r.status === status)
+  }, [rows, status])
 
   const totals = useMemo(() => {
     return {
-      items: rows.length,
-      qty: rows.reduce((s, r) => s + r.closing, 0),
-      value: rows.reduce((s, r) => s + r.value, 0),
+      items: filtered.length,
+      qty: filtered.reduce((s, r) => s + r.closing, 0),
+      value: filtered.reduce((s, r) => s + r.value, 0),
     }
-  }, [rows])
+  }, [filtered])
 
   return (
     <FadeContent>
@@ -38,6 +96,8 @@ export function StockRegisterPage() {
         description="Opening, inward, outward and closing stock position for every item, item-wise and location-wise."
         actions={<Button variant="ghost">Export</Button>}
       />
+      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
+      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading stock register…</div>}
       <Card>
         <CardBody>
           <div className="mb-2.5 flex flex-wrap items-center gap-2">
@@ -53,8 +113,8 @@ export function StockRegisterPage() {
               className="rounded-[7px] border border-[var(--border2)] px-2.5 py-1.5 text-xs text-[var(--text2)]"
             >
               <option value="">All Categories</option>
-              {inventoryCategories.map((c) => (
-                <option key={c.code} value={c.name}>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
@@ -66,7 +126,7 @@ export function StockRegisterPage() {
             >
               <option value="">All Stores</option>
               {stores.map((s) => (
-                <option key={s.code} value={s.code}>
+                <option key={s.id} value={s.id}>
                   {s.code}
                 </option>
               ))}
@@ -81,7 +141,6 @@ export function StockRegisterPage() {
               <option>Low Stock</option>
               <option>Out of Stock</option>
             </select>
-            <span className="text-[11px] text-[var(--text3)]">{rows.length} records</span>
           </div>
 
           <div className="overflow-x-auto">
@@ -112,7 +171,7 @@ export function StockRegisterPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {filtered.map((r) => (
                   <tr key={r.id} className="hover:bg-[#f0f5ff]">
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.itemCode}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemName}</td>
