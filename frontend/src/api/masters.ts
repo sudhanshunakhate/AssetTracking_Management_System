@@ -178,6 +178,33 @@ export type ItemApi = {
   subcategoryId?: number
   uomId?: number
   standardCost?: number
+  imageUrl?: string
+  desc?: string
+  remarks?: string
+  assetType?: string
+  makeBrand?: string
+  model?: string
+  serialNo?: string
+  purchaseDate?: string
+  purchaseCost?: number
+  usefulLifeYears?: number
+  warrantyExpiry?: string
+  depreciationMethod?: string
+  depreciationRate?: number
+  assignedToEmpId?: number
+  currentLocationId?: number
+  isSerialized?: boolean
+  isReturnable?: boolean
+  isUnderAmc?: boolean
+  isInsuranceRequired?: boolean
+  consumableType?: string
+  shelfBin?: string
+  expiryDate?: string
+  batchLotNo?: string
+  trackBatchLot?: boolean
+  trackExpiry?: boolean
+  isConsumable?: boolean
+  allowNegativeStock?: boolean
   isActive?: boolean
 }
 
@@ -190,6 +217,7 @@ export const mapItem = (i: ItemApi): ApiMasterRow => ({
   subCategory: i.subcategoryId != null ? String(i.subcategoryId) : '',
   uom: i.uomId != null ? String(i.uomId) : '',
   standardCost: Number(i.standardCost ?? 0),
+  store: i.currentLocationId != null ? String(i.currentLocationId) : '',
   status: activeStatus(i.isActive),
 })
 
@@ -198,9 +226,21 @@ export type VendorApi = {
   vendorCode: string
   vendorName: string
   partyType?: string
-  city?: string
-  phone?: string
   gstin?: string
+  panNo?: string
+  rating?: number
+  add1?: string
+  add2?: string
+  city?: string
+  state?: string
+  pin?: string
+  country?: string
+  contactPerson?: string
+  phone?: string
+  altPhone?: string
+  email?: string
+  website?: string
+  notes?: string
   isActive?: boolean
 }
 
@@ -209,9 +249,10 @@ export const mapVendor = (v: VendorApi): ApiMasterRow => ({
   code: v.vendorCode,
   name: v.vendorName,
   partyType: v.partyType ?? '',
+  gstin: v.gstin ?? '',
+  rating: v.rating ?? '',
   city: v.city ?? '',
   phone: v.phone ?? '',
-  gstin: v.gstin ?? '',
   status: activeStatus(v.isActive),
 })
 

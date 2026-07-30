@@ -52,20 +52,34 @@ public final class MasterDtos {
                                   Integer entityId, Integer buId, Integer managerEmpId, String city, Boolean isActive) {}
 
     public record ItemDto(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
-                          Integer subcategoryId, Integer uomId, BigDecimal standardCost, String assetType, String makeBrand,
-                          String model, String serialNo, Boolean isSerialized, Boolean isReturnable, Integer assignedToEmpId,
-                          Integer currentLocationId, Boolean isActive, String createdBy, LocalDateTime createdOn,
-                          String modifiedBy, LocalDateTime modifiedOn, String message) {}
+                          Integer subcategoryId, Integer uomId, BigDecimal standardCost, String imageUrl, String desc,
+                          String remarks, String assetType, String makeBrand, String model, String serialNo,
+                          java.time.LocalDate purchaseDate, BigDecimal purchaseCost, BigDecimal usefulLifeYears,
+                          java.time.LocalDate warrantyExpiry, String depreciationMethod, BigDecimal depreciationRate,
+                          Integer assignedToEmpId, Integer currentLocationId, Boolean isSerialized, Boolean isReturnable,
+                          Boolean isUnderAmc, Boolean isInsuranceRequired, String consumableType, String shelfBin,
+                          java.time.LocalDate expiryDate, String batchLotNo, Boolean trackBatchLot, Boolean trackExpiry,
+                          Boolean isConsumable, Boolean allowNegativeStock, Boolean isActive, String createdBy,
+                          LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record ItemRequest(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
-                              Integer subcategoryId, Integer uomId, BigDecimal standardCost, String assetType, String makeBrand,
-                              String model, String serialNo, Boolean isSerialized, Boolean isReturnable, Integer assignedToEmpId,
-                              Integer currentLocationId, Boolean isActive) {}
+                              Integer subcategoryId, Integer uomId, BigDecimal standardCost, String imageUrl, String desc,
+                              String remarks, String assetType, String makeBrand, String model, String serialNo,
+                              java.time.LocalDate purchaseDate, BigDecimal purchaseCost, BigDecimal usefulLifeYears,
+                              java.time.LocalDate warrantyExpiry, String depreciationMethod, BigDecimal depreciationRate,
+                              Integer assignedToEmpId, Integer currentLocationId, Boolean isSerialized, Boolean isReturnable,
+                              Boolean isUnderAmc, Boolean isInsuranceRequired, String consumableType, String shelfBin,
+                              java.time.LocalDate expiryDate, String batchLotNo, Boolean trackBatchLot, Boolean trackExpiry,
+                              Boolean isConsumable, Boolean allowNegativeStock, Boolean isActive) {}
 
     public record VendorDto(Integer vendorId, String vendorCode, String vendorName, String partyType, String gstin,
-                            Integer rating, String city, String phone, Boolean isActive, String createdBy, LocalDateTime createdOn,
+                            String panNo, Integer rating, String add1, String add2, String city, String state, String pin,
+                            String country, String contactPerson, String phone, String altPhone, String email,
+                            String website, String notes, Boolean isActive, String createdBy, LocalDateTime createdOn,
                             String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record VendorRequest(Integer vendorId, String vendorCode, String vendorName, String partyType, String gstin,
-                                Integer rating, String city, String phone, Boolean isActive) {}
+                                String panNo, Integer rating, String add1, String add2, String city, String state,
+                                String pin, String country, String contactPerson, String phone, String altPhone,
+                                String email, String website, String notes, Boolean isActive) {}
 
     public record StockDto(Integer stockId, Integer itemId, Integer locationId, BigDecimal currentQty, BigDecimal reservedQty,
                            BigDecimal availableQty, String batchLotNo, Boolean isActive) {}

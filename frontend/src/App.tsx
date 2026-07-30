@@ -9,16 +9,15 @@ import {
   GeneralTypesMaster,
   InventoryCategoriesMaster,
   InventorySubCategoriesMaster,
-  ItemsMaster,
   OperatingUnitsMaster,
   OrganizationsMaster,
   RolesMaster,
   StoresMaster,
   UnitsMaster,
   UsersMaster,
-  VendorsMaster,
 } from '@/features/masters/MasterPages'
 import { EmployeesMaster } from '@/features/masters/EmployeeMasterPages'
+import { ItemsMaster, VendorsMaster } from '@/features/masters/ItemVendorMasterPages'
 import { FullReportPage } from '@/features/reports/FullReportPage'
 import { StockRegisterPage } from '@/features/reports/StockRegisterPage'
 import { GatepassPage } from '@/features/transactions/GatepassPage'

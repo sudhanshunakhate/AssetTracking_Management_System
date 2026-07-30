@@ -15,13 +15,11 @@ import {
   mapEntity,
   mapGenmaster,
   mapGentype,
-  mapItem,
   mapLocation,
   mapRole,
   mapSubcategory,
   mapUnit,
   mapUser,
-  mapVendor,
   numOrUndef,
   putRolePermissions,
   updateMaster,
@@ -37,13 +35,11 @@ import type {
   GeneralType,
   InventoryCategory,
   InventorySubCategory,
-  Item,
   OperatingUnit,
   Organization,
   Store,
   Unit,
   UserLogin,
-  Vendor,
 } from '@/types/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { SimpleMasterModule, type FieldDef } from './SimpleMasterModule'
@@ -198,138 +194,7 @@ export function UnitsMaster() {
   )
 }
 
-export function ItemsMaster() {
-  const mapItemStable = useCallback(mapItem, [])
-  const mapCatStable = useCallback(mapCategory, [])
-  const mapSubStable = useCallback(mapSubcategory, [])
-  const mapUnitStable = useCallback(mapUnit, [])
-  const { rows, loading, error, reload } = useMasterList('items', mapItemStable)
-  const { rows: categories } = useMasterList('categories', mapCatStable)
-  const { rows: subCategories } = useMasterList('subcategories', mapSubStable)
-  const { rows: units } = useMasterList('units', mapUnitStable)
-
-  const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
-  const uomById = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
-
-  const columns: Column<Item>[] = [
-    { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
-    { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
-    { key: 'type', header: 'Type', searchText: (r) => r.itemType, render: (r) => <Pill>{r.itemType}</Pill> },
-    {
-      key: 'category',
-      header: 'Category',
-      searchText: (r) => catById[r.category]?.name ?? r.category,
-      render: (r) => catById[r.category]?.name ?? r.category,
-    },
-    {
-      key: 'uom',
-      header: 'UOM',
-      searchText: (r) => uomById[r.uom]?.code ?? r.uom,
-      render: (r) => uomById[r.uom]?.code ?? r.uom,
-    },
-    { key: 'cost', header: 'Std Cost', searchText: (r) => String(r.standardCost), render: (r) => `₹ ${Number(r.standardCost).toLocaleString('en-IN')}` },
-    statusColumn(),
-  ]
-  const fields: FieldDef[] = [
-    { name: 'itemType', label: 'Item Type', type: 'select', required: true, options: [{ value: 'asset', label: 'Asset' }, { value: 'consumable', label: 'Consumable' }] },
-    { name: 'code', label: 'Item Code', required: true, uppercase: true, hint: 'ITM-001' },
-    { name: 'name', label: 'Item / Asset Name', required: true, span: 2 },
-    { name: 'category', label: 'Category', type: 'select', span: 2, options: opt(categories) },
-    { name: 'subCategory', label: 'Sub Category', type: 'select', span: 2, options: opt(subCategories) },
-    { name: 'uom', label: 'Unit of Measure', type: 'select', required: true, options: opt(units) },
-    { name: 'standardCost', label: 'Standard Cost (₹)', type: 'number' },
-    { name: 'description', label: 'Item Description', type: 'textarea', span: 2 },
-    { name: 'status', label: 'Active', type: 'switch', span: 4 },
-  ]
-  return (
-    <>
-      <ListStatus loading={loading} error={error} label="items" />
-      <MastersRoutes
-        listLoading={loading}
-        base="/masters/items"
-        menuCode="AIM"
-        title="Item Master"
-        description="All registered assets and consumables."
-        rows={rows as never}
-        columns={columns as never}
-        fields={fields}
-        searchPlaceholder="Search item code / name…"
-        saveLabel="Save Item"
-        formTitle="Basic Information"
-        getDefaults={() => ({ itemType: 'asset', status: true })}
-        onSave={async (id, values) => {
-          const body = {
-            itemCode: String(values.code ?? ''),
-            itemName: String(values.name ?? ''),
-            itemType: String(values.itemType ?? 'asset'),
-            categoryId: numOrUndef(values.category),
-            subcategoryId: numOrUndef(values.subCategory),
-            uomId: numOrUndef(values.uom),
-            standardCost: numOrUndef(values.standardCost) ?? 0,
-            isActive: isActiveFromForm(values.status),
-          }
-          if (id === 'new') await createMaster('items', body)
-          else await updateMaster('items', id, body)
-          await reload()
-        }}
-      />
-    </>
-  )
-}
-
-export function VendorsMaster() {
-  const mapVendorStable = useCallback(mapVendor, [])
-  const { rows, loading, error, reload } = useMasterList('vendors', mapVendorStable)
-  const columns: Column<Vendor>[] = [
-    { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
-    { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
-    { key: 'type', header: 'Type', searchText: (r) => r.partyType, render: (r) => r.partyType },
-    { key: 'city', header: 'City', searchText: (r) => r.city, render: (r) => r.city },
-    { key: 'phone', header: 'Phone', searchText: (r) => r.phone, render: (r) => r.phone },
-    statusColumn(),
-  ]
-  const fields: FieldDef[] = [
-    { name: 'code', label: 'Vendor Code', required: true, uppercase: true },
-    { name: 'name', label: 'Vendor / Party Name', required: true, span: 2 },
-    { name: 'partyType', label: 'Party Type', type: 'select', required: true, options: ['Vendor', 'Supplier', 'Customer', 'Contractor', 'Internal', 'Other'].map((v) => ({ value: v, label: v })) },
-    { name: 'gstin', label: 'GSTIN', uppercase: true, span: 2 },
-    { name: 'city', label: 'City' },
-    { name: 'phone', label: 'Phone', required: true },
-    { name: 'status', label: 'Active Vendor', type: 'switch', span: 4 },
-  ]
-  return (
-    <>
-      <ListStatus loading={loading} error={error} label="vendors" />
-      <MastersRoutes
-        listLoading={loading}
-        base="/masters/vendors"
-        menuCode="VPM"
-        title="Vendor / Party Master"
-        description="All registered vendors, suppliers and contractors."
-        rows={rows as never}
-        columns={columns as never}
-        fields={fields}
-        searchPlaceholder="Search vendor…"
-        saveLabel="Save Vendor"
-        formTitle="Party Identity"
-        onSave={async (id, values) => {
-          const body = {
-            vendorCode: String(values.code ?? ''),
-            vendorName: String(values.name ?? ''),
-            partyType: String(values.partyType ?? ''),
-            gstin: String(values.gstin ?? ''),
-            city: String(values.city ?? ''),
-            phone: String(values.phone ?? ''),
-            isActive: isActiveFromForm(values.status),
-          }
-          if (id === 'new') await createMaster('vendors', body)
-          else await updateMaster('vendors', id, body)
-          await reload()
-        }}
-      />
-    </>
-  )
-}
+export { ItemsMaster, VendorsMaster } from './ItemVendorMasterPages'
 
 export function OrganizationsMaster() {
   const mapEntityStable = useCallback(mapEntity, [])

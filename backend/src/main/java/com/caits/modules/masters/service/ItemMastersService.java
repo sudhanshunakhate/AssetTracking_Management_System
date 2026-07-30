@@ -108,23 +108,48 @@ public class ItemMastersService {
         e.setItmSubcategoryIdScat(req.subcategoryId());
         if (req.uomId() != null) e.setItmUomIdUnt(req.uomId());
         e.setItmStandardCost(req.standardCost());
+        e.setItmImageUrl(req.imageUrl());
+        e.setItmDesc(req.desc());
+        e.setItmRemarks(req.remarks());
         e.setItmAssetType(req.assetType());
         e.setItmMakeBrand(req.makeBrand());
         e.setItmModel(req.model());
         e.setItmSerialNo(req.serialNo());
-        e.setItmIsSerialized(req.isSerialized());
-        e.setItmIsReturnable(req.isReturnable());
+        e.setItmPurchaseDate(req.purchaseDate());
+        e.setItmPurchaseCost(req.purchaseCost());
+        e.setItmUsefulLifeYears(req.usefulLifeYears());
+        e.setItmWarrantyExpiry(req.warrantyExpiry());
+        e.setItmDepreciationMethod(req.depreciationMethod());
+        e.setItmDepreciationRate(req.depreciationRate());
         e.setItmAssignedToEmpIdEmp(req.assignedToEmpId());
         e.setItmCurrentLocationIdLoc(req.currentLocationId());
+        e.setItmIsSerialized(Boolean.TRUE.equals(req.isSerialized()));
+        e.setItmIsReturnable(Boolean.TRUE.equals(req.isReturnable()));
+        e.setItmIsUnderAmc(Boolean.TRUE.equals(req.isUnderAmc()));
+        e.setItmIsInsuranceRequired(Boolean.TRUE.equals(req.isInsuranceRequired()));
+        e.setItmConsumableType(req.consumableType());
+        e.setItmShelfBin(req.shelfBin());
+        e.setItmExpiryDate(req.expiryDate());
+        e.setItmBatchLotNo(req.batchLotNo());
+        e.setItmTrackBatchLot(Boolean.TRUE.equals(req.trackBatchLot()));
+        e.setItmTrackExpiry(Boolean.TRUE.equals(req.trackExpiry()));
+        e.setItmIsConsumable(Boolean.TRUE.equals(req.isConsumable()) || "consumable".equalsIgnoreCase(req.itemType()));
+        e.setItmAllowNegativeStock(Boolean.TRUE.equals(req.allowNegativeStock()));
         e.setItmIsactive(req.isActive() == null || req.isActive());
     }
 
     private ItemDto toItemDto(InvItemMst e, String message) {
         return new ItemDto(e.getItmItemId(), e.getItmItemCode(), e.getItmItemName(), e.getItmItemType(),
                 e.getItmCategoryIdCat(), e.getItmSubcategoryIdScat(), e.getItmUomIdUnt(), e.getItmStandardCost(),
-                e.getItmAssetType(), e.getItmMakeBrand(), e.getItmModel(), e.getItmSerialNo(), e.getItmIsSerialized(),
-                e.getItmIsReturnable(), e.getItmAssignedToEmpIdEmp(), e.getItmCurrentLocationIdLoc(), e.getItmIsactive(),
-                e.getItmCreatedBy(), e.getItmCreatedOn(), e.getItmModifiedBy(), e.getItmModifiedOn(), message);
+                e.getItmImageUrl(), e.getItmDesc(), e.getItmRemarks(), e.getItmAssetType(), e.getItmMakeBrand(),
+                e.getItmModel(), e.getItmSerialNo(), e.getItmPurchaseDate(), e.getItmPurchaseCost(),
+                e.getItmUsefulLifeYears(), e.getItmWarrantyExpiry(), e.getItmDepreciationMethod(),
+                e.getItmDepreciationRate(), e.getItmAssignedToEmpIdEmp(), e.getItmCurrentLocationIdLoc(),
+                e.getItmIsSerialized(), e.getItmIsReturnable(), e.getItmIsUnderAmc(), e.getItmIsInsuranceRequired(),
+                e.getItmConsumableType(), e.getItmShelfBin(), e.getItmExpiryDate(), e.getItmBatchLotNo(),
+                e.getItmTrackBatchLot(), e.getItmTrackExpiry(), e.getItmIsConsumable(), e.getItmAllowNegativeStock(),
+                e.getItmIsactive(), e.getItmCreatedBy(), e.getItmCreatedOn(), e.getItmModifiedBy(), e.getItmModifiedOn(),
+                message);
     }
 
     // ---- Vendors ----
@@ -190,15 +215,28 @@ public class ItemMastersService {
         e.setVndVendorName(req.vendorName());
         if (req.partyType() != null) e.setVndPartyType(req.partyType());
         e.setVndGstin(req.gstin());
+        e.setVndPanNo(req.panNo());
         e.setVndRating(req.rating());
+        e.setVndAdd1(req.add1());
+        e.setVndAdd2(req.add2());
         e.setVndCity(req.city());
+        e.setVndState(req.state());
+        e.setVndPin(req.pin());
+        e.setVndCountry(req.country() == null || req.country().isBlank() ? "India" : req.country());
+        e.setVndContactPerson(req.contactPerson());
         if (req.phone() != null) e.setVndPhone(req.phone());
+        e.setVndAltPhone(req.altPhone());
+        e.setVndEmail(req.email());
+        e.setVndWebsite(req.website());
+        e.setVndNotes(req.notes());
         e.setVndIsactive(req.isActive() == null || req.isActive());
     }
 
     private VendorDto toVendorDto(InvVendorMst e, String message) {
         return new VendorDto(e.getVndVendorId(), e.getVndVendorCode(), e.getVndVendorName(), e.getVndPartyType(),
-                e.getVndGstin(), e.getVndRating(), e.getVndCity(), e.getVndPhone(), e.getVndIsactive(),
+                e.getVndGstin(), e.getVndPanNo(), e.getVndRating(), e.getVndAdd1(), e.getVndAdd2(), e.getVndCity(),
+                e.getVndState(), e.getVndPin(), e.getVndCountry(), e.getVndContactPerson(), e.getVndPhone(),
+                e.getVndAltPhone(), e.getVndEmail(), e.getVndWebsite(), e.getVndNotes(), e.getVndIsactive(),
                 e.getVndCreatedBy(), e.getVndCreatedOn(), e.getVndModifiedBy(), e.getVndModifiedOn(), message);
     }
 

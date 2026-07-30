@@ -1,4 +1,6 @@
 [
+  "2026-07-30: Seeded General Types/Masters for Item Parameters, Receipt/Issue Purpose, Internal Return Reasons, Store Locations (db_approach/seed_general_types_and_masters.sql).",
+  "2026-07-30: Item Master and Vendor Master redesigned to match wireframe (typed sections, full fields, cascading category/subcategory).",
   "2026-07-30: Fixed edit-form field patching on all master/txn screens (wait for list row + re-sync select/switch values).",
   "2026-07-30: Merged Menu Access into Access Role form; removed separate Menu Access sidebar item (old /menu-access redirects to roles).",
   "2026-07-30: Menu Edit permission now returned from /auth/me and enforced on master/txn screens; Menu Access column select-all; Access Role fake matrix removed.",

@@ -17,6 +17,7 @@ export interface Item {
   subCategory: string
   uom: string
   standardCost: number
+  store?: string
   status: Status
 }
 
@@ -28,6 +29,7 @@ export interface Vendor {
   city: string
   phone: string
   gstin: string
+  rating?: number | string
   status: Status
 }
 
