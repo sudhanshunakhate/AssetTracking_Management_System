@@ -1,4 +1,11 @@
 [
+  "2026-07-31: User Access Mapping form restructured — Login Identity, Password (create), Access Mapping (Org + OU Access + OU pickers + Location).",
+  "2026-07-31: User Access Mapping — restored Add New; createUser API allows mapping with password; employee/login read-only on edit only.",
+  "2026-07-30: Redesigned User Login as User Access Mapping — map Role, Organization, OU(s) and Location; API returns buIds; menu USR renamed.",
+  "2026-07-30: Migrated sysm_rolepermission_dtl.rlpm_module_name → rlpm_menu_id_mtree FK to mtree_menu_id; renamed ARM/UAE menus to Role & Menu Mapping / User Access Exception.",
+  "2026-07-30: Item Master Location labels + inspectionNeeded (DB/API/UI); Vendor phone uniqueness + PAN 4th-letter type validation; Location Master wording (was Store).",
+  "2026-07-30: Seeded Category + Subcategory masters (10 categories, 29 subcategories) via db_approach/seed_categories_and_subcategories.sql.",
+  "2026-07-30: Seeded all remaining hardcoded dropdowns into General Type/Master (except State); UI loads via GET /general-types/{typeCode}/values; list supports ?typeCode=.",
   "2026-07-30: Seeded General Types/Masters for Item Parameters, Receipt/Issue Purpose, Internal Return Reasons, Store Locations (db_approach/seed_general_types_and_masters.sql).",
   "2026-07-30: Item Master and Vendor Master redesigned to match wireframe (typed sections, full fields, cascading category/subcategory).",
   "2026-07-30: Fixed edit-form field patching on all master/txn screens (wait for list row + re-sync select/switch values).",

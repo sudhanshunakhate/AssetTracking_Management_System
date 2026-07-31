@@ -12,14 +12,25 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { canViewMenu, permissionsReady } = useAuth()
 
   const visibleGroups = useMemo(() => {
+    const byLabel = (a: { label: string }, b: { label: string }) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+
     // While permissions load, keep static nav visible to avoid a blank flash.
-    if (!permissionsReady) return navGroups
-    return navGroups
+    const groups = !permissionsReady
+      ? navGroups
+      : navGroups
+          .map((group) => ({
+            ...group,
+            items: group.items.filter((item) => canViewMenu(item.menuCode)),
+          }))
+          .filter((group) => group.items.length > 0)
+
+    return [...groups]
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => canViewMenu(item.menuCode)),
+        items: [...group.items].sort(byLabel),
       }))
-      .filter((group) => group.items.length > 0)
+      .sort(byLabel)
   }, [canViewMenu, permissionsReady])
 
   return (

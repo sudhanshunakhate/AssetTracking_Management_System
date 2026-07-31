@@ -328,11 +328,18 @@ public class SetupMastersService {
 
     // ---- General Masters ----
     @Transactional(readOnly = true)
-    public PageResponse<GenmasterDto> listGenmasters(int page, int pageSize, String search, Boolean isActive, Integer gentypeId) {
+    public PageResponse<GenmasterDto> listGenmasters(
+            int page, int pageSize, String search, Boolean isActive, Integer gentypeId, String typeCode) {
+        Integer resolvedTypeId = gentypeId;
+        if (resolvedTypeId == null && typeCode != null && !typeCode.isBlank()) {
+            resolvedTypeId = gentypeRepo.findByGtypTypeCodeIgnoreCase(typeCode.trim())
+                    .map(GentypeMst::getGtypGentypeId)
+                    .orElseThrow(() -> ApiException.notFound("General type not found: " + typeCode));
+        }
         Specification<GenmasterMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("gmstIsactive", isActive),
                 SpecUtils.searchContains(search, "gmstValueCode", "gmstValueName"),
-                SpecUtils.eq("gmstGentypeIdGtyp", gentypeId));
+                SpecUtils.eq("gmstGentypeIdGtyp", resolvedTypeId));
         Page<GenmasterMst> result = genmasterRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
         return PageResponse.of(page, pageSize, result.getTotalElements(),
                 result.getContent().stream().map(e -> toGenmasterDto(e, null)).toList());

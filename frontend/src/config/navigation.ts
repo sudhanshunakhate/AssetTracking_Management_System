@@ -3,7 +3,7 @@ export type NavItem = {
   label: string
   badge?: string
   path: string
-  /** Matches sysm_menutree_mst.mtree_menu_code / rolepermission module */
+  /** Matches sysm_menutree_mst.mtree_menu_code / rolepermission menu FK */
   menuCode: string
 }
 export type NavGroup = { id: string; label: string; items: NavItem[] }
@@ -35,10 +35,10 @@ export const navGroups: NavGroup[] = [
     id: 'access',
     label: 'Access & People',
     items: [
-      { id: 'role', label: 'Access Role', badge: 'ARM', path: '/masters/roles', menuCode: 'ARM' },
+      { id: 'role', label: 'Role & Menu Mapping', badge: 'ARM', path: '/masters/roles', menuCode: 'ARM' },
       { id: 'employee', label: 'Employee', badge: 'EMP', path: '/masters/employees', menuCode: 'EMP' },
-      { id: 'user', label: 'User Login', badge: 'USR', path: '/masters/users', menuCode: 'USR' },
-      { id: 'exception', label: 'Access Exception', badge: 'UAE', path: '/masters/exceptions', menuCode: 'UAE' },
+      { id: 'user', label: 'User Access Mapping', badge: 'USR', path: '/masters/users', menuCode: 'USR' },
+      { id: 'exception', label: 'User Access Exception', badge: 'UAE', path: '/masters/exceptions', menuCode: 'UAE' },
     ],
   },
   {

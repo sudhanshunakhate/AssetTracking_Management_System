@@ -139,6 +139,8 @@ export interface UserLogin {
   role: string
   orgCode: string
   ouScope: string
+  locationId?: string
+  ouIds?: string[]
   accountStatus: 'Active' | 'Locked' | 'Disabled'
   status: Status
 }

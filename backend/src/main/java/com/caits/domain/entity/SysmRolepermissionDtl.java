@@ -1,7 +1,6 @@
 package com.caits.domain.entity;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "sysm_rolepermission_dtl", schema = "caits_local")
@@ -15,8 +14,8 @@ public class SysmRolepermissionDtl {
     @Column(name = "rlpm_role_id_rol", nullable = false)
     private Integer rlpmRoleIdRol;
 
-    @Column(name = "rlpm_module_name", nullable = false)
-    private String rlpmModuleName;
+    @Column(name = "rlpm_menu_id_mtree", nullable = false)
+    private Integer rlpmMenuIdMtree;
 
     @Column(name = "rlpm_can_view")
     private Boolean rlpmCanView;
@@ -48,8 +47,8 @@ public class SysmRolepermissionDtl {
     public Integer getRlpmRoleIdRol() { return rlpmRoleIdRol; }
     public void setRlpmRoleIdRol(Integer rlpmRoleIdRol) { this.rlpmRoleIdRol = rlpmRoleIdRol; }
 
-    public String getRlpmModuleName() { return rlpmModuleName; }
-    public void setRlpmModuleName(String rlpmModuleName) { this.rlpmModuleName = rlpmModuleName; }
+    public Integer getRlpmMenuIdMtree() { return rlpmMenuIdMtree; }
+    public void setRlpmMenuIdMtree(Integer rlpmMenuIdMtree) { this.rlpmMenuIdMtree = rlpmMenuIdMtree; }
 
     public Boolean getRlpmCanView() { return rlpmCanView; }
     public void setRlpmCanView(Boolean rlpmCanView) { this.rlpmCanView = rlpmCanView; }
@@ -74,5 +73,4 @@ public class SysmRolepermissionDtl {
 
     public Boolean getRlpmCanExport() { return rlpmCanExport; }
     public void setRlpmCanExport(Boolean rlpmCanExport) { this.rlpmCanExport = rlpmCanExport; }
-
 }

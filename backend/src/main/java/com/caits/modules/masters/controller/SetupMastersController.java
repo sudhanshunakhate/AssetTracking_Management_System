@@ -126,14 +126,14 @@ public class SetupMastersController {
         return service.listGentypes(page, pageSize, search, isActive);
     }
 
-    @GetMapping("/general-types/{id}")
-    public GentypeDto getGentype(@PathVariable Integer id) {
-        return service.getGentype(id);
-    }
-
     @GetMapping("/general-types/{typeCode}/values")
     public List<GenmasterValueDto> valuesByType(@PathVariable String typeCode) {
         return service.valuesByTypeCode(typeCode);
+    }
+
+    @GetMapping("/general-types/{id}")
+    public GentypeDto getGentype(@PathVariable Integer id) {
+        return service.getGentype(id);
     }
 
     @PostMapping("/general-types")
@@ -158,8 +158,9 @@ public class SetupMastersController {
             @RequestParam(defaultValue = "20") int pageSize,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean isActive,
-            @RequestParam(required = false) Integer gentypeId) {
-        return service.listGenmasters(page, pageSize, search, isActive, gentypeId);
+            @RequestParam(required = false) Integer gentypeId,
+            @RequestParam(required = false) String typeCode) {
+        return service.listGenmasters(page, pageSize, search, isActive, gentypeId, typeCode);
     }
 
     @GetMapping("/general-masters/{id}")

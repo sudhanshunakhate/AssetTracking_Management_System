@@ -158,7 +158,7 @@ public class DataSeeder implements ApplicationRunner {
             }
             SysmRolepermissionDtl p = new SysmRolepermissionDtl();
             p.setRlpmRoleIdRol(admin.getRolRoleId());
-            p.setRlpmModuleName(menu.getMtreeMenuCode());
+            p.setRlpmMenuIdMtree(menu.getMtreeMenuId());
             p.setRlpmCanView(true);
             p.setRlpmCanCreate(Boolean.TRUE.equals(menu.getMtreeSupportsCreate()));
             p.setRlpmCanEdit(Boolean.TRUE.equals(menu.getMtreeSupportsEdit()));
@@ -189,12 +189,12 @@ public class DataSeeder implements ApplicationRunner {
                 master("ORG", "Organization (Entity)", 110, "Organization"),
                 master("OU", "Operating Unit", 120, "Organization"),
                 master("STR", "Location", 130, "Organization"),
-                master("ARM", "Access Role", 210, "Access & People"),
+                master("ARM", "Role & Menu Mapping", 210, "Access & People"),
                 master("EMP", "Employee", 220, "Access & People"),
-                master("USR", "User Login", 230, "Access & People"),
+                master("USR", "User Access Mapping", 230, "Access & People"),
                 new MenuDef("MNU", "Menu Access", "Access & People", 240, "MNU", null,
                         true, true, true, false, false, false, false, true),
-                master("UAE", "Access Exception", 250, "Access & People"),
+                master("UAE", "User Access Exception", 250, "Access & People"),
                 txn("OPN", "Opening Stock", 310, "OPENING_STOCK", false, false),
                 txn("SR", "Store Requisitions", 320, "MATERIAL_REQUISITION", true, true),
                 txn("GRN", "Goods Receipt Note", 330, "GRN", true, true),

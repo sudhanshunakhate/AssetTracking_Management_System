@@ -5,7 +5,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import { createTxn, numOrUndef, todayIso, useTxnList } from '@/api/transactions'
-import { mapEmployee, mapItem, mapLocation, mapUnit, useMasterList } from '@/api/masters'
+import { mapEmployee, mapItem, mapLocation, mapUnit, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 
 type Tab = 'inward' | 'outward'
@@ -27,6 +27,8 @@ export function GatepassPage() {
   const { rows: stores } = useMasterList('locations', mapLoc)
   const { rows: items } = useMasterList('items', mapItm)
   const { rows: units } = useMasterList('units', mapUnt)
+  const { options: gpInOpts } = useGenValues(GEN_TYPE.GATEPASS_INWARD, 'code')
+  const { options: retFlagOpts } = useGenValues(GEN_TYPE.RETURNABLE_FLAG, 'code')
   const outward = useTxnList('gatepass/outward')
   const inward = useTxnList('gatepass/inward')
 
@@ -179,8 +181,17 @@ export function GatepassPage() {
                     value={inwardType}
                     onChange={(e) => setInwardType(e.target.value as 'returnable' | 'new')}
                   >
-                    <option value="returnable">Against Returnable Outward</option>
-                    <option value="new">New Inward Entry</option>
+                    {(gpInOpts.length
+                      ? gpInOpts
+                      : [
+                          { value: 'returnable', label: 'Against Returnable Outward', code: 'returnable' },
+                          { value: 'new', label: 'New Inward Entry', code: 'new' },
+                        ]
+                    ).map((o) => (
+                      <option key={o.code ?? o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
               </div>
@@ -434,8 +445,17 @@ export function GatepassPage() {
                 </Field>
                 <Field label="Returnable / Non Returnable" required>
                   <Select value={outwardForm.returnFlag} onChange={(e) => setOut('returnFlag', e.target.value)}>
-                    <option value="N">Non Returnable</option>
-                    <option value="Y">Returnable</option>
+                    {(retFlagOpts.length
+                      ? retFlagOpts
+                      : [
+                          { value: 'N', label: 'Non Returnable', code: 'N' },
+                          { value: 'Y', label: 'Returnable', code: 'Y' },
+                        ]
+                    ).map((o) => (
+                      <option key={o.code ?? o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
                   </Select>
                 </Field>
                 <Field label="Prepared By" required>

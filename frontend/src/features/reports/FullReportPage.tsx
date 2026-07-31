@@ -6,7 +6,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchFullReport } from '@/api/transactions'
-import { mapEmployee, mapEntity, mapLocation, useMasterList } from '@/api/masters'
+import { mapEmployee, mapEntity, mapLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import type { FullReportRow } from '@/types/transactions'
 
 const emptyFilters = {
@@ -17,17 +17,6 @@ const emptyFilters = {
   from: '',
   to: '',
 }
-
-const DOC_TYPES = [
-  { value: 'OPENING_STOCK', label: 'Opening Stock' },
-  { value: 'MATERIAL_REQUISITION', label: 'Store Requisition' },
-  { value: 'MATERIAL_ISSUE', label: 'Store Issue' },
-  { value: 'GRN', label: 'Goods Receipt Note (GRN)' },
-  { value: 'MATERIAL_TRANSFER', label: 'Material Transfer' },
-  { value: 'MATERIAL_RETURN', label: 'Material Return' },
-  { value: 'GATEPASS_INWARD', label: 'Gatepass Inward' },
-  { value: 'GATEPASS_OUTWARD', label: 'Gatepass Outward' },
-]
 
 export function FullReportPage() {
   const [f, setF] = useState(emptyFilters)
@@ -42,6 +31,8 @@ export function FullReportPage() {
   const { rows: stores } = useMasterList('locations', mapLoc)
   const { rows: orgs } = useMasterList('entities', mapEnt)
   const { rows: employees } = useMasterList('employees', mapEmp)
+  const { options: docTypeOpts } = useGenValues(GEN_TYPE.DOC_TYPE, 'code')
+  const { options: docStatusOpts } = useGenValues(GEN_TYPE.DOC_STATUS)
 
   const storeById = useMemo(() => Object.fromEntries(stores.map((s) => [s.id, s])), [stores])
   const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
@@ -143,8 +134,8 @@ export function FullReportPage() {
             <Field label="Transaction Type">
               <Select value={f.txnType} onChange={(e) => set('txnType', e.target.value)}>
                 <option value="">All Types</option>
-                {DOC_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
+                {docTypeOpts.map((t) => (
+                  <option key={t.code} value={t.value}>
                     {t.label}
                   </option>
                 ))}
@@ -153,11 +144,11 @@ export function FullReportPage() {
             <Field label="Status">
               <Select value={f.status} onChange={(e) => set('status', e.target.value)}>
                 <option value="">All Status</option>
-                <option>Draft</option>
-                <option>Approved</option>
-                <option>Pending Approval</option>
-                <option>Completed</option>
-                <option>Rejected</option>
+                {docStatusOpts.map((s) => (
+                  <option key={s.code} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="Location">

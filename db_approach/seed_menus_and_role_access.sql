@@ -27,11 +27,11 @@ INSERT INTO sysm_menutree_mst (
 ('OU',     'Operating Unit',           'Organization',     120, 'OU',  NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
 ('STR',    'Location',                 'Organization',     130, 'STR', NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
 -- Access & People
-('ARM',    'Access Role',              'Access & People',  210, 'ARM', NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
+('ARM',    'Role & Menu Mapping',      'Access & People',  210, 'ARM', NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
 ('EMP',    'Employee',                 'Access & People',  220, 'EMP', NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
-('USR',    'User Login',               'Access & People',  230, 'USR', NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
+('USR',    'User Access Mapping',      'Access & People',  230, 'USR', NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
 ('MNU',    'Menu Access',              'Access & People',  240, 'MNU', NULL,                  true, true,  true,  false, false, false, false, true,  true, true, 'system', NOW()),
-('UAE',    'Access Exception',         'Access & People',  250, 'UAE', NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
+('UAE',    'User Access Exception',    'Access & People',  250, 'UAE', NULL,                  true, true,  true,  true,  false, false, false, true,  true, true, 'system', NOW()),
 -- Transactions
 ('OPN',    'Opening Stock',            'Transactions',     310, 'OPN', 'OPENING_STOCK',        true, true,  true,  true,  false, false, true,  true,  true, true, 'system', NOW()),
 ('SR',     'Store Requisitions',       'Transactions',     320, 'SR',  'MATERIAL_REQUISITION', true, true,  true,  true,  true,  true,  true,  true,  true, true, 'system', NOW()),
@@ -64,16 +64,16 @@ ON CONFLICT (mtree_menu_code) DO UPDATE SET
     mtree_modified_on      = NOW();
 
 -- ---------------------------------------------------------------------------
--- 2) ADMIN role → full access on every menu (rlpm_module_name = mtree_menu_code)
+-- 2) ADMIN role → full access on every menu (rlpm_menu_id_mtree = mtree_menu_id)
 -- ---------------------------------------------------------------------------
 INSERT INTO sysm_rolepermission_dtl (
-    rlpm_role_id_rol, rlpm_module_name,
+    rlpm_role_id_rol, rlpm_menu_id_mtree,
     rlpm_can_view, rlpm_can_create, rlpm_can_edit, rlpm_can_delete,
     rlpm_can_approve, rlpm_can_reject, rlpm_can_print, rlpm_can_export
 )
 SELECT
     r.rol_role_id,
-    m.mtree_menu_code,
+    m.mtree_menu_id,
     TRUE,
     COALESCE(m.mtree_supports_create, FALSE),
     COALESCE(m.mtree_supports_edit, FALSE),
@@ -90,7 +90,7 @@ WHERE UPPER(r.rol_role_code) = 'ADMIN'
       SELECT 1
       FROM sysm_rolepermission_dtl p
       WHERE p.rlpm_role_id_rol = r.rol_role_id
-        AND p.rlpm_module_name = m.mtree_menu_code
+        AND p.rlpm_menu_id_mtree = m.mtree_menu_id
   );
 
 -- Verification

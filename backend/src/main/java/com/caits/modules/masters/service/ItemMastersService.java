@@ -127,6 +127,7 @@ public class ItemMastersService {
         e.setItmIsReturnable(Boolean.TRUE.equals(req.isReturnable()));
         e.setItmIsUnderAmc(Boolean.TRUE.equals(req.isUnderAmc()));
         e.setItmIsInsuranceRequired(Boolean.TRUE.equals(req.isInsuranceRequired()));
+        e.setItmInspectionNeeded(Boolean.TRUE.equals(req.inspectionNeeded()));
         e.setItmConsumableType(req.consumableType());
         e.setItmShelfBin(req.shelfBin());
         e.setItmExpiryDate(req.expiryDate());
@@ -146,10 +147,10 @@ public class ItemMastersService {
                 e.getItmUsefulLifeYears(), e.getItmWarrantyExpiry(), e.getItmDepreciationMethod(),
                 e.getItmDepreciationRate(), e.getItmAssignedToEmpIdEmp(), e.getItmCurrentLocationIdLoc(),
                 e.getItmIsSerialized(), e.getItmIsReturnable(), e.getItmIsUnderAmc(), e.getItmIsInsuranceRequired(),
-                e.getItmConsumableType(), e.getItmShelfBin(), e.getItmExpiryDate(), e.getItmBatchLotNo(),
-                e.getItmTrackBatchLot(), e.getItmTrackExpiry(), e.getItmIsConsumable(), e.getItmAllowNegativeStock(),
-                e.getItmIsactive(), e.getItmCreatedBy(), e.getItmCreatedOn(), e.getItmModifiedBy(), e.getItmModifiedOn(),
-                message);
+                e.getItmInspectionNeeded(), e.getItmConsumableType(), e.getItmShelfBin(), e.getItmExpiryDate(),
+                e.getItmBatchLotNo(), e.getItmTrackBatchLot(), e.getItmTrackExpiry(), e.getItmIsConsumable(),
+                e.getItmAllowNegativeStock(), e.getItmIsactive(), e.getItmCreatedBy(), e.getItmCreatedOn(),
+                e.getItmModifiedBy(), e.getItmModifiedOn(), message);
     }
 
     // ---- Vendors ----
@@ -172,7 +173,7 @@ public class ItemMastersService {
     public VendorDto createVendor(VendorRequest req) {
         require(req.vendorCode(), "vendorCode");
         if (req.partyType() == null || req.partyType().isBlank()) throw ApiException.badRequest("partyType is required");
-        if (req.phone() == null || req.phone().isBlank()) throw ApiException.badRequest("phone is required");
+        validateVendorContact(req);
         if (vendorRepo.existsByVndVendorCodeIgnoreCase(req.vendorCode())) {
             throw ApiException.conflict("Vendor code already exists");
         }
@@ -190,6 +191,7 @@ public class ItemMastersService {
                 && vendorRepo.existsByVndVendorCodeIgnoreCase(req.vendorCode())) {
             throw ApiException.conflict("Vendor code already exists");
         }
+        validateVendorContact(req);
         applyVendor(e, req);
         e.setVndModifiedBy(SecurityUtils.requireLoginId());
         e.setVndModifiedOn(LocalDateTime.now());
@@ -267,5 +269,44 @@ public class ItemMastersService {
 
     private static void require(String v, String field) {
         if (v == null || v.isBlank()) throw ApiException.badRequest(field + " is required");
+    }
+
+    private static void validateVendorContact(VendorRequest req) {
+        if (req.phone() == null || req.phone().isBlank()) throw ApiException.badRequest("phone is required");
+        String phoneDigits = digitsOnly(req.phone());
+        if (!isValidPhoneDigits(phoneDigits)) {
+            throw ApiException.badRequest("Primary phone must be a valid 10-digit Indian mobile number");
+        }
+        String alt = req.altPhone();
+        if (alt != null && !alt.isBlank()) {
+            String altDigits = digitsOnly(alt);
+            if (!isValidPhoneDigits(altDigits)) {
+                throw ApiException.badRequest("Alternate phone must be a valid 10-digit Indian mobile number");
+            }
+            if (phoneDigits.equals(altDigits)) {
+                throw ApiException.badRequest("Primary and alternate phone numbers cannot be the same");
+            }
+        }
+        if (req.panNo() != null && !req.panNo().isBlank()) {
+            String pan = req.panNo().trim().toUpperCase();
+            if (!pan.matches("^[A-Z]{5}[0-9]{4}[A-Z]$")) {
+                throw ApiException.badRequest("PAN must be in format AAAAA9999A");
+            }
+            char fourth = pan.charAt(3);
+            if ("IP".indexOf(fourth) < 0 && "CHFATBLJG".indexOf(fourth) < 0) {
+                throw ApiException.badRequest("PAN 4th character is invalid (I/P=Individual, C=Company, H=HUF, F=Firm, …)");
+            }
+        }
+    }
+
+    private static String digitsOnly(String v) {
+        return v == null ? "" : v.replaceAll("\\D", "");
+    }
+
+    /** Accepts 10-digit mobile, or 12 digits starting with 91. */
+    private static boolean isValidPhoneDigits(String digits) {
+        if (digits == null) return false;
+        if (digits.length() == 12 && digits.startsWith("91")) digits = digits.substring(2);
+        return digits.matches("^[6-9]\\d{9}$");
     }
 }

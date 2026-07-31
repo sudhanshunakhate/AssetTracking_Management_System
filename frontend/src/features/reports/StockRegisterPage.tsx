@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockRegister } from '@/api/transactions'
-import { mapCategory, mapLocation, mapUnit, useMasterList } from '@/api/masters'
+import { mapCategory, mapLocation, mapUnit, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import type { StockRegisterRow } from '@/types/transactions'
 
 export function StockRegisterPage() {
@@ -23,6 +23,7 @@ export function StockRegisterPage() {
   const { rows: categories } = useMasterList('categories', mapCat)
   const { rows: stores } = useMasterList('locations', mapLoc)
   const { rows: units } = useMasterList('units', mapUnt)
+  const { options: stockStatusOpts } = useGenValues(GEN_TYPE.STOCK_STATUS)
 
   const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
   const storeById = useMemo(() => Object.fromEntries(stores.map((s) => [s.id, s])), [stores])
@@ -137,9 +138,11 @@ export function StockRegisterPage() {
               className="rounded-[7px] border border-[var(--border2)] px-2.5 py-1.5 text-xs text-[var(--text2)]"
             >
               <option value="">All Status</option>
-              <option>In Stock</option>
-              <option>Low Stock</option>
-              <option>Out of Stock</option>
+              {stockStatusOpts.map((s) => (
+                <option key={s.code} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
             </select>
           </div>
 

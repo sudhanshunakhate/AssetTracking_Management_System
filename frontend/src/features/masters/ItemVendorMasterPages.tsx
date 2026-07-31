@@ -9,7 +9,9 @@ import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import {
   createMaster,
+  GEN_TYPE,
   isActiveFromForm,
+  itemTypeFromGenCode,
   mapCategory,
   mapEmployee,
   mapItem,
@@ -19,6 +21,7 @@ import {
   mapVendor,
   numOrUndef,
   updateMaster,
+  useGenValues,
   useMasterList,
   type ItemApi,
   type VendorApi,
@@ -40,6 +43,49 @@ function numOrNull(v: unknown): number | null {
 
 function str(v: unknown) {
   return String(v ?? '').trim()
+}
+
+function digitsOnly(v: string) {
+  return v.replace(/\D/g, '')
+}
+
+/** Indian mobile: 10 digits starting 6–9, optional +91 / 91 prefix. */
+function normalizeIndianMobile(v: string) {
+  let d = digitsOnly(v)
+  if (d.length === 12 && d.startsWith('91')) d = d.slice(2)
+  return d
+}
+
+function isValidIndianMobile(v: string) {
+  return /^[6-9]\d{9}$/.test(normalizeIndianMobile(v))
+}
+
+/** PAN AAAAA9999A — 4th char: I/P=Individual, C=Company, H=HUF, F=Firm, etc. */
+function panHolderType(pan: string): string | null {
+  const p = pan.trim().toUpperCase()
+  if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(p)) return null
+  const map: Record<string, string> = {
+    I: 'Individual',
+    P: 'Individual (Person)',
+    C: 'Company',
+    H: 'HUF',
+    F: 'Firm',
+    A: 'Association of Persons (AOP)',
+    T: 'Trust',
+    B: 'Body of Individuals (BOI)',
+    L: 'Local Authority',
+    J: 'Artificial Juridical Person',
+    G: 'Government',
+  }
+  return map[p.charAt(3)] ?? `Unknown type (${p.charAt(3)})`
+}
+
+function validatePan(pan: string): string | null {
+  const p = pan.trim().toUpperCase()
+  if (!p) return null
+  if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(p)) return 'PAN must be in format AAAAA9999A'
+  if (!panHolderType(p)) return 'Invalid PAN 4th character'
+  return null
 }
 
 /* ───────────────────────── Item Master ───────────────────────── */
@@ -72,6 +118,7 @@ type ItemForm = {
   isReturnable: boolean
   isUnderAmc: boolean
   isInsuranceRequired: boolean
+  inspectionNeeded: boolean
   consumableType: string
   storageLocation: string
   shelfBin: string
@@ -111,6 +158,7 @@ const emptyItem = (): ItemForm => ({
   isReturnable: false,
   isUnderAmc: false,
   isInsuranceRequired: false,
+  inspectionNeeded: false,
   consumableType: '',
   storageLocation: '',
   shelfBin: '',
@@ -121,32 +169,6 @@ const emptyItem = (): ItemForm => ({
   isConsumable: true,
   allowNegativeStock: false,
 })
-
-const ASSET_TYPES = [
-  'IT – Laptop',
-  'IT – Server',
-  'IT – Network',
-  'IT – Peripheral',
-  'Physical – Machinery',
-  'Physical – Equipment',
-  'Digital – License',
-  'Digital – File',
-  'Digital – Subscription',
-  'Spare Part',
-  'Other',
-]
-
-const CONSUMABLE_TYPES = [
-  'Raw Material',
-  'Finished Goods',
-  'Semi-Finished',
-  'Consumable',
-  'Spare Part',
-  'Packaging',
-  'Other',
-]
-
-const DEPR_METHODS = ['Straight Line (SLM)', 'Written Down Value (WDV)', 'None']
 
 function ItemFormPage() {
   const { id } = useParams()
@@ -167,6 +189,10 @@ function ItemFormPage() {
   const { rows: units } = useMasterList('units', mapUnt)
   const { rows: employees } = useMasterList('employees', mapEmp)
   const { rows: stores } = useMasterList('locations', mapLoc)
+  const { options: itemParamOpts } = useGenValues(GEN_TYPE.ITEM_PARAM, 'code')
+  const { options: assetTypeOpts } = useGenValues(GEN_TYPE.ASSET_TYPE)
+  const { options: consumableTypeOpts } = useGenValues(GEN_TYPE.CONSUMABLE_TYPE)
+  const { options: deprOpts } = useGenValues(GEN_TYPE.DEPRECIATION)
 
   const [values, setValues] = useState<ItemForm>(emptyItem)
   const [loading, setLoading] = useState(!isNew)
@@ -218,6 +244,7 @@ function ItemFormPage() {
           isReturnable: Boolean(it.isReturnable),
           isUnderAmc: Boolean(it.isUnderAmc),
           isInsuranceRequired: Boolean(it.isInsuranceRequired),
+          inspectionNeeded: Boolean(it.inspectionNeeded),
           consumableType: it.consumableType ?? '',
           storageLocation: it.currentLocationId != null ? String(it.currentLocationId) : '',
           shelfBin: it.shelfBin ?? '',
@@ -282,6 +309,7 @@ function ItemFormPage() {
         isReturnable: values.itemType === 'asset' ? values.isReturnable : false,
         isUnderAmc: values.itemType === 'asset' ? values.isUnderAmc : false,
         isInsuranceRequired: values.itemType === 'asset' ? values.isInsuranceRequired : false,
+        inspectionNeeded: values.inspectionNeeded,
         consumableType: values.itemType === 'consumable' ? str(values.consumableType) || null : null,
         shelfBin: values.itemType === 'consumable' ? str(values.shelfBin) || null : null,
         expiryDate: values.itemType === 'consumable' ? values.expiryDate || null : null,
@@ -349,8 +377,20 @@ function ItemFormPage() {
                 }))
               }}
             >
-              <option value="asset">Asset</option>
-              <option value="consumable">Consumable</option>
+              {(itemParamOpts.length
+                ? itemParamOpts.map((o) => ({
+                    value: itemTypeFromGenCode(o.code, o.name),
+                    label: o.label,
+                  }))
+                : [
+                    { value: 'asset' as const, label: 'Asset' },
+                    { value: 'consumable' as const, label: 'Consumable' },
+                  ]
+              ).map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </Select>
             <span className="rounded-md bg-[var(--accent-lt,#eef3ff)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--accent)]">
               {typeBadge}
@@ -453,8 +493,14 @@ function ItemFormPage() {
                 placeholder="Additional remarks / notes…"
               />
             </Field>
-            <div className="pt-1 xl:col-span-4">
+            <div className="flex flex-wrap gap-6 pt-1 xl:col-span-4">
               <Switch label="Active" checked={values.status} disabled={readOnly} onChange={(v) => set('status', v)} />
+              <Switch
+                label="Inspection Needed"
+                checked={values.inspectionNeeded}
+                disabled={readOnly}
+                onChange={(v) => set('inspectionNeeded', v)}
+              />
             </div>
           </div>
         </CardBody>
@@ -472,9 +518,9 @@ function ItemFormPage() {
                   onChange={(e) => set('assetType', e.target.value)}
                 >
                   <option value="">— Select —</option>
-                  {ASSET_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  {assetTypeOpts.map((t) => (
+                    <option key={t.code} value={t.value}>
+                      {t.label}
                     </option>
                   ))}
                 </Select>
@@ -548,9 +594,9 @@ function ItemFormPage() {
                   onChange={(e) => set('depreciationMethod', e.target.value)}
                 >
                   <option value="">— Select —</option>
-                  {DEPR_METHODS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
+                  {deprOpts.map((m) => (
+                    <option key={m.code} value={m.value}>
+                      {m.label}
                     </option>
                   ))}
                 </Select>
@@ -581,13 +627,13 @@ function ItemFormPage() {
                   ))}
                 </Select>
               </Field>
-              <Field label="Current Store">
+              <Field label="Current Location">
                 <Select
                   value={values.currentStore}
                   disabled={readOnly}
                   onChange={(e) => set('currentStore', e.target.value)}
                 >
-                  <option value="">— Assign Store —</option>
+                  <option value="">— Assign Location —</option>
                   {opt(stores).map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -636,9 +682,9 @@ function ItemFormPage() {
                   onChange={(e) => set('consumableType', e.target.value)}
                 >
                   <option value="">— Select —</option>
-                  {CONSUMABLE_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  {consumableTypeOpts.map((t) => (
+                    <option key={t.code} value={t.value}>
+                      {t.label}
                     </option>
                   ))}
                 </Select>
@@ -767,7 +813,7 @@ function ItemList() {
     },
     {
       key: 'store',
-      header: 'Store',
+      header: 'Location',
       searchText: (r) => storeById[r.store ?? '']?.code ?? r.store ?? '',
       render: (r) => storeById[r.store ?? '']?.code ?? r.store ?? '—',
     },
@@ -856,7 +902,6 @@ const emptyVendor = (): VendorForm => ({
   status: true,
 })
 
-const PARTY_TYPES = ['Vendor', 'Supplier', 'Customer', 'Contractor', 'Internal', 'Other']
 const STATES = [
   'Maharashtra',
   'Karnataka',
@@ -883,6 +928,8 @@ function VendorFormPage() {
   const canCreate = canCreateMenu('VPM')
   const canEdit = canEditMenu('VPM')
   const readOnly = isNew ? !canCreate : !canEdit
+  const { options: partyTypeOpts } = useGenValues(GEN_TYPE.PARTY_TYPE)
+  const { options: ratingOpts } = useGenValues(GEN_TYPE.RATING, 'code')
 
   const [values, setValues] = useState<VendorForm>(emptyVendor)
   const [loading, setLoading] = useState(!isNew)
@@ -941,6 +988,19 @@ function VendorFormPage() {
       if (!values.code.trim() || !values.name.trim() || !values.partyType || !values.phone.trim()) {
         throw new Error('Vendor Code, Name, Party Type and Phone are required')
       }
+      if (!isValidIndianMobile(values.phone)) {
+        throw new Error('Primary phone must be a valid 10-digit Indian mobile number')
+      }
+      if (values.altPhone.trim()) {
+        if (!isValidIndianMobile(values.altPhone)) {
+          throw new Error('Alternate phone must be a valid 10-digit Indian mobile number')
+        }
+        if (normalizeIndianMobile(values.phone) === normalizeIndianMobile(values.altPhone)) {
+          throw new Error('Primary and alternate phone numbers cannot be the same')
+        }
+      }
+      const panErr = validatePan(values.panNo)
+      if (panErr) throw new Error(panErr)
       const body = {
         vendorCode: values.code.trim().toUpperCase(),
         vendorName: values.name.trim(),
@@ -1021,9 +1081,9 @@ function VendorFormPage() {
                 onChange={(e) => set('partyType', e.target.value)}
               >
                 <option value="">— Select —</option>
-                {PARTY_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {partyTypeOpts.map((t) => (
+                  <option key={t.code} value={t.value}>
+                    {t.label}
                   </option>
                 ))}
               </Select>
@@ -1037,23 +1097,32 @@ function VendorFormPage() {
                 placeholder="27AABCT1234A1Z5"
               />
             </Field>
-            <Field label="PAN Number">
+            <Field
+              label="PAN Number"
+              hint={
+                values.panNo.trim().length >= 4
+                  ? panHolderType(values.panNo)
+                    ? `Holder type: ${panHolderType(values.panNo)}`
+                    : 'Invalid PAN format'
+                  : '4th letter: I/P = Individual, C = Company, H = HUF, F = Firm'
+              }
+            >
               <Input
                 value={values.panNo}
                 disabled={readOnly}
-                maxLength={15}
-                onChange={(e) => set('panNo', e.target.value.toUpperCase())}
-                placeholder="AABCT1234A"
+                maxLength={10}
+                onChange={(e) => set('panNo', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                placeholder="ABCPI1234A"
               />
             </Field>
             <Field label="Rating (1–5)">
               <Select value={values.rating} disabled={readOnly} onChange={(e) => set('rating', e.target.value)}>
                 <option value="">— No Rating —</option>
-                <option value="1">★ 1 – Poor</option>
-                <option value="2">★★ 2 – Fair</option>
-                <option value="3">★★★ 3 – Avg</option>
-                <option value="4">★★★★ 4 – Good</option>
-                <option value="5">★★★★★ 5 – Excellent</option>
+                {ratingOpts.map((r) => (
+                  <option key={r.code} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
               </Select>
             </Field>
           </div>
@@ -1118,21 +1187,23 @@ function VendorFormPage() {
                 placeholder="Ravi Sharma"
               />
             </Field>
-            <Field label="Phone" required>
+            <Field label="Phone" required hint="10-digit Indian mobile">
               <Input
                 type="tel"
                 value={values.phone}
                 disabled={readOnly}
-                onChange={(e) => set('phone', e.target.value)}
+                maxLength={13}
+                onChange={(e) => set('phone', e.target.value.replace(/[^\d+]/g, ''))}
                 placeholder="98XXXXXXXX"
               />
             </Field>
-            <Field label="Alt. Phone">
+            <Field label="Alt. Phone" hint="Must differ from primary">
               <Input
                 type="tel"
                 value={values.altPhone}
                 disabled={readOnly}
-                onChange={(e) => set('altPhone', e.target.value)}
+                maxLength={13}
+                onChange={(e) => set('altPhone', e.target.value.replace(/[^\d+]/g, ''))}
                 placeholder="98XXXXXXXX"
               />
             </Field>

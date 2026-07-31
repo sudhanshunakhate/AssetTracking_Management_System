@@ -57,19 +57,20 @@ public final class MasterDtos {
                           java.time.LocalDate purchaseDate, BigDecimal purchaseCost, BigDecimal usefulLifeYears,
                           java.time.LocalDate warrantyExpiry, String depreciationMethod, BigDecimal depreciationRate,
                           Integer assignedToEmpId, Integer currentLocationId, Boolean isSerialized, Boolean isReturnable,
-                          Boolean isUnderAmc, Boolean isInsuranceRequired, String consumableType, String shelfBin,
-                          java.time.LocalDate expiryDate, String batchLotNo, Boolean trackBatchLot, Boolean trackExpiry,
-                          Boolean isConsumable, Boolean allowNegativeStock, Boolean isActive, String createdBy,
-                          LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn, String message) {}
+                          Boolean isUnderAmc, Boolean isInsuranceRequired, Boolean inspectionNeeded, String consumableType,
+                          String shelfBin, java.time.LocalDate expiryDate, String batchLotNo, Boolean trackBatchLot,
+                          Boolean trackExpiry, Boolean isConsumable, Boolean allowNegativeStock, Boolean isActive,
+                          String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn,
+                          String message) {}
     public record ItemRequest(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
                               Integer subcategoryId, Integer uomId, BigDecimal standardCost, String imageUrl, String desc,
                               String remarks, String assetType, String makeBrand, String model, String serialNo,
                               java.time.LocalDate purchaseDate, BigDecimal purchaseCost, BigDecimal usefulLifeYears,
                               java.time.LocalDate warrantyExpiry, String depreciationMethod, BigDecimal depreciationRate,
                               Integer assignedToEmpId, Integer currentLocationId, Boolean isSerialized, Boolean isReturnable,
-                              Boolean isUnderAmc, Boolean isInsuranceRequired, String consumableType, String shelfBin,
-                              java.time.LocalDate expiryDate, String batchLotNo, Boolean trackBatchLot, Boolean trackExpiry,
-                              Boolean isConsumable, Boolean allowNegativeStock, Boolean isActive) {}
+                              Boolean isUnderAmc, Boolean isInsuranceRequired, Boolean inspectionNeeded, String consumableType,
+                              String shelfBin, java.time.LocalDate expiryDate, String batchLotNo, Boolean trackBatchLot,
+                              Boolean trackExpiry, Boolean isConsumable, Boolean allowNegativeStock, Boolean isActive) {}
 
     public record VendorDto(Integer vendorId, String vendorCode, String vendorName, String partyType, String gstin,
                             String panNo, Integer rating, String add1, String add2, String city, String state, String pin,
@@ -96,8 +97,9 @@ public final class MasterDtos {
                           String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record RoleRequest(Integer roleId, String roleCode, String roleName, Integer roleLevel, String desc,
                               Boolean isSystemRole, Boolean isActive) {}
-    public record PermissionDto(String module, Boolean canView, Boolean canCreate, Boolean canEdit, Boolean canDelete,
-                                Boolean canApprove, Boolean canReject, Boolean canPrint, Boolean canExport) {}
+    public record PermissionDto(Integer menuId, String module, Boolean canView, Boolean canCreate, Boolean canEdit,
+                                Boolean canDelete, Boolean canApprove, Boolean canReject, Boolean canPrint,
+                                Boolean canExport) {}
 
     public record EmployeeDto(Integer employeeId, String employeeCode, String firstName, String lastName,
                               String gender, java.time.LocalDate dob, java.time.LocalDate joiningDate, String employmentType,
@@ -115,9 +117,9 @@ public final class MasterDtos {
     public record SubordinateDto(Integer employeeId, String employeeCode, String firstName, String designation) {}
 
     public record UserDto(Integer userId, Integer employeeId, String loginId, Integer roleId, String accountStatus,
-                          Integer entityId, String buAccessScope, Integer locationId, Boolean forcePasswordReset,
-                          Boolean isActive, String createdBy, LocalDateTime createdOn, String modifiedBy,
-                          LocalDateTime modifiedOn, String message) {}
+                          Integer entityId, String buAccessScope, Integer locationId, List<Integer> buIds,
+                          Boolean forcePasswordReset, Boolean isActive, String createdBy, LocalDateTime createdOn,
+                          String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record UserRequest(Integer employeeId, String loginId, String password, Integer roleId, String accountStatus,
                               Integer entityId, String buAccessScope, Integer locationId, Boolean forcePasswordReset,
                               Boolean isActive) {}

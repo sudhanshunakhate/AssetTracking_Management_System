@@ -167,6 +167,99 @@ export const mapGenmaster = (g: GenmasterApi): ApiMasterRow => ({
   status: activeStatus(g.isActive),
 })
 
+/** General Type codes used as lookup keys (GET /general-types/{typeCode}/values). */
+export const GEN_TYPE = {
+  ITEM_PARAM: 'GTY-ITMPAR',
+  ASSET_TYPE: 'GTY-ASSETTYP',
+  CONSUMABLE_TYPE: 'GTY-CONSTYP',
+  DEPRECIATION: 'GTY-DEPR',
+  PARTY_TYPE: 'GTY-PARTY',
+  RATING: 'GTY-RATING',
+  OU_TYPE: 'GTY-OUTYPE',
+  STORE_TYPE: 'GTY-STRTYPE',
+  GENDER: 'GTY-GENDER',
+  EMPLOYMENT_TYPE: 'GTY-EMPTYP',
+  ACCOUNT_STATUS: 'GTY-ACCTSTAT',
+  OU_SCOPE: 'GTY-OUSCOPE',
+  EXCEPTION_TYPE: 'GTY-EXCTYPE',
+  ROLE_LEVEL: 'GTY-ROLELVL',
+  DOC_TYPE: 'GTY-DOCTYPE',
+  DOC_STATUS: 'GTY-DOCSTAT',
+  STOCK_STATUS: 'GTY-STKSTAT',
+  GATEPASS_INWARD: 'GTY-GPIN',
+  RETURNABLE_FLAG: 'GTY-RETFLAG',
+  RECEIPT_PURPOSE: 'GTY-RCPT',
+  ISSUE_PURPOSE: 'GTY-ISSUE',
+  IMR_REASON: 'GTY-IMR',
+  STORE_LOCATION: 'GTY-STRLOC',
+} as const
+
+export type GenValueOption = {
+  value: string
+  label: string
+  code: string
+  name: string
+  id: number
+}
+
+export type GenValueApi = {
+  genmasterId: number
+  valueCode: string
+  valueName: string
+  sortOrder?: number
+}
+
+/** Loads active general-master values for a type code (payload key: typeCode in path). */
+export async function listGenValues(typeCode: string): Promise<GenValueApi[]> {
+  return http.get<GenValueApi[]>(`/general-types/${encodeURIComponent(typeCode)}/values`)
+}
+
+/**
+ * Dropdown options from General Master by type code.
+ * @param valueAs `'name'` stores valueName (free-text columns); `'code'` stores valueCode (coded fields).
+ */
+export function useGenValues(typeCode: string, valueAs: 'name' | 'code' = 'name') {
+  const [options, setOptions] = useState<GenValueOption[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const rows = await listGenValues(typeCode)
+      setOptions(
+        (rows ?? []).map((r) => ({
+          id: r.genmasterId,
+          code: r.valueCode,
+          name: r.valueName,
+          value: valueAs === 'code' ? r.valueCode : r.valueName,
+          label: r.valueName,
+        })),
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load lookup')
+      setOptions([])
+    } finally {
+      setLoading(false)
+    }
+  }, [typeCode, valueAs])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  return { options, loading, error, reload }
+}
+
+/** Map Item Parameter genmaster row to form itemType asset|consumable. */
+export function itemTypeFromGenCode(valueCode: string, valueName?: string): 'asset' | 'consumable' {
+  const c = valueCode.toUpperCase()
+  const n = (valueName ?? '').toLowerCase()
+  if (c.includes('CONS') || n.includes('consum')) return 'consumable'
+  return 'asset'
+}
+
 /* ---- Items / vendors ---- */
 
 export type ItemApi = {
@@ -197,6 +290,7 @@ export type ItemApi = {
   isReturnable?: boolean
   isUnderAmc?: boolean
   isInsuranceRequired?: boolean
+  inspectionNeeded?: boolean
   consumableType?: string
   shelfBin?: string
   expiryDate?: string
@@ -393,6 +487,9 @@ export type UserApi = {
   accountStatus?: string
   entityId?: number
   buAccessScope?: string
+  locationId?: number
+  buIds?: number[]
+  forcePasswordReset?: boolean
   isActive?: boolean
 }
 
@@ -404,9 +501,25 @@ export const mapUser = (u: UserApi): ApiMasterRow => ({
   role: u.roleId != null ? String(u.roleId) : '',
   orgCode: u.entityId != null ? String(u.entityId) : '',
   ouScope: u.buAccessScope ?? 'ALL',
+  locationId: u.locationId != null ? String(u.locationId) : '',
+  ouIds: (u.buIds ?? []).map(String),
   accountStatus: (u.accountStatus as 'Active' | 'Locked' | 'Disabled') || 'Active',
   status: activeStatus(u.isActive),
 })
+
+export type OuAccessApi = {
+  userId: number
+  buAccessScope?: string
+  buIds?: number[]
+}
+
+export async function getUserOuAccess(userId: string | number) {
+  return http.get<OuAccessApi>(`/users/${userId}/ou-access`)
+}
+
+export async function putUserOuAccess(userId: string | number, body: { buAccessScope?: string; buIds?: number[] }) {
+  return http.put<OuAccessApi>(`/users/${userId}/ou-access`, body)
+}
 
 export type AccessExceptionApi = {
   exceptionId: number
@@ -449,6 +562,7 @@ export type MenuApi = {
 }
 
 export type RolePermissionApi = {
+  menuId?: number
   module: string
   canView?: boolean
   canCreate?: boolean

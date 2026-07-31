@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Pill } from '@/components/ui/Badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
@@ -22,12 +22,16 @@ import {
   mapUser,
   numOrUndef,
   putRolePermissions,
+  putUserOuAccess,
   updateMaster,
+  GEN_TYPE,
+  useGenValues,
   useMasterList,
   type ApiMasterRow,
   type MenuApi,
   type RolePermissionApi,
 } from '@/api/masters'
+import { Field, Input, Select, Switch } from '@/components/ui/Field'
 import type {
   AccessException,
   AccessRole,
@@ -61,6 +65,7 @@ function MastersRoutes({
   readOnlyFields,
   menuCode,
   listLoading = false,
+  addLabel,
 }: {
   base: string
   title: string
@@ -82,6 +87,7 @@ function MastersRoutes({
   readOnlyFields?: string[]
   menuCode?: string
   listLoading?: boolean
+  addLabel?: string
 }) {
   return (
     <Routes>
@@ -105,6 +111,7 @@ function MastersRoutes({
             readOnlyFields={readOnlyFields}
             menuCode={menuCode}
             listLoading={listLoading}
+            addLabel={addLabel}
           />
         }
       />
@@ -128,6 +135,7 @@ function MastersRoutes({
             readOnlyFields={readOnlyFields}
             menuCode={menuCode}
             listLoading={listLoading}
+            addLabel={addLabel}
           />
         }
       />
@@ -223,7 +231,7 @@ export function OrganizationsMaster() {
         base="/masters/organizations"
         menuCode="ORG"
         title="Organization (Entity) Master"
-        description="Top level legal entities under which Operating Units and Stores are defined."
+        description="Top level legal entities under which Operating Units and Locations are defined."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
@@ -252,6 +260,7 @@ export function OperatingUnitsMaster() {
   const mapEntityStable = useCallback(mapEntity, [])
   const { rows, loading, error, reload } = useMasterList('business-units', mapBuStable)
   const { rows: orgs } = useMasterList('entities', mapEntityStable)
+  const { options: ouTypeOpts } = useGenValues(GEN_TYPE.OU_TYPE)
 
   const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
 
@@ -272,7 +281,7 @@ export function OperatingUnitsMaster() {
     { name: 'code', label: 'OU Code', required: true, uppercase: true },
     { name: 'name', label: 'Operating Unit Name', required: true, span: 2 },
     { name: 'orgCode', label: 'Organization (Entity)', type: 'select', required: true, options: opt(orgs) },
-    { name: 'ouType', label: 'OU Type', type: 'select', options: ['Branch', 'Region', 'Plant', 'Zone', 'Corporate', 'Other'].map((v) => ({ value: v, label: v })) },
+    { name: 'ouType', label: 'OU Type', type: 'select', options: ouTypeOpts.map((o) => ({ value: o.value, label: o.label })) },
     { name: 'city', label: 'City' },
     { name: 'status', label: 'Active', type: 'switch', span: 4 },
   ]
@@ -315,6 +324,7 @@ export function StoresMaster() {
   const { rows, loading, error, reload } = useMasterList('locations', mapLocStable)
   const { rows: orgs } = useMasterList('entities', mapEntityStable)
   const { rows: ous } = useMasterList('business-units', mapBuStable)
+  const { options: storeTypeOpts } = useGenValues(GEN_TYPE.STORE_TYPE)
 
   const columns: Column<Store>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
@@ -330,28 +340,33 @@ export function StoresMaster() {
     statusColumn(),
   ]
   const fields: FieldDef[] = [
-    { name: 'code', label: 'Store Code', required: true, uppercase: true },
-    { name: 'name', label: 'Store Name', required: true, span: 2 },
-    { name: 'storeType', label: 'Store Type', type: 'select', options: ['FM', 'General Store', 'IT Store', 'Quarantine', 'Rejected', 'Warehouse'].map((v) => ({ value: v, label: v })) },
+    { name: 'code', label: 'Location Code', required: true, uppercase: true },
+    { name: 'name', label: 'Location Name', required: true, span: 2 },
+    {
+      name: 'storeType',
+      label: 'Location Type',
+      type: 'select',
+      options: storeTypeOpts.map((o) => ({ value: o.value, label: o.label })),
+    },
     { name: 'orgCode', label: 'Organization', type: 'select', required: true, options: opt(orgs) },
     { name: 'ouCode', label: 'Operating Unit', type: 'select', required: true, options: opt(ous) },
     { name: 'city', label: 'City' },
-    { name: 'status', label: 'Active Store', type: 'switch', span: 4 },
+    { name: 'status', label: 'Active Location', type: 'switch', span: 4 },
   ]
   return (
     <>
-      <ListStatus loading={loading} error={error} label="stores" />
+      <ListStatus loading={loading} error={error} label="locations" />
       <MastersRoutes
         listLoading={loading}
         base="/masters/stores"
         menuCode="STR"
-        title="Store Master"
-        description="Stores defined entity / location-wise, mapped to an Organization and Operating Unit."
+        title="Location Master"
+        description="Locations defined entity-wise, mapped to an Organization and Operating Unit."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
-        saveLabel="Save Store"
-        formTitle="Store Details"
+        saveLabel="Save Location"
+        formTitle="Location Details"
         onSave={async (id, values) => {
           const body = {
             locationCode: String(values.code ?? ''),
@@ -581,6 +596,7 @@ export function RolesMaster() {
   const { refreshPermissions } = useAuth()
   const mapRoleStable = useCallback(mapRole, [])
   const { rows, loading, error, reload } = useMasterList('roles', mapRoleStable)
+  const { options: roleLevelOpts } = useGenValues(GEN_TYPE.ROLE_LEVEL)
   const columns: Column<AccessRole>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -591,7 +607,13 @@ export function RolesMaster() {
   const fields: FieldDef[] = [
     { name: 'code', label: 'Role Code', required: true, uppercase: true },
     { name: 'name', label: 'Role Name', required: true, span: 2 },
-    { name: 'level', label: 'Role Level', type: 'select', required: true, options: Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: `${i + 1}` })) },
+    {
+      name: 'level',
+      label: 'Role Level',
+      type: 'select',
+      required: true,
+      options: roleLevelOpts.map((o) => ({ value: o.value, label: o.label })),
+    },
     { name: 'description', label: 'Description', span: 3 },
     { name: 'systemRole', label: 'System Role', type: 'switch' },
     { name: 'status', label: 'Active', type: 'switch' },
@@ -603,13 +625,13 @@ export function RolesMaster() {
         listLoading={loading}
         base="/masters/roles"
         menuCode="ARM"
-        title="Access Role Master"
+        title="Role & Menu Mapping"
         description="Define the role and grant View / Create / Edit rights for each screen on the same form."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
         saveLabel="Save Role & Access"
-        formTitle="Role Identity"
+        formTitle="Role & Menu Mapping"
         onSave={async (id, values) => {
           const body = {
             roleCode: String(values.code ?? ''),
@@ -655,14 +677,21 @@ export function UsersMaster() {
   const mapEmpStable = useCallback(mapEmployee, [])
   const mapRoleStable = useCallback(mapRole, [])
   const mapEntityStable = useCallback(mapEntity, [])
+  const mapBuStable = useCallback(mapBusinessUnit, [])
+  const mapLocStable = useCallback(mapLocation, [])
   const { rows, loading, error, reload } = useMasterList('users', mapUserStable)
   const { rows: employees } = useMasterList('employees', mapEmpStable)
   const { rows: roles } = useMasterList('roles', mapRoleStable)
   const { rows: orgs } = useMasterList('entities', mapEntityStable)
+  const { rows: ous } = useMasterList('business-units', mapBuStable)
+  const { rows: locations } = useMasterList('locations', mapLocStable)
+  const { options: ouScopeOpts } = useGenValues(GEN_TYPE.OU_SCOPE, 'code')
+  const { options: acctStatusOpts } = useGenValues(GEN_TYPE.ACCOUNT_STATUS)
 
   const empById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
   const roleById = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, r])), [roles])
   const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
+  const locById = useMemo(() => Object.fromEntries(locations.map((l) => [l.id, l])), [locations])
 
   const columns: Column<UserLogin>[] = [
     { key: 'login', header: 'Login ID', searchText: (r) => r.loginId, render: (r) => <span className="font-mono">{r.loginId}</span> },
@@ -686,71 +715,317 @@ export function UsersMaster() {
     },
     {
       key: 'org',
-      header: 'Org',
+      header: 'Organization',
       searchText: (r) => orgById[r.orgCode]?.code ?? r.orgCode,
       render: (r) => orgById[r.orgCode]?.code ?? r.orgCode,
+    },
+    {
+      key: 'ou',
+      header: 'OU Access',
+      searchText: (r) => r.ouScope,
+      render: (r) => (r.ouScope === 'SELECTED' ? `Selected (${(r.ouIds ?? []).length})` : r.ouScope || 'ALL'),
+    },
+    {
+      key: 'loc',
+      header: 'Location',
+      searchText: (r) => locById[r.locationId ?? '']?.code ?? r.locationId ?? '',
+      render: (r) => locById[r.locationId ?? '']?.code ?? r.locationId ?? '—',
     },
     { key: 'acct', header: 'Account', searchText: (r) => r.accountStatus, render: (r) => r.accountStatus },
     statusColumn(),
   ]
+
+  const empOptions = useMemo(
+    () =>
+      employees
+        .filter((e) => !e.hasLogin || rows.some((u) => u.employeeCode === e.id))
+        .map((e) => ({
+          value: e.id,
+          label: `${e.code} – ${e.firstName} ${e.lastName}${e.hasLogin ? '' : ' (no login)'}`,
+        })),
+    [employees, rows],
+  )
+
   const fields: FieldDef[] = [
     {
       name: 'employeeCode',
       label: 'Employee',
       type: 'select',
       span: 2,
-      options: employees.map((e) => ({
-        value: e.id,
-        label: `${e.code} – ${e.firstName} ${e.lastName}`,
-      })),
-      hint: 'Set when login was created on Employee Master',
-    },
-    { name: 'loginId', label: 'Login ID', hint: 'Created on Employee Master' },
-    { name: 'role', label: 'Role Assignment', type: 'select', required: true, options: opt(roles) },
-    { name: 'orgCode', label: 'Organization', type: 'select', required: true, options: opt(orgs) },
-    {
-      name: 'ouScope',
-      label: 'OU Access',
-      type: 'select',
       required: true,
-      options: [
-        { value: 'ALL', label: 'All Operating Units' },
-        { value: 'SELECTED', label: 'Selected Operating Units' },
-      ],
+      options: empOptions,
+      hint: 'Choose an employee who does not already have a login',
     },
-    { name: 'accountStatus', label: 'Account Status', type: 'select', options: ['Active', 'Locked', 'Disabled'].map((v) => ({ value: v, label: v })) },
-    { name: 'status', label: 'Active', type: 'switch', span: 4 },
+    { name: 'loginId', label: 'Login ID', required: true, hint: 'e.g. firstname.lastname' },
+    { name: 'role', label: 'Role', type: 'select', required: true, options: opt(roles) },
+    {
+      name: 'accountStatus',
+      label: 'Account Status',
+      type: 'select',
+      options: acctStatusOpts.map((o) => ({ value: o.value, label: o.label })),
+    },
+    { name: 'status', label: 'Active', type: 'switch' },
   ]
+
   return (
     <>
-      <ListStatus loading={loading} error={error} label="users" />
+      <ListStatus loading={loading} error={error} label="user access mappings" />
       <MastersRoutes
         listLoading={loading}
         base="/masters/users"
         menuCode="USR"
-        title="User Login Master"
-        description="Map existing logins (created on Employee Master) to Role, Organization, OU access and account status."
+        title="User Access Mapping"
+        description="Create or map a login to Role, Organization, Operating Unit(s) and Location."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
-        saveLabel="Save Mapping"
-        formTitle="Role & Access Mapping"
-        allowCreate={false}
+        saveLabel="Save Access Mapping"
+        formTitle="Login Identity"
+        addLabel="Add New"
+        allowCreate
         readOnlyFields={['employeeCode', 'loginId']}
+        getDefaults={() => ({
+          employeeCode: '',
+          loginId: '',
+          role: '',
+          orgCode: '',
+          ouScope: 'ALL',
+          locationId: '',
+          ouIds: [] as string[],
+          accountStatus: 'Active',
+          status: true,
+          password: '',
+          confirmPassword: '',
+        })}
         onSave={async (id, values) => {
-          if (id === 'new') throw new Error('Create login from Employee Master only')
-          await updateMaster('users', id, {
+          const scope = String(values.ouScope ?? 'ALL')
+          const rawOuIds = Array.isArray(values.ouIds) ? values.ouIds : []
+          const buIds = scope === 'SELECTED'
+            ? rawOuIds.map((v) => Number(v)).filter((n) => Number.isFinite(n))
+            : []
+          if (scope === 'SELECTED' && buIds.length === 0) {
+            throw new Error('Select at least one Operating Unit when OU Access is Selected')
+          }
+          if (!values.employeeCode || !values.loginId || !values.role || !values.orgCode) {
+            throw new Error('Employee, Login ID, Role and Organization are required')
+          }
+
+          const body = {
             employeeId: numOrUndef(values.employeeCode),
-            loginId: String(values.loginId ?? ''),
+            loginId: String(values.loginId ?? '').trim().toLowerCase(),
             roleId: numOrUndef(values.role),
             entityId: numOrUndef(values.orgCode),
-            buAccessScope: String(values.ouScope ?? 'ALL'),
+            buAccessScope: scope,
+            locationId: numOrUndef(values.locationId) ?? null,
             accountStatus: String(values.accountStatus ?? 'Active'),
             isActive: isActiveFromForm(values.status),
-          })
+          }
+
+          let userId = id
+          if (id === 'new') {
+            const password = String(values.password ?? '')
+            const confirmPassword = String(values.confirmPassword ?? '')
+            if (!password || password.length < 8) {
+              throw new Error('Password is required (min 8 characters)')
+            }
+            if (password !== confirmPassword) {
+              throw new Error('Password and Confirm Password do not match')
+            }
+            const created = await createMaster<typeof body & { password: string }, { userId: number }>('users', {
+              ...body,
+              password,
+            })
+            userId = String(created.userId)
+          } else {
+            await updateMaster('users', id, body)
+          }
+          await putUserOuAccess(userId, { buAccessScope: scope, buIds })
           await reload()
         }}
+        renderExtraForm={(values, set, recordId) => (
+          <UserAccessMappingExtra
+            values={values}
+            set={set}
+            recordId={recordId}
+            empById={empById}
+            orgs={orgs}
+            ous={ous}
+            locations={locations}
+            ouScopeOpts={ouScopeOpts}
+          />
+        )}
       />
+    </>
+  )
+}
+
+function UserAccessMappingExtra({
+  values,
+  set,
+  recordId,
+  empById,
+  orgs,
+  ous,
+  locations,
+  ouScopeOpts,
+}: {
+  values: Record<string, unknown>
+  set: (k: string, v: unknown) => void
+  recordId: string
+  empById: Record<string, ApiMasterRow>
+  orgs: ApiMasterRow[]
+  ous: ApiMasterRow[]
+  locations: ApiMasterRow[]
+  ouScopeOpts: { value: string; label: string }[]
+}) {
+  const isNew = recordId === 'new'
+  const orgId = String(values.orgCode ?? '')
+  const scope = String(values.ouScope ?? 'ALL')
+  const ouIds = Array.isArray(values.ouIds) ? (values.ouIds as string[]) : []
+  const orgOus = ous.filter((o) => !orgId || String(o.orgCode) === orgId)
+  const orgLocs = locations.filter((l) => !orgId || String(l.orgCode) === orgId)
+  const suggestedForEmp = useRef('')
+
+  // Suggest login + role once when employee is picked on create
+  useEffect(() => {
+    if (!isNew) return
+    const empId = String(values.employeeCode ?? '')
+    if (!empId || suggestedForEmp.current === empId) return
+    const emp = empById[empId]
+    if (!emp) return
+    suggestedForEmp.current = empId
+    if (!String(values.loginId ?? '').trim()) {
+      const first = String(emp.firstName ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '')
+      const last = String(emp.lastName ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '')
+      if (first) set('loginId', last ? `${first}.${last}` : first)
+    }
+    if (!values.role && emp.role) set('role', String(emp.role))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-run when employee selection changes
+  }, [isNew, values.employeeCode, empById])
+
+  const onOrgChange = (nextOrg: string) => {
+    set('orgCode', nextOrg)
+    set('ouIds', [])
+    set('locationId', '')
+  }
+
+  const onScopeChange = (nextScope: string) => {
+    set('ouScope', nextScope)
+    if (nextScope !== 'SELECTED') set('ouIds', [])
+  }
+
+  const toggleOu = (ouId: string, on: boolean) => {
+    const next = on ? [...new Set([...ouIds, ouId])] : ouIds.filter((x) => x !== ouId)
+    set('ouIds', next)
+  }
+
+  return (
+    <>
+      {isNew && (
+        <Card className="mt-3">
+          <CardHeader title="Login Password" subtitle="Required when creating a new access mapping" />
+          <CardBody>
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+              <Field label="Password" required hint="Min 8 characters">
+                <Input
+                  type="password"
+                  value={String(values.password ?? '')}
+                  onChange={(e) => set('password', e.target.value)}
+                  placeholder="••••••••"
+                />
+              </Field>
+              <Field label="Confirm Password" required>
+                <Input
+                  type="password"
+                  value={String(values.confirmPassword ?? '')}
+                  onChange={(e) => set('confirmPassword', e.target.value)}
+                  placeholder="••••••••"
+                />
+              </Field>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
+      <Card className="mt-3">
+        <CardHeader
+          title="Access Mapping"
+          subtitle="Map Organization, Operating Unit access and Default Location for this login"
+        />
+        <CardBody>
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+            <Field label="Organization" required className="md:col-span-2">
+              <Select value={orgId} onChange={(e) => onOrgChange(e.target.value)}>
+                <option value="">— Select Organization —</option>
+                {orgs.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.code} – {o.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="OU Access"
+              required
+              hint={scope === 'SELECTED' ? 'Pick Operating Units below' : 'ALL = every OU under the Organization'}
+            >
+              <Select value={scope} onChange={(e) => onScopeChange(e.target.value)}>
+                {ouScopeOpts.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Default Location" hint="Optional home / default location">
+              <Select
+                value={String(values.locationId ?? '')}
+                onChange={(e) => set('locationId', e.target.value)}
+                disabled={!orgId}
+              >
+                <option value="">— Select Location —</option>
+                {orgLocs.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.code} – {l.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            {scope === 'SELECTED' && (
+              <Field
+                label="Select Operating Unit(s)"
+                required
+                className="xl:col-span-4 md:col-span-2"
+                hint="Login will only see data for checked Operating Units"
+              >
+                <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5">
+                  {!orgId ? (
+                    <span className="text-xs text-[var(--text3)]">Select Organization first</span>
+                  ) : orgOus.length === 0 ? (
+                    <span className="text-xs text-[var(--text3)]">No Operating Units for this Organization</span>
+                  ) : (
+                    orgOus.map((o) => (
+                      <Switch
+                        key={o.id}
+                        label={`${o.code} – ${o.name}`}
+                        checked={ouIds.includes(o.id)}
+                        onChange={(v) => toggleOu(o.id, v)}
+                      />
+                    ))
+                  )}
+                </div>
+              </Field>
+            )}
+          </div>
+        </CardBody>
+      </Card>
     </>
   )
 }
@@ -760,6 +1035,7 @@ export function ExceptionsMaster() {
   const mapEmpStable = useCallback(mapEmployee, [])
   const { rows, loading, error, reload } = useMasterList('access-exceptions', mapExStable)
   const { rows: employees } = useMasterList('employees', mapEmpStable)
+  const { options: excTypeOpts } = useGenValues(GEN_TYPE.EXCEPTION_TYPE, 'code')
 
   const empById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
 
@@ -794,7 +1070,13 @@ export function ExceptionsMaster() {
         label: `${e.code} – ${e.firstName} ${e.lastName}`,
       })),
     },
-    { name: 'exceptionType', label: 'Exception Type', type: 'select', required: true, options: [{ value: 'Grant', label: 'Grant Access' }, { value: 'Revoke', label: 'Revoke Access' }] },
+    {
+      name: 'exceptionType',
+      label: 'Exception Type',
+      type: 'select',
+      required: true,
+      options: excTypeOpts.map((o) => ({ value: o.value, label: o.label })),
+    },
     { name: 'menuItem', label: 'Menu Code', required: true, span: 3 },
     { name: 'reason', label: 'Reason / Remarks', required: true, span: 2 },
     { name: 'validFrom', label: 'Valid From' },
@@ -895,7 +1177,7 @@ function RoleMenuAccessPanel({
     ;(async () => {
       try {
         const list = await listMenus()
-        // Menu Access is merged into Access Role — hide standalone MNU row.
+        // Menu Access is merged into Role & Menu Mapping — hide standalone MNU row.
         const filtered = (list ?? []).filter((m) => m.menuCode !== 'MNU')
         if (!cancelled) setMenus(filtered)
       } catch (err) {
@@ -1084,7 +1366,7 @@ function RoleMenuAccessPanel({
   )
 }
 
-/** @deprecated Merged into Access Role — redirects for old bookmarks. */
+/** @deprecated Merged into Role & Menu Mapping — redirects for old bookmarks. */
 export function MenuAccessPage() {
   return <Navigate to="/masters/roles" replace />
 }

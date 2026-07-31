@@ -92,6 +92,9 @@ public class InvItemMst {
     @Column(name = "itm_is_insurance_required")
     private Boolean itmIsInsuranceRequired;
 
+    @Column(name = "itm_inspection_needed")
+    private Boolean itmInspectionNeeded;
+
     @Column(name = "itm_consumable_type")
     private String itmConsumableType;
 
@@ -211,6 +214,9 @@ public class InvItemMst {
 
     public Boolean getItmIsInsuranceRequired() { return itmIsInsuranceRequired; }
     public void setItmIsInsuranceRequired(Boolean itmIsInsuranceRequired) { this.itmIsInsuranceRequired = itmIsInsuranceRequired; }
+
+    public Boolean getItmInspectionNeeded() { return itmInspectionNeeded; }
+    public void setItmInspectionNeeded(Boolean itmInspectionNeeded) { this.itmInspectionNeeded = itmInspectionNeeded; }
 
     public String getItmConsumableType() { return itmConsumableType; }
     public void setItmConsumableType(String itmConsumableType) { this.itmConsumableType = itmConsumableType; }

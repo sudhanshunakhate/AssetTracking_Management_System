@@ -134,9 +134,9 @@ public class AuthService {
     }
 
     private List<MenuPermissionDto> buildMenuPermissions(SysmUserloginMst user, SysmRolesMst role) {
-        Map<String, SysmRolepermissionDtl> byModule = rolePermRepo.findAll().stream()
+        Map<Integer, SysmRolepermissionDtl> byMenuId = rolePermRepo.findAll().stream()
                 .filter(p -> Objects.equals(p.getRlpmRoleIdRol(), role.getRolRoleId()))
-                .collect(Collectors.toMap(SysmRolepermissionDtl::getRlpmModuleName, p -> p, (a, b) -> a));
+                .collect(Collectors.toMap(SysmRolepermissionDtl::getRlpmMenuIdMtree, p -> p, (a, b) -> a));
 
         LocalDate today = LocalDate.now();
         Set<String> granted = new HashSet<>();
@@ -158,7 +158,7 @@ public class AuthService {
             if (!Boolean.TRUE.equals(menu.getMtreeIsactive())) continue;
             String code = menu.getMtreeMenuCode();
             if (revoked.contains(code)) continue;
-            SysmRolepermissionDtl perm = byModule.get(code);
+            SysmRolepermissionDtl perm = byMenuId.get(menu.getMtreeMenuId());
             boolean view = perm != null && Boolean.TRUE.equals(perm.getRlpmCanView());
             boolean create = perm != null && Boolean.TRUE.equals(perm.getRlpmCanCreate());
             boolean edit = perm != null && Boolean.TRUE.equals(perm.getRlpmCanEdit());

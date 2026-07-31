@@ -17,7 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class SecurityMastersService {
@@ -123,10 +125,14 @@ public class SecurityMastersService {
     @Transactional(readOnly = true)
     public List<PermissionDto> getPermissions(Integer roleId) {
         findRole(roleId);
+        Map<Integer, String> codeById = menuRepo.findAll().stream()
+                .collect(Collectors.toMap(SysmMenutreeMst::getMtreeMenuId, SysmMenutreeMst::getMtreeMenuCode, (a, b) -> a));
         return rolePermRepo.findByRlpmRoleIdRol(roleId).stream()
-                .map(p -> new PermissionDto(p.getRlpmModuleName(), p.getRlpmCanView(), p.getRlpmCanCreate(),
-                        p.getRlpmCanEdit(), p.getRlpmCanDelete(), p.getRlpmCanApprove(), p.getRlpmCanReject(),
-                        p.getRlpmCanPrint(), p.getRlpmCanExport()))
+                .map(p -> new PermissionDto(
+                        p.getRlpmMenuIdMtree(),
+                        codeById.get(p.getRlpmMenuIdMtree()),
+                        p.getRlpmCanView(), p.getRlpmCanCreate(), p.getRlpmCanEdit(), p.getRlpmCanDelete(),
+                        p.getRlpmCanApprove(), p.getRlpmCanReject(), p.getRlpmCanPrint(), p.getRlpmCanExport()))
                 .toList();
     }
 
@@ -135,10 +141,26 @@ public class SecurityMastersService {
         findRole(roleId);
         rolePermRepo.deleteByRlpmRoleIdRol(roleId);
         if (permissions != null) {
+            Map<String, Integer> idByCode = menuRepo.findAll().stream()
+                    .collect(Collectors.toMap(
+                            m -> m.getMtreeMenuCode() == null ? "" : m.getMtreeMenuCode().toUpperCase(),
+                            SysmMenutreeMst::getMtreeMenuId,
+                            (a, b) -> a));
             for (PermissionDto dto : permissions) {
+                Integer menuId = dto.menuId();
+                if (menuId == null && dto.module() != null && !dto.module().isBlank()) {
+                    menuId = idByCode.get(dto.module().trim().toUpperCase());
+                }
+                if (menuId == null) {
+                    throw ApiException.badRequest("Unknown menu for permission: "
+                            + (dto.module() != null ? dto.module() : String.valueOf(dto.menuId())));
+                }
+                if (!menuRepo.existsById(menuId)) {
+                    throw ApiException.badRequest("Menu not found: " + menuId);
+                }
                 SysmRolepermissionDtl p = new SysmRolepermissionDtl();
                 p.setRlpmRoleIdRol(roleId);
-                p.setRlpmModuleName(dto.module());
+                p.setRlpmMenuIdMtree(menuId);
                 p.setRlpmCanView(bool(dto.canView()));
                 p.setRlpmCanCreate(bool(dto.canCreate()));
                 p.setRlpmCanEdit(bool(dto.canEdit()));
@@ -368,8 +390,39 @@ public class SecurityMastersService {
 
     @Transactional
     public UserDto createUser(UserRequest req) {
-        throw ApiException.badRequest(
-                "User logins are created from Employee Master (Create User Login on Save). Use User Login Master only for role/org mapping.");
+        if (req.employeeId() == null) throw ApiException.badRequest("employeeId is required");
+        require(req.loginId(), "loginId");
+        require(req.password(), "password");
+        if (req.roleId() == null) throw ApiException.badRequest("roleId is required");
+        if (req.entityId() == null) throw ApiException.badRequest("entityId is required");
+        if (req.password().length() < 8) {
+            throw ApiException.badRequest("Password must be at least 8 characters");
+        }
+        HrcEmployeeMst emp = findEmployee(req.employeeId());
+        if (userRepo.existsByUsrEmployeeIdEmp(emp.getEmpEmployeeId())) {
+            throw ApiException.conflict("A login already exists for this employee");
+        }
+        String loginId = req.loginId().trim().toLowerCase();
+        if (userRepo.existsByUsrLoginIdIgnoreCase(loginId)) {
+            throw ApiException.conflict("Login ID already exists");
+        }
+        findRole(req.roleId());
+
+        SysmUserloginMst e = new SysmUserloginMst();
+        e.setUsrEmployeeIdEmp(emp.getEmpEmployeeId());
+        e.setUsrLoginId(loginId);
+        e.setUsrPasswordHash(passwordEncoder.encode(req.password()));
+        e.setUsrRoleIdRol(req.roleId());
+        e.setUsrAccountStatus(req.accountStatus() == null || req.accountStatus().isBlank() ? "Active" : req.accountStatus());
+        e.setUsrEntityIdEnt(req.entityId());
+        e.setUsrBuAccessScope(req.buAccessScope() == null || req.buAccessScope().isBlank() ? "ALL" : req.buAccessScope());
+        e.setUsrLocationIdLoc(req.locationId());
+        e.setUsrForcePasswordReset(Boolean.TRUE.equals(req.forcePasswordReset()));
+        e.setUsrIsactive(req.isActive() == null || req.isActive());
+        e.setUsrFailedAttempts(0);
+        e.setUsrCreatedBy(SecurityUtils.requireLoginId());
+        e.setUsrCreatedOn(LocalDateTime.now());
+        return toUserDto(userRepo.save(e), "User access mapping created successfully");
     }
 
     @Transactional
@@ -486,9 +539,11 @@ public class SecurityMastersService {
     }
 
     private UserDto toUserDto(SysmUserloginMst e, String message) {
+        List<Integer> buIds = buMappingRepo.findByUboaUserIdUsr(e.getUsrUserId()).stream()
+                .map(SysmUserBuMappingDtl::getUboaBuIdBu).toList();
         return new UserDto(e.getUsrUserId(), e.getUsrEmployeeIdEmp(), e.getUsrLoginId(), e.getUsrRoleIdRol(),
                 e.getUsrAccountStatus(), e.getUsrEntityIdEnt(), e.getUsrBuAccessScope(), e.getUsrLocationIdLoc(),
-                e.getUsrForcePasswordReset(), e.getUsrIsactive(), e.getUsrCreatedBy(), e.getUsrCreatedOn(),
+                buIds, e.getUsrForcePasswordReset(), e.getUsrIsactive(), e.getUsrCreatedBy(), e.getUsrCreatedOn(),
                 e.getUsrModifiedBy(), e.getUsrModifiedOn(), message);
     }
 

@@ -9,6 +9,7 @@ import { Field, Input, Select, Switch } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import {
   createMaster,
+  GEN_TYPE,
   isActiveFromForm,
   mapEmployee,
   mapEntity,
@@ -16,6 +17,7 @@ import {
   mapRole,
   numOrUndef,
   updateMaster,
+  useGenValues,
   useMasterList,
   type EmployeeApi,
 } from '@/api/masters'
@@ -96,6 +98,8 @@ function EmployeeForm() {
   const { rows: stores } = useMasterList('locations', mapLocStable)
   const { rows: employees } = useMasterList('employees', mapEmpStable)
   const { rows: entities } = useMasterList('entities', mapEntityStable)
+  const { options: genderOpts } = useGenValues(GEN_TYPE.GENDER, 'code')
+  const { options: employmentOpts } = useGenValues(GEN_TYPE.EMPLOYMENT_TYPE, 'code')
 
   const [values, setValues] = useState<EmpFormState>(emptyForm)
   const [loading, setLoading] = useState(!isNew)
@@ -160,7 +164,7 @@ function EmployeeForm() {
 
   const roleLabel = useMemo(() => {
     const r = roles.find((x) => x.id === values.role)
-    return r ? `${r.code} – ${r.name}` : '— pick Access Role above —'
+    return r ? `${r.code} – ${r.name}` : '— pick Role above —'
   }, [roles, values.role])
 
   const managerOptions = useMemo(
@@ -195,7 +199,7 @@ function EmployeeForm() {
       if (!values.code.trim() || !values.firstName.trim() || !values.email.trim()) {
         throw new Error('Employee Code, First Name and Email are required')
       }
-      if (!values.role) throw new Error('Access Role is required')
+      if (!values.role) throw new Error('Role is required')
 
       const createLogin = Boolean(values.createLogin) && (isNew || !hasLogin)
       if (createLogin) {
@@ -269,7 +273,7 @@ function EmployeeForm() {
           </div>
           {readOnly && (
             <div className="mt-1 text-[12px] text-[var(--danger)]">
-              You do not have Edit permission for this screen. Ask an admin to grant Edit on Access Role.
+              You do not have Edit permission for this screen. Ask an admin to grant Edit on Role & Menu Mapping.
             </div>
           )}
         </div>
@@ -306,9 +310,11 @@ function EmployeeForm() {
             <Field label="Gender">
               <Select value={values.gender} onChange={(e) => set('gender', e.target.value)}>
                 <option value="">— Select —</option>
-                <option value="M">Male</option>
-                <option value="F">Female</option>
-                <option value="O">Other</option>
+                {genderOpts.map((o) => (
+                  <option key={o.code} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="Date of Birth">
@@ -326,10 +332,11 @@ function EmployeeForm() {
                 value={values.employmentType}
                 onChange={(e) => set('employmentType', e.target.value)}
               >
-                <option value="permanent">Permanent</option>
-                <option value="contract">Contract</option>
-                <option value="intern">Intern</option>
-                <option value="consultant">Consultant</option>
+                {employmentOpts.map((o) => (
+                  <option key={o.code} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </Select>
             </Field>
           </div>
@@ -376,7 +383,7 @@ function EmployeeForm() {
                 placeholder="99XXXXXXXX"
               />
             </Field>
-            <Field label="Access Role" required className="md:col-span-2">
+            <Field label="Role" required className="md:col-span-2">
               <Select value={values.role} onChange={(e) => set('role', e.target.value)}>
                 <option value="">— Assign Role —</option>
                 {roles.map((r) => (
@@ -420,12 +427,12 @@ function EmployeeForm() {
       <Card>
         <CardHeader
           title="System Access"
-          subtitle="Create login credentials here. Role/org mapping is done later in User Login Master."
+          subtitle="Create login credentials here. Role / Organization / OU / Location mapping is done in User Access Mapping."
         />
         <CardBody>
           {hasLogin ? (
             <div className="mb-3 text-[12.5px] text-[var(--text2)]">
-              Login already exists. Use User Login Master only to map role, organization and account status.
+              Login already exists. Use User Access Mapping to map role, organization, OU and location.
             </div>
           ) : (
             <div className="mb-3.5">
@@ -465,7 +472,7 @@ function EmployeeForm() {
                   placeholder="••••••••"
                 />
               </Field>
-              <Field label="Role for Login" hint="Taken from Access Role above">
+              <Field label="Role for Login" hint="Taken from Role above">
                 <Input value={roleLabel} disabled />
               </Field>
               <Field label="Organization" required className="md:col-span-2">

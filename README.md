@@ -17,7 +17,7 @@ cd backend
 mvn spring-boot:run
 ```
 
-API: `http://localhost:8080/api/v1`
+API: `http://localhost:8081/api/v1`
 
 Seeded login (first start):
 
@@ -32,7 +32,7 @@ npm install
 npm run dev
 ```
 
-Vite proxies `/api` → `http://localhost:8080`. Auth and Unit/Category masters call the live API; other screens still use mock data until wired the same way.
+Vite proxies `/api` → `http://localhost:8081`. Auth and Unit/Category masters call the live API; other screens still use mock data until wired the same way.
 
 ## Backend layout
 

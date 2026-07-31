@@ -200,6 +200,7 @@ function MasterForm({
   const [values, setValues] = useState<Record<string, unknown>>(() => toFormValues(initial, fields))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const isNew = recordId === 'new'
 
   // Re-patch only when record data actually changes (not on every parent re-render).
   const patchKey = useMemo(() => {
@@ -246,7 +247,7 @@ function MasterForm({
           <div className="mt-0.5 text-[12.5px] text-[var(--text2)]">{description}</div>
           {readOnly && (
             <div className="mt-1 text-[12px] text-[var(--danger)]">
-              You do not have Edit permission for this screen. Ask an admin to grant Edit on Access Role.
+              You do not have Edit permission for this screen. Ask an admin to grant Edit on Role & Menu Mapping.
             </div>
           )}
         </div>
@@ -268,7 +269,7 @@ function MasterForm({
                     : f.span === 2
                       ? 'md:col-span-2'
                       : ''
-              const fieldReadOnly = readOnly || readOnlyFields.includes(f.name)
+              const fieldReadOnly = readOnly || (!isNew && readOnlyFields.includes(f.name))
               if (f.type === 'switch') {
                 return (
                   <div key={f.name} className={`pt-1 ${span}`}>
