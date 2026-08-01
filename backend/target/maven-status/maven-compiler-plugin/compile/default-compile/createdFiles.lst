@@ -1,0 +1,8 @@
+com\caits\config\DataSeeder$MenuDef.class
+com\caits\modules\transactions\TxnDocumentService$1.class
+com\caits\common\ConstraintMessages.class
+com\caits\security\AccessScopeService.class
+com\caits\domain\repository\SysmUserLocationMappingDtlRepository.class
+com\caits\security\AccessScopeService$Scope.class
+com\caits\modules\auth\AuthController.class
+com\caits\domain\entity\SysmUserLocationMappingDtl.class

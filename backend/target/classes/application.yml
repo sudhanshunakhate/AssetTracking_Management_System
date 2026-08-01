@@ -1,0 +1,50 @@
+server:
+  port: 8085
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: caits-backend
+  datasource:
+    url: jdbc:postgresql://192.168.0.223:5432/caits
+    username: caits
+    password: caits123
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: caits_local
+        jdbc:
+          time_zone: Asia/Kolkata
+        format_sql: true
+    show-sql: false
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+caits:
+  security:
+    jwt-secret: "CAITS_Local_Dev_Secret_Change_Me_32chars_Min_Length_Required!!"
+    jwt-expiration-seconds: 3600
+    # Roles that bypass OU / Location scoping and see every record.
+    # Comma-separated; change without a code edit. Case-insensitive.
+    location-scope-exempt-roles: ADMIN
+  cors:
+    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+  storage:
+    # Local folder for document attachments; created on first upload.
+    upload-dir: "./uploads"
+
+logging:
+  level:
+    com.caits: INFO
+    org.springframework.security: WARN

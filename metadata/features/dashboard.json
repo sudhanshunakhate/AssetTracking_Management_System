@@ -1,0 +1,14 @@
+{
+  "id": "dashboard",
+  "status": "done",
+  "description": "Dashboard KPI cards from GET /dashboard/summary (items, vendors, transactions, low stock, stock rows).",
+  "files": [
+    "frontend/src/features/dashboard/DashboardPage.tsx",
+    "frontend/src/api/transactions.ts"
+  ],
+  "api_endpoints": ["GET /dashboard/summary"],
+  "db_tables": ["inv_item_mst", "inv_vendor_mst", "inv_stock_mst", "txn_header_mst"],
+  "depends_on": ["app-shell", "auth-login"],
+  "notes": "Category bars / activity / store tables removed until dedicated APIs exist; summary KPIs are live.",
+  "updated": "2026-07-29"
+}

@@ -1,0 +1,15 @@
+{
+  "id": "reports-phase2",
+  "status": "done",
+  "description": "Stock Register and Full Report load from GET /reports/stock-register and /reports/full-report with master lookups for labels. Export buttons still UI stubs.",
+  "files": [
+    "frontend/src/features/reports/StockRegisterPage.tsx",
+    "frontend/src/features/reports/FullReportPage.tsx",
+    "frontend/src/api/transactions.ts"
+  ],
+  "api_endpoints": ["GET /reports/stock-register", "GET /reports/full-report"],
+  "db_tables": ["inv_stock_mst", "inv_item_mst", "txn_header_mst", "txn_detail_dtl"],
+  "depends_on": ["app-shell", "transactions-phase2"],
+  "notes": "Full report filters use DocType codes (OPENING_STOCK, GRN, …). Client filters status/search on top of API.",
+  "updated": "2026-07-29"
+}

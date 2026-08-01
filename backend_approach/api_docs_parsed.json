@@ -1,0 +1,2439 @@
+{
+  "sheets": [
+    "Index",
+    "Auth",
+    "Masters - Setup",
+    "Masters - Organization",
+    "Masters - Item & Vendor",
+    "Masters - Security",
+    "Transactions - GRN",
+    "Transactions - Gatepass Inward",
+    "Transactions - Gatepass Outward",
+    "Transactions - Material Requisi",
+    "Transactions - Material Issue",
+    "Transactions - Opening Stock",
+    "Transactions - Material Transfe",
+    "Transactions - Material Return"
+  ],
+  "modules": [
+    {
+      "sheet": "Index",
+      "shape": [
+        27,
+        3
+      ],
+      "sections": [
+        "CAIMS — REST API Specification",
+        "Auth",
+        "Masters - Setup",
+        "Masters - Organization",
+        "Masters - Item & Vendor",
+        "Masters - Security",
+        "Transactions - GRN",
+        "Transactions - Gatepass Inward",
+        "Transactions - Gatepass Outward",
+        "Transactions - Material Requisition",
+        "Transactions - Material Issue",
+        "Transactions - Opening Stock",
+        "Transactions - Material Transfer",
+        "Transactions - Material Return",
+        "Conventions:",
+        "• Auth: Authorization: Bearer <token> header on every call except /auth/login and /auth/forgot-password",
+        "• All List endpoints support pagination (page, pageSize) and return { page, pageSize, totalRecords, data }",
+        "• Dates are ISO-8601 (YYYY-MM-DD); timestamps are ISO-8601 with time (YYYY-MM-DDTHH:mm:ss)",
+        "• Delete on master tables is a soft-delete (isActive=false); referenced records cannot be deleted, only deactivated"
+      ],
+      "endpoints": [],
+      "raw_preview": [
+        [
+          "CAIMS — REST API Specification",
+          "",
+          ""
+        ],
+        [
+          "Derived from the CAIMS UI (CAIMS_ui_updated__5_.html) and the Database Table Structure data dictionary. All endpoints are prefixed with /api/v1 and require a Bearer token (see Auth sheet) unless noted.",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          ""
+        ],
+        [
+          "Sheet",
+          "Module(s) Covered",
+          "# Endpoints"
+        ],
+        [
+          "Auth",
+          "",
+          "5"
+        ],
+        [
+          "Masters - Setup",
+          "",
+          "27"
+        ],
+        [
+          "Masters - Organization",
+          "",
+          "15"
+        ],
+        [
+          "Masters - Item & Vendor",
+          "",
+          "14"
+        ],
+        [
+          "Masters - Security",
+          "",
+          "27"
+        ],
+        [
+          "Transactions - GRN",
+          "",
+          "9"
+        ],
+        [
+          "Transactions - Gatepass Inward",
+          "",
+          "6"
+        ],
+        [
+          "Transactions - Gatepass Outward",
+          "",
+          "6"
+        ],
+        [
+          "Transactions - Material Requisition",
+          "",
+          "8"
+        ],
+        [
+          "Transactions - Material Issue",
+          "",
+          "6"
+        ],
+        [
+          "Transactions - Opening Stock",
+          "",
+          "4"
+        ],
+        [
+          "Transactions - Material Transfer",
+          "",
+          "4"
+        ],
+        [
+          "Transactions - Material Return",
+          "",
+          "4"
+        ],
+        [
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          ""
+        ],
+        [
+          "Conventions:",
+          "",
+          ""
+        ],
+        [
+          "• Base URL: /api/v1 (e.g. https://caims.company.com/api/v1)",
+          "",
+          ""
+        ],
+        [
+          "• Auth: Authorization: Bearer <token> header on every call except /auth/login and /auth/forgot-password",
+          "",
+          ""
+        ],
+        [
+          "• All List endpoints support pagination (page, pageSize) and return { page, pageSize, totalRecords, data }",
+          "",
+          ""
+        ],
+        [
+          "• Dates are ISO-8601 (YYYY-MM-DD); timestamps are ISO-8601 with time (YYYY-MM-DDTHH:mm:ss)",
+          "",
+          ""
+        ],
+        [
+          "• Standard HTTP status codes: 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 409 Conflict, 423 Locked, 429 Too Many Requests, 500 Internal Server Error",
+          "",
+          ""
+        ]
+      ]
+    },
+    {
+      "sheet": "Auth",
+      "shape": [
+        6,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "POST",
+          "path": "/api/v1/auth/login",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "POST",
+          "path": "/api/v1/auth/logout",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "GET",
+          "path": "/api/v1/auth/me",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "POST",
+          "path": "/api/v1/auth/change-password",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "POST",
+          "path": "/api/v1/auth/forgot-password",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "Login",
+          "POST",
+          "/api/v1/auth/login",
+          "Authenticate a user with login ID and password; returns a JWT/session token, role and menu permissions.",
+          "{\n  \"loginId\": \"rahul.sharma\",\n  \"password\": \"\\u2022\\u2022\\u2022\\u2022\\u2022\\u2022\\u2022\"\n}",
+          "{\n  \"token\": \"eyJhbGciOi...\",\n  \"user\": {\n    \"userId\": 12,\n    \"employeeName\": \"Rahul Sharma\",\n    \"roleCode\": \"STORE_MANAGER\",\n    \"entityId\": 1,\n    \"buAccessScope\": \"ALL\"\n  },\n  \"expiresIn\": 3600\n}"
+        ],
+        [
+          "Logout",
+          "POST",
+          "/api/v1/auth/logout",
+          "Invalidate the current session/token.",
+          "None (token in Authorization header)",
+          "{\n  \"message\": \"Logged out successfully\"\n}"
+        ],
+        [
+          "Get Current User & Permissions",
+          "GET",
+          "/api/v1/auth/me",
+          "Return the logged-in user's profile, role, OU access scope and effective menu permissions (role defaults merged with user exceptions).",
+          "None (token in Authorization header)",
+          "{\n  \"userId\": 12,\n  \"employeeName\": \"Rahul Sharma\",\n  \"role\": \"STORE_MANAGER\",\n  \"buAccessScope\": \"SPECIFIC\",\n  \"allowedBuIds\": [\n    3,\n    7\n  ],\n  \"menuPermissions\": [\n    {\n      \"menuCode\": \"grn-list\",\n      \"view\": true,\n      \"create\": true,\n      \"approve\": false\n    }\n  ]\n}"
+        ],
+        [
+          "Change Password",
+          "POST",
+          "/api/v1/auth/change-password",
+          "Change the logged-in user's own password.",
+          "{\n  \"oldPassword\": \"\\u2022\\u2022\\u2022\\u2022\\u2022\\u2022\\u2022\",\n  \"newPassword\": \"\\u2022\\u2022\\u2022\\u2022\\u2022\\u2022\\u2022\",\n  \"confirmPassword\": \"\\u2022\\u2022\\u2022\\u2022\\u2022\\u2022\\u2022\"\n}",
+          "{\n  \"message\": \"Password changed successfully\"\n}"
+        ],
+        [
+          "Forgot Password",
+          "POST",
+          "/api/v1/auth/forgot-password",
+          "Trigger a password-reset email/OTP for a login ID.",
+          "{\n  \"loginId\": \"rahul.sharma\"\n}",
+          "{\n  \"message\": \"Password reset link sent to registered email\"\n}"
+        ]
+      ]
+    },
+    {
+      "sheet": "Masters - Setup",
+      "shape": [
+        28,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/units?page=1&pageSize=20&search=&isActive=true",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/units/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/units",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "PUT",
+          "path": "/api/v1/units/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "DELETE",
+          "path": "/api/v1/units/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "GET",
+          "path": "/api/v1/categories?page=1&pageSize=20&search=&isActive=true",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 7,
+          "method": "GET",
+          "path": "/api/v1/categories/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 8,
+          "method": "POST",
+          "path": "/api/v1/categories",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 9,
+          "method": "PUT",
+          "path": "/api/v1/categories/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 10,
+          "method": "DELETE",
+          "path": "/api/v1/categories/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 11,
+          "method": "GET",
+          "path": "/api/v1/subcategories?page=1&pageSize=20&search=&isActive=true&categoryId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 12,
+          "method": "GET",
+          "path": "/api/v1/subcategories/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 13,
+          "method": "POST",
+          "path": "/api/v1/subcategories",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 14,
+          "method": "PUT",
+          "path": "/api/v1/subcategories/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 15,
+          "method": "DELETE",
+          "path": "/api/v1/subcategories/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 16,
+          "method": "GET",
+          "path": "/api/v1/categories/{categoryId}/subcategories",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 17,
+          "method": "GET",
+          "path": "/api/v1/general-types?page=1&pageSize=20&search=&isActive=true",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 18,
+          "method": "GET",
+          "path": "/api/v1/general-types/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 19,
+          "method": "POST",
+          "path": "/api/v1/general-types",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 20,
+          "method": "PUT",
+          "path": "/api/v1/general-types/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 21,
+          "method": "DELETE",
+          "path": "/api/v1/general-types/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 22,
+          "method": "GET",
+          "path": "/api/v1/general-masters?page=1&pageSize=20&search=&isActive=true&gentypeId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 23,
+          "method": "GET",
+          "path": "/api/v1/general-masters/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 24,
+          "method": "POST",
+          "path": "/api/v1/general-masters",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 25,
+          "method": "PUT",
+          "path": "/api/v1/general-masters/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 26,
+          "method": "DELETE",
+          "path": "/api/v1/general-masters/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 27,
+          "method": "GET",
+          "path": "/api/v1/general-types/{typeCode}/values",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Unit",
+          "GET",
+          "/api/v1/units?page=1&pageSize=20&search=&isActive=true",
+          "Retrieve a paginated, searchable list of unit for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"unitId\": 1,\n      \"unitCode\": \"PCS\",\n      \"unitName\": \"Pieces\",\n      \"desc\": \"Pieces\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Unit by ID",
+          "GET",
+          "/api/v1/units/{id}",
+          "Retrieve a single unit record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"unitId\": 1,\n  \"unitCode\": \"PCS\",\n  \"unitName\": \"Pieces\",\n  \"desc\": \"Pieces\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Unit",
+          "POST",
+          "/api/v1/units",
+          "Create a new unit record.",
+          "{\n  \"unitId\": 1,\n  \"unitCode\": \"PCS\",\n  \"unitName\": \"Pieces\",\n  \"desc\": \"Pieces\",\n  \"isActive\": true\n}",
+          "{\n  \"unitId\": 1,\n  \"unitCode\": \"PCS\",\n  \"unitName\": \"Pieces\",\n  \"desc\": \"Pieces\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Unit created successfully\"\n}"
+        ],
+        [
+          "Update Unit",
+          "PUT",
+          "/api/v1/units/{id}",
+          "Update an existing unit record (full update).",
+          "{\n  \"unitId\": 1,\n  \"unitCode\": \"PCS\",\n  \"unitName\": \"Pieces\",\n  \"desc\": \"Pieces\",\n  \"isActive\": true\n}",
+          "{\n  \"unitId\": 1,\n  \"unitCode\": \"PCS\",\n  \"unitName\": \"Pieces\",\n  \"desc\": \"Pieces\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Unit updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Unit",
+          "DELETE",
+          "/api/v1/units/{id}",
+          "Soft-delete (deactivate) a unit record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Unit deactivated successfully\"\n}"
+        ],
+        [
+          "List Category",
+          "GET",
+          "/api/v1/categories?page=1&pageSize=20&search=&isActive=true",
+          "Retrieve a paginated, searchable list of category for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"categoryId\": 1,\n      \"categoryCode\": \"CAT-IT\",\n      \"categoryName\": \"IT Assets\",\n      \"desc\": \"IT related assets\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Category by ID",
+          "GET",
+          "/api/v1/categories/{id}",
+          "Retrieve a single category record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"categoryId\": 1,\n  \"categoryCode\": \"CAT-IT\",\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"IT related assets\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Category",
+          "POST",
+          "/api/v1/categories",
+          "Create a new category record.",
+          "{\n  \"categoryId\": 1,\n  \"categoryCode\": \"CAT-IT\",\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"IT related assets\",\n  \"isActive\": true\n}",
+          "{\n  \"categoryId\": 1,\n  \"categoryCode\": \"CAT-IT\",\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"IT related assets\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Category created successfully\"\n}"
+        ],
+        [
+          "Update Category",
+          "PUT",
+          "/api/v1/categories/{id}",
+          "Update an existing category record (full update).",
+          "{\n  \"categoryId\": 1,\n  \"categoryCode\": \"CAT-IT\",\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"IT related assets\",\n  \"isActive\": true\n}",
+          "{\n  \"categoryId\": 1,\n  \"categoryCode\": \"CAT-IT\",\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"IT related assets\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Category updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Category",
+          "DELETE",
+          "/api/v1/categories/{id}",
+          "Soft-delete (deactivate) a category record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Category deactivated successfully\"\n}"
+        ],
+        [
+          "List Sub-Category",
+          "GET",
+          "/api/v1/subcategories?page=1&pageSize=20&search=&isActive=true&categoryId=",
+          "Retrieve a paginated, searchable list of sub-category for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"subcategoryId\": 1,\n      \"subcategoryCode\": \"SUB-LAP\",\n      \"subcategoryName\": \"Laptop\",\n      \"categoryId\": 1,\n      \"categoryName\": \"IT Assets\",\n      \"desc\": \"Laptops\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Sub-Category by ID",
+          "GET",
+          "/api/v1/subcategories/{id}",
+          "Retrieve a single sub-category record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"subcategoryId\": 1,\n  \"subcategoryCode\": \"SUB-LAP\",\n  \"subcategoryName\": \"Laptop\",\n  \"categoryId\": 1,\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"Laptops\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Sub-Category",
+          "POST",
+          "/api/v1/subcategories",
+          "Create a new sub-category record.",
+          "{\n  \"subcategoryId\": 1,\n  \"subcategoryCode\": \"SUB-LAP\",\n  \"subcategoryName\": \"Laptop\",\n  \"categoryId\": 1,\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"Laptops\",\n  \"isActive\": true\n}",
+          "{\n  \"subcategoryId\": 1,\n  \"subcategoryCode\": \"SUB-LAP\",\n  \"subcategoryName\": \"Laptop\",\n  \"categoryId\": 1,\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"Laptops\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Sub-Category created successfully\"\n}"
+        ],
+        [
+          "Update Sub-Category",
+          "PUT",
+          "/api/v1/subcategories/{id}",
+          "Update an existing sub-category record (full update).",
+          "{\n  \"subcategoryId\": 1,\n  \"subcategoryCode\": \"SUB-LAP\",\n  \"subcategoryName\": \"Laptop\",\n  \"categoryId\": 1,\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"Laptops\",\n  \"isActive\": true\n}",
+          "{\n  \"subcategoryId\": 1,\n  \"subcategoryCode\": \"SUB-LAP\",\n  \"subcategoryName\": \"Laptop\",\n  \"categoryId\": 1,\n  \"categoryName\": \"IT Assets\",\n  \"desc\": \"Laptops\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Sub-Category updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Sub-Category",
+          "DELETE",
+          "/api/v1/subcategories/{id}",
+          "Soft-delete (deactivate) a sub-category record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Sub-Category deactivated successfully\"\n}"
+        ],
+        [
+          "Get Sub-Categories by Category",
+          "GET",
+          "/api/v1/categories/{categoryId}/subcategories",
+          "Return active sub-categories under a given category, for cascading dropdowns (Item Master form).",
+          "None (path param only)",
+          "[\n  {\n    \"subcategoryId\": 1,\n    \"subcategoryCode\": \"SUB-LAP\",\n    \"subcategoryName\": \"Laptop\"\n  }\n]"
+        ],
+        [
+          "List General Type",
+          "GET",
+          "/api/v1/general-types?page=1&pageSize=20&search=&isActive=true",
+          "Retrieve a paginated, searchable list of general type for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"gentypeId\": 1,\n      \"typeCode\": \"GTY-PYT\",\n      \"typeName\": \"Payment Terms\",\n      \"desc\": \"Payment terms lookup group\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get General Type by ID",
+          "GET",
+          "/api/v1/general-types/{id}",
+          "Retrieve a single general type record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"gentypeId\": 1,\n  \"typeCode\": \"GTY-PYT\",\n  \"typeName\": \"Payment Terms\",\n  \"desc\": \"Payment terms lookup group\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create General Type",
+          "POST",
+          "/api/v1/general-types",
+          "Create a new general type record.",
+          "{\n  \"gentypeId\": 1,\n  \"typeCode\": \"GTY-PYT\",\n  \"typeName\": \"Payment Terms\",\n  \"desc\": \"Payment terms lookup group\",\n  \"isActive\": true\n}",
+          "{\n  \"gentypeId\": 1,\n  \"typeCode\": \"GTY-PYT\",\n  \"typeName\": \"Payment Terms\",\n  \"desc\": \"Payment terms lookup group\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"General Type created successfully\"\n}"
+        ],
+        [
+          "Update General Type",
+          "PUT",
+          "/api/v1/general-types/{id}",
+          "Update an existing general type record (full update).",
+          "{\n  \"gentypeId\": 1,\n  \"typeCode\": \"GTY-PYT\",\n  \"typeName\": \"Payment Terms\",\n  \"desc\": \"Payment terms lookup group\",\n  \"isActive\": true\n}",
+          "{\n  \"gentypeId\": 1,\n  \"typeCode\": \"GTY-PYT\",\n  \"typeName\": \"Payment Terms\",\n  \"desc\": \"Payment terms lookup group\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"General Type updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate General Type",
+          "DELETE",
+          "/api/v1/general-types/{id}",
+          "Soft-delete (deactivate) a general type record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"General Type deactivated successfully\"\n}"
+        ],
+        [
+          "List General Master Value",
+          "GET",
+          "/api/v1/general-masters?page=1&pageSize=20&search=&isActive=true&gentypeId=",
+          "Retrieve a paginated, searchable list of general master value for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"genmasterId\": 1,\n      \"valueCode\": \"GNM-N30\",\n      \"valueName\": \"Net 30\",\n      \"gentypeId\": 1,\n      \"sortOrder\": 1,\n      \"desc\": \"Net 30 days\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get General Master Value by ID",
+          "GET",
+          "/api/v1/general-masters/{id}",
+          "Retrieve a single general master value record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"genmasterId\": 1,\n  \"valueCode\": \"GNM-N30\",\n  \"valueName\": \"Net 30\",\n  \"gentypeId\": 1,\n  \"sortOrder\": 1,\n  \"desc\": \"Net 30 days\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create General Master Value",
+          "POST",
+          "/api/v1/general-masters",
+          "Create a new general master value record.",
+          "{\n  \"genmasterId\": 1,\n  \"valueCode\": \"GNM-N30\",\n  \"valueName\": \"Net 30\",\n  \"gentypeId\": 1,\n  \"sortOrder\": 1,\n  \"desc\": \"Net 30 days\",\n  \"isActive\": true\n}",
+          "{\n  \"genmasterId\": 1,\n  \"valueCode\": \"GNM-N30\",\n  \"valueName\": \"Net 30\",\n  \"gentypeId\": 1,\n  \"sortOrder\": 1,\n  \"desc\": \"Net 30 days\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"General Master Value created successfully\"\n}"
+        ]
+      ]
+    },
+    {
+      "sheet": "Masters - Organization",
+      "shape": [
+        16,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/entities?page=1&pageSize=20&search=&isActive=true",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/entities/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/entities",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "PUT",
+          "path": "/api/v1/entities/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "DELETE",
+          "path": "/api/v1/entities/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "GET",
+          "path": "/api/v1/business-units?page=1&pageSize=20&search=&isActive=true&entityId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 7,
+          "method": "GET",
+          "path": "/api/v1/business-units/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 8,
+          "method": "POST",
+          "path": "/api/v1/business-units",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 9,
+          "method": "PUT",
+          "path": "/api/v1/business-units/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 10,
+          "method": "DELETE",
+          "path": "/api/v1/business-units/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 11,
+          "method": "GET",
+          "path": "/api/v1/locations?page=1&pageSize=20&search=&isActive=true&entityId=&buId=&locationType=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 12,
+          "method": "GET",
+          "path": "/api/v1/locations/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 13,
+          "method": "POST",
+          "path": "/api/v1/locations",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 14,
+          "method": "PUT",
+          "path": "/api/v1/locations/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 15,
+          "method": "DELETE",
+          "path": "/api/v1/locations/{id}",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Entity (Organization)",
+          "GET",
+          "/api/v1/entities?page=1&pageSize=20&search=&isActive=true",
+          "Retrieve a paginated, searchable list of entity (organization) for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"entityId\": 1,\n      \"entityCode\": \"ORG-001\",\n      \"entityName\": \"Micropro India 4\",\n      \"shortName\": \"MP-IN4\",\n      \"gstin\": \"27ABCDE1234F1Z5\",\n      \"panNo\": \"ABCDE1234F\",\n      \"city\": \"Nagpur\",\n      \"state\": \"Maharashtra\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Entity (Organization) by ID",
+          "GET",
+          "/api/v1/entities/{id}",
+          "Retrieve a single entity (organization) record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"entityId\": 1,\n  \"entityCode\": \"ORG-001\",\n  \"entityName\": \"Micropro India 4\",\n  \"shortName\": \"MP-IN4\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"panNo\": \"ABCDE1234F\",\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Entity (Organization)",
+          "POST",
+          "/api/v1/entities",
+          "Create a new entity (organization) record.",
+          "{\n  \"entityId\": 1,\n  \"entityCode\": \"ORG-001\",\n  \"entityName\": \"Micropro India 4\",\n  \"shortName\": \"MP-IN4\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"panNo\": \"ABCDE1234F\",\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true\n}",
+          "{\n  \"entityId\": 1,\n  \"entityCode\": \"ORG-001\",\n  \"entityName\": \"Micropro India 4\",\n  \"shortName\": \"MP-IN4\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"panNo\": \"ABCDE1234F\",\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Entity (Organization) created successfully\"\n}"
+        ],
+        [
+          "Update Entity (Organization)",
+          "PUT",
+          "/api/v1/entities/{id}",
+          "Update an existing entity (organization) record (full update).",
+          "{\n  \"entityId\": 1,\n  \"entityCode\": \"ORG-001\",\n  \"entityName\": \"Micropro India 4\",\n  \"shortName\": \"MP-IN4\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"panNo\": \"ABCDE1234F\",\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true\n}",
+          "{\n  \"entityId\": 1,\n  \"entityCode\": \"ORG-001\",\n  \"entityName\": \"Micropro India 4\",\n  \"shortName\": \"MP-IN4\",\n  \"gstin\": \"27ABCDE1234F1Z5\",\n  \"panNo\": \"ABCDE1234F\",\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Entity (Organization) updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Entity (Organization)",
+          "DELETE",
+          "/api/v1/entities/{id}",
+          "Soft-delete (deactivate) a entity (organization) record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Entity (Organization) deactivated successfully\"\n}"
+        ],
+        [
+          "List Operating Unit (Business Unit)",
+          "GET",
+          "/api/v1/business-units?page=1&pageSize=20&search=&isActive=true&entityId=",
+          "Retrieve a paginated, searchable list of operating unit (business unit) for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"buId\": 1,\n      \"buCode\": \"OU-NGP-01\",\n      \"buName\": \"Nagpur Plant\",\n      \"entityId\": 1,\n      \"buType\": \"Plant\",\n      \"managerEmpId\": 5,\n      \"city\": \"Nagpur\",\n      \"state\": \"Maharashtra\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Operating Unit (Business Unit) by ID",
+          "GET",
+          "/api/v1/business-units/{id}",
+          "Retrieve a single operating unit (business unit) record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"buId\": 1,\n  \"buCode\": \"OU-NGP-01\",\n  \"buName\": \"Nagpur Plant\",\n  \"entityId\": 1,\n  \"buType\": \"Plant\",\n  \"managerEmpId\": 5,\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Operating Unit (Business Unit)",
+          "POST",
+          "/api/v1/business-units",
+          "Create a new operating unit (business unit) record.",
+          "{\n  \"buId\": 1,\n  \"buCode\": \"OU-NGP-01\",\n  \"buName\": \"Nagpur Plant\",\n  \"entityId\": 1,\n  \"buType\": \"Plant\",\n  \"managerEmpId\": 5,\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true\n}",
+          "{\n  \"buId\": 1,\n  \"buCode\": \"OU-NGP-01\",\n  \"buName\": \"Nagpur Plant\",\n  \"entityId\": 1,\n  \"buType\": \"Plant\",\n  \"managerEmpId\": 5,\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Operating Unit (Business Unit) created successfully\"\n}"
+        ],
+        [
+          "Update Operating Unit (Business Unit)",
+          "PUT",
+          "/api/v1/business-units/{id}",
+          "Update an existing operating unit (business unit) record (full update).",
+          "{\n  \"buId\": 1,\n  \"buCode\": \"OU-NGP-01\",\n  \"buName\": \"Nagpur Plant\",\n  \"entityId\": 1,\n  \"buType\": \"Plant\",\n  \"managerEmpId\": 5,\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true\n}",
+          "{\n  \"buId\": 1,\n  \"buCode\": \"OU-NGP-01\",\n  \"buName\": \"Nagpur Plant\",\n  \"entityId\": 1,\n  \"buType\": \"Plant\",\n  \"managerEmpId\": 5,\n  \"city\": \"Nagpur\",\n  \"state\": \"Maharashtra\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Operating Unit (Business Unit) updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Operating Unit (Business Unit)",
+          "DELETE",
+          "/api/v1/business-units/{id}",
+          "Soft-delete (deactivate) a operating unit (business unit) record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Operating Unit (Business Unit) deactivated successfully\"\n}"
+        ],
+        [
+          "List Location (Store)",
+          "GET",
+          "/api/v1/locations?page=1&pageSize=20&search=&isActive=true&entityId=&buId=&locationType=",
+          "Retrieve a paginated, searchable list of location (store) for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"locationId\": 1,\n      \"locationCode\": \"STR-NGP-01\",\n      \"locationName\": \"Nagpur Main Store\",\n      \"locationType\": \"General Store\",\n      \"entityId\": 1,\n      \"buId\": 1,\n      \"managerEmpId\": 8,\n      \"city\": \"Nagpur\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Location (Store) by ID",
+          "GET",
+          "/api/v1/locations/{id}",
+          "Retrieve a single location (store) record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"locationId\": 1,\n  \"locationCode\": \"STR-NGP-01\",\n  \"locationName\": \"Nagpur Main Store\",\n  \"locationType\": \"General Store\",\n  \"entityId\": 1,\n  \"buId\": 1,\n  \"managerEmpId\": 8,\n  \"city\": \"Nagpur\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Location (Store)",
+          "POST",
+          "/api/v1/locations",
+          "Create a new location (store) record.",
+          "{\n  \"locationId\": 1,\n  \"locationCode\": \"STR-NGP-01\",\n  \"locationName\": \"Nagpur Main Store\",\n  \"locationType\": \"General Store\",\n  \"entityId\": 1,\n  \"buId\": 1,\n  \"managerEmpId\": 8,\n  \"city\": \"Nagpur\",\n  \"isActive\": true\n}",
+          "{\n  \"locationId\": 1,\n  \"locationCode\": \"STR-NGP-01\",\n  \"locationName\": \"Nagpur Main Store\",\n  \"locationType\": \"General Store\",\n  \"entityId\": 1,\n  \"buId\": 1,\n  \"managerEmpId\": 8,\n  \"city\": \"Nagpur\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Location (Store) created successfully\"\n}"
+        ],
+        [
+          "Update Location (Store)",
+          "PUT",
+          "/api/v1/locations/{id}",
+          "Update an existing location (store) record (full update).",
+          "{\n  \"locationId\": 1,\n  \"locationCode\": \"STR-NGP-01\",\n  \"locationName\": \"Nagpur Main Store\",\n  \"locationType\": \"General Store\",\n  \"entityId\": 1,\n  \"buId\": 1,\n  \"managerEmpId\": 8,\n  \"city\": \"Nagpur\",\n  \"isActive\": true\n}",
+          "{\n  \"locationId\": 1,\n  \"locationCode\": \"STR-NGP-01\",\n  \"locationName\": \"Nagpur Main Store\",\n  \"locationType\": \"General Store\",\n  \"entityId\": 1,\n  \"buId\": 1,\n  \"managerEmpId\": 8,\n  \"city\": \"Nagpur\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Location (Store) updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Location (Store)",
+          "DELETE",
+          "/api/v1/locations/{id}",
+          "Soft-delete (deactivate) a location (store) record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Location (Store) deactivated successfully\"\n}"
+        ]
+      ]
+    },
+    {
+      "sheet": "Masters - Item & Vendor",
+      "shape": [
+        15,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/items?page=1&pageSize=20&search=&isActive=true&itemType=Asset|Consumable&categoryId=&subcategoryId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/items/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/items",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "PUT",
+          "path": "/api/v1/items/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "DELETE",
+          "path": "/api/v1/items/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "GET",
+          "path": "/api/v1/items/{itemId}/stock-ledger?locationId=&fromDate=&toDate=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 7,
+          "method": "POST",
+          "path": "/api/v1/items/{itemId}/image",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 8,
+          "method": "GET",
+          "path": "/api/v1/vendors?page=1&pageSize=20&search=&isActive=true&partyType=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 9,
+          "method": "GET",
+          "path": "/api/v1/vendors/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 10,
+          "method": "POST",
+          "path": "/api/v1/vendors",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 11,
+          "method": "PUT",
+          "path": "/api/v1/vendors/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 12,
+          "method": "DELETE",
+          "path": "/api/v1/vendors/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 13,
+          "method": "GET",
+          "path": "/api/v1/stock?itemId=&locationId=&belowReorderLevel=false&page=1&pageSize=20",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 14,
+          "method": "GET",
+          "path": "/api/v1/stock/{itemId}/{locationId}",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Item / Asset",
+          "GET",
+          "/api/v1/items?page=1&pageSize=20&search=&isActive=true&itemType=Asset|Consumable&categoryId=&subcategoryId=",
+          "Retrieve a paginated, searchable list of item / asset for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"itemId\": 1,\n      \"itemCode\": \"ITM-001\",\n      \"itemName\": \"Dell Latitude 5440\",\n      \"itemType\": \"Asset\",\n      \"categoryId\": 1,\n      \"subcategoryId\": 1,\n      \"uomId\": 1,\n      \"standardCost\": 65000.0,\n      \"assetType\": \"IT\",\n      \"makeBrand\": \"Dell\",\n      \"model\": \"Latitude 5440\",\n      \"serialNo\": \"SN-88213\",\n      \"isSerialized\": true,\n      \"isReturnable\": true,\n      \"assignedToEmpId\": null,\n      \"currentLocationId\": 1,\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Item / Asset by ID",
+          "GET",
+          "/api/v1/items/{id}",
+          "Retrieve a single item / asset record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"itemId\": 1,\n  \"itemCode\": \"ITM-001\",\n  \"itemName\": \"Dell Latitude 5440\",\n  \"itemType\": \"Asset\",\n  \"categoryId\": 1,\n  \"subcategoryId\": 1,\n  \"uomId\": 1,\n  \"standardCost\": 65000.0,\n  \"assetType\": \"IT\",\n  \"makeBrand\": \"Dell\",\n  \"model\": \"Latitude 5440\",\n  \"serialNo\": \"SN-88213\",\n  \"isSerialized\": true,\n  \"isReturnable\": true,\n  \"assignedToEmpId\": null,\n  \"currentLocationId\": 1,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Item / Asset",
+          "POST",
+          "/api/v1/items",
+          "Create a new item / asset record.",
+          "{\n  \"itemId\": 1,\n  \"itemCode\": \"ITM-001\",\n  \"itemName\": \"Dell Latitude 5440\",\n  \"itemType\": \"Asset\",\n  \"categoryId\": 1,\n  \"subcategoryId\": 1,\n  \"uomId\": 1,\n  \"standardCost\": 65000.0,\n  \"assetType\": \"IT\",\n  \"makeBrand\": \"Dell\",\n  \"model\": \"Latitude 5440\",\n  \"serialNo\": \"SN-88213\",\n  \"isSerialized\": true,\n  \"isReturnable\": true,\n  \"assignedToEmpId\": null,\n  \"currentLocationId\": 1,\n  \"isActive\": true\n}",
+          "{\n  \"itemId\": 1,\n  \"itemCode\": \"ITM-001\",\n  \"itemName\": \"Dell Latitude 5440\",\n  \"itemType\": \"Asset\",\n  \"categoryId\": 1,\n  \"subcategoryId\": 1,\n  \"uomId\": 1,\n  \"standardCost\": 65000.0,\n  \"assetType\": \"IT\",\n  \"makeBrand\": \"Dell\",\n  \"model\": \"Latitude 5440\",\n  \"serialNo\": \"SN-88213\",\n  \"isSerialized\": true,\n  \"isReturnable\": true,\n  \"assignedToEmpId\": null,\n  \"currentLocationId\": 1,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Item / Asset created successfully\"\n}"
+        ],
+        [
+          "Update Item / Asset",
+          "PUT",
+          "/api/v1/items/{id}",
+          "Update an existing item / asset record (full update).",
+          "{\n  \"itemId\": 1,\n  \"itemCode\": \"ITM-001\",\n  \"itemName\": \"Dell Latitude 5440\",\n  \"itemType\": \"Asset\",\n  \"categoryId\": 1,\n  \"subcategoryId\": 1,\n  \"uomId\": 1,\n  \"standardCost\": 65000.0,\n  \"assetType\": \"IT\",\n  \"makeBrand\": \"Dell\",\n  \"model\": \"Latitude 5440\",\n  \"serialNo\": \"SN-88213\",\n  \"isSerialized\": true,\n  \"isReturnable\": true,\n  \"assignedToEmpId\": null,\n  \"currentLocationId\": 1,\n  \"isActive\": true\n}",
+          "{\n  \"itemId\": 1,\n  \"itemCode\": \"ITM-001\",\n  \"itemName\": \"Dell Latitude 5440\",\n  \"itemType\": \"Asset\",\n  \"categoryId\": 1,\n  \"subcategoryId\": 1,\n  \"uomId\": 1,\n  \"standardCost\": 65000.0,\n  \"assetType\": \"IT\",\n  \"makeBrand\": \"Dell\",\n  \"model\": \"Latitude 5440\",\n  \"serialNo\": \"SN-88213\",\n  \"isSerialized\": true,\n  \"isReturnable\": true,\n  \"assignedToEmpId\": null,\n  \"currentLocationId\": 1,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Item / Asset updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Item / Asset",
+          "DELETE",
+          "/api/v1/items/{id}",
+          "Soft-delete (deactivate) a item / asset record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Item / Asset deactivated successfully\"\n}"
+        ],
+        [
+          "Get Item Stock Ledger",
+          "GET",
+          "/api/v1/items/{itemId}/stock-ledger?locationId=&fromDate=&toDate=",
+          "Return the movement history (GRN/Issue/Transfer/Return/Adjustment) for an item, optionally filtered by location and date range.",
+          "None (query params only)",
+          "[\n  {\n    \"date\": \"2026-07-20\",\n    \"docType\": \"GRN\",\n    \"docNo\": \"GRNP-2026-0045\",\n    \"inQty\": 10,\n    \"outQty\": 0,\n    \"balanceQty\": 34\n  }\n]"
+        ],
+        [
+          "Upload Item Image",
+          "POST",
+          "/api/v1/items/{itemId}/image",
+          "Upload/replace the image for an item (multipart/form-data); stores URL in itm_image_url.",
+          "multipart/form-data: file=<image binary>",
+          "{\n  \"itemId\": 1,\n  \"imageUrl\": \"https://cdn.caims.app/items/ITM-001.jpg\"\n}"
+        ],
+        [
+          "List Vendor",
+          "GET",
+          "/api/v1/vendors?page=1&pageSize=20&search=&isActive=true&partyType=",
+          "Retrieve a paginated, searchable list of vendor for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"vendorId\": 1,\n      \"vendorCode\": \"VND-001\",\n      \"vendorName\": \"Kirloskar Traders\",\n      \"partyType\": \"Vendor\",\n      \"gstin\": \"27XXXXX0000X1Z1\",\n      \"rating\": 4,\n      \"city\": \"Nagpur\",\n      \"phone\": \"9822012345\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Vendor by ID",
+          "GET",
+          "/api/v1/vendors/{id}",
+          "Retrieve a single vendor record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"vendorId\": 1,\n  \"vendorCode\": \"VND-001\",\n  \"vendorName\": \"Kirloskar Traders\",\n  \"partyType\": \"Vendor\",\n  \"gstin\": \"27XXXXX0000X1Z1\",\n  \"rating\": 4,\n  \"city\": \"Nagpur\",\n  \"phone\": \"9822012345\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Vendor",
+          "POST",
+          "/api/v1/vendors",
+          "Create a new vendor record.",
+          "{\n  \"vendorId\": 1,\n  \"vendorCode\": \"VND-001\",\n  \"vendorName\": \"Kirloskar Traders\",\n  \"partyType\": \"Vendor\",\n  \"gstin\": \"27XXXXX0000X1Z1\",\n  \"rating\": 4,\n  \"city\": \"Nagpur\",\n  \"phone\": \"9822012345\",\n  \"isActive\": true\n}",
+          "{\n  \"vendorId\": 1,\n  \"vendorCode\": \"VND-001\",\n  \"vendorName\": \"Kirloskar Traders\",\n  \"partyType\": \"Vendor\",\n  \"gstin\": \"27XXXXX0000X1Z1\",\n  \"rating\": 4,\n  \"city\": \"Nagpur\",\n  \"phone\": \"9822012345\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Vendor created successfully\"\n}"
+        ],
+        [
+          "Update Vendor",
+          "PUT",
+          "/api/v1/vendors/{id}",
+          "Update an existing vendor record (full update).",
+          "{\n  \"vendorId\": 1,\n  \"vendorCode\": \"VND-001\",\n  \"vendorName\": \"Kirloskar Traders\",\n  \"partyType\": \"Vendor\",\n  \"gstin\": \"27XXXXX0000X1Z1\",\n  \"rating\": 4,\n  \"city\": \"Nagpur\",\n  \"phone\": \"9822012345\",\n  \"isActive\": true\n}",
+          "{\n  \"vendorId\": 1,\n  \"vendorCode\": \"VND-001\",\n  \"vendorName\": \"Kirloskar Traders\",\n  \"partyType\": \"Vendor\",\n  \"gstin\": \"27XXXXX0000X1Z1\",\n  \"rating\": 4,\n  \"city\": \"Nagpur\",\n  \"phone\": \"9822012345\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Vendor updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Vendor",
+          "DELETE",
+          "/api/v1/vendors/{id}",
+          "Soft-delete (deactivate) a vendor record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Vendor deactivated successfully\"\n}"
+        ],
+        [
+          "List Stock Balances",
+          "GET",
+          "/api/v1/stock?itemId=&locationId=&belowReorderLevel=false&page=1&pageSize=20",
+          "Retrieve current on-hand stock balances, system-maintained (read-only) — powers the Inventory view.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 120,\n  \"data\": [\n    {\n      \"stockId\": 1,\n      \"itemId\": 1,\n      \"itemCode\": \"ITM-001\",\n      \"locationId\": 1,\n      \"currentQty\": 34,\n      \"reservedQty\": 5,\n      \"availableQty\": 29,\n      \"avgRate\": 62000.0,\n      \"stockValue\": 2108000.0,\n      \"reorderLevel\": 10\n    }\n  ]\n}"
+        ],
+        [
+          "Get Stock Balance for Item @ Location",
+          "GET",
+          "/api/v1/stock/{itemId}/{locationId}",
+          "Return the current available quantity for a specific item at a specific location — used by transaction forms (txd_available_stock) to validate issue/transfer/return quantities in real time.",
+          "None (path params only)",
+          "{\n  \"itemId\": 1,\n  \"locationId\": 1,\n  \"currentQty\": 34,\n  \"reservedQty\": 5,\n  \"availableQty\": 29,\n  \"batchLotNo\": null\n}"
+        ]
+      ]
+    },
+    {
+      "sheet": "Masters - Security",
+      "shape": [
+        28,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/menus?group=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/roles?page=1&pageSize=20&search=&isActive=true",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "GET",
+          "path": "/api/v1/roles/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "POST",
+          "path": "/api/v1/roles",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "PUT",
+          "path": "/api/v1/roles/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "DELETE",
+          "path": "/api/v1/roles/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 7,
+          "method": "GET",
+          "path": "/api/v1/roles/{roleId}/permissions",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 8,
+          "method": "PUT",
+          "path": "/api/v1/roles/{roleId}/permissions",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 9,
+          "method": "GET",
+          "path": "/api/v1/employees?page=1&pageSize=20&search=&isActive=true&department=&roleId=&baseLocationId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 10,
+          "method": "GET",
+          "path": "/api/v1/employees/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 11,
+          "method": "POST",
+          "path": "/api/v1/employees",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 12,
+          "method": "PUT",
+          "path": "/api/v1/employees/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 13,
+          "method": "DELETE",
+          "path": "/api/v1/employees/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 14,
+          "method": "GET",
+          "path": "/api/v1/employees/{employeeId}/subordinates",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 15,
+          "method": "GET",
+          "path": "/api/v1/users?page=1&pageSize=20&search=&isActive=true&accountStatus=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 16,
+          "method": "GET",
+          "path": "/api/v1/users/{userId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 17,
+          "method": "POST",
+          "path": "/api/v1/users",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 18,
+          "method": "PUT",
+          "path": "/api/v1/users/{userId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 19,
+          "method": "DELETE",
+          "path": "/api/v1/users/{userId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 20,
+          "method": "POST",
+          "path": "/api/v1/users/{userId}/reset-password",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 21,
+          "method": "POST",
+          "path": "/api/v1/users/{userId}/lock-status",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 22,
+          "method": "GET",
+          "path": "/api/v1/users/{userId}/ou-access",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 23,
+          "method": "GET",
+          "path": "/api/v1/access-exceptions?page=1&pageSize=20&search=&isActive=true&employeeId=&exceptionType=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 24,
+          "method": "GET",
+          "path": "/api/v1/access-exceptions/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 25,
+          "method": "POST",
+          "path": "/api/v1/access-exceptions",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 26,
+          "method": "PUT",
+          "path": "/api/v1/access-exceptions/{id}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 27,
+          "method": "DELETE",
+          "path": "/api/v1/access-exceptions/{id}",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "Get Menu Tree",
+          "GET",
+          "/api/v1/menus?group=",
+          "Return the full application menu tree (read-only, maintained with the codebase) — drives the sidebar and the Role/Exception permission grids.",
+          "None (query params only)",
+          "[\n  {\n    \"menuId\": 1,\n    \"menuCode\": \"grn-list\",\n    \"menuLabel\": \"Goods Receipt Note (GRN)\",\n    \"menuGroup\": \"Transactions\",\n    \"sortOrder\": 3,\n    \"docType\": \"GRN\",\n    \"supportsView\": true,\n    \"supportsCreate\": true,\n    \"supportsApprove\": true\n  }\n]"
+        ],
+        [
+          "List Role",
+          "GET",
+          "/api/v1/roles?page=1&pageSize=20&search=&isActive=true",
+          "Retrieve a paginated, searchable list of role for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"roleId\": 1,\n      \"roleCode\": \"STORE_MANAGER\",\n      \"roleName\": \"Store Manager\",\n      \"roleLevel\": 6,\n      \"desc\": \"Manages store operations and approves requisitions\",\n      \"isSystemRole\": false,\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Role by ID",
+          "GET",
+          "/api/v1/roles/{id}",
+          "Retrieve a single role record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"roleId\": 1,\n  \"roleCode\": \"STORE_MANAGER\",\n  \"roleName\": \"Store Manager\",\n  \"roleLevel\": 6,\n  \"desc\": \"Manages store operations and approves requisitions\",\n  \"isSystemRole\": false,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Role",
+          "POST",
+          "/api/v1/roles",
+          "Create a new role record.",
+          "{\n  \"roleId\": 1,\n  \"roleCode\": \"STORE_MANAGER\",\n  \"roleName\": \"Store Manager\",\n  \"roleLevel\": 6,\n  \"desc\": \"Manages store operations and approves requisitions\",\n  \"isSystemRole\": false,\n  \"isActive\": true\n}",
+          "{\n  \"roleId\": 1,\n  \"roleCode\": \"STORE_MANAGER\",\n  \"roleName\": \"Store Manager\",\n  \"roleLevel\": 6,\n  \"desc\": \"Manages store operations and approves requisitions\",\n  \"isSystemRole\": false,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Role created successfully\"\n}"
+        ],
+        [
+          "Update Role",
+          "PUT",
+          "/api/v1/roles/{id}",
+          "Update an existing role record (full update).",
+          "{\n  \"roleId\": 1,\n  \"roleCode\": \"STORE_MANAGER\",\n  \"roleName\": \"Store Manager\",\n  \"roleLevel\": 6,\n  \"desc\": \"Manages store operations and approves requisitions\",\n  \"isSystemRole\": false,\n  \"isActive\": true\n}",
+          "{\n  \"roleId\": 1,\n  \"roleCode\": \"STORE_MANAGER\",\n  \"roleName\": \"Store Manager\",\n  \"roleLevel\": 6,\n  \"desc\": \"Manages store operations and approves requisitions\",\n  \"isSystemRole\": false,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Role updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Role",
+          "DELETE",
+          "/api/v1/roles/{id}",
+          "Soft-delete (deactivate) a role record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Role deactivated successfully\"\n}"
+        ],
+        [
+          "Get Role Permissions",
+          "GET",
+          "/api/v1/roles/{roleId}/permissions",
+          "Return the per-module permission grid (view/create/edit/delete/approve/reject/print/export) for a role.",
+          "None (path param only)",
+          "[\n  {\n    \"module\": \"Requisitions\",\n    \"canView\": true,\n    \"canCreate\": true,\n    \"canEdit\": true,\n    \"canDelete\": false,\n    \"canApprove\": true,\n    \"canReject\": true,\n    \"canPrint\": true,\n    \"canExport\": true\n  }\n]"
+        ],
+        [
+          "Save Role Permissions",
+          "PUT",
+          "/api/v1/roles/{roleId}/permissions",
+          "Replace the full permission grid for a role (bulk upsert of sysm_rolepermission_dtl rows).",
+          "[\n  {\n    \"module\": \"Requisitions\",\n    \"canView\": true,\n    \"canCreate\": true,\n    \"canEdit\": true,\n    \"canDelete\": false,\n    \"canApprove\": true,\n    \"canReject\": true,\n    \"canPrint\": true,\n    \"canExport\": true\n  }\n]",
+          "{\n  \"message\": \"Permissions updated successfully\"\n}"
+        ],
+        [
+          "List Employee",
+          "GET",
+          "/api/v1/employees?page=1&pageSize=20&search=&isActive=true&department=&roleId=&baseLocationId=",
+          "Retrieve a paginated, searchable list of employee for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"employeeId\": 1,\n      \"employeeCode\": \"EMP-001\",\n      \"firstName\": \"Rahul\",\n      \"lastName\": \"Sharma\",\n      \"email\": \"rahul.sharma@company.com\",\n      \"phone\": \"9822011111\",\n      \"designation\": \"Store Manager\",\n      \"department\": \"Warehouse\",\n      \"roleId\": 1,\n      \"baseLocationId\": 1,\n      \"reportingToEmpId\": null,\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Employee by ID",
+          "GET",
+          "/api/v1/employees/{id}",
+          "Retrieve a single employee record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"employeeId\": 1,\n  \"employeeCode\": \"EMP-001\",\n  \"firstName\": \"Rahul\",\n  \"lastName\": \"Sharma\",\n  \"email\": \"rahul.sharma@company.com\",\n  \"phone\": \"9822011111\",\n  \"designation\": \"Store Manager\",\n  \"department\": \"Warehouse\",\n  \"roleId\": 1,\n  \"baseLocationId\": 1,\n  \"reportingToEmpId\": null,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create Employee",
+          "POST",
+          "/api/v1/employees",
+          "Create a new employee record.",
+          "{\n  \"employeeId\": 1,\n  \"employeeCode\": \"EMP-001\",\n  \"firstName\": \"Rahul\",\n  \"lastName\": \"Sharma\",\n  \"email\": \"rahul.sharma@company.com\",\n  \"phone\": \"9822011111\",\n  \"designation\": \"Store Manager\",\n  \"department\": \"Warehouse\",\n  \"roleId\": 1,\n  \"baseLocationId\": 1,\n  \"reportingToEmpId\": null,\n  \"isActive\": true\n}",
+          "{\n  \"employeeId\": 1,\n  \"employeeCode\": \"EMP-001\",\n  \"firstName\": \"Rahul\",\n  \"lastName\": \"Sharma\",\n  \"email\": \"rahul.sharma@company.com\",\n  \"phone\": \"9822011111\",\n  \"designation\": \"Store Manager\",\n  \"department\": \"Warehouse\",\n  \"roleId\": 1,\n  \"baseLocationId\": 1,\n  \"reportingToEmpId\": null,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Employee created successfully\"\n}"
+        ],
+        [
+          "Update Employee",
+          "PUT",
+          "/api/v1/employees/{id}",
+          "Update an existing employee record (full update).",
+          "{\n  \"employeeId\": 1,\n  \"employeeCode\": \"EMP-001\",\n  \"firstName\": \"Rahul\",\n  \"lastName\": \"Sharma\",\n  \"email\": \"rahul.sharma@company.com\",\n  \"phone\": \"9822011111\",\n  \"designation\": \"Store Manager\",\n  \"department\": \"Warehouse\",\n  \"roleId\": 1,\n  \"baseLocationId\": 1,\n  \"reportingToEmpId\": null,\n  \"isActive\": true\n}",
+          "{\n  \"employeeId\": 1,\n  \"employeeCode\": \"EMP-001\",\n  \"firstName\": \"Rahul\",\n  \"lastName\": \"Sharma\",\n  \"email\": \"rahul.sharma@company.com\",\n  \"phone\": \"9822011111\",\n  \"designation\": \"Store Manager\",\n  \"department\": \"Warehouse\",\n  \"roleId\": 1,\n  \"baseLocationId\": 1,\n  \"reportingToEmpId\": null,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"Employee updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate Employee",
+          "DELETE",
+          "/api/v1/employees/{id}",
+          "Soft-delete (deactivate) a employee record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"Employee deactivated successfully\"\n}"
+        ],
+        [
+          "Get Employee Subordinates",
+          "GET",
+          "/api/v1/employees/{employeeId}/subordinates",
+          "Return employees reporting to a given employee (self-referencing hierarchy) — used for org-chart / approval-routing views.",
+          "None (path param only)",
+          "[\n  {\n    \"employeeId\": 9,\n    \"employeeCode\": \"EMP-009\",\n    \"firstName\": \"Anita\",\n    \"designation\": \"Store Executive\"\n  }\n]"
+        ],
+        [
+          "List User Login",
+          "GET",
+          "/api/v1/users?page=1&pageSize=20&search=&isActive=true&accountStatus=",
+          "Retrieve a paginated, searchable list of user login for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"userId\": 1,\n      \"employeeId\": 1,\n      \"loginId\": \"rahul.sharma\",\n      \"roleId\": 1,\n      \"accountStatus\": \"Active\",\n      \"entityId\": 1,\n      \"buAccessScope\": \"SPECIFIC\",\n      \"locationId\": 1,\n      \"forcePasswordReset\": false,\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get User Login by ID",
+          "GET",
+          "/api/v1/users/{userId}",
+          "Retrieve a single user login record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"userId\": 1,\n  \"employeeId\": 1,\n  \"loginId\": \"rahul.sharma\",\n  \"roleId\": 1,\n  \"accountStatus\": \"Active\",\n  \"entityId\": 1,\n  \"buAccessScope\": \"SPECIFIC\",\n  \"locationId\": 1,\n  \"forcePasswordReset\": false,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ],
+        [
+          "Create User Login",
+          "POST",
+          "/api/v1/users",
+          "Create a new user login record.",
+          "{\n  \"employeeId\": 1,\n  \"loginId\": \"rahul.sharma\",\n  \"roleId\": 1,\n  \"accountStatus\": \"Active\",\n  \"entityId\": 1,\n  \"buAccessScope\": \"SPECIFIC\",\n  \"locationId\": 1,\n  \"forcePasswordReset\": false,\n  \"isActive\": true\n}",
+          "{\n  \"userId\": 1,\n  \"employeeId\": 1,\n  \"loginId\": \"rahul.sharma\",\n  \"roleId\": 1,\n  \"accountStatus\": \"Active\",\n  \"entityId\": 1,\n  \"buAccessScope\": \"SPECIFIC\",\n  \"locationId\": 1,\n  \"forcePasswordReset\": false,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"User Login created successfully\"\n}"
+        ],
+        [
+          "Update User Login",
+          "PUT",
+          "/api/v1/users/{userId}",
+          "Update an existing user login record (full update).",
+          "{\n  \"employeeId\": 1,\n  \"loginId\": \"rahul.sharma\",\n  \"roleId\": 1,\n  \"accountStatus\": \"Active\",\n  \"entityId\": 1,\n  \"buAccessScope\": \"SPECIFIC\",\n  \"locationId\": 1,\n  \"forcePasswordReset\": false,\n  \"isActive\": true\n}",
+          "{\n  \"userId\": 1,\n  \"employeeId\": 1,\n  \"loginId\": \"rahul.sharma\",\n  \"roleId\": 1,\n  \"accountStatus\": \"Active\",\n  \"entityId\": 1,\n  \"buAccessScope\": \"SPECIFIC\",\n  \"locationId\": 1,\n  \"forcePasswordReset\": false,\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\",\n  \"message\": \"User Login updated successfully\"\n}"
+        ],
+        [
+          "Delete / Deactivate User Login",
+          "DELETE",
+          "/api/v1/users/{userId}",
+          "Soft-delete (deactivate) a user login record. Blocked if the record is referenced elsewhere.",
+          "None (path param only)",
+          "{\n  \"message\": \"User Login deactivated successfully\"\n}"
+        ],
+        [
+          "Reset User Password (Admin)",
+          "POST",
+          "/api/v1/users/{userId}/reset-password",
+          "Admin-initiated password reset; sets a temporary password and forcePasswordReset=true.",
+          "None (path param only)",
+          "{\n  \"message\": \"Password reset. Temporary password sent to user's email.\"\n}"
+        ],
+        [
+          "Lock / Unlock User Account",
+          "POST",
+          "/api/v1/users/{userId}/lock-status",
+          "Manually lock or unlock a user account, or clear failed-attempt counter.",
+          "{\n  \"action\": \"unlock\"\n}",
+          "{\n  \"userId\": 1,\n  \"accountStatus\": \"Active\",\n  \"message\": \"Account unlocked\"\n}"
+        ],
+        [
+          "Get / Set User OU Access",
+          "GET",
+          "/api/v1/users/{userId}/ou-access",
+          "Return (GET) or replace (PUT — same endpoint) the list of Operating Units a SPECIFIC-scope login can see (sysm_user_bu_mapping_dtl).",
+          "PUT body: { \"buIds\": [3, 7, 9] }",
+          "{\n  \"userId\": 1,\n  \"buAccessScope\": \"SPECIFIC\",\n  \"buIds\": [\n    3,\n    7,\n    9\n  ]\n}"
+        ],
+        [
+          "List User Access Exception",
+          "GET",
+          "/api/v1/access-exceptions?page=1&pageSize=20&search=&isActive=true&employeeId=&exceptionType=",
+          "Retrieve a paginated, searchable list of user access exception for grid/dropdown binding.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 42,\n  \"data\": [\n    {\n      \"exceptionId\": 1,\n      \"employeeId\": 1,\n      \"exceptionType\": \"Grant\",\n      \"menuCode\": \"vendor-list\",\n      \"reason\": \"Temporary cover for Vendor Master during AM's leave\",\n      \"validFrom\": \"2026-08-01\",\n      \"validUntil\": \"2026-08-15\",\n      \"isActive\": true,\n      \"createdBy\": \"admin\",\n      \"createdOn\": \"2026-01-10T10:00:00\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get User Access Exception by ID",
+          "GET",
+          "/api/v1/access-exceptions/{id}",
+          "Retrieve a single user access exception record by its primary key, for edit-form binding.",
+          "None (path param only)",
+          "{\n  \"exceptionId\": 1,\n  \"employeeId\": 1,\n  \"exceptionType\": \"Grant\",\n  \"menuCode\": \"vendor-list\",\n  \"reason\": \"Temporary cover for Vendor Master during AM's leave\",\n  \"validFrom\": \"2026-08-01\",\n  \"validUntil\": \"2026-08-15\",\n  \"isActive\": true,\n  \"createdBy\": \"admin\",\n  \"createdOn\": \"2026-01-10T10:00:00\"\n}"
+        ]
+      ]
+    },
+    {
+      "sheet": "Transactions - GRN",
+      "shape": [
+        10,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/grn?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/grn/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/grn",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "PUT",
+          "path": "/api/v1/grn/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "DELETE",
+          "path": "/api/v1/grn/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "POST",
+          "path": "/api/v1/grn/{docId}/approve",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 7,
+          "method": "POST",
+          "path": "/api/v1/grn/{docId}/reject",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 8,
+          "method": "GET",
+          "path": "/api/v1/grn/{docId}/print",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 9,
+          "method": "GET",
+          "path": "/api/v1/grn/export?format=xlsx&status=&fromDate=&toDate=",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List GRN",
+          "GET",
+          "/api/v1/grn?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20",
+          "Retrieve a paginated, filterable list of GRN documents for the list/grid screen.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 30,\n  \"data\": [\n    {\n      \"docId\": 101,\n      \"docNo\": \"GRNP-2026-0045\",\n      \"docType\": \"GRN\",\n      \"docDate\": \"2026-07-29\",\n      \"postingDate\": \"2026-07-29\",\n      \"locationId\": 1\n    }\n  ]\n}"
+        ],
+        [
+          "Get GRN by ID",
+          "GET",
+          "/api/v1/grn/{docId}",
+          "Retrieve a single GRN document with its header and all detail lines, for view/edit/print.",
+          "None (path param only)",
+          "{\n  \"docId\": 101,\n  \"docNo\": \"GRNP-2026-0045\",\n  \"docType\": \"GRN\",\n  \"docDate\": \"2026-07-29\",\n  \"postingDate\": \"2026-07-29\",\n  \"locationId\": 1,\n  \"partyId\": 4,\n  \"invoiceNo\": \"INV-9981\",\n  \"invoiceDate\": \"2026-07-25\",\n  \"poNo\": \"PO-2026-0110\",\n  \"poDate\": \"2026-07-15\",\n  \"inspectedByEmpId\": 6,\n  \"totalOrderedQty\": 100,\n  \"totalReceivedQty\": 100,\n  \"totalAcceptedQty\": 98,\n  \"totalRejectedQty\": 2,\n  \"totalAmount\": 245000.0,\n  \"status\": \"Pending Approval\",\n  \"remarks\": \"Partial rejection due to damaged packaging\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 1,\n      \"uomId\": 1,\n      \"orderedQty\": 50,\n      \"receivedQty\": 50,\n      \"acceptedQty\": 49,\n      \"rejectedQty\": 1,\n      \"availableStock\": 34,\n      \"amount\": 122500.0,\n      \"locationId\": 1,\n      \"remark\": \"1 unit damaged\"\n    }\n  ]\n}"
+        ],
+        [
+          "Create GRN",
+          "POST",
+          "/api/v1/grn",
+          "Create a new GRN document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series.",
+          "{\n  \"docType\": \"GRN\",\n  \"docDate\": \"2026-07-29\",\n  \"postingDate\": \"2026-07-29\",\n  \"locationId\": 1,\n  \"partyId\": 4,\n  \"invoiceNo\": \"INV-9981\",\n  \"invoiceDate\": \"2026-07-25\",\n  \"poNo\": \"PO-2026-0110\",\n  \"poDate\": \"2026-07-15\",\n  \"inspectedByEmpId\": 6,\n  \"totalOrderedQty\": 100,\n  \"totalReceivedQty\": 100,\n  \"totalAcceptedQty\": 98,\n  \"totalRejectedQty\": 2,\n  \"totalAmount\": 245000.0,\n  \"remarks\": \"Partial rejection due to damaged packaging\",\n  \"docSubmitAction\": \"SUBMIT | SAVE_DRAFT\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 1,\n      \"uomId\": 1,\n      \"orderedQty\": 50,\n      \"receivedQty\": 50,\n      \"acceptedQty\": 49,\n      \"rejectedQty\": 1,\n      \"availableStock\": 34,\n      \"amount\": 122500.0,\n      \"locationId\": 1,\n      \"remark\": \"1 unit damaged\"\n    }\n  ]\n}",
+          "{\n  \"docId\": 101,\n  \"docNo\": \"GRNP-2026-0045\",\n  \"docType\": \"GRN\",\n  \"docDate\": \"2026-07-29\",\n  \"postingDate\": \"2026-07-29\",\n  \"locationId\": 1,\n  \"partyId\": 4,\n  \"invoiceNo\": \"INV-9981\",\n  \"invoiceDate\": \"2026-07-25\",\n  \"poNo\": \"PO-2026-0110\",\n  \"poDate\": \"2026-07-15\",\n  \"inspectedByEmpId\": 6,\n  \"totalOrderedQty\": 100,\n  \"totalReceivedQty\": 100,\n  \"totalAcceptedQty\": 98,\n  \"totalRejectedQty\": 2,\n  \"totalAmount\": 245000.0,\n  \"status\": \"Pending Approval\",\n  \"remarks\": \"Partial rejection due to damaged packaging\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 1,\n      \"uomId\": 1,\n      \"orderedQty\": 50,\n      \"receivedQty\": 50,\n      \"acceptedQty\": 49,\n      \"rejectedQty\": 1,\n      \"availableStock\": 34,\n      \"amount\": 122500.0,\n      \"locationId\": 1,\n      \"remark\": \"1 unit damaged\"\n    }\n  ],\n  \"message\": \"GRN created successfully\"\n}"
+        ],
+        [
+          "Update GRN",
+          "PUT",
+          "/api/v1/grn/{docId}",
+          "Update a GRN document while it is still editable (typically status = Draft).",
+          "{\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 1,\n      \"uomId\": 1,\n      \"orderedQty\": 50,\n      \"receivedQty\": 50,\n      \"acceptedQty\": 49,\n      \"rejectedQty\": 1,\n      \"availableStock\": 34,\n      \"amount\": 122500.0,\n      \"locationId\": 1,\n      \"remark\": \"1 unit damaged\"\n    }\n  ],\n  \"remarks\": \"Updated remarks\"\n}",
+          "{\n  \"docId\": 101,\n  \"docNo\": \"GRNP-2026-0045\",\n  \"docType\": \"GRN\",\n  \"docDate\": \"2026-07-29\",\n  \"postingDate\": \"2026-07-29\",\n  \"locationId\": 1,\n  \"partyId\": 4,\n  \"invoiceNo\": \"INV-9981\",\n  \"invoiceDate\": \"2026-07-25\",\n  \"poNo\": \"PO-2026-0110\",\n  \"poDate\": \"2026-07-15\",\n  \"inspectedByEmpId\": 6,\n  \"totalOrderedQty\": 100,\n  \"totalReceivedQty\": 100,\n  \"totalAcceptedQty\": 98,\n  \"totalRejectedQty\": 2,\n  \"totalAmount\": 245000.0,\n  \"status\": \"Pending Approval\",\n  \"remarks\": \"Partial rejection due to damaged packaging\",\n  \"message\": \"GRN updated successfully\"\n}"
+        ],
+        [
+          "Delete GRN",
+          "DELETE",
+          "/api/v1/grn/{docId}",
+          "Delete a GRN document. Only permitted while status = Draft; posted documents must be cancelled, not deleted.",
+          "None (path param only)",
+          "{\n  \"message\": \"GRN deleted successfully\"\n}"
+        ],
+        [
+          "Approve GRN",
+          "POST",
+          "/api/v1/grn/{docId}/approve",
+          "Approve a GRN document that is Pending Approval; stamps approved_by / approved_date and moves status forward.",
+          "{\n  \"remarks\": \"Approved \\u2014 quantities verified\"\n}",
+          "{\n  \"docId\": 101,\n  \"status\": \"Approved\",\n  \"approvedBy\": \"Rahul Sharma\",\n  \"approvedDate\": \"2026-07-29\",\n  \"message\": \"Approved successfully\"\n}"
+        ],
+        [
+          "Reject GRN",
+          "POST",
+          "/api/v1/grn/{docId}/reject",
+          "Reject a GRN document that is Pending Approval, with a mandatory reason.",
+          "{\n  \"reason\": \"Quantities do not match physical count\"\n}",
+          "{\n  \"docId\": 101,\n  \"status\": \"Rejected\",\n  \"message\": \"Rejected successfully\"\n}"
+        ],
+        [
+          "Print GRN",
+          "GET",
+          "/api/v1/grn/{docId}/print",
+          "Generate a printable PDF for a GRN document.",
+          "None (path param only)",
+          "Binary: application/pdf"
+        ],
+        [
+          "Export GRN List",
+          "GET",
+          "/api/v1/grn/export?format=xlsx&status=&fromDate=&toDate=",
+          "Export the filtered GRN list to Excel/CSV.",
+          "None (query params only)",
+          "Binary: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ]
+      ]
+    },
+    {
+      "sheet": "Transactions - Gatepass Inward",
+      "shape": [
+        7,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/gatepass/inward?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&docSubtype=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/gatepass/inward/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/gatepass/inward",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "DELETE",
+          "path": "/api/v1/gatepass/inward/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "POST",
+          "path": "/api/v1/gatepass/inward/{docId}/approve",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "GET",
+          "path": "/api/v1/gatepass/inward/{docId}/print",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Gatepass Inward",
+          "GET",
+          "/api/v1/gatepass/inward?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&docSubtype=",
+          "Retrieve a paginated, filterable list of Gatepass Inward documents for the list/grid screen.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 30,\n  \"data\": [\n    {\n      \"docId\": 201,\n      \"docNo\": \"GI-2026-0012\",\n      \"docType\": \"GATEPASS_INWARD\",\n      \"docDate\": \"2026-07-29\",\n      \"locationId\": 1,\n      \"partyId\": 4\n    }\n  ]\n}"
+        ],
+        [
+          "Get Gatepass Inward by ID",
+          "GET",
+          "/api/v1/gatepass/inward/{docId}",
+          "Retrieve a single Gatepass Inward document with its header and all detail lines, for view/edit/print.",
+          "None (path param only)",
+          "{\n  \"docId\": 201,\n  \"docNo\": \"GI-2026-0012\",\n  \"docType\": \"GATEPASS_INWARD\",\n  \"docDate\": \"2026-07-29\",\n  \"locationId\": 1,\n  \"partyId\": 4,\n  \"partyAdd\": \"MIDC Nagpur\",\n  \"partyContactPerson\": \"Suresh Rao\",\n  \"departmentId\": 2,\n  \"docSubtype\": \"Against Returnable Outward\",\n  \"returnFlag\": \"Returnable\",\n  \"refTxnHeaderId\": 188,\n  \"conditionOnReturn\": \"Good\",\n  \"receivedByEmpId\": 8,\n  \"receivedDate\": \"2026-07-29\",\n  \"status\": \"Pending Approval\",\n  \"remarks\": \"Returned after AMC service\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 5,\n      \"uomId\": 1,\n      \"receivedQty\": 2,\n      \"availableStock\": 12,\n      \"locationId\": 1,\n      \"remark\": \"\"\n    }\n  ]\n}"
+        ],
+        [
+          "Create Gatepass Inward",
+          "POST",
+          "/api/v1/gatepass/inward",
+          "Create a new Gatepass Inward document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series.",
+          "{\n  \"docType\": \"GATEPASS_INWARD\",\n  \"docDate\": \"2026-07-29\",\n  \"locationId\": 1,\n  \"partyId\": 4,\n  \"partyAdd\": \"MIDC Nagpur\",\n  \"partyContactPerson\": \"Suresh Rao\",\n  \"departmentId\": 2,\n  \"docSubtype\": \"Against Returnable Outward\",\n  \"returnFlag\": \"Returnable\",\n  \"refTxnHeaderId\": 188,\n  \"conditionOnReturn\": \"Good\",\n  \"receivedByEmpId\": 8,\n  \"receivedDate\": \"2026-07-29\",\n  \"remarks\": \"Returned after AMC service\",\n  \"docSubmitAction\": \"SUBMIT | SAVE_DRAFT\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 5,\n      \"uomId\": 1,\n      \"receivedQty\": 2,\n      \"availableStock\": 12,\n      \"locationId\": 1,\n      \"remark\": \"\"\n    }\n  ]\n}",
+          "{\n  \"docId\": 201,\n  \"docNo\": \"GI-2026-0012\",\n  \"docType\": \"GATEPASS_INWARD\",\n  \"docDate\": \"2026-07-29\",\n  \"locationId\": 1,\n  \"partyId\": 4,\n  \"partyAdd\": \"MIDC Nagpur\",\n  \"partyContactPerson\": \"Suresh Rao\",\n  \"departmentId\": 2,\n  \"docSubtype\": \"Against Returnable Outward\",\n  \"returnFlag\": \"Returnable\",\n  \"refTxnHeaderId\": 188,\n  \"conditionOnReturn\": \"Good\",\n  \"receivedByEmpId\": 8,\n  \"receivedDate\": \"2026-07-29\",\n  \"status\": \"Pending Approval\",\n  \"remarks\": \"Returned after AMC service\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 5,\n      \"uomId\": 1,\n      \"receivedQty\": 2,\n      \"availableStock\": 12,\n      \"locationId\": 1,\n      \"remark\": \"\"\n    }\n  ],\n  \"message\": \"Gatepass Inward created successfully\"\n}"
+        ],
+        [
+          "Delete Gatepass Inward",
+          "DELETE",
+          "/api/v1/gatepass/inward/{docId}",
+          "Delete a Gatepass Inward document. Only permitted while status = Draft; posted documents must be cancelled, not deleted.",
+          "None (path param only)",
+          "{\n  \"message\": \"Gatepass Inward deleted successfully\"\n}"
+        ],
+        [
+          "Approve Returnable Inward",
+          "POST",
+          "/api/v1/gatepass/inward/{docId}/approve",
+          "Approve a returnable Gatepass Inward against its referenced Outward document, closing the returnable loop and crediting stock.",
+          "{\n  \"remarks\": \"Matched against GO-2026-0031, all items returned in good condition\"\n}",
+          "{\n  \"docId\": 201,\n  \"status\": \"Approved\",\n  \"message\": \"Returnable inward approved and stock updated\"\n}"
+        ],
+        [
+          "Print Gatepass Inward",
+          "GET",
+          "/api/v1/gatepass/inward/{docId}/print",
+          "Generate a printable PDF for a Gatepass Inward document.",
+          "None (path param only)",
+          "Binary: application/pdf"
+        ]
+      ]
+    },
+    {
+      "sheet": "Transactions - Gatepass Outward",
+      "shape": [
+        7,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/gatepass/outward?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&returnFlag=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/gatepass/outward/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/gatepass/outward",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "PUT",
+          "path": "/api/v1/gatepass/outward/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "DELETE",
+          "path": "/api/v1/gatepass/outward/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "GET",
+          "path": "/api/v1/gatepass/outward/{docId}/print",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Gatepass Outward",
+          "GET",
+          "/api/v1/gatepass/outward?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&returnFlag=",
+          "Retrieve a paginated, filterable list of Gatepass Outward documents for the list/grid screen.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 30,\n  \"data\": [\n    {\n      \"docId\": 301,\n      \"docNo\": \"GO-2026-0031\",\n      \"docType\": \"GATEPASS_OUTWARD\",\n      \"docDate\": \"2026-07-29\",\n      \"partyId\": 9,\n      \"shipTo\": \"Customer site, MIDC Butibori\"\n    }\n  ]\n}"
+        ],
+        [
+          "Get Gatepass Outward by ID",
+          "GET",
+          "/api/v1/gatepass/outward/{docId}",
+          "Retrieve a single Gatepass Outward document with its header and all detail lines, for view/edit/print.",
+          "None (path param only)",
+          "{\n  \"docId\": 301,\n  \"docNo\": \"GO-2026-0031\",\n  \"docType\": \"GATEPASS_OUTWARD\",\n  \"docDate\": \"2026-07-29\",\n  \"partyId\": 9,\n  \"shipTo\": \"Customer site, MIDC Butibori\",\n  \"departmentId\": 2,\n  \"returnFlag\": \"Returnable\",\n  \"purpose\": \"Equipment sent for offsite repair\",\n  \"handedOverToEmpId\": 11,\n  \"handoverDate\": \"2026-07-29\",\n  \"receivedByName\": \"Vikram Patil\",\n  \"receivedDesignation\": \"Site Supervisor\",\n  \"totalAmount\": 18000.0,\n  \"footerRemark\": \"Please handle with care\",\n  \"status\": \"Draft\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 5,\n      \"uomId\": 1,\n      \"requestedQty\": 2,\n      \"availableStock\": 14,\n      \"amount\": 18000.0,\n      \"locationId\": 1,\n      \"remark\": \"\"\n    }\n  ]\n}"
+        ],
+        [
+          "Create Gatepass Outward",
+          "POST",
+          "/api/v1/gatepass/outward",
+          "Create a new Gatepass Outward document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series.",
+          "{\n  \"docType\": \"GATEPASS_OUTWARD\",\n  \"docDate\": \"2026-07-29\",\n  \"partyId\": 9,\n  \"shipTo\": \"Customer site, MIDC Butibori\",\n  \"departmentId\": 2,\n  \"returnFlag\": \"Returnable\",\n  \"purpose\": \"Equipment sent for offsite repair\",\n  \"handedOverToEmpId\": 11,\n  \"handoverDate\": \"2026-07-29\",\n  \"receivedByName\": \"Vikram Patil\",\n  \"receivedDesignation\": \"Site Supervisor\",\n  \"totalAmount\": 18000.0,\n  \"footerRemark\": \"Please handle with care\",\n  \"docSubmitAction\": \"SUBMIT | SAVE_DRAFT\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 5,\n      \"uomId\": 1,\n      \"requestedQty\": 2,\n      \"availableStock\": 14,\n      \"amount\": 18000.0,\n      \"locationId\": 1,\n      \"remark\": \"\"\n    }\n  ]\n}",
+          "{\n  \"docId\": 301,\n  \"docNo\": \"GO-2026-0031\",\n  \"docType\": \"GATEPASS_OUTWARD\",\n  \"docDate\": \"2026-07-29\",\n  \"partyId\": 9,\n  \"shipTo\": \"Customer site, MIDC Butibori\",\n  \"departmentId\": 2,\n  \"returnFlag\": \"Returnable\",\n  \"purpose\": \"Equipment sent for offsite repair\",\n  \"handedOverToEmpId\": 11,\n  \"handoverDate\": \"2026-07-29\",\n  \"receivedByName\": \"Vikram Patil\",\n  \"receivedDesignation\": \"Site Supervisor\",\n  \"totalAmount\": 18000.0,\n  \"footerRemark\": \"Please handle with care\",\n  \"status\": \"Draft\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 5,\n      \"uomId\": 1,\n      \"requestedQty\": 2,\n      \"availableStock\": 14,\n      \"amount\": 18000.0,\n      \"locationId\": 1,\n      \"remark\": \"\"\n    }\n  ],\n  \"message\": \"Gatepass Outward created successfully\"\n}"
+        ],
+        [
+          "Update Gatepass Outward",
+          "PUT",
+          "/api/v1/gatepass/outward/{docId}",
+          "Update a Gatepass Outward document while it is still editable (typically status = Draft).",
+          "{\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 5,\n      \"uomId\": 1,\n      \"requestedQty\": 2,\n      \"availableStock\": 14,\n      \"amount\": 18000.0,\n      \"locationId\": 1,\n      \"remark\": \"\"\n    }\n  ],\n  \"remarks\": \"Updated remarks\"\n}",
+          "{\n  \"docId\": 301,\n  \"docNo\": \"GO-2026-0031\",\n  \"docType\": \"GATEPASS_OUTWARD\",\n  \"docDate\": \"2026-07-29\",\n  \"partyId\": 9,\n  \"shipTo\": \"Customer site, MIDC Butibori\",\n  \"departmentId\": 2,\n  \"returnFlag\": \"Returnable\",\n  \"purpose\": \"Equipment sent for offsite repair\",\n  \"handedOverToEmpId\": 11,\n  \"handoverDate\": \"2026-07-29\",\n  \"receivedByName\": \"Vikram Patil\",\n  \"receivedDesignation\": \"Site Supervisor\",\n  \"totalAmount\": 18000.0,\n  \"footerRemark\": \"Please handle with care\",\n  \"status\": \"Draft\",\n  \"message\": \"Gatepass Outward updated successfully\"\n}"
+        ],
+        [
+          "Delete Gatepass Outward",
+          "DELETE",
+          "/api/v1/gatepass/outward/{docId}",
+          "Delete a Gatepass Outward document. Only permitted while status = Draft; posted documents must be cancelled, not deleted.",
+          "None (path param only)",
+          "{\n  \"message\": \"Gatepass Outward deleted successfully\"\n}"
+        ],
+        [
+          "Print Gatepass Outward",
+          "GET",
+          "/api/v1/gatepass/outward/{docId}/print",
+          "Generate a printable PDF for a Gatepass Outward document.",
+          "None (path param only)",
+          "Binary: application/pdf"
+        ]
+      ]
+    },
+    {
+      "sheet": "Transactions - Material Requisi",
+      "shape": [
+        9,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/requisitions?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&departmentId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/requisitions/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/requisitions",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "PUT",
+          "path": "/api/v1/requisitions/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "DELETE",
+          "path": "/api/v1/requisitions/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "POST",
+          "path": "/api/v1/requisitions/{docId}/approve",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 7,
+          "method": "POST",
+          "path": "/api/v1/requisitions/{docId}/reject",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 8,
+          "method": "GET",
+          "path": "/api/v1/requisitions/{docId}/print",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Material Requisition",
+          "GET",
+          "/api/v1/requisitions?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&departmentId=",
+          "Retrieve a paginated, filterable list of Material Requisition documents for the list/grid screen.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 30,\n  \"data\": [\n    {\n      \"docId\": 401,\n      \"docNo\": \"MR-2026-0088\",\n      \"docType\": \"MATERIAL_REQUISITION\",\n      \"docDate\": \"2026-07-29\",\n      \"requiredByDate\": \"2026-08-02\",\n      \"toLocationId\": 2\n    }\n  ]\n}"
+        ],
+        [
+          "Get Material Requisition by ID",
+          "GET",
+          "/api/v1/requisitions/{docId}",
+          "Retrieve a single Material Requisition document with its header and all detail lines, for view/edit/print.",
+          "None (path param only)",
+          "{\n  \"docId\": 401,\n  \"docNo\": \"MR-2026-0088\",\n  \"docType\": \"MATERIAL_REQUISITION\",\n  \"docDate\": \"2026-07-29\",\n  \"requiredByDate\": \"2026-08-02\",\n  \"toLocationId\": 2,\n  \"departmentId\": 3,\n  \"initiatedByEmpId\": 14,\n  \"employeeRefCode\": \"EMP-014\",\n  \"designation\": \"Site Engineer\",\n  \"status\": \"Pending Approval\",\n  \"remarks\": \"Required for scheduled maintenance\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"uomId\": 1,\n      \"requestedQty\": 5,\n      \"availableStock\": 40,\n      \"locationId\": 2,\n      \"remark\": \"\"\n    }\n  ]\n}"
+        ],
+        [
+          "Create Material Requisition",
+          "POST",
+          "/api/v1/requisitions",
+          "Create a new Material Requisition document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series.",
+          "{\n  \"docType\": \"MATERIAL_REQUISITION\",\n  \"docDate\": \"2026-07-29\",\n  \"requiredByDate\": \"2026-08-02\",\n  \"toLocationId\": 2,\n  \"departmentId\": 3,\n  \"initiatedByEmpId\": 14,\n  \"employeeRefCode\": \"EMP-014\",\n  \"designation\": \"Site Engineer\",\n  \"remarks\": \"Required for scheduled maintenance\",\n  \"docSubmitAction\": \"SUBMIT | SAVE_DRAFT\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"uomId\": 1,\n      \"requestedQty\": 5,\n      \"availableStock\": 40,\n      \"locationId\": 2,\n      \"remark\": \"\"\n    }\n  ]\n}",
+          "{\n  \"docId\": 401,\n  \"docNo\": \"MR-2026-0088\",\n  \"docType\": \"MATERIAL_REQUISITION\",\n  \"docDate\": \"2026-07-29\",\n  \"requiredByDate\": \"2026-08-02\",\n  \"toLocationId\": 2,\n  \"departmentId\": 3,\n  \"initiatedByEmpId\": 14,\n  \"employeeRefCode\": \"EMP-014\",\n  \"designation\": \"Site Engineer\",\n  \"status\": \"Pending Approval\",\n  \"remarks\": \"Required for scheduled maintenance\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"uomId\": 1,\n      \"requestedQty\": 5,\n      \"availableStock\": 40,\n      \"locationId\": 2,\n      \"remark\": \"\"\n    }\n  ],\n  \"message\": \"Material Requisition created successfully\"\n}"
+        ],
+        [
+          "Update Material Requisition",
+          "PUT",
+          "/api/v1/requisitions/{docId}",
+          "Update a Material Requisition document while it is still editable (typically status = Draft).",
+          "{\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"uomId\": 1,\n      \"requestedQty\": 5,\n      \"availableStock\": 40,\n      \"locationId\": 2,\n      \"remark\": \"\"\n    }\n  ],\n  \"remarks\": \"Updated remarks\"\n}",
+          "{\n  \"docId\": 401,\n  \"docNo\": \"MR-2026-0088\",\n  \"docType\": \"MATERIAL_REQUISITION\",\n  \"docDate\": \"2026-07-29\",\n  \"requiredByDate\": \"2026-08-02\",\n  \"toLocationId\": 2,\n  \"departmentId\": 3,\n  \"initiatedByEmpId\": 14,\n  \"employeeRefCode\": \"EMP-014\",\n  \"designation\": \"Site Engineer\",\n  \"status\": \"Pending Approval\",\n  \"remarks\": \"Required for scheduled maintenance\",\n  \"message\": \"Material Requisition updated successfully\"\n}"
+        ],
+        [
+          "Delete Material Requisition",
+          "DELETE",
+          "/api/v1/requisitions/{docId}",
+          "Delete a Material Requisition document. Only permitted while status = Draft; posted documents must be cancelled, not deleted.",
+          "None (path param only)",
+          "{\n  \"message\": \"Material Requisition deleted successfully\"\n}"
+        ],
+        [
+          "Approve Material Requisition",
+          "POST",
+          "/api/v1/requisitions/{docId}/approve",
+          "Approve a Material Requisition document that is Pending Approval; stamps approved_by / approved_date and moves status forward.",
+          "{\n  \"remarks\": \"Approved \\u2014 quantities verified\"\n}",
+          "{\n  \"docId\": 101,\n  \"status\": \"Approved\",\n  \"approvedBy\": \"Rahul Sharma\",\n  \"approvedDate\": \"2026-07-29\",\n  \"message\": \"Approved successfully\"\n}"
+        ],
+        [
+          "Reject Material Requisition",
+          "POST",
+          "/api/v1/requisitions/{docId}/reject",
+          "Reject a Material Requisition document that is Pending Approval, with a mandatory reason.",
+          "{\n  \"reason\": \"Quantities do not match physical count\"\n}",
+          "{\n  \"docId\": 101,\n  \"status\": \"Rejected\",\n  \"message\": \"Rejected successfully\"\n}"
+        ],
+        [
+          "Print Material Requisition",
+          "GET",
+          "/api/v1/requisitions/{docId}/print",
+          "Generate a printable PDF for a Material Requisition document.",
+          "None (path param only)",
+          "Binary: application/pdf"
+        ]
+      ]
+    },
+    {
+      "sheet": "Transactions - Material Issue",
+      "shape": [
+        7,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/material-issues?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&refTxnHeaderId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/material-issues/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/material-issues",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "DELETE",
+          "path": "/api/v1/material-issues/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 5,
+          "method": "GET",
+          "path": "/api/v1/material-issues/{docId}/print",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 6,
+          "method": "GET",
+          "path": "/api/v1/material-issues/pending-requisitions?locationId=",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Material Issue",
+          "GET",
+          "/api/v1/material-issues?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&refTxnHeaderId=",
+          "Retrieve a paginated, filterable list of Material Issue documents for the list/grid screen.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 30,\n  \"data\": [\n    {\n      \"docId\": 501,\n      \"docNo\": \"MI-2026-0075\",\n      \"docType\": \"MATERIAL_ISSUE\",\n      \"docDate\": \"2026-07-29\",\n      \"requiredByDate\": \"2026-08-02\",\n      \"toLocationId\": 2\n    }\n  ]\n}"
+        ],
+        [
+          "Get Material Issue by ID",
+          "GET",
+          "/api/v1/material-issues/{docId}",
+          "Retrieve a single Material Issue document with its header and all detail lines, for view/edit/print.",
+          "None (path param only)",
+          "{\n  \"docId\": 501,\n  \"docNo\": \"MI-2026-0075\",\n  \"docType\": \"MATERIAL_ISSUE\",\n  \"docDate\": \"2026-07-29\",\n  \"requiredByDate\": \"2026-08-02\",\n  \"toLocationId\": 2,\n  \"departmentId\": 3,\n  \"refTxnHeaderId\": 401,\n  \"initiatedByEmpId\": 14,\n  \"receivedByEmpId\": 14,\n  \"receivedDate\": \"2026-07-29\",\n  \"status\": \"Completed\",\n  \"remarks\": \"Issued against MR-2026-0088\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"uomId\": 1,\n      \"requestedQty\": 5,\n      \"availableStock\": 35,\n      \"locationId\": 2,\n      \"remark\": \"\"\n    }\n  ]\n}"
+        ],
+        [
+          "Create Material Issue",
+          "POST",
+          "/api/v1/material-issues",
+          "Create a new Material Issue document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series.",
+          "{\n  \"docType\": \"MATERIAL_ISSUE\",\n  \"docDate\": \"2026-07-29\",\n  \"requiredByDate\": \"2026-08-02\",\n  \"toLocationId\": 2,\n  \"departmentId\": 3,\n  \"refTxnHeaderId\": 401,\n  \"initiatedByEmpId\": 14,\n  \"receivedByEmpId\": 14,\n  \"receivedDate\": \"2026-07-29\",\n  \"remarks\": \"Issued against MR-2026-0088\",\n  \"docSubmitAction\": \"SUBMIT | SAVE_DRAFT\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"uomId\": 1,\n      \"requestedQty\": 5,\n      \"availableStock\": 35,\n      \"locationId\": 2,\n      \"remark\": \"\"\n    }\n  ]\n}",
+          "{\n  \"docId\": 501,\n  \"docNo\": \"MI-2026-0075\",\n  \"docType\": \"MATERIAL_ISSUE\",\n  \"docDate\": \"2026-07-29\",\n  \"requiredByDate\": \"2026-08-02\",\n  \"toLocationId\": 2,\n  \"departmentId\": 3,\n  \"refTxnHeaderId\": 401,\n  \"initiatedByEmpId\": 14,\n  \"receivedByEmpId\": 14,\n  \"receivedDate\": \"2026-07-29\",\n  \"status\": \"Completed\",\n  \"remarks\": \"Issued against MR-2026-0088\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"uomId\": 1,\n      \"requestedQty\": 5,\n      \"availableStock\": 35,\n      \"locationId\": 2,\n      \"remark\": \"\"\n    }\n  ],\n  \"message\": \"Material Issue created successfully\"\n}"
+        ],
+        [
+          "Delete Material Issue",
+          "DELETE",
+          "/api/v1/material-issues/{docId}",
+          "Delete a Material Issue document. Only permitted while status = Draft; posted documents must be cancelled, not deleted.",
+          "None (path param only)",
+          "{\n  \"message\": \"Material Issue deleted successfully\"\n}"
+        ],
+        [
+          "Print Material Issue",
+          "GET",
+          "/api/v1/material-issues/{docId}/print",
+          "Generate a printable PDF for a Material Issue document.",
+          "None (path param only)",
+          "Binary: application/pdf"
+        ],
+        [
+          "Get Pending Requisitions for Issue",
+          "GET",
+          "/api/v1/material-issues/pending-requisitions?locationId=",
+          "Return Approved Material Requisitions not yet fully issued, to populate the 'issue against requisition' picker.",
+          "None (query params only)",
+          "[\n  {\n    \"docId\": 401,\n    \"docNo\": \"MR-2026-0088\",\n    \"requiredByDate\": \"2026-08-02\",\n    \"pendingLines\": 1\n  }\n]"
+        ]
+      ]
+    },
+    {
+      "sheet": "Transactions - Opening Stock",
+      "shape": [
+        5,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/opening-stock?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&entityId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/opening-stock/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/opening-stock",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "PUT",
+          "path": "/api/v1/opening-stock/{docId}",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Opening Stock",
+          "GET",
+          "/api/v1/opening-stock?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&entityId=",
+          "Retrieve a paginated, filterable list of Opening Stock documents for the list/grid screen.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 30,\n  \"data\": [\n    {\n      \"docId\": 601,\n      \"docNo\": \"OST-2026-0004\",\n      \"docType\": \"OPENING_STOCK\",\n      \"docDate\": \"2026-04-01\",\n      \"entityId\": 1,\n      \"locationId\": 1\n    }\n  ]\n}"
+        ],
+        [
+          "Get Opening Stock by ID",
+          "GET",
+          "/api/v1/opening-stock/{docId}",
+          "Retrieve a single Opening Stock document with its header and all detail lines, for view/edit/print.",
+          "None (path param only)",
+          "{\n  \"docId\": 601,\n  \"docNo\": \"OST-2026-0004\",\n  \"docType\": \"OPENING_STOCK\",\n  \"docDate\": \"2026-04-01\",\n  \"entityId\": 1,\n  \"locationId\": 1,\n  \"initiatedByEmpId\": 3,\n  \"status\": \"Completed\",\n  \"remarks\": \"FY2026-27 opening balance\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 8,\n      \"qty\": 120,\n      \"rate\": 450.0,\n      \"mrp\": 500.0,\n      \"batchLotNo\": \"B-2026-01\",\n      \"mfgDate\": \"2026-01-15\",\n      \"expiryDate\": \"2027-01-15\",\n      \"locationBin\": \"Rack A-12-B3\",\n      \"remark\": \"\"\n    }\n  ]\n}"
+        ],
+        [
+          "Create Opening Stock",
+          "POST",
+          "/api/v1/opening-stock",
+          "Create a new Opening Stock document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series.",
+          "{\n  \"docType\": \"OPENING_STOCK\",\n  \"docDate\": \"2026-04-01\",\n  \"entityId\": 1,\n  \"locationId\": 1,\n  \"initiatedByEmpId\": 3,\n  \"remarks\": \"FY2026-27 opening balance\",\n  \"docSubmitAction\": \"SUBMIT | SAVE_DRAFT\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 8,\n      \"qty\": 120,\n      \"rate\": 450.0,\n      \"mrp\": 500.0,\n      \"batchLotNo\": \"B-2026-01\",\n      \"mfgDate\": \"2026-01-15\",\n      \"expiryDate\": \"2027-01-15\",\n      \"locationBin\": \"Rack A-12-B3\",\n      \"remark\": \"\"\n    }\n  ]\n}",
+          "{\n  \"docId\": 601,\n  \"docNo\": \"OST-2026-0004\",\n  \"docType\": \"OPENING_STOCK\",\n  \"docDate\": \"2026-04-01\",\n  \"entityId\": 1,\n  \"locationId\": 1,\n  \"initiatedByEmpId\": 3,\n  \"status\": \"Completed\",\n  \"remarks\": \"FY2026-27 opening balance\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 8,\n      \"qty\": 120,\n      \"rate\": 450.0,\n      \"mrp\": 500.0,\n      \"batchLotNo\": \"B-2026-01\",\n      \"mfgDate\": \"2026-01-15\",\n      \"expiryDate\": \"2027-01-15\",\n      \"locationBin\": \"Rack A-12-B3\",\n      \"remark\": \"\"\n    }\n  ],\n  \"message\": \"Opening Stock created successfully\"\n}"
+        ],
+        [
+          "Update Opening Stock",
+          "PUT",
+          "/api/v1/opening-stock/{docId}",
+          "Update a Opening Stock document while it is still editable (typically status = Draft).",
+          "{\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 8,\n      \"qty\": 120,\n      \"rate\": 450.0,\n      \"mrp\": 500.0,\n      \"batchLotNo\": \"B-2026-01\",\n      \"mfgDate\": \"2026-01-15\",\n      \"expiryDate\": \"2027-01-15\",\n      \"locationBin\": \"Rack A-12-B3\",\n      \"remark\": \"\"\n    }\n  ],\n  \"remarks\": \"Updated remarks\"\n}",
+          "{\n  \"docId\": 601,\n  \"docNo\": \"OST-2026-0004\",\n  \"docType\": \"OPENING_STOCK\",\n  \"docDate\": \"2026-04-01\",\n  \"entityId\": 1,\n  \"locationId\": 1,\n  \"initiatedByEmpId\": 3,\n  \"status\": \"Completed\",\n  \"remarks\": \"FY2026-27 opening balance\",\n  \"message\": \"Opening Stock updated successfully\"\n}"
+        ]
+      ]
+    },
+    {
+      "sheet": "Transactions - Material Transfe",
+      "shape": [
+        5,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/transfers?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&fromLocationId=&toLocationId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/transfers/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/transfers",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "GET",
+          "path": "/api/v1/transfers/{docId}/print",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Material Transfer",
+          "GET",
+          "/api/v1/transfers?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&fromLocationId=&toLocationId=",
+          "Retrieve a paginated, filterable list of Material Transfer documents for the list/grid screen.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 30,\n  \"data\": [\n    {\n      \"docId\": 701,\n      \"docNo\": \"TRF-2026-0021\",\n      \"docType\": \"MATERIAL_TRANSFER\",\n      \"docDate\": \"2026-07-29\",\n      \"fromLocationId\": 1,\n      \"toLocationId\": 2\n    }\n  ]\n}"
+        ],
+        [
+          "Get Material Transfer by ID",
+          "GET",
+          "/api/v1/transfers/{docId}",
+          "Retrieve a single Material Transfer document with its header and all detail lines, for view/edit/print.",
+          "None (path param only)",
+          "{\n  \"docId\": 701,\n  \"docNo\": \"TRF-2026-0021\",\n  \"docType\": \"MATERIAL_TRANSFER\",\n  \"docDate\": \"2026-07-29\",\n  \"fromLocationId\": 1,\n  \"toLocationId\": 2,\n  \"initiatedByEmpId\": 8,\n  \"status\": \"Completed\",\n  \"remarks\": \"Stock rebalancing between stores\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 8,\n      \"unit\": \"PCS\",\n      \"qty\": 20,\n      \"remark\": \"\"\n    }\n  ]\n}"
+        ],
+        [
+          "Create Material Transfer",
+          "POST",
+          "/api/v1/transfers",
+          "Create a new Material Transfer document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series.",
+          "{\n  \"docType\": \"MATERIAL_TRANSFER\",\n  \"docDate\": \"2026-07-29\",\n  \"fromLocationId\": 1,\n  \"toLocationId\": 2,\n  \"initiatedByEmpId\": 8,\n  \"remarks\": \"Stock rebalancing between stores\",\n  \"docSubmitAction\": \"SUBMIT | SAVE_DRAFT\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 8,\n      \"unit\": \"PCS\",\n      \"qty\": 20,\n      \"remark\": \"\"\n    }\n  ]\n}",
+          "{\n  \"docId\": 701,\n  \"docNo\": \"TRF-2026-0021\",\n  \"docType\": \"MATERIAL_TRANSFER\",\n  \"docDate\": \"2026-07-29\",\n  \"fromLocationId\": 1,\n  \"toLocationId\": 2,\n  \"initiatedByEmpId\": 8,\n  \"status\": \"Completed\",\n  \"remarks\": \"Stock rebalancing between stores\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 8,\n      \"unit\": \"PCS\",\n      \"qty\": 20,\n      \"remark\": \"\"\n    }\n  ],\n  \"message\": \"Material Transfer created successfully\"\n}"
+        ],
+        [
+          "Print Material Transfer",
+          "GET",
+          "/api/v1/transfers/{docId}/print",
+          "Generate a printable PDF for a Material Transfer document.",
+          "None (path param only)",
+          "Binary: application/pdf"
+        ]
+      ]
+    },
+    {
+      "sheet": "Transactions - Material Return",
+      "shape": [
+        5,
+        7
+      ],
+      "sections": [
+        "API Name"
+      ],
+      "endpoints": [
+        {
+          "row": 1,
+          "method": "GET",
+          "path": "/api/v1/returns?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&refTxnHeaderId=",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 2,
+          "method": "GET",
+          "path": "/api/v1/returns/{docId}",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 3,
+          "method": "POST",
+          "path": "/api/v1/returns",
+          "description": "",
+          "fields": []
+        },
+        {
+          "row": 4,
+          "method": "GET",
+          "path": "/api/v1/returns/{docId}/print",
+          "description": "",
+          "fields": []
+        }
+      ],
+      "raw_preview": [
+        [
+          "API Name",
+          "Method",
+          "URL",
+          "Purpose",
+          "Request Payload (example)",
+          "Response (example)"
+        ],
+        [
+          "List Material Return",
+          "GET",
+          "/api/v1/returns?status=&fromDate=&toDate=&locationId=&page=1&pageSize=20&refTxnHeaderId=",
+          "Retrieve a paginated, filterable list of Material Return documents for the list/grid screen.",
+          "None (query params only)",
+          "{\n  \"page\": 1,\n  \"pageSize\": 20,\n  \"totalRecords\": 30,\n  \"data\": [\n    {\n      \"docId\": 801,\n      \"docNo\": \"MRET-2026-0009\",\n      \"docType\": \"MATERIAL_RETURN\",\n      \"docDate\": \"2026-07-29\",\n      \"toLocationId\": 1,\n      \"refTxnHeaderId\": 401\n    }\n  ]\n}"
+        ],
+        [
+          "Get Material Return by ID",
+          "GET",
+          "/api/v1/returns/{docId}",
+          "Retrieve a single Material Return document with its header and all detail lines, for view/edit/print.",
+          "None (path param only)",
+          "{\n  \"docId\": 801,\n  \"docNo\": \"MRET-2026-0009\",\n  \"docType\": \"MATERIAL_RETURN\",\n  \"docDate\": \"2026-07-29\",\n  \"toLocationId\": 1,\n  \"refTxnHeaderId\": 401,\n  \"referenceNo\": \"MR-2026-0088\",\n  \"initiatedByEmpId\": 14,\n  \"status\": \"Completed\",\n  \"remarks\": \"Excess material returned to store\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"unit\": \"PCS\",\n      \"qty\": 3,\n      \"itemCondition\": \"Good\",\n      \"remark\": \"\"\n    }\n  ]\n}"
+        ],
+        [
+          "Create Material Return",
+          "POST",
+          "/api/v1/returns",
+          "Create a new Material Return document (header + lines) as Draft or submit directly, per docSubmitAction. Auto-generates docNo from the doc-type series.",
+          "{\n  \"docType\": \"MATERIAL_RETURN\",\n  \"docDate\": \"2026-07-29\",\n  \"toLocationId\": 1,\n  \"refTxnHeaderId\": 401,\n  \"referenceNo\": \"MR-2026-0088\",\n  \"initiatedByEmpId\": 14,\n  \"remarks\": \"Excess material returned to store\",\n  \"docSubmitAction\": \"SUBMIT | SAVE_DRAFT\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"unit\": \"PCS\",\n      \"qty\": 3,\n      \"itemCondition\": \"Good\",\n      \"remark\": \"\"\n    }\n  ]\n}",
+          "{\n  \"docId\": 801,\n  \"docNo\": \"MRET-2026-0009\",\n  \"docType\": \"MATERIAL_RETURN\",\n  \"docDate\": \"2026-07-29\",\n  \"toLocationId\": 1,\n  \"refTxnHeaderId\": 401,\n  \"referenceNo\": \"MR-2026-0088\",\n  \"initiatedByEmpId\": 14,\n  \"status\": \"Completed\",\n  \"remarks\": \"Excess material returned to store\",\n  \"lines\": [\n    {\n      \"srNo\": 1,\n      \"itemId\": 12,\n      \"unit\": \"PCS\",\n      \"qty\": 3,\n      \"itemCondition\": \"Good\",\n      \"remark\": \"\"\n    }\n  ],\n  \"message\": \"Material Return created successfully\"\n}"
+        ],
+        [
+          "Print Material Return",
+          "GET",
+          "/api/v1/returns/{docId}/print",
+          "Generate a printable PDF for a Material Return document.",
+          "None (path param only)",
+          "Binary: application/pdf"
+        ]
+      ]
+    }
+  ]
+}

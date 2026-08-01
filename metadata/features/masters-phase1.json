@@ -1,0 +1,49 @@
+{
+  "id": "masters-phase1",
+  "status": "done",
+  "description": "All Phase 1 master list/form screens wired to live /api/v1 masters (units, categories, subcategories, general types/masters, items, vendors, entities, business-units, locations, roles, employees, users, access-exceptions). Menu Access loads roles from API; permission matrix save still UI-only.",
+  "files": [
+    "frontend/src/features/masters/MasterPages.tsx",
+    "frontend/src/features/masters/SimpleMasterModule.tsx",
+    "frontend/src/api/masters.ts",
+    "frontend/src/api/client.ts",
+    "frontend/src/types/masters.ts"
+  ],
+  "api_endpoints": [
+    "GET/POST/PUT /units",
+    "GET/POST/PUT /categories",
+    "GET/POST/PUT /subcategories",
+    "GET/POST/PUT /general-types",
+    "GET/POST/PUT /general-masters",
+    "GET/POST/PUT /items",
+    "GET/POST/PUT /vendors",
+    "GET/POST/PUT /entities",
+    "GET/POST/PUT /business-units",
+    "GET/POST/PUT /locations",
+    "GET/POST/PUT /roles",
+    "GET/POST/PUT /employees",
+    "GET/POST/PUT /users",
+    "GET/POST/PUT /access-exceptions",
+    "GET /menus"
+  ],
+  "db_tables": [
+    "unit_mst",
+    "category_mst",
+    "subcategory_mst",
+    "gentype_mst",
+    "genmaster_mst",
+    "inv_item_mst",
+    "inv_vendor_mst",
+    "org_entity_mst",
+    "org_businessunit_mst",
+    "org_location_mst",
+    "sysm_roles_mst",
+    "hrc_employee_mst",
+    "sysm_userlogin_mst",
+    "sysm_useraccess_exception_dtl",
+    "sysm_menutree_mst"
+  ],
+  "depends_on": ["app-shell", "auth-login"],
+  "notes": "JWT required for all /api/**. FK selects use API ids. GET /menus returns raw array not PageResponse. Role permission matrix + Menu Access save not persisted yet.",
+  "updated": "2026-07-29"
+}

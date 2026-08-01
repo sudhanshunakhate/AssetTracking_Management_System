@@ -1,0 +1,23 @@
+{
+  "features": {
+    "auth-login": "features/auth-login.json",
+    "app-shell": "features/app-shell.json",
+    "dashboard": "features/dashboard.json",
+    "masters-phase1": "features/masters-phase1.json",
+    "transactions-phase2": "features/transactions-phase2.json",
+    "store-requisition": "features/store-requisition.json",
+    "goods-receipt-note": "features/goods-receipt-note.json",
+    "reports-phase2": "features/reports-phase2.json"
+  },
+  "modules": {
+    "frontend/src/features/auth": "modules/features-auth.json",
+    "frontend/src/features/masters": "modules/features-masters.json",
+    "frontend/src/features/transactions": "modules/features-transactions.json",
+    "frontend/src/features/reports": "modules/features-reports.json",
+    "frontend/src/components/react-bits": "modules/react-bits.json",
+    "backend": "modules/backend-api.json"
+  },
+  "api": {},
+  "db_tables": ["caits_local.*"],
+  "last_updated": "2026-08-01T07:35:00Z"
+}
