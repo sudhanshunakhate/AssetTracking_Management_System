@@ -7,10 +7,12 @@
     "frontend/src/features/transactions/GatepassPage.tsx",
     "frontend/src/api/transactions.ts",
     "frontend/src/types/transactions.ts",
-    "frontend/src/config/navigation.ts"
+    "frontend/src/config/navigation.ts",
+    "frontend/src/features/masters/SimpleMasterModule.tsx"
   ],
   "api_endpoints": [
-    "GET/POST /opening-stock",
+    "GET/POST/PUT /opening-stock",
+    "GET /opening-stock/{docId}",
     "GET/POST/PUT /requisitions",
     "GET/POST/PUT /grn",
     "GET/POST /gatepass/inward",
@@ -21,6 +23,6 @@
   ],
   "db_tables": ["txn_header_mst", "txn_detail_dtl", "inv_stock_mst"],
   "depends_on": ["app-shell", "masters-phase1", "auth-login"],
-  "notes": "List shape is TxnDtos.ListItem (header-level). Line-level item/qty shown on create forms. Issues/transfers/returns have no PUT on backend. Approve/submit stock posting not wired in UI yet.",
-  "updated": "2026-07-29"
+  "notes": "Opening Stock form maps all API/DB line fields (qty, rate, mrp, batchLotNo, mfgDate, expiryDate, locationBin). Edit loads GET /opening-stock/{docId}. Entry No is auto OST-yyyy-####. List includes entityId.",
+  "updated": "2026-07-31"
 }

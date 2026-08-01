@@ -4,6 +4,8 @@ import { Pill } from '@/components/ui/Badge'
 import { statusColumn, type Column } from '@/components/ui/DataTable'
 import {
   createTxn,
+  fetchTxn,
+  mapOpeningStockForm,
   numOrUndef,
   todayIso,
   updateTxn,
@@ -58,6 +60,8 @@ function TxnRoutes({
   onSave,
   menuCode,
   listLoading = false,
+  loadRecord,
+  readOnlyFields,
 }: {
   base: string
   title: string
@@ -73,6 +77,8 @@ function TxnRoutes({
   onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
   menuCode?: string
   listLoading?: boolean
+  loadRecord?: (id: string) => Promise<Record<string, unknown> | null>
+  readOnlyFields?: string[]
 }) {
   const shared = {
     title,
@@ -89,6 +95,8 @@ function TxnRoutes({
     onSave,
     menuCode,
     listLoading,
+    loadRecord,
+    readOnlyFields,
   }
   return (
     <Routes>
@@ -136,6 +144,8 @@ function lineFromForm(values: Record<string, unknown>): DocumentRequest['lines']
   }
   const qty = numOrUndef(values.qty) ?? 1
   const rate = numOrUndef(values.rate) ?? 0
+  const mfgDate = String(values.mfgDate ?? '').trim() || undefined
+  const expiryDate = String(values.expiryDate ?? '').trim() || undefined
   return [
     {
       srNo: 1,
@@ -150,6 +160,8 @@ function lineFromForm(values: Record<string, unknown>): DocumentRequest['lines']
       mrp: numOrUndef(values.mrp),
       amount: qty * rate,
       batchLotNo: String(values.batch ?? '') || undefined,
+      mfgDate,
+      expiryDate,
       locationId: numOrUndef(values.store) ?? numOrUndef(values.toStore) ?? numOrUndef(values.deliverTo),
       locationBin: String(values.bin ?? '') || undefined,
       remark: String(values.remarks ?? '') || undefined,
@@ -183,17 +195,52 @@ export function OpeningStockPages() {
     { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status}</Pill> },
   ]
   const fields: FieldDef[] = [
-    { name: 'openingDate', label: 'Opening Date', required: true },
-    { name: 'org', label: 'Entity (Organization)', type: 'select', required: true, options: opt(entities.rows) },
-    { name: 'store', label: 'Store', type: 'select', required: true, options: opt(locations.rows) },
+    {
+      name: 'entryNo',
+      label: 'Entry No.',
+      hint: 'Auto-generated on save (e.g. OST-2026-0001)',
+    },
+    { name: 'openingDate', label: 'Opening Date', type: 'date', required: true },
+    {
+      name: 'org',
+      label: 'Entity (Organization)',
+      type: 'select',
+      required: true,
+      options: opt(entities.rows),
+      placeholder: '— Select Organization —',
+    },
+    {
+      name: 'store',
+      label: 'Store',
+      type: 'select',
+      required: true,
+      options: opt(locations.rows),
+      placeholder: '— Select Store —',
+    },
     { name: 'bin', label: 'Location / Bin', uppercase: true, hint: 'Rack A-12-B3' },
-    { name: 'item', label: 'Item', type: 'select', required: true, span: 2, options: opt(items.rows) },
-    { name: 'batch', label: 'Batch / Lot No.', uppercase: true },
+    {
+      name: 'item',
+      label: 'Item',
+      type: 'select',
+      required: true,
+      span: 2,
+      options: opt(items.rows),
+      placeholder: '— Select Item —',
+    },
+    { name: 'batch', label: 'Batch / Lot No.', uppercase: true, hint: 'BATCH-001' },
     { name: 'qty', label: 'Opening Quantity', type: 'number', required: true },
-    { name: 'uom', label: 'Unit', type: 'select', options: opt(units.rows, (u) => String(u.code)) },
+    {
+      name: 'uom',
+      label: 'Unit',
+      type: 'select',
+      options: opt(units.rows, (u) => String(u.code)),
+      placeholder: '— Select Unit —',
+    },
     { name: 'rate', label: 'Rate (₹)', type: 'number' },
     { name: 'mrp', label: 'MRP (₹)', type: 'number' },
-    { name: 'remarks', label: 'Remarks', span: 4 },
+    { name: 'mfgDate', label: 'Manufacturing Date', type: 'date' },
+    { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
+    { name: 'remarks', label: 'Remarks', span: 4, hint: 'Optional notes...' },
   ]
   return (
     <>
@@ -203,7 +250,7 @@ export function OpeningStockPages() {
         base="/transactions/opening-stock"
         menuCode="OPN"
         title="Opening Stock"
-        description="First inventory transaction — establishes the starting stock position for an item at a store before any other movement."
+        description="Record the starting quantity of an item at a store, before any Inward, Issue or Transfer transactions are posted."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
@@ -211,9 +258,30 @@ export function OpeningStockPages() {
         saveLabel="Save Opening Stock"
         formTitle="Opening Stock Details"
         addLabel="Add Opening Stock"
-        getDefaults={() => ({ openingDate: todayIso(), qty: 1, status: true })}
+        readOnlyFields={['entryNo']}
+        getDefaults={() => ({
+          entryNo: '(auto)',
+          openingDate: todayIso(),
+          qty: 0,
+          rate: 0,
+          mrp: 0,
+          status: true,
+        })}
+        loadRecord={async (id) => {
+          const doc = await fetchTxn('opening-stock', id)
+          return mapOpeningStockForm(doc)
+        }}
         onSave={async (id, values) => {
-          const qty = numOrUndef(values.qty) ?? 1
+          const qty = numOrUndef(values.qty)
+          if (qty == null || qty <= 0) {
+            throw new Error('Opening Quantity must be greater than 0')
+          }
+          if (!numOrUndef(values.org)) {
+            throw new Error('Entity (Organization) is required')
+          }
+          if (!numOrUndef(values.store)) {
+            throw new Error('Store is required')
+          }
           const rate = numOrUndef(values.rate) ?? 0
           const body: DocumentRequest = {
             docDate: String(values.openingDate || todayIso()),

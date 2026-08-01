@@ -7,6 +7,7 @@ export type TxnListItem = {
   docType: string
   docDate?: string
   postingDate?: string
+  entityId?: number
   locationId?: number
   fromLocationId?: number
   toLocationId?: number
@@ -51,6 +52,8 @@ export type LineRequest = {
   mrp?: number
   amount?: number
   batchLotNo?: string
+  mfgDate?: string
+  expiryDate?: string
   locationId?: number
   locationBin?: string
   remark?: string
@@ -85,12 +88,14 @@ export type DocumentRequest = {
 }
 
 export function mapTxnListItem(item: TxnListItem): TxnRow {
+  const locationId = item.locationId != null ? String(item.locationId) : ''
+  const entityId = item.entityId != null ? String(item.entityId) : ''
   return {
     id: String(item.docId),
     docNo: item.docNo ?? '',
     docDate: item.docDate ?? '',
     status: item.status ?? '',
-    locationId: item.locationId != null ? String(item.locationId) : '',
+    locationId,
     fromLocationId: item.fromLocationId != null ? String(item.fromLocationId) : '',
     toLocationId: item.toLocationId != null ? String(item.toLocationId) : '',
     partyId: item.partyId != null ? String(item.partyId) : '',
@@ -100,7 +105,7 @@ export function mapTxnListItem(item: TxnListItem): TxnRow {
     totalItems: 0,
     docSubtype: item.docSubtype ?? '',
     returnFlag: item.returnFlag ?? '',
-    // aliases used by existing column keys
+    // aliases used by existing column / form keys
     entryNo: item.docNo ?? '',
     reqNo: item.docNo ?? '',
     grnNo: item.docNo ?? '',
@@ -110,6 +115,67 @@ export function mapTxnListItem(item: TxnListItem): TxnRow {
     returnNo: item.docNo ?? '',
     date: item.docDate ?? '',
     openingDate: item.docDate ?? '',
+    store: locationId,
+    org: entityId,
+    entityId,
+  }
+}
+
+export type TxnDocument = {
+  docId: number
+  docNo: string
+  docType?: string
+  docDate?: string
+  postingDate?: string
+  entityId?: number
+  locationId?: number
+  fromLocationId?: number
+  toLocationId?: number
+  partyId?: number
+  initiatedByEmpId?: number
+  refTxnHeaderId?: number
+  remarks?: string
+  status?: string
+  totalAmount?: number
+  lines?: Array<{
+    srNo?: number
+    itemId?: number
+    uomId?: number
+    qty?: number
+    rate?: number
+    mrp?: number
+    amount?: number
+    batchLotNo?: string
+    mfgDate?: string
+    expiryDate?: string
+    locationId?: number
+    locationBin?: string
+    remark?: string
+  }>
+}
+
+/** Map a full document (header + first line) into Opening Stock form values. */
+export function mapOpeningStockForm(doc: TxnDocument): Record<string, unknown> {
+  const line = doc.lines?.[0]
+  return {
+    id: String(doc.docId),
+    entryNo: doc.docNo ?? '',
+    openingDate: doc.docDate ?? '',
+    org: doc.entityId != null ? String(doc.entityId) : '',
+    store: doc.locationId != null ? String(doc.locationId) : '',
+    locationId: doc.locationId != null ? String(doc.locationId) : '',
+    bin: line?.locationBin ?? '',
+    item: line?.itemId != null ? String(line.itemId) : '',
+    batch: line?.batchLotNo ?? '',
+    qty: line?.qty ?? 0,
+    uom: line?.uomId != null ? String(line.uomId) : '',
+    rate: line?.rate ?? 0,
+    mrp: line?.mrp ?? 0,
+    mfgDate: line?.mfgDate ?? '',
+    expiryDate: line?.expiryDate ?? '',
+    remarks: doc.remarks ?? line?.remark ?? '',
+    status: doc.status ?? '',
+    totalAmount: Number(doc.totalAmount ?? 0),
   }
 }
 
@@ -146,6 +212,10 @@ export async function createTxn(resource: string, body: DocumentRequest) {
 
 export async function updateTxn(resource: string, id: string, body: DocumentRequest) {
   return http.put(`/${resource}/${id}`, body)
+}
+
+export async function fetchTxn(resource: string, id: string) {
+  return http.get<TxnDocument>(`/${resource}/${id}`)
 }
 
 export function numOrUndef(v: unknown): number | undefined {

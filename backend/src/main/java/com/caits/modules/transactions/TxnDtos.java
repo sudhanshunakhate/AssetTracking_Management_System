@@ -167,6 +167,7 @@ public final class TxnDtos {
             String docType,
             LocalDate docDate,
             LocalDate postingDate,
+            Integer entityId,
             Integer locationId,
             Integer fromLocationId,
             Integer toLocationId,

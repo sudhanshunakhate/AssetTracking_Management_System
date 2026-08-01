@@ -17,6 +17,8 @@ export type FieldDef = ValidationRules & {
   span?: 1 | 2 | 3 | 4
   options?: { value: string; label: string }[]
   uppercase?: boolean
+  /** Shown as the empty option label for select fields. */
+  placeholder?: string
 }
 
 type Row = { id: string; [key: string]: unknown }
@@ -53,6 +55,8 @@ interface SimpleMasterProps<T extends Row> {
    * Return a map of field name → message; use the `_form` key for a form-level error.
    */
   validateForm?: (values: Record<string, unknown>, recordId: string) => Record<string, string>
+  /** Optional loader to hydrate the edit form from GET-by-id (header + lines). */
+  loadRecord?: (id: string) => Promise<Record<string, unknown> | null>
 }
 
 function toFormValues(initial: Record<string, unknown>, fields: FieldDef[]): Record<string, unknown> {
@@ -91,6 +95,7 @@ export function SimpleMasterModule<T extends Row>({
   onSave,
   readOnlyFields = [],
   validateForm,
+  loadRecord,
 }: SimpleMasterProps<T>) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -101,14 +106,46 @@ export function SimpleMasterModule<T extends Row>({
   const editing = id && id !== 'new' ? rows.find((r) => String(r.id) === String(id)) : undefined
   const isNew = id === 'new'
   const formReadOnly = isNew ? !canCreate : !canEdit
+  const [loadedRecord, setLoadedRecord] = useState<Record<string, unknown> | null>(null)
+  const [recordLoading, setRecordLoading] = useState(false)
+  const [recordError, setRecordError] = useState('')
+
+  useEffect(() => {
+    if (!isForm || !id || isNew || !loadRecord) {
+      setLoadedRecord(null)
+      setRecordError('')
+      setRecordLoading(false)
+      return
+    }
+    let cancelled = false
+    setRecordLoading(true)
+    setRecordError('')
+    void loadRecord(id)
+      .then((rec) => {
+        if (!cancelled) setLoadedRecord(rec)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLoadedRecord(null)
+          setRecordError(err instanceof Error ? err.message : 'Failed to load record')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRecordLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, isForm, isNew, loadRecord])
 
   if (id === 'new' && !canCreate) {
     return <Navigate to={basePath} replace />
   }
 
   if (isForm && id) {
-    // Wait until list row is available so fields patch correctly (every master screen).
-    if (!isNew && !editing) {
+    const detailReady = !loadRecord || loadedRecord != null || recordError !== ''
+    // Wait until list row / detail is available so fields patch correctly.
+    if (!isNew && !editing && !loadRecord) {
       const stillLoading = listLoading || rows.length === 0
       return (
         <FadeContent>
@@ -124,9 +161,39 @@ export function SimpleMasterModule<T extends Row>({
       )
     }
 
-    const initial = editing
-      ? (editing as Record<string, unknown>)
-      : (getDefaults?.() ?? { status: true })
+    if (!isNew && loadRecord && (recordLoading || !detailReady)) {
+      return (
+        <FadeContent>
+          <div className="mb-3 flex justify-end">
+            <Button variant="ghost" onClick={() => navigate(basePath)}>
+              Back to List
+            </Button>
+          </div>
+          <div className="text-sm text-[var(--text3)]">
+            {recordError || 'Loading record…'}
+          </div>
+        </FadeContent>
+      )
+    }
+
+    if (!isNew && loadRecord && !loadedRecord) {
+      return (
+        <FadeContent>
+          <div className="mb-3 flex justify-end">
+            <Button variant="ghost" onClick={() => navigate(basePath)}>
+              Back to List
+            </Button>
+          </div>
+          <div className="text-sm text-[var(--danger)]">
+            {recordError || `Record #${id} was not found.`}
+          </div>
+        </FadeContent>
+      )
+    }
+
+    const initial = isNew
+      ? (getDefaults?.() ?? { status: true })
+      : ((loadedRecord ?? editing) as Record<string, unknown>)
 
     return (
       <MasterForm
@@ -355,7 +422,7 @@ function MasterForm({
                       invalid={Boolean(fieldError)}
                       disabled={fieldReadOnly}
                     >
-                      <option value="">— Select —</option>
+                      <option value="">{f.placeholder ?? '— Select —'}</option>
                       {f.options?.map((o) => (
                         <option key={o.value} value={String(o.value)}>
                           {o.label}

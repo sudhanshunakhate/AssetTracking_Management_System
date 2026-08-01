@@ -1,5 +1,5 @@
 /** Shared API client for CAITS backend (`/api/v1`). */
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8081/api/v1'
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8085/api/v1'
 const TOKEN_KEY = 'caits.token'
 
 export type PageResponse<T> = {

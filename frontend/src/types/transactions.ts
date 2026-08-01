@@ -9,7 +9,13 @@ export interface OpeningStock {
   qty: number
   uom: string
   rate: number
+  mrp?: number
   openingDate: string
+  mfgDate?: string
+  expiryDate?: string
+  bin?: string
+  org?: string
+  remarks?: string
   status: string
 }
 

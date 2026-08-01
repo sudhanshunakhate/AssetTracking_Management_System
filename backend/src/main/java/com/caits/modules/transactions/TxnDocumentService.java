@@ -541,6 +541,7 @@ public class TxnDocumentService {
                 h.getTxhDocType(),
                 h.getTxhDocDate(),
                 h.getTxhPostingDate(),
+                h.getTxhEntityIdEnt(),
                 h.getTxhLocationIdLoc(),
                 h.getTxhFromLocationIdLoc(),
                 h.getTxhToLocationIdLoc(),
