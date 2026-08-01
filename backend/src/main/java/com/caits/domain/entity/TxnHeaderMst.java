@@ -149,6 +149,9 @@ public class TxnHeaderMst {
     @Column(name = "txh_total_amount")
     private BigDecimal txhTotalAmount;
 
+    @Column(name = "txh_prepared_by_emp_id_emp")
+    private Integer txhPreparedByEmpIdEmp;
+
     @Column(name = "txh_prepared_date")
     private LocalDate txhPreparedDate;
 
@@ -316,6 +319,9 @@ public class TxnHeaderMst {
 
     public BigDecimal getTxhTotalAmount() { return txhTotalAmount; }
     public void setTxhTotalAmount(BigDecimal txhTotalAmount) { this.txhTotalAmount = txhTotalAmount; }
+
+    public Integer getTxhPreparedByEmpIdEmp() { return txhPreparedByEmpIdEmp; }
+    public void setTxhPreparedByEmpIdEmp(Integer txhPreparedByEmpIdEmp) { this.txhPreparedByEmpIdEmp = txhPreparedByEmpIdEmp; }
 
     public LocalDate getTxhPreparedDate() { return txhPreparedDate; }
     public void setTxhPreparedDate(LocalDate txhPreparedDate) { this.txhPreparedDate = txhPreparedDate; }

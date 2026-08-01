@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { Pill } from '@/components/ui/Badge'
-import { statusColumn, type Column } from '@/components/ui/DataTable'
+import { type Column } from '@/components/ui/DataTable'
 import {
   createTxn,
   fetchTxn,
@@ -23,12 +23,10 @@ import {
   type ApiMasterRow,
 } from '@/api/masters'
 import type {
-  Grn,
   MaterialReturn,
   MaterialTransfer,
   OpeningStock,
   StoreIssue,
-  StoreRequisition,
 } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
 
@@ -130,11 +128,6 @@ function locLabel(locations: ApiMasterRow[], id: string) {
 function empLabel(employees: ApiMasterRow[], id: string) {
   const e = employees.find((x) => x.id === id)
   return e ? `${e.code} – ${e.firstName} ${e.lastName}` : id || '—'
-}
-
-function vendorLabel(vendors: ApiMasterRow[], id: string) {
-  const v = vendors.find((x) => x.id === id)
-  return v ? `${v.code} – ${v.name}` : id || '—'
 }
 
 function lineFromForm(values: Record<string, unknown>): DocumentRequest['lines'] {
@@ -295,156 +288,6 @@ export function OpeningStockPages() {
           }
           if (id === 'new') await createTxn('opening-stock', body)
           else await updateTxn('opening-stock', id, body)
-          await reload()
-        }}
-      />
-    </>
-  )
-}
-
-export function RequisitionsPages() {
-  const { rows, loading, error, reload } = useTxnList('requisitions')
-  const { locations, employees, items, units } = useTxnLookups()
-
-  const columns: Column<StoreRequisition>[] = [
-    { key: 'no', header: 'Requisition No.', searchText: (r) => r.reqNo, render: (r) => <b className="font-mono">{r.reqNo}</b> },
-    { key: 'date', header: 'Date', searchText: (r) => r.date, render: (r) => r.date },
-    {
-      key: 'by',
-      header: 'Requested By',
-      searchText: (r) => empLabel(employees.rows, String((r as { initiatedByEmpId?: string }).initiatedByEmpId ?? '')),
-      render: (r) => empLabel(employees.rows, String((r as { initiatedByEmpId?: string }).initiatedByEmpId ?? '')),
-    },
-    {
-      key: 'deliver',
-      header: 'Deliver To',
-      searchText: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
-      render: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
-    },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status}</Pill> },
-  ]
-  const fields: FieldDef[] = [
-    { name: 'date', label: 'Requisition Date', required: true },
-    { name: 'requiredDate', label: 'Required Date', required: true },
-    { name: 'requestedBy', label: 'Requested By', type: 'select', required: true, options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`) },
-    { name: 'deliverTo', label: 'Deliver to Location', type: 'select', required: true, options: opt(locations.rows) },
-    { name: 'item', label: 'Item', type: 'select', required: true, span: 2, options: opt(items.rows) },
-    { name: 'qty', label: 'Requested Qty', type: 'number', required: true },
-    { name: 'uom', label: 'Unit', type: 'select', options: opt(units.rows, (u) => String(u.code)) },
-    { name: 'remarks', label: 'Remarks', span: 2 },
-  ]
-  return (
-    <>
-      <ListStatus loading={loading} error={error} label="requisitions" />
-      <TxnRoutes
-        listLoading={loading}
-        base="/transactions/requisitions"
-        menuCode="SR"
-        title="Store Requisitions"
-        description="Requests raised by employees / departments for material to be issued from stock, approved directly by the store on submission."
-        rows={rows as never}
-        columns={columns as never}
-        fields={fields}
-        searchPlaceholder="Search requisitions…"
-        saveLabel="Save Requisition"
-        formTitle="Requisition Details"
-        addLabel="New Requisition"
-        getDefaults={() => ({ date: todayIso(), requiredDate: todayIso(), qty: 1 })}
-        onSave={async (id, values) => {
-          const body: DocumentRequest = {
-            docDate: String(values.date || todayIso()),
-            requiredByDate: String(values.requiredDate || todayIso()),
-            locationId: numOrUndef(values.deliverTo),
-            initiatedByEmpId: numOrUndef(values.requestedBy),
-            remarks: String(values.remarks ?? ''),
-            docSubmitAction: 'SAVE_DRAFT',
-            lines: lineFromForm({ ...values, store: values.deliverTo }),
-          }
-          if (id === 'new') await createTxn('requisitions', body)
-          else await updateTxn('requisitions', id, body)
-          await reload()
-        }}
-      />
-    </>
-  )
-}
-
-export function GrnPages() {
-  const { rows, loading, error, reload } = useTxnList('grn')
-  const { locations, vendors, employees, items, units } = useTxnLookups()
-
-  const columns: Column<Grn>[] = [
-    { key: 'no', header: 'GRN No.', searchText: (r) => r.grnNo, render: (r) => <b className="font-mono">{r.grnNo}</b> },
-    { key: 'date', header: 'GRN Date', searchText: (r) => r.grnDate, render: (r) => r.grnDate },
-    {
-      key: 'supplier',
-      header: 'Supplier',
-      searchText: (r) => vendorLabel(vendors.rows, String((r as { partyId?: string }).partyId ?? '')),
-      render: (r) => vendorLabel(vendors.rows, String((r as { partyId?: string }).partyId ?? '')),
-    },
-    {
-      key: 'store',
-      header: 'Store / Location',
-      searchText: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
-      render: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
-    },
-    {
-      key: 'amt',
-      header: 'Total Amount (₹)',
-      searchText: (r) => String(r.totalAmount),
-      render: (r) => Number(r.totalAmount ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
-    },
-    statusColumn(),
-  ]
-  const fields: FieldDef[] = [
-    { name: 'grnDate', label: 'GRN Date', required: true },
-    { name: 'supplier', label: 'Supplier', type: 'select', required: true, span: 2, options: opt(vendors.rows) },
-    { name: 'invoiceNo', label: 'Invoice No.', uppercase: true },
-    { name: 'invoiceDate', label: 'Invoice Date' },
-    { name: 'store', label: 'Store / Location', type: 'select', required: true, span: 2, options: opt(locations.rows) },
-    { name: 'inspectedBy', label: 'Inspected By', type: 'select', options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`) },
-    { name: 'inspectionDate', label: 'Inspection Date' },
-    { name: 'item', label: 'Item', type: 'select', required: true, span: 2, options: opt(items.rows) },
-    { name: 'qty', label: 'Received Qty', type: 'number', required: true },
-    { name: 'uom', label: 'Unit', type: 'select', options: opt(units.rows, (u) => String(u.code)) },
-    { name: 'rate', label: 'Rate (₹)', type: 'number' },
-    { name: 'remarks', label: 'Remarks', span: 2 },
-  ]
-  return (
-    <>
-      <ListStatus loading={loading} error={error} label="GRNs" />
-      <TxnRoutes
-        listLoading={loading}
-        base="/transactions/grn"
-        menuCode="GRN"
-        title="Goods Receipt Note"
-        description="Goods receipt entries recording material received from suppliers against a purchase order — no approval workflow involved."
-        rows={rows as never}
-        columns={columns as never}
-        fields={fields}
-        searchPlaceholder="Search GRNs…"
-        saveLabel="Save GRN"
-        formTitle="Header"
-        addLabel="New GRN"
-        getDefaults={() => ({ grnDate: todayIso(), qty: 1 })}
-        onSave={async (id, values) => {
-          const qty = numOrUndef(values.qty) ?? 1
-          const rate = numOrUndef(values.rate) ?? 0
-          const body: DocumentRequest = {
-            docDate: String(values.grnDate || todayIso()),
-            locationId: numOrUndef(values.store),
-            partyId: numOrUndef(values.supplier),
-            invoiceNo: String(values.invoiceNo ?? '') || undefined,
-            invoiceDate: String(values.invoiceDate ?? '') || undefined,
-            inspectedByEmpId: numOrUndef(values.inspectedBy),
-            inspectionDate: String(values.inspectionDate ?? '') || undefined,
-            remarks: String(values.remarks ?? ''),
-            totalAmount: qty * rate,
-            docSubmitAction: 'SAVE_DRAFT',
-            lines: lineFromForm(values),
-          }
-          if (id === 'new') await createTxn('grn', body)
-          else await updateTxn('grn', id, body)
           await reload()
         }}
       />

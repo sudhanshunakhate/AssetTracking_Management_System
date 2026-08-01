@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { NavLink } from 'react-router-dom'
 import { navGroups } from '@/config/navigation'
+import { Icon } from '@/components/ui/Icon'
 import { useAuth } from '@/features/auth/AuthContext'
 
 interface SidebarProps {
@@ -78,11 +79,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               >
                 {({ isActive }) =>
                   collapsed ? (
-                    <span className="font-mono text-[10px] font-bold">
-                      {item.badge?.slice(0, 2) ?? item.label.slice(0, 2).toUpperCase()}
-                    </span>
+                    <Icon name={item.icon} size={18} />
                   ) : (
                     <>
+                      <Icon name={item.icon} className="shrink-0" />
                       <span className="flex-1 truncate">{item.label}</span>
                       {item.badge && (
                         <span

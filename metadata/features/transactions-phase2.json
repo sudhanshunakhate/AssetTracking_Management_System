@@ -23,6 +23,6 @@
   ],
   "db_tables": ["txn_header_mst", "txn_detail_dtl", "inv_stock_mst"],
   "depends_on": ["app-shell", "masters-phase1", "auth-login"],
-  "notes": "Opening Stock form maps all API/DB line fields (qty, rate, mrp, batchLotNo, mfgDate, expiryDate, locationBin). Edit loads GET /opening-stock/{docId}. Entry No is auto OST-yyyy-####. List includes entityId.",
-  "updated": "2026-07-31"
+  "notes": "Opening Stock form maps all API/DB line fields (qty, rate, mrp, batchLotNo, mfgDate, expiryDate, locationBin). Edit loads GET /opening-stock/{docId}. Entry No is auto OST-yyyy-####. List includes entityId. Store Requisition has since moved out of TransactionPages.tsx into its own full-featured page — see features/store-requisition.json.",
+  "updated": "2026-08-01"
 }

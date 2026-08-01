@@ -28,6 +28,8 @@ public class DataSeeder implements ApplicationRunner {
     private final HrcEmployeeMstRepository employeeRepo;
     private final SysmMenutreeMstRepository menuRepo;
     private final SysmRolepermissionDtlRepository rolePermRepo;
+    private final GentypeMstRepository gentypeRepo;
+    private final GenmasterMstRepository genmasterRepo;
     private final PasswordEncoder passwordEncoder;
 
     public DataSeeder(
@@ -37,6 +39,8 @@ public class DataSeeder implements ApplicationRunner {
             HrcEmployeeMstRepository employeeRepo,
             SysmMenutreeMstRepository menuRepo,
             SysmRolepermissionDtlRepository rolePermRepo,
+            GentypeMstRepository gentypeRepo,
+            GenmasterMstRepository genmasterRepo,
             PasswordEncoder passwordEncoder
     ) {
         this.userRepo = userRepo;
@@ -45,6 +49,8 @@ public class DataSeeder implements ApplicationRunner {
         this.employeeRepo = employeeRepo;
         this.menuRepo = menuRepo;
         this.rolePermRepo = rolePermRepo;
+        this.gentypeRepo = gentypeRepo;
+        this.genmasterRepo = genmasterRepo;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -54,6 +60,64 @@ public class DataSeeder implements ApplicationRunner {
         seedAdminGraphIfEmpty();
         seedMenusIfEmpty();
         seedAdminMenuPermissionsIfEmpty();
+        seedLookupIfMissing("GTY-DEPT", "Department", "Departments raising requisitions", DEPARTMENTS);
+        seedLookupIfMissing("GTY-DESIG", "Designation", "Employee designations", DESIGNATIONS);
+    }
+
+    /** Department / designation lookups backing the Store Requisition dropdowns. */
+    private static final List<String[]> DEPARTMENTS = List.of(
+            new String[]{"DEPT-IT", "IT"},
+            new String[]{"DEPT-STORES", "Stores"},
+            new String[]{"DEPT-OPS", "Operations"},
+            new String[]{"DEPT-ADMIN", "Admin"},
+            new String[]{"DEPT-FIN", "Finance"},
+            new String[]{"DEPT-HR", "HR"},
+            new String[]{"DEPT-MAINT", "Maintenance"},
+            new String[]{"DEPT-PROD", "Production"}
+    );
+
+    private static final List<String[]> DESIGNATIONS = List.of(
+            new String[]{"DESIG-SYSADMIN", "System Administrator"},
+            new String[]{"DESIG-STRMGR", "Store Manager"},
+            new String[]{"DESIG-ASSETMGR", "Asset Manager"},
+            new String[]{"DESIG-SUPVR", "Supervisor"},
+            new String[]{"DESIG-STRKEEP", "Store Keeper"},
+            new String[]{"DESIG-MGR", "Manager"},
+            new String[]{"DESIG-EXEC", "Executive"},
+            new String[]{"DESIG-OFFICER", "Officer"}
+    );
+
+    /**
+     * Creates the general type and its values when the type does not exist yet.
+     * Existing types are left untouched so operator edits survive a restart.
+     */
+    private void seedLookupIfMissing(String typeCode, String typeName, String desc, List<String[]> values) {
+        if (gentypeRepo.findByGtypTypeCodeIgnoreCase(typeCode).isPresent()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+
+        GentypeMst type = new GentypeMst();
+        type.setGtypTypeCode(typeCode);
+        type.setGtypTypeName(typeName);
+        type.setGtypDesc(desc);
+        type.setGtypIsactive(true);
+        type.setGtypCreatedBy("system");
+        type.setGtypCreatedOn(now);
+        type = gentypeRepo.save(type);
+
+        int sort = 1;
+        for (String[] v : values) {
+            GenmasterMst m = new GenmasterMst();
+            m.setGmstValueCode(v[0]);
+            m.setGmstValueName(v[1]);
+            m.setGmstGentypeIdGtyp(type.getGtypGentypeId());
+            m.setGmstSortOrder(sort++);
+            m.setGmstIsactive(true);
+            m.setGmstCreatedBy("system");
+            m.setGmstCreatedOn(now);
+            genmasterRepo.save(m);
+        }
     }
 
     private void seedAdminGraphIfEmpty() {

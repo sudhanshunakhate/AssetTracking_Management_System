@@ -5,6 +5,8 @@
     "dashboard": "features/dashboard.json",
     "masters-phase1": "features/masters-phase1.json",
     "transactions-phase2": "features/transactions-phase2.json",
+    "store-requisition": "features/store-requisition.json",
+    "goods-receipt-note": "features/goods-receipt-note.json",
     "reports-phase2": "features/reports-phase2.json"
   },
   "modules": {
@@ -17,5 +19,5 @@
   },
   "api": {},
   "db_tables": ["caits_local.*"],
-  "last_updated": "2026-07-29T18:20:00Z"
+  "last_updated": "2026-08-01T07:35:00Z"
 }

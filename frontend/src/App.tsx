@@ -21,11 +21,11 @@ import { ItemsMaster, VendorsMaster } from '@/features/masters/ItemVendorMasterP
 import { FullReportPage } from '@/features/reports/FullReportPage'
 import { StockRegisterPage } from '@/features/reports/StockRegisterPage'
 import { GatepassPage } from '@/features/transactions/GatepassPage'
+import { GrnPages } from '@/features/transactions/GrnPage'
+import { RequisitionsPages } from '@/features/transactions/RequisitionPage'
 import {
-  GrnPages,
   IssuesPages,
   OpeningStockPages,
-  RequisitionsPages,
   ReturnsPages,
   TransfersPages,
 } from '@/features/transactions/TransactionPages'

@@ -7,13 +7,15 @@
     "backend/src/main/resources/application.yml",
     "backend/src/main/java/com/caits/modules/auth/AuthController.java",
     "backend/src/main/java/com/caits/modules/masters/controller/SetupMastersController.java",
-    "backend/src/main/java/com/caits/modules/transactions/TransactionControllers.java"
+    "backend/src/main/java/com/caits/modules/transactions/TransactionControllers.java",
+    "backend/src/main/java/com/caits/modules/files/FileStorageController.java"
   ],
   "dependsOn": ["caits_local schema", "API docs in backend_approach/CAIMS_API_Documentation.xlsx"],
   "notes": [
     "Base path /api/v1",
     "Seed user aditya.kulkarni / Admin@123",
     "Transactions use DocType discriminator on txn_header_mst / txn_detail_dtl",
+    "Document attachments upload to caits.storage.upload-dir (default backend/uploads) via POST /files",
     "Frontend client: frontend/src/api/client.ts"
   ]
 }

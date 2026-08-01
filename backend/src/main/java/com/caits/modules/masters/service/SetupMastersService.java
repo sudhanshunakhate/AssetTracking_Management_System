@@ -354,6 +354,59 @@ public class SetupMastersService {
                 .toList();
     }
 
+    /**
+     * Adds a value to a general type addressed by its code, so quick-add pickers
+     * do not need to resolve the numeric gentype id first. The value code is
+     * derived from the name when the caller omits it.
+     */
+    @Transactional
+    public GenmasterValueDto addValueByTypeCode(String typeCode, GenmasterRequest req) {
+        GentypeMst type = gentypeRepo.findByGtypTypeCodeIgnoreCase(typeCode)
+                .orElseThrow(() -> ApiException.notFound("General type not found"));
+        String name = req.valueName() == null ? "" : req.valueName().trim();
+        if (name.isEmpty()) throw ApiException.badRequest("valueName is required");
+
+        String code = req.valueCode() == null || req.valueCode().isBlank()
+                ? deriveValueCode(typeCode, name)
+                : req.valueCode().trim().toUpperCase();
+        if (genmasterRepo.existsByGmstValueCodeIgnoreCase(code)) {
+            throw ApiException.conflict("Value code '" + code + "' already exists — value codes must be unique across all types");
+        }
+
+        Integer nextSort = genmasterRepo.findByGmstGentypeIdGtypOrderByGmstSortOrderAsc(type.getGtypGentypeId()).stream()
+                .map(GenmasterMst::getGmstSortOrder)
+                .filter(java.util.Objects::nonNull)
+                .max(Integer::compareTo)
+                .orElse(0) + 1;
+
+        GenmasterMst e = new GenmasterMst();
+        e.setGmstValueCode(code);
+        e.setGmstValueName(name);
+        e.setGmstGentypeIdGtyp(type.getGtypGentypeId());
+        e.setGmstSortOrder(req.sortOrder() != null ? req.sortOrder() : nextSort);
+        e.setGmstDesc(req.desc());
+        e.setGmstIsactive(req.isActive() == null || req.isActive());
+        e.setGmstCreatedBy(SecurityUtils.requireLoginId());
+        e.setGmstCreatedOn(LocalDateTime.now());
+        GenmasterMst saved = genmasterRepo.save(e);
+        return new GenmasterValueDto(saved.getGmstGenmasterId(), saved.getGmstValueCode(),
+                saved.getGmstValueName(), saved.getGmstSortOrder());
+    }
+
+    /** `GTY-DEPT` + "Quality Control" → `DEPT-QUALITYCONTROL`, suffixed on collision. */
+    private String deriveValueCode(String typeCode, String name) {
+        String prefix = typeCode.toUpperCase().replaceFirst("^GTY-", "");
+        String slug = name.toUpperCase().replaceAll("[^A-Z0-9]", "");
+        if (slug.isEmpty()) slug = "VALUE";
+        if (slug.length() > 24) slug = slug.substring(0, 24);
+        String base = prefix + "-" + slug;
+        String candidate = base;
+        for (int i = 2; genmasterRepo.existsByGmstValueCodeIgnoreCase(candidate) && i < 100; i++) {
+            candidate = base + i;
+        }
+        return candidate;
+    }
+
     @Transactional(readOnly = true)
     public GenmasterDto getGenmaster(Integer id) {
         return toGenmasterDto(findGenmaster(id), null);

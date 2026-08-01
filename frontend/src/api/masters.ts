@@ -219,6 +219,8 @@ export const GEN_TYPE = {
   STORE_LOCATION: 'GTY-STRLOC',
   ASSET_CONDITION: 'GTY-ASSETCOND',
   IP_MODE: 'GTY-IPMODE',
+  DEPARTMENT: 'GTY-DEPT',
+  DESIGNATION: 'GTY-DESIG',
 } as const
 
 export type GenValueOption = {

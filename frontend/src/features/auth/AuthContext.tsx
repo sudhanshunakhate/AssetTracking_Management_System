@@ -47,6 +47,8 @@ type AuthContextValue = {
   canCreateMenu: (menuCode: string) => boolean
   canEditMenu: (menuCode: string) => boolean
   canDeleteMenu: (menuCode: string) => boolean
+  canApproveMenu: (menuCode: string) => boolean
+  canRejectMenu: (menuCode: string) => boolean
   refreshPermissions: () => Promise<void>
   login: (loginId: string, password: string) => Promise<{ ok: boolean; error?: string }>
   logout: () => Promise<void>
@@ -188,6 +190,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [menuPermissions],
   )
 
+  const canApproveMenu = useCallback(
+    (menuCode: string) => {
+      const hit = menuPermissions.find((p) => p.menuCode === menuCode)
+      return Boolean(hit?.approve)
+    },
+    [menuPermissions],
+  )
+
+  const canRejectMenu = useCallback(
+    (menuCode: string) => {
+      const hit = menuPermissions.find((p) => p.menuCode === menuCode)
+      return Boolean(hit?.reject)
+    },
+    [menuPermissions],
+  )
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -199,6 +217,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canCreateMenu,
       canEditMenu,
       canDeleteMenu,
+      canApproveMenu,
+      canRejectMenu,
       refreshPermissions: applyMe,
       login: async (loginId, password) => {
         if (!loginId.trim() || !password) {
@@ -252,6 +272,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canCreateMenu,
       canEditMenu,
       canDeleteMenu,
+      canApproveMenu,
+      canRejectMenu,
       applyMe,
     ],
   )

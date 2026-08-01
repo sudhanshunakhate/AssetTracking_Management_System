@@ -24,7 +24,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class TxnDocumentService {
@@ -123,8 +125,23 @@ public class TxnDocumentService {
         };
 
         Page<TxnHeaderMst> result = headerRepo.findAll(spec, PageRequest.of(p - 1, size));
-        List<ListItem> data = result.getContent().stream().map(this::toListItem).toList();
+        Map<Integer, Integer> lineCounts = lineCountsFor(result.getContent());
+        List<ListItem> data = result.getContent().stream()
+                .map(h -> toListItem(h, lineCounts.getOrDefault(h.getTxhTxnHeaderId(), 0)))
+                .toList();
         return PageResponse.of(p, size, result.getTotalElements(), data);
+    }
+
+    private Map<Integer, Integer> lineCountsFor(List<TxnHeaderMst> headers) {
+        if (headers.isEmpty()) {
+            return Map.of();
+        }
+        List<Integer> ids = headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList();
+        Map<Integer, Integer> counts = new HashMap<>();
+        for (Object[] row : detailRepo.countLinesByHeaderIds(ids)) {
+            counts.put((Integer) row[0], ((Number) row[1]).intValue());
+        }
+        return counts;
     }
 
     public DocumentResponse get(DocType docType, Integer docId) {
@@ -294,14 +311,18 @@ public class TxnDocumentService {
 
     private String initialSubmitStatus(DocType docType) {
         return switch (docType) {
-            case GRN, MATERIAL_REQUISITION, GATEPASS_INWARD -> "Pending Approval";
+            case MATERIAL_REQUISITION, GATEPASS_INWARD -> "Pending Approval";
             default -> "Completed";
         };
     }
 
+    /**
+     * GRN has no approval workflow — submitting it receives the accepted
+     * quantity straight into stock, the same way opening stock does.
+     */
     private boolean postsStockOnSubmit(DocType docType) {
         return switch (docType) {
-            case OPENING_STOCK, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN, GATEPASS_OUTWARD -> true;
+            case GRN, OPENING_STOCK, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN, GATEPASS_OUTWARD -> true;
             default -> false;
         };
     }
@@ -359,6 +380,10 @@ public class TxnDocumentService {
         h.setTxhReceivedDesignation(req.receivedDesignation());
         h.setTxhReceivedDate(req.receivedDate());
         h.setTxhConditionOnReturn(req.conditionOnReturn());
+        h.setTxhPreparedByEmpIdEmp(req.preparedByEmpId());
+        h.setTxhPreparedDate(req.preparedDate());
+        h.setTxhApprovedByEmpIdEmp(req.approvedByEmpId());
+        h.setTxhApprovedDate(req.approvedDate());
         h.setTxhTotalOrderedQty(req.totalOrderedQty());
         h.setTxhTotalReceivedQty(req.totalReceivedQty());
         h.setTxhTotalAcceptedQty(req.totalAcceptedQty());
@@ -534,13 +559,14 @@ public class TxnDocumentService {
         return BigDecimal.ZERO;
     }
 
-    private ListItem toListItem(TxnHeaderMst h) {
+    private ListItem toListItem(TxnHeaderMst h, int totalItems) {
         return new ListItem(
                 h.getTxhTxnHeaderId(),
                 h.getTxhDocNo(),
                 h.getTxhDocType(),
                 h.getTxhDocDate(),
                 h.getTxhPostingDate(),
+                h.getTxhRequiredByDate(),
                 h.getTxhEntityIdEnt(),
                 h.getTxhLocationIdLoc(),
                 h.getTxhFromLocationIdLoc(),
@@ -549,6 +575,8 @@ public class TxnDocumentService {
                 h.getTxhDepartmentIdGmst(),
                 h.getTxhInitiatedByEmpIdEmp(),
                 h.getTxhRefTxnHeaderIdTxh(),
+                h.getTxhInvoiceNo(),
+                totalItems,
                 h.getTxhTotalAmount(),
                 h.getTxhStatus(),
                 h.getTxhDocSubtype(),
@@ -599,6 +627,10 @@ public class TxnDocumentService {
                 h.getTxhReceivedDesignation(),
                 h.getTxhReceivedDate(),
                 h.getTxhConditionOnReturn(),
+                h.getTxhPreparedByEmpIdEmp(),
+                h.getTxhPreparedDate(),
+                h.getTxhApprovedByEmpIdEmp(),
+                h.getTxhApprovedDate(),
                 h.getTxhTotalOrderedQty(),
                 h.getTxhTotalReceivedQty(),
                 h.getTxhTotalAcceptedQty(),

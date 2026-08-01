@@ -7,6 +7,7 @@ export type TxnListItem = {
   docType: string
   docDate?: string
   postingDate?: string
+  requiredByDate?: string
   entityId?: number
   locationId?: number
   fromLocationId?: number
@@ -15,6 +16,8 @@ export type TxnListItem = {
   departmentId?: number
   initiatedByEmpId?: number
   refTxnHeaderId?: number
+  invoiceNo?: string
+  totalItems?: number
   totalAmount?: number
   status?: string
   docSubtype?: string
@@ -47,7 +50,9 @@ export type LineRequest = {
   orderedQty?: number
   receivedQty?: number
   acceptedQty?: number
+  rejectedQty?: number
   requestedQty?: number
+  availableStock?: number
   rate?: number
   mrp?: number
   amount?: number
@@ -56,6 +61,7 @@ export type LineRequest = {
   expiryDate?: string
   locationId?: number
   locationBin?: string
+  itemCondition?: string
   remark?: string
 }
 
@@ -68,7 +74,9 @@ export type DocumentRequest = {
   fromLocationId?: number
   toLocationId?: number
   partyId?: number
+  departmentId?: number
   initiatedByEmpId?: number
+  employeeRefCode?: string
   designation?: string
   docSubtype?: string
   returnFlag?: string
@@ -76,12 +84,25 @@ export type DocumentRequest = {
   referenceNo?: string
   invoiceNo?: string
   invoiceDate?: string
+  poNo?: string
+  poDate?: string
+  purpose?: string
+  attachmentUrl?: string
   inspectedByEmpId?: number
   inspectionDate?: string
   receivedByEmpId?: number
   receivedDate?: string
   conditionOnReturn?: string
+  preparedByEmpId?: number
+  preparedDate?: string
+  approvedByEmpId?: number
+  approvedDate?: string
+  footerRemark?: string
   remarks?: string
+  totalOrderedQty?: number
+  totalReceivedQty?: number
+  totalAcceptedQty?: number
+  totalRejectedQty?: number
   totalAmount?: number
   docSubmitAction?: 'SAVE_DRAFT' | 'SUBMIT'
   lines: LineRequest[]
@@ -101,13 +122,17 @@ export function mapTxnListItem(item: TxnListItem): TxnRow {
     partyId: item.partyId != null ? String(item.partyId) : '',
     initiatedByEmpId: item.initiatedByEmpId != null ? String(item.initiatedByEmpId) : '',
     refTxnHeaderId: item.refTxnHeaderId != null ? String(item.refTxnHeaderId) : '',
+    departmentId: item.departmentId != null ? String(item.departmentId) : '',
+    requiredByDate: item.requiredByDate ?? '',
+    invoiceNo: item.invoiceNo ?? '',
     totalAmount: Number(item.totalAmount ?? 0),
-    totalItems: 0,
+    totalItems: Number(item.totalItems ?? 0),
     docSubtype: item.docSubtype ?? '',
     returnFlag: item.returnFlag ?? '',
     // aliases used by existing column / form keys
     entryNo: item.docNo ?? '',
     reqNo: item.docNo ?? '',
+    requiredDate: item.requiredByDate ?? '',
     grnNo: item.docNo ?? '',
     grnDate: item.docDate ?? '',
     issueNo: item.docNo ?? '',
@@ -121,37 +146,72 @@ export function mapTxnListItem(item: TxnListItem): TxnRow {
   }
 }
 
+export type TxnLine = {
+  detailId?: number
+  srNo?: number
+  itemId?: number
+  uomId?: number
+  qty?: number
+  orderedQty?: number
+  receivedQty?: number
+  acceptedQty?: number
+  rejectedQty?: number
+  requestedQty?: number
+  availableStock?: number
+  rate?: number
+  mrp?: number
+  amount?: number
+  batchLotNo?: string
+  mfgDate?: string
+  expiryDate?: string
+  locationId?: number
+  locationBin?: string
+  itemCondition?: string
+  remark?: string
+}
+
 export type TxnDocument = {
   docId: number
   docNo: string
   docType?: string
   docDate?: string
   postingDate?: string
+  requiredByDate?: string
   entityId?: number
   locationId?: number
   fromLocationId?: number
   toLocationId?: number
   partyId?: number
+  departmentId?: number
   initiatedByEmpId?: number
+  employeeRefCode?: string
+  designation?: string
+  docSubtype?: string
   refTxnHeaderId?: number
+  referenceNo?: string
+  invoiceNo?: string
+  invoiceDate?: string
+  poNo?: string
+  poDate?: string
+  purpose?: string
+  attachmentUrl?: string
+  inspectedByEmpId?: number
+  inspectionDate?: string
+  preparedByEmpId?: number
+  preparedDate?: string
+  approvedByEmpId?: number
+  approvedDate?: string
+  footerRemark?: string
   remarks?: string
   status?: string
+  totalOrderedQty?: number
+  totalReceivedQty?: number
+  totalAcceptedQty?: number
+  totalRejectedQty?: number
   totalAmount?: number
-  lines?: Array<{
-    srNo?: number
-    itemId?: number
-    uomId?: number
-    qty?: number
-    rate?: number
-    mrp?: number
-    amount?: number
-    batchLotNo?: string
-    mfgDate?: string
-    expiryDate?: string
-    locationId?: number
-    locationBin?: string
-    remark?: string
-  }>
+  createdBy?: string
+  createdOn?: string
+  lines?: TxnLine[]
 }
 
 /** Map a full document (header + first line) into Opening Stock form values. */
@@ -216,6 +276,55 @@ export async function updateTxn(resource: string, id: string, body: DocumentRequ
 
 export async function fetchTxn(resource: string, id: string) {
   return http.get<TxnDocument>(`/${resource}/${id}`)
+}
+
+export async function deleteTxn(resource: string, id: string) {
+  return http.del<{ message: string }>(`/${resource}/${id}`)
+}
+
+/** Moves a Pending Approval document to Approved. */
+export async function approveTxn(resource: string, id: string, approvedByEmpId?: number, remarks?: string) {
+  return http.post<TxnDocument>(`/${resource}/${id}/approve`, { approvedByEmpId, remarks })
+}
+
+/** Moves a Pending Approval document to Rejected; the reason is mandatory. */
+export async function rejectTxn(resource: string, id: string, reason: string) {
+  return http.post<{ message: string }>(`/${resource}/${id}/reject`, { reason })
+}
+
+export type StockRow = {
+  stockId: number
+  itemId: number
+  locationId: number
+  currentQty?: number
+  reservedQty?: number
+  availableQty?: number
+  batchLotNo?: string
+}
+
+/**
+ * Available quantity for an item, optionally narrowed to one location.
+ * Sums every batch row and returns 0 when the item has never been stocked.
+ */
+export async function fetchAvailableStock(itemId: number, locationId?: number): Promise<number> {
+  const qs = new URLSearchParams({ itemId: String(itemId), page: '1', pageSize: '200' })
+  if (locationId != null) qs.set('locationId', String(locationId))
+  const page = await http.get<PageResponse<StockRow>>(`/stock?${qs}`)
+  return (page.data ?? []).reduce((sum, r) => sum + Number(r.availableQty ?? 0), 0)
+}
+
+export type UploadedFile = {
+  url: string
+  fileName: string
+  originalName: string
+  size: number
+}
+
+/** Stores an attachment and returns the URL to persist on the document header. */
+export async function uploadAttachment(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return http.upload<UploadedFile>('/files', form)
 }
 
 export function numOrUndef(v: unknown): number | undefined {

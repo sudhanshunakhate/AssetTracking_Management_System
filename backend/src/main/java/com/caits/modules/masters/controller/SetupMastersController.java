@@ -131,6 +131,13 @@ public class SetupMastersController {
         return service.valuesByTypeCode(typeCode);
     }
 
+    @PostMapping("/general-types/{typeCode}/values")
+    public ResponseEntity<GenmasterValueDto> addValueByType(
+            @PathVariable String typeCode,
+            @RequestBody GenmasterRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.addValueByTypeCode(typeCode, request));
+    }
+
     @GetMapping("/general-types/{id}")
     public GentypeDto getGentype(@PathVariable Integer id) {
         return service.getGentype(id);

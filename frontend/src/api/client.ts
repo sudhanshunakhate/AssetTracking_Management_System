@@ -31,7 +31,9 @@ export async function api<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const headers = new Headers(options.headers)
-  if (!headers.has('Content-Type') && options.body) {
+  // FormData must keep the browser-generated multipart boundary.
+  const isFormData = options.body instanceof FormData
+  if (!headers.has('Content-Type') && options.body && !isFormData) {
     headers.set('Content-Type', 'application/json')
   }
   const token = getToken()
@@ -58,6 +60,18 @@ export const http = {
   put: <T>(path: string, body?: unknown) =>
     api<T>(path, { method: 'PUT', body: body == null ? undefined : JSON.stringify(body) }),
   del: <T>(path: string) => api<T>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, form: FormData) => api<T>(path, { method: 'POST', body: form }),
+}
+
+/**
+ * Turns a stored `/api/v1/...` reference into a browser-openable absolute URL.
+ * Already-absolute URLs are returned unchanged.
+ */
+export function resolveApiUrl(path: string): string {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  const origin = API_BASE.replace(/\/api\/v1\/?$/, '')
+  return `${origin}${path.startsWith('/') ? '' : '/'}${path}`
 }
 
 export type LoginResponse = {

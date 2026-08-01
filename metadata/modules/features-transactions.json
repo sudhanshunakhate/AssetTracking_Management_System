@@ -2,10 +2,20 @@
   "path": "frontend/src/features/transactions",
   "purpose": "Transaction list/form screens and gatepass window wired to shared TxnDocumentService APIs.",
   "key_files": {
-    "TransactionPages.tsx": "OPN/SR/GRN/ISS/TRF/RTN list+draft create via useTxnList/createTxn",
-    "GatepassPage.tsx": "Inward/outward tabs with live lists and draft create"
+    "TransactionPages.tsx": "OPN/ISS/TRF/RTN list+draft create via useTxnList/createTxn",
+    "GatepassPage.tsx": "Inward/outward tabs with live lists and draft create",
+    "RequisitionPage.tsx": "Store Requisition list + full form (Department/Employee variants, attachments, approvals, approve/reject)",
+    "RequisitionItemLines.tsx": "Editable requisition line grid with item auto-fill and live available-stock lookup",
+    "GrnPage.tsx": "Goods Receipt Note list + full form (header, quantity summary, sign-off); saving posts accepted qty to stock",
+    "GrnItemLines.tsx": "Editable GRN line grid with received/accepted/rejected split, per-line amount and live available-stock lookup",
+    "lineGrid.tsx": "Shared line-grid primitives — base line shape, cell styles, item index and the race-safe available-stock lookup hook",
+    "txnLookups.ts": "Shared master-list hooks, option label helpers and inline quick-add configs for employee/location/vendor/general-master values"
   },
-  "depends_on": ["frontend/src/api/transactions.ts", "frontend/src/api/masters.ts"],
+  "depends_on": [
+    "frontend/src/api/transactions.ts",
+    "frontend/src/api/masters.ts",
+    "frontend/src/components/form/LookupSelect.tsx"
+  ],
   "used_by": ["frontend/src/App.tsx"],
-  "updated": "2026-07-29"
+  "updated": "2026-08-01"
 }

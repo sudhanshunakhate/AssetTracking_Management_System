@@ -22,11 +22,19 @@ export interface OpeningStock {
 export interface StoreRequisition {
   id: string
   reqNo: string
+  reqType: 'DEPARTMENT' | 'EMPLOYEE'
   date: string
+  requiredDate: string
   requestedBy: string
+  employeeCode?: string
   department: string
-  deliverTo: string
   designation: string
+  deliverTo: string
+  attachmentUrl?: string
+  remark?: string
+  approvedBy?: string
+  approvedDate?: string
+  totalItems: number
   status: TxnStatus
 }
 
@@ -35,7 +43,21 @@ export interface Grn {
   grnNo: string
   grnDate: string
   supplier: string
+  invoiceNo: string
+  invoiceDate: string
+  referenceDoc: string
+  referenceDocDate: string
   store: string
+  inspectedBy: string
+  inspectionDate: string
+  remarks: string
+  totalReceivedQty: number
+  totalAcceptedQty: number
+  totalRejectedQty: number
+  preparedBy: string
+  preparedDate: string
+  approvedBy: string
+  approvedDate: string
   totalItems: number
   totalAmount: number
   status: string

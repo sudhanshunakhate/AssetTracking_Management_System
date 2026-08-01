@@ -26,6 +26,10 @@ spring:
     serialization:
       write-dates-as-timestamps: false
     default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
 
 caits:
   security:
@@ -36,6 +40,9 @@ caits:
     location-scope-exempt-roles: ADMIN
   cors:
     allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+  storage:
+    # Local folder for document attachments; created on first upload.
+    upload-dir: "./uploads"
 
 logging:
   level:
