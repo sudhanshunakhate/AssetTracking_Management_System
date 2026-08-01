@@ -7,12 +7,12 @@ import { DataTable, statusColumn, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import { useAuth } from '@/features/auth/AuthContext'
+import { validateFields, type ValidationRules } from './validation'
 
-export type FieldDef = {
+export type FieldDef = ValidationRules & {
   name: string
   label: string
-  type?: 'text' | 'number' | 'select' | 'textarea' | 'switch'
-  required?: boolean
+  type?: 'text' | 'number' | 'select' | 'textarea' | 'switch' | 'date'
   hint?: string
   span?: 1 | 2 | 3 | 4
   options?: { value: string; label: string }[]
@@ -48,6 +48,11 @@ interface SimpleMasterProps<T extends Row> {
   onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
   /** Field names that should be read-only on the edit form. */
   readOnlyFields?: string[]
+  /**
+   * Cross-field validation run before save, on top of the per-field rules.
+   * Return a map of field name → message; use the `_form` key for a form-level error.
+   */
+  validateForm?: (values: Record<string, unknown>, recordId: string) => Record<string, string>
 }
 
 function toFormValues(initial: Record<string, unknown>, fields: FieldDef[]): Record<string, unknown> {
@@ -85,6 +90,7 @@ export function SimpleMasterModule<T extends Row>({
   renderExtraForm,
   onSave,
   readOnlyFields = [],
+  validateForm,
 }: SimpleMasterProps<T>) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -137,6 +143,8 @@ export function SimpleMasterModule<T extends Row>({
         readOnlyFields={readOnlyFields}
         initial={initial}
         renderExtraForm={renderExtraForm}
+        siblings={rows}
+        validateForm={validateForm}
       />
     )
   }
@@ -178,6 +186,8 @@ function MasterForm({
   renderExtraForm,
   readOnly = false,
   readOnlyFields = [],
+  siblings = [],
+  validateForm,
 }: {
   title: string
   description: string
@@ -195,11 +205,15 @@ function MasterForm({
   ) => ReactNode
   readOnly?: boolean
   readOnlyFields?: string[]
+  siblings?: Row[]
+  validateForm?: (values: Record<string, unknown>, recordId: string) => Record<string, string>
 }) {
   const navigate = useNavigate()
   const [values, setValues] = useState<Record<string, unknown>>(() => toFormValues(initial, fields))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [submitted, setSubmitted] = useState(false)
   const isNew = recordId === 'new'
 
   // Re-patch only when record data actually changes (not on every parent re-render).
@@ -214,12 +228,37 @@ function MasterForm({
   }, [patchKey])
 
   const set = (k: string, v: unknown) => setValues((prev) => ({ ...prev, [k]: v }))
+  const markTouched = (k: string) => setTouched((prev) => (prev[k] ? prev : { ...prev, [k]: true }))
 
   const gridClass = useMemo(() => 'grid gap-2.5 grid-cols-1 md:grid-cols-2 xl:grid-cols-4', [])
+
+  const errors = useMemo(() => {
+    if (readOnly) return {}
+    return {
+      ...validateFields(fields, values, siblings, recordId),
+      ...(validateForm?.(values, recordId) ?? {}),
+    }
+  }, [fields, values, siblings, recordId, readOnly, validateForm])
+
+  /** Errors stay hidden until the field is visited or the user tries to save. */
+  const errorFor = (name: string) => (submitted || touched[name] ? (errors[name] ?? '') : '')
 
   const handleSave = async () => {
     if (readOnly || !onSave) {
       navigate(basePath)
+      return
+    }
+    setSubmitted(true)
+    const names = Object.keys(errors)
+    if (names.length > 0) {
+      // Rules from validateForm can target panels outside the field grid, so spell those out.
+      const inGrid = new Set(fields.map((f) => f.name))
+      const offGrid = names.filter((n) => !inGrid.has(n)).map((n) => errors[n])
+      const highlighted = names.length - offGrid.length
+      const parts = [...offGrid]
+      if (highlighted === 1 && offGrid.length === 0) parts.push(errors[names[0]])
+      else if (highlighted > 0) parts.push(`Please correct ${highlighted} highlighted field(s).`)
+      setError(parts.join(' '))
       return
     }
     setSaving(true)
@@ -269,7 +308,10 @@ function MasterForm({
                     : f.span === 2
                       ? 'md:col-span-2'
                       : ''
-              const fieldReadOnly = readOnly || (!isNew && readOnlyFields.includes(f.name))
+              // loginId stays locked even on Add when listed (auto-filled identity)
+              const fieldReadOnly =
+                readOnly ||
+                (readOnlyFields.includes(f.name) && (!isNew || f.name === 'loginId'))
               if (f.type === 'switch') {
                 return (
                   <div key={f.name} className={`pt-1 ${span}`}>
@@ -282,25 +324,35 @@ function MasterForm({
                   </div>
                 )
               }
+              const fieldError = errorFor(f.name)
               return (
                 <Field
                   key={f.name}
                   label={f.label}
                   required={f.required}
                   hint={f.hint}
+                  error={fieldError}
                   className={span}
                 >
                   {f.type === 'textarea' ? (
                     <Textarea
                       value={String(values[f.name] ?? '')}
                       onChange={(e) => set(f.name, e.target.value)}
+                      onBlur={() => markTouched(f.name)}
                       placeholder={f.hint}
+                      maxLength={f.maxLength}
+                      invalid={Boolean(fieldError)}
                       disabled={fieldReadOnly}
                     />
                   ) : f.type === 'select' ? (
                     <Select
                       value={String(values[f.name] ?? '')}
-                      onChange={(e) => set(f.name, e.target.value)}
+                      onChange={(e) => {
+                        markTouched(f.name)
+                        set(f.name, e.target.value)
+                      }}
+                      onBlur={() => markTouched(f.name)}
+                      invalid={Boolean(fieldError)}
                       disabled={fieldReadOnly}
                     >
                       <option value="">— Select —</option>
@@ -312,7 +364,7 @@ function MasterForm({
                     </Select>
                   ) : (
                     <Input
-                      type={f.type === 'number' ? 'number' : 'text'}
+                      type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
                       value={String(values[f.name] ?? '')}
                       onChange={(e) =>
                         set(
@@ -320,7 +372,12 @@ function MasterForm({
                           f.uppercase ? e.target.value.toUpperCase() : e.target.value,
                         )
                       }
+                      onBlur={() => markTouched(f.name)}
                       placeholder={f.hint}
+                      maxLength={f.maxLength}
+                      min={f.min}
+                      max={f.max}
+                      invalid={Boolean(fieldError)}
                       readOnly={fieldReadOnly}
                       disabled={fieldReadOnly}
                     />
@@ -340,11 +397,15 @@ function MasterForm({
         onClear={
           readOnly
             ? undefined
-            : () =>
+            : () => {
                 setValues({
                   ...Object.fromEntries(fields.map((f) => [f.name, f.type === 'switch' ? true : ''])),
                   status: true,
                 })
+                setTouched({})
+                setSubmitted(false)
+                setError('')
+              }
         }
         onBack={() => navigate(basePath)}
         onSave={readOnly ? undefined : () => void handleSave()}

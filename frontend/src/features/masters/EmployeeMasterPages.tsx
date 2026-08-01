@@ -24,6 +24,30 @@ import {
 import { http } from '@/api/client'
 import type { Employee } from '@/types/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { MSG, PATTERNS, RULES, notBefore, validateFields } from './validation'
+
+const LOGIN_ID = /^[a-z0-9][a-z0-9._-]*$/
+
+function checkDob(value: string): string {
+  const dob = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(dob.getTime())) return 'Enter a valid Date of Birth'
+  const today = new Date()
+  if (dob > today) return 'Date of Birth cannot be in the future'
+  let age = today.getFullYear() - dob.getFullYear()
+  const monthDiff = today.getMonth() - dob.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age -= 1
+  if (age < 15) return 'Employee must be at least 15 years old'
+  if (age > 100) return 'Enter a valid Date of Birth'
+  return ''
+}
+
+function checkPasswordStrength(value: string): string {
+  if (!/[a-z]/.test(value)) return 'Password needs at least one lowercase letter'
+  if (!/[A-Z]/.test(value)) return 'Password needs at least one uppercase letter'
+  if (!/[0-9]/.test(value)) return 'Password needs at least one number'
+  if (!/[^A-Za-z0-9]/.test(value)) return 'Password needs at least one symbol'
+  return ''
+}
 
 function suggestLogin(firstName: string, lastName: string) {
   const first = firstName.trim().toLowerCase().replace(/\s+/g, '')
@@ -106,9 +130,12 @@ function EmployeeForm() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [hasLogin, setHasLogin] = useState(false)
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const [submitted, setSubmitted] = useState(false)
 
   const set = <K extends keyof EmpFormState>(k: K, v: EmpFormState[K]) =>
     setValues((prev) => ({ ...prev, [k]: v }))
+  const touch = (k: string) => setTouched((prev) => (prev[k] ? prev : { ...prev, [k]: true }))
 
   useEffect(() => {
     if (isNew) {
@@ -178,6 +205,102 @@ function EmployeeForm() {
     [employees, id],
   )
 
+  const showLoginFields = values.createLogin && (isNew || !hasLogin)
+
+  const errors = useMemo(() => {
+    if (readOnly) return {} as Record<string, string>
+    const bag = values as unknown as Record<string, unknown>
+    const siblings = employees.map((e) => ({ id: e.id, code: e.code, email: e.email }))
+    const found = validateFields(
+      [
+        { name: 'code', label: 'Employee Code', ...RULES.code(20), uniqueMessage: 'This Employee Code is already used' },
+        {
+          name: 'firstName',
+          label: 'First Name',
+          required: true,
+          minLength: 2,
+          maxLength: 50,
+          pattern: PATTERNS.alphaSpace,
+          patternMessage: MSG.alphaSpace,
+        },
+        {
+          name: 'lastName',
+          label: 'Last Name',
+          minLength: 2,
+          maxLength: 50,
+          pattern: PATTERNS.alphaSpace,
+          patternMessage: MSG.alphaSpace,
+        },
+        { name: 'dob', label: 'Date of Birth', type: 'date', validate: checkDob },
+        {
+          name: 'joiningDate',
+          label: 'Joining Date',
+          type: 'date',
+          validate: notBefore('dob', 'Date of Birth'),
+        },
+        { name: 'designation', label: 'Designation', maxLength: 80 },
+        { name: 'department', label: 'Department', maxLength: 80 },
+        {
+          name: 'email',
+          label: 'Email',
+          ...RULES.email(true),
+          unique: true,
+          uniqueMessage: 'This email is already used by another employee',
+        },
+        { name: 'phone', label: 'Phone', ...RULES.phone() },
+        {
+          name: 'altPhone',
+          label: 'Alt. Phone',
+          ...RULES.phone(),
+          validate: (v, all) =>
+            v === String(all.phone ?? '').trim() ? 'Alt. Phone must differ from Phone' : '',
+        },
+        { name: 'role', label: 'Role', required: true },
+      ],
+      bag,
+      siblings,
+      id ?? 'new',
+    )
+
+    if (showLoginFields) {
+      Object.assign(
+        found,
+        validateFields(
+          [
+            {
+              name: 'loginId',
+              label: 'Login ID',
+              required: true,
+              minLength: 3,
+              maxLength: 60,
+              pattern: LOGIN_ID,
+              patternMessage: 'Use lowercase letters, digits, dot, dash or underscore',
+            },
+            {
+              name: 'password',
+              label: 'Password',
+              required: true,
+              minLength: 8,
+              maxLength: 72,
+              validate: checkPasswordStrength,
+            },
+            {
+              name: 'confirmPassword',
+              label: 'Confirm Password',
+              required: true,
+              validate: (v, all) => (v === String(all.password ?? '') ? '' : 'Passwords do not match'),
+            },
+            { name: 'entityId', label: 'Organization', required: true },
+          ],
+          bag,
+        ),
+      )
+    }
+    return found
+  }, [values, employees, id, showLoginFields, readOnly])
+
+  const err = (k: string) => (submitted || touched[k] ? (errors[k] ?? '') : '')
+
   const onNameChange = (field: 'firstName' | 'lastName', value: string) => {
     setValues((prev) => {
       const next = { ...prev, [field]: value }
@@ -193,27 +316,20 @@ function EmployeeForm() {
 
   const save = async () => {
     if (readOnly) return
+    setSubmitted(true)
+    const failed = Object.keys(errors)
+    if (failed.length > 0) {
+      setError(
+        failed.length === 1
+          ? errors[failed[0]]
+          : `Please correct ${failed.length} highlighted field(s) before saving.`,
+      )
+      return
+    }
     setSaving(true)
     setError('')
     try {
-      if (!values.code.trim() || !values.firstName.trim() || !values.email.trim()) {
-        throw new Error('Employee Code, First Name and Email are required')
-      }
-      if (!values.role) throw new Error('Role is required')
-
       const createLogin = Boolean(values.createLogin) && (isNew || !hasLogin)
-      if (createLogin) {
-        if (!values.password || !values.confirmPassword) {
-          throw new Error('Password and Confirm Password are required to create a User Login')
-        }
-        if (values.password !== values.confirmPassword) {
-          throw new Error('Password and Confirm Password do not match')
-        }
-        if (values.password.length < 8) {
-          throw new Error('Password must be at least 8 characters')
-        }
-      }
-
       const body = {
         employeeCode: values.code.trim().toUpperCase(),
         firstName: values.firstName.trim(),
@@ -256,8 +372,6 @@ function EmployeeForm() {
     return <div className="text-sm text-[var(--text3)]">Loading employee…</div>
   }
 
-  const showLoginFields = values.createLogin && (isNew || !hasLogin)
-
   return (
     <FadeContent>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2.5">
@@ -286,24 +400,33 @@ function EmployeeForm() {
         <CardHeader title="Personal Information" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Employee Code" required>
+            <Field label="Employee Code" required error={err('code')}>
               <Input
                 value={values.code}
                 onChange={(e) => set('code', e.target.value.toUpperCase())}
+                onBlur={() => touch('code')}
+                maxLength={20}
+                invalid={Boolean(err('code'))}
                 placeholder="EMP-001"
               />
             </Field>
-            <Field label="First Name" required className="md:col-span-2">
+            <Field label="First Name" required error={err('firstName')} className="md:col-span-2">
               <Input
                 value={values.firstName}
                 onChange={(e) => onNameChange('firstName', e.target.value)}
+                onBlur={() => touch('firstName')}
+                maxLength={50}
+                invalid={Boolean(err('firstName'))}
                 placeholder="Aditya"
               />
             </Field>
-            <Field label="Last Name">
+            <Field label="Last Name" error={err('lastName')}>
               <Input
                 value={values.lastName}
                 onChange={(e) => onNameChange('lastName', e.target.value)}
+                onBlur={() => touch('lastName')}
+                maxLength={50}
+                invalid={Boolean(err('lastName'))}
                 placeholder="Kulkarni"
               />
             </Field>
@@ -317,14 +440,22 @@ function EmployeeForm() {
                 ))}
               </Select>
             </Field>
-            <Field label="Date of Birth">
-              <Input type="date" value={values.dob} onChange={(e) => set('dob', e.target.value)} />
+            <Field label="Date of Birth" error={err('dob')}>
+              <Input
+                type="date"
+                value={values.dob}
+                onChange={(e) => set('dob', e.target.value)}
+                onBlur={() => touch('dob')}
+                invalid={Boolean(err('dob'))}
+              />
             </Field>
-            <Field label="Joining Date">
+            <Field label="Joining Date" error={err('joiningDate')}>
               <Input
                 type="date"
                 value={values.joiningDate}
                 onChange={(e) => set('joiningDate', e.target.value)}
+                onBlur={() => touch('joiningDate')}
+                invalid={Boolean(err('joiningDate'))}
               />
             </Field>
             <Field label="Employment Type">
@@ -347,44 +478,66 @@ function EmployeeForm() {
         <CardHeader title="Professional Details" subtitle="Department, designation, role and location" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Designation" className="md:col-span-2">
+            <Field label="Designation" error={err('designation')} className="md:col-span-2">
               <Input
                 value={values.designation}
                 onChange={(e) => set('designation', e.target.value)}
+                onBlur={() => touch('designation')}
+                maxLength={80}
+                invalid={Boolean(err('designation'))}
                 placeholder="Store Manager"
               />
             </Field>
-            <Field label="Department" className="md:col-span-2">
+            <Field label="Department" error={err('department')} className="md:col-span-2">
               <Input
                 value={values.department}
                 onChange={(e) => set('department', e.target.value)}
+                onBlur={() => touch('department')}
+                maxLength={80}
+                invalid={Boolean(err('department'))}
                 placeholder="Stores / IT / Operations / Finance"
               />
             </Field>
-            <Field label="Email" required className="md:col-span-2">
+            <Field label="Email" required error={err('email')} className="md:col-span-2">
               <Input
                 type="email"
                 value={values.email}
                 onChange={(e) => set('email', e.target.value)}
+                onBlur={() => touch('email')}
+                maxLength={120}
+                invalid={Boolean(err('email'))}
                 placeholder="employee@company.in"
               />
             </Field>
-            <Field label="Phone">
+            <Field label="Phone" error={err('phone')}>
               <Input
                 value={values.phone}
                 onChange={(e) => set('phone', e.target.value)}
+                onBlur={() => touch('phone')}
+                maxLength={15}
+                invalid={Boolean(err('phone'))}
                 placeholder="99XXXXXXXX"
               />
             </Field>
-            <Field label="Alt. Phone">
+            <Field label="Alt. Phone" error={err('altPhone')}>
               <Input
                 value={values.altPhone}
                 onChange={(e) => set('altPhone', e.target.value)}
+                onBlur={() => touch('altPhone')}
+                maxLength={15}
+                invalid={Boolean(err('altPhone'))}
                 placeholder="99XXXXXXXX"
               />
             </Field>
-            <Field label="Role" required className="md:col-span-2">
-              <Select value={values.role} onChange={(e) => set('role', e.target.value)}>
+            <Field label="Role" required error={err('role')} className="md:col-span-2">
+              <Select
+                value={values.role}
+                onChange={(e) => {
+                  touch('role')
+                  set('role', e.target.value)
+                }}
+                invalid={Boolean(err('role'))}
+              >
                 <option value="">— Assign Role —</option>
                 {roles.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -446,37 +599,63 @@ function EmployeeForm() {
 
           {showLoginFields && (
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-              <Field label="Login ID" required hint="Suggested from employee name — you can edit it">
+              <Field
+                label="Login ID"
+                required
+                hint="Suggested from employee name — you can edit it"
+                error={err('loginId')}
+              >
                 <Input
                   value={values.loginId}
                   onChange={(e) => {
                     set('loginIdTouched', true)
                     set('loginId', e.target.value.toLowerCase())
                   }}
+                  onBlur={() => touch('loginId')}
+                  maxLength={60}
+                  invalid={Boolean(err('loginId'))}
                   placeholder="firstname.lastname"
                 />
               </Field>
-              <Field label="Password" required hint="Min 8 chars, mixed case, number & symbol">
+              <Field
+                label="Password"
+                required
+                hint="Min 8 chars, mixed case, number & symbol"
+                error={err('password')}
+              >
                 <Input
                   type="password"
                   value={values.password}
                   onChange={(e) => set('password', e.target.value)}
+                  onBlur={() => touch('password')}
+                  maxLength={72}
+                  invalid={Boolean(err('password'))}
                   placeholder="••••••••"
                 />
               </Field>
-              <Field label="Confirm Password" required>
+              <Field label="Confirm Password" required error={err('confirmPassword')}>
                 <Input
                   type="password"
                   value={values.confirmPassword}
                   onChange={(e) => set('confirmPassword', e.target.value)}
+                  onBlur={() => touch('confirmPassword')}
+                  maxLength={72}
+                  invalid={Boolean(err('confirmPassword'))}
                   placeholder="••••••••"
                 />
               </Field>
               <Field label="Role for Login" hint="Taken from Role above">
                 <Input value={roleLabel} disabled />
               </Field>
-              <Field label="Organization" required className="md:col-span-2">
-                <Select value={values.entityId} onChange={(e) => set('entityId', e.target.value)}>
+              <Field label="Organization" required error={err('entityId')} className="md:col-span-2">
+                <Select
+                  value={values.entityId}
+                  onChange={(e) => {
+                    touch('entityId')
+                    set('entityId', e.target.value)
+                  }}
+                  invalid={Boolean(err('entityId'))}
+                >
                   <option value="">— Select Organization —</option>
                   {entities.map((o) => (
                     <option key={o.id} value={o.id}>
@@ -493,7 +672,16 @@ function EmployeeForm() {
       {error && <div className="mt-3 text-sm text-[var(--danger)]">{error}</div>}
 
       <FormActions
-        onClear={readOnly ? undefined : () => setValues(emptyForm())}
+        onClear={
+          readOnly
+            ? undefined
+            : () => {
+                setValues(emptyForm())
+                setTouched({})
+                setSubmitted(false)
+                setError('')
+              }
+        }
         onBack={() => navigate('/masters/employees')}
         onSave={readOnly ? undefined : () => void save()}
         saveLabel={saving ? 'Saving…' : 'Save Employee'}

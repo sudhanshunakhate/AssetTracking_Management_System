@@ -5,6 +5,7 @@ import com.caits.common.MessageResponse;
 import com.caits.domain.entity.*;
 import com.caits.domain.repository.*;
 import com.caits.modules.auth.AuthDtos.*;
+import com.caits.security.AccessScopeService;
 import com.caits.security.CurrentUser;
 import com.caits.security.JwtService;
 import com.caits.security.SecurityUtils;
@@ -26,32 +27,32 @@ public class AuthService {
     private final SysmUserloginMstRepository userRepo;
     private final HrcEmployeeMstRepository employeeRepo;
     private final SysmRolesMstRepository roleRepo;
-    private final SysmUserBuMappingDtlRepository buMappingRepo;
     private final SysmMenutreeMstRepository menuRepo;
     private final SysmRolepermissionDtlRepository rolePermRepo;
     private final SysmUseraccessExceptionDtlRepository exceptionRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final AccessScopeService accessScope;
 
     public AuthService(
             SysmUserloginMstRepository userRepo,
             HrcEmployeeMstRepository employeeRepo,
             SysmRolesMstRepository roleRepo,
-            SysmUserBuMappingDtlRepository buMappingRepo,
             SysmMenutreeMstRepository menuRepo,
             SysmRolepermissionDtlRepository rolePermRepo,
             SysmUseraccessExceptionDtlRepository exceptionRepo,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
+            JwtService jwtService,
+            AccessScopeService accessScope) {
         this.userRepo = userRepo;
         this.employeeRepo = employeeRepo;
         this.roleRepo = roleRepo;
-        this.buMappingRepo = buMappingRepo;
         this.menuRepo = menuRepo;
         this.rolePermRepo = rolePermRepo;
         this.exceptionRepo = exceptionRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.accessScope = accessScope;
     }
 
     @Transactional
@@ -102,7 +103,8 @@ public class AuthService {
         String token = jwtService.createToken(user.getUsrLoginId(), user.getUsrUserId(), role.getRolRoleCode());
         LoginUserDto userDto = new LoginUserDto(
                 user.getUsrUserId(), employeeName, role.getRolRoleCode(),
-                user.getUsrEntityIdEnt(), user.getUsrBuAccessScope());
+                user.getUsrEntityIdEnt(), user.getUsrBuAccessScope(),
+                user.getUsrLocationAccessScope(), user.getUsrLocationIdLoc());
 
         Boolean mustChange = Boolean.TRUE.equals(user.getUsrForcePasswordReset()) ? true : null;
         return new LoginResponse(token, userDto, jwtService.getExpirationSeconds(), mustChange);
@@ -114,6 +116,7 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public MeResponse me() {
+        AccessScopeService.Scope scope = accessScope.current();
         CurrentUser cu = SecurityUtils.requireCurrentUser();
         SysmUserloginMst user = userRepo.findById(cu.userId())
                 .orElseThrow(() -> ApiException.unauthorized("User not found"));
@@ -123,14 +126,27 @@ public class AuthService {
         String employeeName = emp == null ? user.getUsrLoginId()
                 : (emp.getEmpFirstName() + (emp.getEmpLastName() == null ? "" : " " + emp.getEmpLastName())).trim();
 
-        List<Integer> allowedBuIds = buMappingRepo.findAll().stream()
-                .filter(m -> Objects.equals(m.getUboaUserIdUsr(), user.getUsrUserId()))
-                .map(SysmUserBuMappingDtl::getUboaBuIdBu)
-                .toList();
+        // Exempt roles see everything — report ALL so the UI does not try to filter.
+        // Everyone else gets their stored scope and mapped ids.
+        List<Integer> allowedBuIds = scope.unrestricted()
+                ? List.of()
+                : scope.allowedBuIds();
+        List<Integer> allowedLocIds = scope.unrestricted()
+                ? List.of()
+                : scope.allowedLocationIds();
 
         List<MenuPermissionDto> menus = buildMenuPermissions(user, role);
-        return new MeResponse(user.getUsrUserId(), employeeName, role.getRolRoleCode(),
-                user.getUsrBuAccessScope(), allowedBuIds, menus);
+        return new MeResponse(
+                user.getUsrUserId(),
+                employeeName,
+                role.getRolRoleCode(),
+                scope.unrestricted() ? user.getUsrEntityIdEnt() : scope.entityId(),
+                scope.unrestricted() ? "ALL" : scope.buAccessScope(),
+                allowedBuIds,
+                scope.unrestricted() ? "ALL" : scope.locationAccessScope(),
+                allowedLocIds,
+                scope.unrestricted() ? user.getUsrLocationIdLoc() : scope.defaultLocationId(),
+                menus);
     }
 
     private List<MenuPermissionDto> buildMenuPermissions(SysmUserloginMst user, SysmRolesMst role) {

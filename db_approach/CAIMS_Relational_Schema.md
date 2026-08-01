@@ -91,10 +91,13 @@ Every table also carries standard audit columns (`*_created_by`, `*_created_on`,
 - `usr_employee_id_emp` → `hrc_employee_mst` (**1:1**)
 - `usr_role_id_rol` → `sysm_roles_mst` (N:1)
 - `usr_entity_id_ent` → `org_entity_mst` (N:1 — home entity)
-- `usr_location_id_loc` → `org_location_mst` (N:1, nullable — scoped location)
-- *Referenced by:* `sysm_user_bu_mapping_dtl`
+- `usr_location_id_loc` → `org_location_mst` (N:1, nullable — default/home location)
+- `usr_bu_access_scope` / `usr_location_access_scope` — `ALL` or `SELECTED`
+- *Referenced by:* `sysm_user_bu_mapping_dtl`, `sysm_user_location_mapping_dtl`
 
-**`sysm_user_bu_mapping_dtl`** — Which Operating Units a `SPECIFIC`-scope login can see. PK `uboa_user_bu_access_id`.
+**`sysm_user_bu_mapping_dtl`** — Which Operating Units a `SELECTED`-scope login can see. PK `uboa_user_bu_access_id`.
+
+**`sysm_user_location_mapping_dtl`** — Which Locations a `SELECTED`-scope login can see. PK `uloc_user_loc_access_id`.
 - `uboa_user_id_usr` → `sysm_userlogin_mst` (N:1)
 - `uboa_bu_id_bu` → `org_businessunit_mst` (N:1)
 - Together these form the **M:N** bridge between logins and Operating Units.

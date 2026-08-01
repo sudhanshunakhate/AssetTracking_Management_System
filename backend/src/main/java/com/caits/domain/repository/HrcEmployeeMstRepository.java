@@ -10,5 +10,6 @@ import java.util.Optional;
 public interface HrcEmployeeMstRepository extends JpaRepository<HrcEmployeeMst, Integer>, JpaSpecificationExecutor<HrcEmployeeMst> {
     Optional<HrcEmployeeMst> findByEmpEmployeeCodeIgnoreCase(String code);
     boolean existsByEmpEmployeeCodeIgnoreCase(String code);
+    boolean existsByEmpEmailIgnoreCase(String email);
     List<HrcEmployeeMst> findByEmpReportingToEmpIdEmp(Integer managerId);
 }

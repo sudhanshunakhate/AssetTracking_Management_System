@@ -9,6 +9,7 @@ import com.caits.domain.repository.InvItemMstRepository;
 import com.caits.domain.repository.InvStockMstRepository;
 import com.caits.domain.repository.TxnDetailDtlRepository;
 import com.caits.domain.repository.TxnHeaderMstRepository;
+import com.caits.security.AccessScopeService;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,17 +32,20 @@ public class ReportsController {
     private final InvItemMstRepository itemRepo;
     private final TxnHeaderMstRepository headerRepo;
     private final TxnDetailDtlRepository detailRepo;
+    private final AccessScopeService accessScope;
 
     public ReportsController(
             InvStockMstRepository stockRepo,
             InvItemMstRepository itemRepo,
             TxnHeaderMstRepository headerRepo,
-            TxnDetailDtlRepository detailRepo
+            TxnDetailDtlRepository detailRepo,
+            AccessScopeService accessScope
     ) {
         this.stockRepo = stockRepo;
         this.itemRepo = itemRepo;
         this.headerRepo = headerRepo;
         this.detailRepo = detailRepo;
+        this.accessScope = accessScope;
     }
 
     @GetMapping("/stock-register")
@@ -52,11 +56,12 @@ public class ReportsController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int pageSize
     ) {
+        List<Integer> locFilter = accessScope.resolveLocationFilter(locationId);
         List<InvStockMst> stocks = stockRepo.findAll((root, query, cb) -> {
             List<Predicate> preds = new ArrayList<>();
             preds.add(cb.isTrue(root.get("stkIsactive")));
-            if (locationId != null) {
-                preds.add(cb.equal(root.get("stkLocationIdLoc"), locationId));
+            if (locFilter != null) {
+                preds.add(locFilter.isEmpty() ? cb.disjunction() : root.get("stkLocationIdLoc").in(locFilter));
             }
             return cb.and(preds.toArray(Predicate[]::new));
         });
@@ -114,6 +119,7 @@ public class ReportsController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int pageSize
     ) {
+        List<Integer> locFilter = accessScope.resolveLocationFilter(locationId);
         var headers = headerRepo.findAll((root, query, cb) -> {
             List<Predicate> preds = new ArrayList<>();
             if (docType != null && !docType.isBlank()) {
@@ -121,7 +127,18 @@ public class ReportsController {
             }
             if (fromDate != null) preds.add(cb.greaterThanOrEqualTo(root.get("txhDocDate"), fromDate));
             if (toDate != null) preds.add(cb.lessThanOrEqualTo(root.get("txhDocDate"), toDate));
-            if (locationId != null) preds.add(cb.equal(root.get("txhLocationIdLoc"), locationId));
+            if (locFilter != null) {
+                if (locFilter.isEmpty()) {
+                    preds.add(cb.disjunction());
+                } else {
+                    // Match any location column so transfers are not missed or leaked.
+                    preds.add(cb.or(
+                            root.get("txhLocationIdLoc").in(locFilter),
+                            root.get("txhFromLocationIdLoc").in(locFilter),
+                            root.get("txhToLocationIdLoc").in(locFilter)
+                    ));
+                }
+            }
             return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(Predicate[]::new));
         }, PageRequest.of(0, 500)).getContent();
 

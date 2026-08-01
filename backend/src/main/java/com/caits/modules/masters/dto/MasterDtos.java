@@ -59,7 +59,10 @@ public final class MasterDtos {
                           Integer assignedToEmpId, Integer currentLocationId, Boolean isSerialized, Boolean isReturnable,
                           Boolean isUnderAmc, Boolean isInsuranceRequired, Boolean inspectionNeeded, String consumableType,
                           String shelfBin, java.time.LocalDate expiryDate, String batchLotNo, Boolean trackBatchLot,
-                          Boolean trackExpiry, Boolean isConsumable, Boolean allowNegativeStock, Boolean isActive,
+                          Boolean trackExpiry, Boolean isConsumable, Boolean allowNegativeStock,
+                          String ram, String storage, String processor, String productNo,
+                          String ipAddress, String macAddress, String ipAssignMode, String hostname,
+                          String assetCondition, String faultDesc, Integer parentItemId, Boolean isActive,
                           String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn,
                           String message) {}
     public record ItemRequest(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
@@ -70,7 +73,10 @@ public final class MasterDtos {
                               Integer assignedToEmpId, Integer currentLocationId, Boolean isSerialized, Boolean isReturnable,
                               Boolean isUnderAmc, Boolean isInsuranceRequired, Boolean inspectionNeeded, String consumableType,
                               String shelfBin, java.time.LocalDate expiryDate, String batchLotNo, Boolean trackBatchLot,
-                              Boolean trackExpiry, Boolean isConsumable, Boolean allowNegativeStock, Boolean isActive) {}
+                              Boolean trackExpiry, Boolean isConsumable, Boolean allowNegativeStock,
+                              String ram, String storage, String processor, String productNo,
+                              String ipAddress, String macAddress, String ipAssignMode, String hostname,
+                              String assetCondition, String faultDesc, Integer parentItemId, Boolean isActive) {}
 
     public record VendorDto(Integer vendorId, String vendorCode, String vendorName, String partyType, String gstin,
                             String panNo, Integer rating, String add1, String add2, String city, String state, String pin,
@@ -118,6 +124,7 @@ public final class MasterDtos {
 
     public record UserDto(Integer userId, Integer employeeId, String loginId, Integer roleId, String accountStatus,
                           Integer entityId, String buAccessScope, Integer locationId, List<Integer> buIds,
+                          String locationAccessScope, List<Integer> locationIds,
                           Boolean forcePasswordReset, Boolean isActive, String createdBy, LocalDateTime createdOn,
                           String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record UserRequest(Integer employeeId, String loginId, String password, Integer roleId, String accountStatus,
@@ -125,8 +132,10 @@ public final class MasterDtos {
                               Boolean isActive) {}
     public record LockStatusRequest(String action) {}
     public record LockStatusResponse(Integer userId, String accountStatus, String message) {}
-    public record OuAccessDto(Integer userId, String buAccessScope, List<Integer> buIds) {}
-    public record OuAccessRequest(String buAccessScope, List<Integer> buIds) {}
+    public record OuAccessDto(Integer userId, String buAccessScope, List<Integer> buIds,
+                              String locationAccessScope, List<Integer> locationIds) {}
+    public record OuAccessRequest(String buAccessScope, List<Integer> buIds,
+                                  String locationAccessScope, List<Integer> locationIds) {}
 
     public record AccessExceptionDto(Integer exceptionId, Integer employeeId, String exceptionType, String menuCode,
                                      String reason, LocalDate validFrom, LocalDate validUntil, Boolean isActive,

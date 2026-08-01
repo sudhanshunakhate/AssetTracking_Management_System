@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
 
 @Service
 public class SetupMastersService {
@@ -365,8 +364,8 @@ public class SetupMastersService {
         requireCode(req.valueCode(), "valueCode");
         if (req.gentypeId() == null) throw ApiException.badRequest("gentypeId is required");
         findGentype(req.gentypeId());
-        if (genmasterRepo.existsByGmstValueCodeIgnoreCaseAndGmstGentypeIdGtyp(req.valueCode(), req.gentypeId())) {
-            throw ApiException.conflict("Value code already exists for this type");
+        if (genmasterRepo.existsByGmstValueCodeIgnoreCase(req.valueCode())) {
+            throw ApiException.conflict("Value code already exists — value codes must be unique across all types");
         }
         GenmasterMst e = new GenmasterMst();
         applyGenmaster(e, req);
@@ -378,11 +377,9 @@ public class SetupMastersService {
     @Transactional
     public GenmasterDto updateGenmaster(Integer id, GenmasterRequest req) {
         GenmasterMst e = findGenmaster(id);
-        Integer typeId = req.gentypeId() != null ? req.gentypeId() : e.getGmstGentypeIdGtyp();
-        if (req.valueCode() != null && (!req.valueCode().equalsIgnoreCase(e.getGmstValueCode())
-                || !Objects.equals(typeId, e.getGmstGentypeIdGtyp()))
-                && genmasterRepo.existsByGmstValueCodeIgnoreCaseAndGmstGentypeIdGtyp(req.valueCode(), typeId)) {
-            throw ApiException.conflict("Value code already exists for this type");
+        if (req.valueCode() != null && !req.valueCode().equalsIgnoreCase(e.getGmstValueCode())
+                && genmasterRepo.existsByGmstValueCodeIgnoreCase(req.valueCode())) {
+            throw ApiException.conflict("Value code already exists — value codes must be unique across all types");
         }
         if (req.gentypeId() != null) findGentype(req.gentypeId());
         applyGenmaster(e, req);

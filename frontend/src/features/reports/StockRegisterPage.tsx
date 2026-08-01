@@ -6,9 +6,11 @@ import { Card, CardBody } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockRegister } from '@/api/transactions'
 import { mapCategory, mapLocation, mapUnit, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
+import { useAuth } from '@/features/auth/AuthContext'
 import type { StockRegisterRow } from '@/types/transactions'
 
 export function StockRegisterPage() {
+  const { seesAllLocations } = useAuth()
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
   const [store, setStore] = useState('')
@@ -125,7 +127,7 @@ export function StockRegisterPage() {
               onChange={(e) => setStore(e.target.value)}
               className="rounded-[7px] border border-[var(--border2)] px-2.5 py-1.5 text-xs text-[var(--text2)]"
             >
-              <option value="">All Stores</option>
+              <option value="">{seesAllLocations ? 'All Stores' : 'My Stores'}</option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.code}

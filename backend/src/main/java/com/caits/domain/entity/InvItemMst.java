@@ -119,6 +119,39 @@ public class InvItemMst {
     @Column(name = "itm_allow_negative_stock")
     private Boolean itmAllowNegativeStock;
 
+    @Column(name = "itm_ram")
+    private String itmRam;
+
+    @Column(name = "itm_storage")
+    private String itmStorage;
+
+    @Column(name = "itm_processor")
+    private String itmProcessor;
+
+    @Column(name = "itm_product_no")
+    private String itmProductNo;
+
+    @Column(name = "itm_ip_address")
+    private String itmIpAddress;
+
+    @Column(name = "itm_mac_address")
+    private String itmMacAddress;
+
+    @Column(name = "itm_ip_assign_mode")
+    private String itmIpAssignMode;
+
+    @Column(name = "itm_hostname")
+    private String itmHostname;
+
+    @Column(name = "itm_asset_condition")
+    private String itmAssetCondition;
+
+    @Column(name = "itm_fault_desc")
+    private String itmFaultDesc;
+
+    @Column(name = "itm_parent_item_id_itm")
+    private Integer itmParentItemIdItm;
+
     @Column(name = "itm_isactive", nullable = false)
     private Boolean itmIsactive;
 
@@ -241,6 +274,39 @@ public class InvItemMst {
 
     public Boolean getItmAllowNegativeStock() { return itmAllowNegativeStock; }
     public void setItmAllowNegativeStock(Boolean itmAllowNegativeStock) { this.itmAllowNegativeStock = itmAllowNegativeStock; }
+
+    public String getItmRam() { return itmRam; }
+    public void setItmRam(String itmRam) { this.itmRam = itmRam; }
+
+    public String getItmStorage() { return itmStorage; }
+    public void setItmStorage(String itmStorage) { this.itmStorage = itmStorage; }
+
+    public String getItmProcessor() { return itmProcessor; }
+    public void setItmProcessor(String itmProcessor) { this.itmProcessor = itmProcessor; }
+
+    public String getItmProductNo() { return itmProductNo; }
+    public void setItmProductNo(String itmProductNo) { this.itmProductNo = itmProductNo; }
+
+    public String getItmIpAddress() { return itmIpAddress; }
+    public void setItmIpAddress(String itmIpAddress) { this.itmIpAddress = itmIpAddress; }
+
+    public String getItmMacAddress() { return itmMacAddress; }
+    public void setItmMacAddress(String itmMacAddress) { this.itmMacAddress = itmMacAddress; }
+
+    public String getItmIpAssignMode() { return itmIpAssignMode; }
+    public void setItmIpAssignMode(String itmIpAssignMode) { this.itmIpAssignMode = itmIpAssignMode; }
+
+    public String getItmHostname() { return itmHostname; }
+    public void setItmHostname(String itmHostname) { this.itmHostname = itmHostname; }
+
+    public String getItmAssetCondition() { return itmAssetCondition; }
+    public void setItmAssetCondition(String itmAssetCondition) { this.itmAssetCondition = itmAssetCondition; }
+
+    public String getItmFaultDesc() { return itmFaultDesc; }
+    public void setItmFaultDesc(String itmFaultDesc) { this.itmFaultDesc = itmFaultDesc; }
+
+    public Integer getItmParentItemIdItm() { return itmParentItemIdItm; }
+    public void setItmParentItemIdItm(Integer itmParentItemIdItm) { this.itmParentItemIdItm = itmParentItemIdItm; }
 
     public Boolean getItmIsactive() { return itmIsactive; }
     public void setItmIsactive(Boolean itmIsactive) { this.itmIsactive = itmIsactive; }

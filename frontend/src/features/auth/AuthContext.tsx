@@ -13,15 +13,36 @@ import {
   logoutApi,
   meApi,
   setToken,
+  type AccessScope,
   type MenuPermission,
 } from '@/api/client'
 
 type AuthUser = { loginId: string; displayName: string; role: string; userId?: number }
 
+/** What the logged-in user is allowed to see, as returned by /auth/me. */
+export type DataScope = {
+  entityId?: number
+  buAccessScope: AccessScope
+  allowedBuIds: number[]
+  locationAccessScope: AccessScope
+  allowedLocationIds: number[]
+  defaultLocationId?: number
+}
+
+const UNRESTRICTED: DataScope = {
+  buAccessScope: 'ALL',
+  allowedBuIds: [],
+  locationAccessScope: 'ALL',
+  allowedLocationIds: [],
+}
+
 type AuthContextValue = {
   user: AuthUser | null
   menuPermissions: MenuPermission[]
   permissionsReady: boolean
+  scope: DataScope
+  /** True when the user may see every location. The API is the authority; this is for wording. */
+  seesAllLocations: boolean
   canViewMenu: (menuCode: string) => boolean
   canCreateMenu: (menuCode: string) => boolean
   canEditMenu: (menuCode: string) => boolean
@@ -34,6 +55,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 const STORAGE_KEY = 'caits.auth'
 const PERMS_KEY = 'caits.menuPermissions'
+const SCOPE_KEY = 'caits.dataScope'
 
 function readStored(): AuthUser | null {
   try {
@@ -42,6 +64,19 @@ function readStored(): AuthUser | null {
   } catch {
     return null
   }
+}
+
+function readStoredScope(): DataScope {
+  try {
+    const raw = sessionStorage.getItem(SCOPE_KEY)
+    return raw ? (JSON.parse(raw) as DataScope) : UNRESTRICTED
+  } catch {
+    return UNRESTRICTED
+  }
+}
+
+function storeScope(scope: DataScope) {
+  sessionStorage.setItem(SCOPE_KEY, JSON.stringify(scope))
 }
 
 function readStoredPerms(): MenuPermission[] {
@@ -63,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (stored && !getToken()) {
       sessionStorage.removeItem(STORAGE_KEY)
       sessionStorage.removeItem(PERMS_KEY)
+      sessionStorage.removeItem(SCOPE_KEY)
       return null
     }
     return stored
@@ -71,10 +107,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getToken() ? readStoredPerms() : [],
   )
   const [permissionsReady, setPermissionsReady] = useState(() => !getToken() || readStoredPerms().length > 0)
+  const [scope, setScope] = useState<DataScope>(() => (getToken() ? readStoredScope() : UNRESTRICTED))
 
   const applyMe = useCallback(async () => {
     if (!getToken()) {
       setMenuPermissions([])
+      setScope(UNRESTRICTED)
       setPermissionsReady(true)
       return
     }
@@ -82,6 +120,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const perms = me.menuPermissions ?? []
     setMenuPermissions(perms)
     storePerms(perms)
+    const nextScope: DataScope = {
+      entityId: me.entityId,
+      buAccessScope: me.buAccessScope ?? 'ALL',
+      allowedBuIds: me.allowedBuIds ?? [],
+      locationAccessScope: me.locationAccessScope ?? 'ALL',
+      allowedLocationIds: me.allowedLocationIds ?? [],
+      defaultLocationId: me.defaultLocationId,
+    }
+    setScope(nextScope)
+    storeScope(nextScope)
     setPermissionsReady(true)
     setUser((prev) => {
       if (!prev) return prev
@@ -95,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return next
     })
   }, [])
+
+  const seesAllLocations = scope.locationAccessScope !== 'SELECTED'
 
   useEffect(() => {
     if (!getToken()) {
@@ -143,6 +193,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       menuPermissions,
       permissionsReady,
+      scope,
+      seesAllLocations,
       canViewMenu,
       canCreateMenu,
       canEditMenu,
@@ -165,13 +217,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(next)
           setPermissionsReady(false)
           try {
-            const me = await meApi()
-            const perms = me.menuPermissions ?? []
-            setMenuPermissions(perms)
-            storePerms(perms)
+            await applyMe()
           } catch {
             setMenuPermissions([])
             storePerms([])
+            setScope(UNRESTRICTED)
           } finally {
             setPermissionsReady(true)
           }
@@ -185,12 +235,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await logoutApi()
         sessionStorage.removeItem(STORAGE_KEY)
         sessionStorage.removeItem(PERMS_KEY)
+        sessionStorage.removeItem(SCOPE_KEY)
         setMenuPermissions([])
+        setScope(UNRESTRICTED)
         setPermissionsReady(true)
         setUser(null)
       },
     }),
-    [user, menuPermissions, permissionsReady, canViewMenu, canCreateMenu, canEditMenu, canDeleteMenu, applyMe],
+    [
+      user,
+      menuPermissions,
+      permissionsReady,
+      scope,
+      seesAllLocations,
+      canViewMenu,
+      canCreateMenu,
+      canEditMenu,
+      canDeleteMenu,
+      applyMe,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

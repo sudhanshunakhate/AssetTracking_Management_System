@@ -1,4 +1,10 @@
 [
+  "2026-07-31: Location access is now enforced, not just stored — AccessScopeService filters locations, OUs, stock, all transaction lists, reports and dashboard by the user's Login Access mapping; roles in caits.security.location-scope-exempt-roles (default ADMIN) bypass; /auth/me returns locationAccessScope + allowedLocationIds and the session keeps them.",
+  "2026-07-31: Validation now enforced server-side too — genmaster value-code global uniqueness, employee email, item serial no, location OU/Org match, duplicate access exception; DB constraint errors return a readable 409 instead of a raw 500; unique indexes uq_item_serial_no and uq_access_exception added.",
+  "2026-07-31: Master form validation — shared rule engine (features/masters/validation.ts) with inline field errors across Master Setup, Organization and Access & People; uniqueness, format, range and cross-field checks.",
+  "2026-07-31: Item Master gap fields from Assets workbook — RAM/storage/processor/product no, IP/MAC/mode/hostname, asset condition + fault notes, parent asset link; lookups GTY-ASSETCOND and GTY-IPMODE.",
+  "2026-07-31: User Access Mapping — multi-select OU + Location access (sysm_user_location_mapping_dtl + locationAccessScope).",
+  "2026-07-31: User Access Mapping is mapping-only (no password) — auto-fill login identity on employee select; map Org / OU / Location.",
   "2026-07-31: User Access Mapping form restructured — Login Identity, Password (create), Access Mapping (Org + OU Access + OU pickers + Location).",
   "2026-07-31: User Access Mapping — restored Add New; createUser API allows mapping with password; employee/login read-only on edit only.",
   "2026-07-30: Redesigned User Login as User Access Mapping — map Role, Organization, OU(s) and Location; API returns buIds; menu USR renamed.",

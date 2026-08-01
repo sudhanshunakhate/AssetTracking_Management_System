@@ -268,7 +268,7 @@ export function GatepassPage() {
                       <option value="">— Select Employee —</option>
                       {employees.map((e) => (
                         <option key={e.id} value={e.id}>
-                          {e.code} – {e.firstName} {e.lastName}
+                          {e.code} – {String(e.firstName ?? '')} {String(e.lastName ?? '')}
                         </option>
                       ))}
                     </Select>
@@ -321,7 +321,7 @@ export function GatepassPage() {
                         <option value="">— Select Employee —</option>
                         {employees.map((e) => (
                           <option key={e.id} value={e.id}>
-                            {e.code} – {e.firstName} {e.lastName}
+                            {e.code} – {String(e.firstName ?? '')} {String(e.lastName ?? '')}
                           </option>
                         ))}
                       </Select>
@@ -463,7 +463,7 @@ export function GatepassPage() {
                     <option value="">— Select Employee —</option>
                     {employees.map((e) => (
                       <option key={e.id} value={e.id}>
-                        {e.code} – {e.firstName} {e.lastName}
+                        {e.code} – {String(e.firstName ?? '')} {String(e.lastName ?? '')}
                       </option>
                     ))}
                   </Select>

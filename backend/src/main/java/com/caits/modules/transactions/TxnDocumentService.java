@@ -10,6 +10,7 @@ import com.caits.domain.repository.InvStockMstRepository;
 import com.caits.domain.repository.TxnDetailDtlRepository;
 import com.caits.domain.repository.TxnHeaderMstRepository;
 import com.caits.modules.transactions.TxnDtos.*;
+import com.caits.security.AccessScopeService;
 import com.caits.security.SecurityUtils;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
@@ -31,15 +32,18 @@ public class TxnDocumentService {
     private final TxnHeaderMstRepository headerRepo;
     private final TxnDetailDtlRepository detailRepo;
     private final InvStockMstRepository stockRepo;
+    private final AccessScopeService accessScope;
 
     public TxnDocumentService(
             TxnHeaderMstRepository headerRepo,
             TxnDetailDtlRepository detailRepo,
-            InvStockMstRepository stockRepo
+            InvStockMstRepository stockRepo,
+            AccessScopeService accessScope
     ) {
         this.headerRepo = headerRepo;
         this.detailRepo = detailRepo;
         this.stockRepo = stockRepo;
+        this.accessScope = accessScope;
     }
 
     public PageResponse<ListItem> list(
@@ -61,6 +65,14 @@ public class TxnDocumentService {
         int p = Math.max(page, 1);
         int size = Math.min(Math.max(pageSize, 1), 200);
 
+        List<Integer> allowedLocs = accessScope.resolveLocationFilter(null);
+        // When the caller asked for a specific location, intersect with the allow-list.
+        List<Integer> locFilter = locationId == null
+                ? allowedLocs
+                : (allowedLocs == null
+                        ? List.of(locationId)
+                        : (allowedLocs.contains(locationId) ? List.of(locationId) : List.of()));
+
         Specification<TxnHeaderMst> spec = (root, query, cb) -> {
             List<Predicate> preds = new ArrayList<>();
             preds.add(cb.equal(root.get("txhDocType"), docType.code()));
@@ -73,8 +85,18 @@ public class TxnDocumentService {
             if (toDate != null) {
                 preds.add(cb.lessThanOrEqualTo(root.get("txhDocDate"), toDate));
             }
-            if (locationId != null) {
-                preds.add(cb.equal(root.get("txhLocationIdLoc"), locationId));
+            if (locFilter != null) {
+                if (locFilter.isEmpty()) {
+                    preds.add(cb.disjunction());
+                } else {
+                    // A document is visible if ANY of its location columns is in the allow-list
+                    // (covers transfers that only fill from/to).
+                    preds.add(cb.or(
+                            root.get("txhLocationIdLoc").in(locFilter),
+                            root.get("txhFromLocationIdLoc").in(locFilter),
+                            root.get("txhToLocationIdLoc").in(locFilter)
+                    ));
+                }
             }
             if (fromLocationId != null) {
                 preds.add(cb.equal(root.get("txhFromLocationIdLoc"), fromLocationId));
@@ -114,6 +136,9 @@ public class TxnDocumentService {
     @Transactional
     public DocumentResponse create(DocType docType, DocumentRequest req) {
         validateLines(req.lines());
+        accessScope.requireLocationAllowed(req.locationId());
+        accessScope.requireLocationAllowed(req.fromLocationId());
+        accessScope.requireLocationAllowed(req.toLocationId());
         String action = normalizeAction(req.docSubmitAction());
         String status = "SAVE_DRAFT".equals(action) ? "Draft" : initialSubmitStatus(docType);
 
@@ -142,6 +167,9 @@ public class TxnDocumentService {
             throw ApiException.conflict("Only Draft / Rejected documents can be updated");
         }
         validateLines(req.lines());
+        accessScope.requireLocationAllowed(req.locationId());
+        accessScope.requireLocationAllowed(req.fromLocationId());
+        accessScope.requireLocationAllowed(req.toLocationId());
 
         applyHeader(header, docType, req);
         String action = normalizeAction(req.docSubmitAction());
@@ -232,7 +260,19 @@ public class TxnDocumentService {
         if (!docType.code().equals(header.getTxhDocType())) {
             throw ApiException.notFound("Document not found for this transaction type");
         }
+        requireDocumentVisible(header);
         return header;
+    }
+
+    /** A document is visible when at least one of its location columns is in the allow-list. */
+    private void requireDocumentVisible(TxnHeaderMst header) {
+        AccessScopeService.Scope scope = accessScope.current();
+        if (!scope.locationRestricted()) return;
+        List<Integer> allowed = scope.allowedLocationIds();
+        boolean ok = (header.getTxhLocationIdLoc() != null && allowed.contains(header.getTxhLocationIdLoc()))
+                || (header.getTxhFromLocationIdLoc() != null && allowed.contains(header.getTxhFromLocationIdLoc()))
+                || (header.getTxhToLocationIdLoc() != null && allowed.contains(header.getTxhToLocationIdLoc()));
+        if (!ok) throw ApiException.forbidden("You do not have access to this document");
     }
 
     private void validateLines(List<LineRequest> lines) {

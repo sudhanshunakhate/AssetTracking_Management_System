@@ -7,7 +7,15 @@ public final class AuthDtos {
 
     public record LoginRequest(String loginId, String password) {}
 
-    public record LoginUserDto(Integer userId, String employeeName, String roleCode, Integer entityId, String buAccessScope) {}
+    public record LoginUserDto(
+            Integer userId,
+            String employeeName,
+            String roleCode,
+            Integer entityId,
+            String buAccessScope,
+            String locationAccessScope,
+            Integer defaultLocationId
+    ) {}
 
     public record LoginResponse(String token, LoginUserDto user, long expiresIn, Boolean mustChangePassword) {}
 
@@ -31,8 +39,12 @@ public final class AuthDtos {
             Integer userId,
             String employeeName,
             String role,
+            Integer entityId,
             String buAccessScope,
             List<Integer> allowedBuIds,
+            String locationAccessScope,
+            List<Integer> allowedLocationIds,
+            Integer defaultLocationId,
             List<MenuPermissionDto> menuPermissions
     ) {}
 }

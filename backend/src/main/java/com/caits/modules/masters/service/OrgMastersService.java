@@ -7,6 +7,7 @@ import com.caits.common.spec.SpecUtils;
 import com.caits.domain.entity.*;
 import com.caits.domain.repository.*;
 import com.caits.modules.masters.dto.MasterDtos.*;
+import com.caits.security.AccessScopeService;
 import com.caits.security.SecurityUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Service
 public class OrgMastersService {
@@ -22,12 +24,14 @@ public class OrgMastersService {
     private final OrgEntityMstRepository entityRepo;
     private final OrgBusinessunitMstRepository buRepo;
     private final OrgLocationMstRepository locationRepo;
+    private final AccessScopeService accessScope;
 
     public OrgMastersService(OrgEntityMstRepository entityRepo, OrgBusinessunitMstRepository buRepo,
-                             OrgLocationMstRepository locationRepo) {
+                             OrgLocationMstRepository locationRepo, AccessScopeService accessScope) {
         this.entityRepo = entityRepo;
         this.buRepo = buRepo;
         this.locationRepo = locationRepo;
+        this.accessScope = accessScope;
     }
 
     // ---- Entities ----
@@ -35,7 +39,8 @@ public class OrgMastersService {
     public PageResponse<EntityDto> listEntities(int page, int pageSize, String search, Boolean isActive) {
         Specification<OrgEntityMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("entIsactive", isActive),
-                SpecUtils.searchContains(search, "entEntityCode", "entEntityName"));
+                SpecUtils.searchContains(search, "entEntityCode", "entEntityName"),
+                accessScope.entitySpec("entEntityId"));
         Page<OrgEntityMst> result = entityRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
         return PageResponse.of(page, pageSize, result.getTotalElements(),
                 result.getContent().stream().map(e -> toEntityDto(e, null)).toList());
@@ -43,7 +48,12 @@ public class OrgMastersService {
 
     @Transactional(readOnly = true)
     public EntityDto getEntity(Integer id) {
-        return toEntityDto(findEntity(id), null);
+        EntityDto dto = toEntityDto(findEntity(id), null);
+        AccessScopeService.Scope scope = accessScope.current();
+        if (scope.entityRestricted() && !Objects.equals(scope.entityId(), id)) {
+            throw ApiException.forbidden("You do not have access to this Organization");
+        }
+        return dto;
     }
 
     @Transactional
@@ -109,7 +119,9 @@ public class OrgMastersService {
         Specification<OrgBusinessunitMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("buIsactive", isActive),
                 SpecUtils.searchContains(search, "buBuCode", "buBuName"),
-                SpecUtils.eq("buEntityIdEnt", entityId));
+                SpecUtils.eq("buEntityIdEnt", entityId),
+                accessScope.entitySpec("buEntityIdEnt"),
+                accessScope.buSpec("buBuId"));
         Page<OrgBusinessunitMst> result = buRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
         return PageResponse.of(page, pageSize, result.getTotalElements(),
                 result.getContent().stream().map(e -> toBuDto(e, null)).toList());
@@ -117,6 +129,7 @@ public class OrgMastersService {
 
     @Transactional(readOnly = true)
     public BusinessUnitDto getBu(Integer id) {
+        accessScope.requireBuAllowed(id);
         return toBuDto(findBu(id), null);
     }
 
@@ -188,7 +201,10 @@ public class OrgMastersService {
                 SpecUtils.activeEquals("locIsactive", isActive),
                 SpecUtils.searchContains(search, "locLocationCode", "locLocationName"),
                 SpecUtils.eq("locEntityIdEnt", entityId),
-                SpecUtils.eq("locBuIdBu", buId));
+                SpecUtils.eq("locBuIdBu", buId),
+                accessScope.entitySpec("locEntityIdEnt"),
+                accessScope.buSpec("locBuIdBu"),
+                accessScope.locationSpec("locLocationId"));
         Page<OrgLocationMst> result = locationRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
         return PageResponse.of(page, pageSize, result.getTotalElements(),
                 result.getContent().stream().map(e -> toLocDto(e, null)).toList());
@@ -196,6 +212,7 @@ public class OrgMastersService {
 
     @Transactional(readOnly = true)
     public LocationDto getLocation(Integer id) {
+        accessScope.requireLocationAllowed(id);
         return toLocDto(findLocation(id), null);
     }
 
@@ -206,7 +223,7 @@ public class OrgMastersService {
             throw ApiException.badRequest("entityId and buId are required");
         }
         findEntity(req.entityId());
-        findBu(req.buId());
+        requireBuUnderEntity(req.buId(), req.entityId());
         if (locationRepo.existsByLocLocationCodeIgnoreCase(req.locationCode())) {
             throw ApiException.conflict("Location code already exists");
         }
@@ -225,7 +242,9 @@ public class OrgMastersService {
             throw ApiException.conflict("Location code already exists");
         }
         if (req.entityId() != null) findEntity(req.entityId());
-        if (req.buId() != null) findBu(req.buId());
+        Integer entityId = req.entityId() != null ? req.entityId() : e.getLocEntityIdEnt();
+        Integer buId = req.buId() != null ? req.buId() : e.getLocBuIdBu();
+        requireBuUnderEntity(buId, entityId);
         applyLoc(e, req);
         e.setLocModifiedBy(SecurityUtils.requireLoginId());
         e.setLocModifiedOn(LocalDateTime.now());
@@ -265,5 +284,15 @@ public class OrgMastersService {
 
     private static void require(String v, String field) {
         if (v == null || v.isBlank()) throw ApiException.badRequest(field + " is required");
+    }
+
+    /** A location hangs off one Operating Unit, which must itself sit under the chosen entity. */
+    private void requireBuUnderEntity(Integer buId, Integer entityId) {
+        if (buId == null || entityId == null) return;
+        OrgBusinessunitMst bu = findBu(buId);
+        if (!entityId.equals(bu.getBuEntityIdEnt())) {
+            throw ApiException.badRequest(
+                    "Operating Unit \"" + bu.getBuBuName() + "\" does not belong to the selected Organization");
+        }
     }
 }

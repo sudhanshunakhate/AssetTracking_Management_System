@@ -36,6 +36,9 @@ public class SysmUserloginMst {
     @Column(name = "usr_location_id_loc")
     private Integer usrLocationIdLoc;
 
+    @Column(name = "usr_location_access_scope", nullable = false)
+    private String usrLocationAccessScope;
+
     @Column(name = "usr_force_password_reset")
     private Boolean usrForcePasswordReset;
 
@@ -89,6 +92,9 @@ public class SysmUserloginMst {
 
     public Integer getUsrLocationIdLoc() { return usrLocationIdLoc; }
     public void setUsrLocationIdLoc(Integer usrLocationIdLoc) { this.usrLocationIdLoc = usrLocationIdLoc; }
+
+    public String getUsrLocationAccessScope() { return usrLocationAccessScope; }
+    public void setUsrLocationAccessScope(String usrLocationAccessScope) { this.usrLocationAccessScope = usrLocationAccessScope; }
 
     public Boolean getUsrForcePasswordReset() { return usrForcePasswordReset; }
     public void setUsrForcePasswordReset(Boolean usrForcePasswordReset) { this.usrForcePasswordReset = usrForcePasswordReset; }

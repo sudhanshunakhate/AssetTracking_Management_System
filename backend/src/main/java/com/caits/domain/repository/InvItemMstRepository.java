@@ -9,4 +9,6 @@ import java.util.Optional;
 public interface InvItemMstRepository extends JpaRepository<InvItemMst, Integer>, JpaSpecificationExecutor<InvItemMst> {
     Optional<InvItemMst> findByItmItemCodeIgnoreCase(String code);
     boolean existsByItmItemCodeIgnoreCase(String code);
+    boolean existsByItmSerialNoIgnoreCase(String serialNo);
+    boolean existsByItmSerialNoIgnoreCaseAndItmItemIdNot(String serialNo, Integer itemId);
 }

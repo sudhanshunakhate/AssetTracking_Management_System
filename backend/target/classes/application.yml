@@ -31,6 +31,9 @@ caits:
   security:
     jwt-secret: "CAITS_Local_Dev_Secret_Change_Me_32chars_Min_Length_Required!!"
     jwt-expiration-seconds: 3600
+    # Roles that bypass OU / Location scoping and see every record.
+    # Comma-separated; change without a code edit. Case-insensitive.
+    location-scope-exempt-roles: ADMIN
   cors:
     allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
 

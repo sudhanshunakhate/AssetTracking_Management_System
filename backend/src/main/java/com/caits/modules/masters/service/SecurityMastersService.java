@@ -7,6 +7,7 @@ import com.caits.common.spec.SpecUtils;
 import com.caits.domain.entity.*;
 import com.caits.domain.repository.*;
 import com.caits.modules.masters.dto.MasterDtos.*;
+import com.caits.security.AccessScopeService;
 import com.caits.security.SecurityUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -30,24 +32,29 @@ public class SecurityMastersService {
     private final HrcEmployeeMstRepository employeeRepo;
     private final SysmUserloginMstRepository userRepo;
     private final SysmUserBuMappingDtlRepository buMappingRepo;
+    private final SysmUserLocationMappingDtlRepository locationMappingRepo;
     private final SysmUseraccessExceptionDtlRepository exceptionRepo;
     private final OrgEntityMstRepository entityRepo;
     private final PasswordEncoder passwordEncoder;
+    private final AccessScopeService accessScope;
 
     public SecurityMastersService(SysmMenutreeMstRepository menuRepo, SysmRolesMstRepository roleRepo,
                                   SysmRolepermissionDtlRepository rolePermRepo, HrcEmployeeMstRepository employeeRepo,
                                   SysmUserloginMstRepository userRepo, SysmUserBuMappingDtlRepository buMappingRepo,
+                                  SysmUserLocationMappingDtlRepository locationMappingRepo,
                                   SysmUseraccessExceptionDtlRepository exceptionRepo, OrgEntityMstRepository entityRepo,
-                                  PasswordEncoder passwordEncoder) {
+                                  PasswordEncoder passwordEncoder, AccessScopeService accessScope) {
         this.menuRepo = menuRepo;
         this.roleRepo = roleRepo;
         this.rolePermRepo = rolePermRepo;
         this.employeeRepo = employeeRepo;
         this.userRepo = userRepo;
         this.buMappingRepo = buMappingRepo;
+        this.locationMappingRepo = locationMappingRepo;
         this.exceptionRepo = exceptionRepo;
         this.entityRepo = entityRepo;
         this.passwordEncoder = passwordEncoder;
+        this.accessScope = accessScope;
     }
 
     // ---- Menus ----
@@ -140,6 +147,9 @@ public class SecurityMastersService {
     public MessageResponse putPermissions(Integer roleId, List<PermissionDto> permissions) {
         findRole(roleId);
         rolePermRepo.deleteByRlpmRoleIdRol(roleId);
+        // Hibernate orders inserts before deletes, so the rewritten rows would collide with
+        // the old ones on (role, menu). Force the delete out first.
+        rolePermRepo.flush();
         if (permissions != null) {
             Map<String, Integer> idByCode = menuRepo.findAll().stream()
                     .collect(Collectors.toMap(
@@ -228,6 +238,9 @@ public class SecurityMastersService {
         if (employeeRepo.existsByEmpEmployeeCodeIgnoreCase(req.employeeCode())) {
             throw ApiException.conflict("Employee code already exists");
         }
+        if (employeeRepo.existsByEmpEmailIgnoreCase(req.email())) {
+            throw ApiException.conflict("This email is already used by another employee");
+        }
         HrcEmployeeMst e = new HrcEmployeeMst();
         applyEmp(e, req);
         e.setEmpCreatedBy(SecurityUtils.requireLoginId());
@@ -248,6 +261,10 @@ public class SecurityMastersService {
         if (req.employeeCode() != null && !req.employeeCode().equalsIgnoreCase(e.getEmpEmployeeCode())
                 && employeeRepo.existsByEmpEmployeeCodeIgnoreCase(req.employeeCode())) {
             throw ApiException.conflict("Employee code already exists");
+        }
+        if (req.email() != null && !req.email().equalsIgnoreCase(e.getEmpEmail())
+                && employeeRepo.existsByEmpEmailIgnoreCase(req.email())) {
+            throw ApiException.conflict("This email is already used by another employee");
         }
         if (req.roleId() != null) findRole(req.roleId());
         applyEmp(e, req);
@@ -417,6 +434,7 @@ public class SecurityMastersService {
         e.setUsrEntityIdEnt(req.entityId());
         e.setUsrBuAccessScope(req.buAccessScope() == null || req.buAccessScope().isBlank() ? "ALL" : req.buAccessScope());
         e.setUsrLocationIdLoc(req.locationId());
+        e.setUsrLocationAccessScope("ALL");
         e.setUsrForcePasswordReset(Boolean.TRUE.equals(req.forcePasswordReset()));
         e.setUsrIsactive(req.isActive() == null || req.isActive());
         e.setUsrFailedAttempts(0);
@@ -496,30 +514,68 @@ public class SecurityMastersService {
         SysmUserloginMst e = findUser(userId);
         List<Integer> buIds = buMappingRepo.findByUboaUserIdUsr(userId).stream()
                 .map(SysmUserBuMappingDtl::getUboaBuIdBu).toList();
-        return new OuAccessDto(userId, e.getUsrBuAccessScope(), buIds);
+        List<Integer> locationIds = locationMappingRepo.findByUlocUserIdUsr(userId).stream()
+                .map(SysmUserLocationMappingDtl::getUlocLocationIdLoc).toList();
+        String locScope = e.getUsrLocationAccessScope() == null || e.getUsrLocationAccessScope().isBlank()
+                ? "ALL" : e.getUsrLocationAccessScope();
+        return new OuAccessDto(userId, e.getUsrBuAccessScope(), buIds, locScope, locationIds);
     }
 
     @Transactional
     public OuAccessDto putOuAccess(Integer userId, OuAccessRequest req) {
         SysmUserloginMst e = findUser(userId);
+        // A scoped administrator must not be able to hand out access they do not hold themselves.
+        if (req.buIds() != null) req.buIds().forEach(accessScope::requireBuAllowed);
+        if (req.locationIds() != null) req.locationIds().forEach(accessScope::requireLocationAllowed);
         if (req.buAccessScope() != null) {
             e.setUsrBuAccessScope(req.buAccessScope());
+        }
+        if (req.locationAccessScope() != null && !req.locationAccessScope().isBlank()) {
+            e.setUsrLocationAccessScope(req.locationAccessScope());
+        }
+        // Keep default location as first selected location when SELECTED
+        if ("SELECTED".equalsIgnoreCase(e.getUsrLocationAccessScope())
+                && req.locationIds() != null && !req.locationIds().isEmpty()) {
+            Integer current = e.getUsrLocationIdLoc();
+            if (current == null || !req.locationIds().contains(current)) {
+                e.setUsrLocationIdLoc(req.locationIds().get(0));
+            }
         }
         e.setUsrModifiedBy(SecurityUtils.requireLoginId());
         e.setUsrModifiedOn(LocalDateTime.now());
         userRepo.save(e);
+
+        // Flush each delete before re-inserting: Hibernate runs inserts ahead of deletes,
+        // which would clash with the rows being replaced.
         buMappingRepo.deleteByUboaUserIdUsr(userId);
+        buMappingRepo.flush();
         if (req.buIds() != null) {
-            for (Integer buId : req.buIds()) {
+            for (Integer buId : req.buIds().stream().distinct().toList()) {
                 SysmUserBuMappingDtl m = new SysmUserBuMappingDtl();
                 m.setUboaUserIdUsr(userId);
                 m.setUboaBuIdBu(buId);
                 buMappingRepo.save(m);
             }
         }
+
+        locationMappingRepo.deleteByUlocUserIdUsr(userId);
+        locationMappingRepo.flush();
+        if (req.locationIds() != null) {
+            for (Integer locId : req.locationIds().stream().distinct().toList()) {
+                SysmUserLocationMappingDtl m = new SysmUserLocationMappingDtl();
+                m.setUlocUserIdUsr(userId);
+                m.setUlocLocationIdLoc(locId);
+                locationMappingRepo.save(m);
+            }
+        }
+
         List<Integer> buIds = buMappingRepo.findByUboaUserIdUsr(userId).stream()
                 .map(SysmUserBuMappingDtl::getUboaBuIdBu).toList();
-        return new OuAccessDto(userId, e.getUsrBuAccessScope(), buIds);
+        List<Integer> locationIds = locationMappingRepo.findByUlocUserIdUsr(userId).stream()
+                .map(SysmUserLocationMappingDtl::getUlocLocationIdLoc).toList();
+        String locScope = e.getUsrLocationAccessScope() == null || e.getUsrLocationAccessScope().isBlank()
+                ? "ALL" : e.getUsrLocationAccessScope();
+        return new OuAccessDto(userId, e.getUsrBuAccessScope(), buIds, locScope, locationIds);
     }
 
     private SysmUserloginMst findUser(Integer id) {
@@ -541,10 +597,14 @@ public class SecurityMastersService {
     private UserDto toUserDto(SysmUserloginMst e, String message) {
         List<Integer> buIds = buMappingRepo.findByUboaUserIdUsr(e.getUsrUserId()).stream()
                 .map(SysmUserBuMappingDtl::getUboaBuIdBu).toList();
+        List<Integer> locationIds = locationMappingRepo.findByUlocUserIdUsr(e.getUsrUserId()).stream()
+                .map(SysmUserLocationMappingDtl::getUlocLocationIdLoc).toList();
+        String locScope = e.getUsrLocationAccessScope() == null || e.getUsrLocationAccessScope().isBlank()
+                ? "ALL" : e.getUsrLocationAccessScope();
         return new UserDto(e.getUsrUserId(), e.getUsrEmployeeIdEmp(), e.getUsrLoginId(), e.getUsrRoleIdRol(),
                 e.getUsrAccountStatus(), e.getUsrEntityIdEnt(), e.getUsrBuAccessScope(), e.getUsrLocationIdLoc(),
-                buIds, e.getUsrForcePasswordReset(), e.getUsrIsactive(), e.getUsrCreatedBy(), e.getUsrCreatedOn(),
-                e.getUsrModifiedBy(), e.getUsrModifiedOn(), message);
+                buIds, locScope, locationIds, e.getUsrForcePasswordReset(), e.getUsrIsactive(),
+                e.getUsrCreatedBy(), e.getUsrCreatedOn(), e.getUsrModifiedBy(), e.getUsrModifiedOn(), message);
     }
 
     // ---- Access Exceptions ----
@@ -571,6 +631,8 @@ public class SecurityMastersService {
         require(req.menuCode(), "menuCode");
         require(req.reason(), "reason");
         findEmployee(req.employeeId());
+        validateException(req.employeeId(), req.menuCode(), req.exceptionType(),
+                req.validFrom(), req.validUntil(), null);
         SysmUseraccessExceptionDtl e = new SysmUseraccessExceptionDtl();
         applyEx(e, req);
         e.setUexcCreatedBy(SecurityUtils.requireLoginId());
@@ -582,6 +644,11 @@ public class SecurityMastersService {
     public AccessExceptionDto updateException(Integer id, AccessExceptionRequest req) {
         SysmUseraccessExceptionDtl e = findException(id);
         if (req.employeeId() != null) findEmployee(req.employeeId());
+        validateException(
+                req.employeeId() != null ? req.employeeId() : e.getUexcEmployeeIdEmp(),
+                req.menuCode() != null ? req.menuCode() : e.getUexcMenuCodeMtree(),
+                req.exceptionType() != null ? req.exceptionType() : e.getUexcExceptionType(),
+                req.validFrom(), req.validUntil(), id);
         applyEx(e, req);
         e.setUexcModifiedBy(SecurityUtils.requireLoginId());
         e.setUexcModifiedOn(LocalDateTime.now());
@@ -600,6 +667,27 @@ public class SecurityMastersService {
 
     private SysmUseraccessExceptionDtl findException(Integer id) {
         return exceptionRepo.findById(id).orElseThrow(() -> ApiException.notFound("Access exception not found"));
+    }
+
+    private void validateException(Integer employeeId, String menuCode, String exceptionType,
+                                   LocalDate validFrom, LocalDate validUntil, Integer selfId) {
+        if (menuCode != null && !menuCode.isBlank()
+                && menuRepo.findByMtreeMenuCodeIgnoreCase(menuCode).isEmpty()) {
+            throw ApiException.badRequest("Unknown menu code: " + menuCode);
+        }
+        if (validFrom != null && validUntil != null && validUntil.isBefore(validFrom)) {
+            throw ApiException.badRequest("Valid Until must be on or after Valid From");
+        }
+        if (employeeId == null || menuCode == null || exceptionType == null) return;
+        boolean clash = selfId == null
+                ? exceptionRepo.existsByUexcEmployeeIdEmpAndUexcMenuCodeMtreeIgnoreCaseAndUexcExceptionTypeIgnoreCase(
+                        employeeId, menuCode, exceptionType)
+                : exceptionRepo.existsByUexcEmployeeIdEmpAndUexcMenuCodeMtreeIgnoreCaseAndUexcExceptionTypeIgnoreCaseAndUexcExceptionIdNot(
+                        employeeId, menuCode, exceptionType, selfId);
+        if (clash) {
+            throw ApiException.conflict(
+                    "A \"" + exceptionType + "\" exception on " + menuCode + " already exists for this employee");
+        }
     }
 
     private void applyEx(SysmUseraccessExceptionDtl e, AccessExceptionRequest req) {

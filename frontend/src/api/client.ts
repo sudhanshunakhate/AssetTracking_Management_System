@@ -70,7 +70,25 @@ export type LoginResponse = {
     roleCode: string
     entityId: number
     buAccessScope: string
+    locationAccessScope?: string
+    defaultLocationId?: number
   }
+}
+
+/** Scope values stored on the user login record. */
+export type AccessScope = 'ALL' | 'SELECTED'
+
+export type MeResponse = {
+  userId: number
+  employeeName: string
+  role: string
+  entityId?: number
+  buAccessScope: AccessScope
+  allowedBuIds: number[]
+  locationAccessScope: AccessScope
+  allowedLocationIds: number[]
+  defaultLocationId?: number
+  menuPermissions: MenuPermission[]
 }
 
 export async function loginApi(loginId: string, password: string) {
@@ -88,14 +106,7 @@ export async function logoutApi() {
 }
 
 export async function meApi() {
-  return http.get<{
-    userId: number
-    employeeName: string
-    role: string
-    buAccessScope: string
-    allowedBuIds: number[]
-    menuPermissions: MenuPermission[]
-  }>('/auth/me')
+  return http.get<MeResponse>('/auth/me')
 }
 
 export type MenuPermission = {

@@ -14,7 +14,32 @@ export type ApiMasterRow = {
 
 type Mapper<TApi extends Record<string, unknown>> = (row: TApi) => ApiMasterRow
 
-/** Loads a paginated master list from the API and maps it to UI table rows. */
+const LIST_PAGE_SIZE = 500
+/** Guard against an unbounded fetch loop if the API ever reports a bad total. */
+const MAX_LIST_PAGES = 40
+
+/**
+ * Fetches every page of a master list. The forms validate uniqueness against
+ * this array, so a partial list would silently let duplicates through.
+ */
+async function listMasterAll<TApi extends Record<string, unknown>>(resource: string): Promise<TApi[]> {
+  const first = await listMaster<TApi>(resource, { page: 1, pageSize: LIST_PAGE_SIZE })
+  const rows = first.data ?? []
+  const total = first.totalRecords ?? rows.length
+  if (rows.length >= total || rows.length === 0) return rows
+
+  // The API may cap page size below what we asked for, so page off what it actually returned.
+  const served = rows.length
+  const pageCount = Math.min(Math.ceil(total / served), MAX_LIST_PAGES)
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, i) =>
+      listMaster<TApi>(resource, { page: i + 2, pageSize: served }),
+    ),
+  )
+  return rest.reduce<TApi[]>((all, page) => all.concat(page.data ?? []), rows)
+}
+
+/** Loads a master list from the API and maps it to UI table rows. */
 export function useMasterList<TApi extends Record<string, unknown>>(
   resource: string,
   mapRow: Mapper<TApi>,
@@ -29,8 +54,8 @@ export function useMasterList<TApi extends Record<string, unknown>>(
     setLoading(true)
     setError(null)
     try {
-      const page = await listMaster<TApi>(resource, { page: 1, pageSize: 200 })
-      setRows((page.data ?? []).map(mapRow))
+      const data = await listMasterAll<TApi>(resource)
+      setRows(data.map(mapRow))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
       setRows([])
@@ -192,6 +217,8 @@ export const GEN_TYPE = {
   ISSUE_PURPOSE: 'GTY-ISSUE',
   IMR_REASON: 'GTY-IMR',
   STORE_LOCATION: 'GTY-STRLOC',
+  ASSET_CONDITION: 'GTY-ASSETCOND',
+  IP_MODE: 'GTY-IPMODE',
 } as const
 
 export type GenValueOption = {
@@ -299,6 +326,17 @@ export type ItemApi = {
   trackExpiry?: boolean
   isConsumable?: boolean
   allowNegativeStock?: boolean
+  ram?: string
+  storage?: string
+  processor?: string
+  productNo?: string
+  ipAddress?: string
+  macAddress?: string
+  ipAssignMode?: string
+  hostname?: string
+  assetCondition?: string
+  faultDesc?: string
+  parentItemId?: number
   isActive?: boolean
 }
 
@@ -312,6 +350,9 @@ export const mapItem = (i: ItemApi): ApiMasterRow => ({
   uom: i.uomId != null ? String(i.uomId) : '',
   standardCost: Number(i.standardCost ?? 0),
   store: i.currentLocationId != null ? String(i.currentLocationId) : '',
+  serialNo: i.serialNo ?? '',
+  assetCondition: i.assetCondition ?? '',
+  ipAddress: i.ipAddress ?? '',
   status: activeStatus(i.isActive),
 })
 
@@ -489,6 +530,8 @@ export type UserApi = {
   buAccessScope?: string
   locationId?: number
   buIds?: number[]
+  locationAccessScope?: string
+  locationIds?: number[]
   forcePasswordReset?: boolean
   isActive?: boolean
 }
@@ -503,6 +546,8 @@ export const mapUser = (u: UserApi): ApiMasterRow => ({
   ouScope: u.buAccessScope ?? 'ALL',
   locationId: u.locationId != null ? String(u.locationId) : '',
   ouIds: (u.buIds ?? []).map(String),
+  locationScope: u.locationAccessScope ?? 'ALL',
+  locationIds: (u.locationIds ?? []).map(String),
   accountStatus: (u.accountStatus as 'Active' | 'Locked' | 'Disabled') || 'Active',
   status: activeStatus(u.isActive),
 })
@@ -511,13 +556,23 @@ export type OuAccessApi = {
   userId: number
   buAccessScope?: string
   buIds?: number[]
+  locationAccessScope?: string
+  locationIds?: number[]
 }
 
 export async function getUserOuAccess(userId: string | number) {
   return http.get<OuAccessApi>(`/users/${userId}/ou-access`)
 }
 
-export async function putUserOuAccess(userId: string | number, body: { buAccessScope?: string; buIds?: number[] }) {
+export async function putUserOuAccess(
+  userId: string | number,
+  body: {
+    buAccessScope?: string
+    buIds?: number[]
+    locationAccessScope?: string
+    locationIds?: number[]
+  },
+) {
   return http.put<OuAccessApi>(`/users/${userId}/ou-access`, body)
 }
 

@@ -4,12 +4,14 @@ export function Field({
   label,
   required,
   hint,
+  error,
   className = '',
   children,
 }: {
   label: string
   required?: boolean
   hint?: string
+  error?: string
   className?: string
   children: ReactNode
 }) {
@@ -20,7 +22,11 @@ export function Field({
         {required && <span className="text-[10px] text-[var(--danger)]">*</span>}
       </label>
       {children}
-      {hint && <span className="text-[10.5px] text-[var(--text3)]">{hint}</span>}
+      {error ? (
+        <span className="text-[10.5px] font-medium text-[var(--danger)]">{error}</span>
+      ) : (
+        hint && <span className="text-[10.5px] text-[var(--text3)]">{hint}</span>
+      )}
     </div>
   )
 }
@@ -28,19 +34,27 @@ export function Field({
 const control =
   'w-full rounded-md border border-[var(--border2)] bg-[var(--surface)] px-2.5 py-1.5 text-[12.5px] text-[var(--text)] outline-none transition hover:border-[#a0a8be] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_rgba(37,99,235,.1)]'
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${control} ${props.className ?? ''}`} />
+const invalid =
+  'border-[var(--danger)] hover:border-[var(--danger)] focus:border-[var(--danger)] focus:shadow-[0_0_0_3px_rgba(220,38,38,.12)]'
+
+type Invalidatable = { invalid?: boolean }
+
+export function Input({ invalid: bad, ...props }: InputHTMLAttributes<HTMLInputElement> & Invalidatable) {
+  return <input {...props} className={`${control} ${bad ? invalid : ''} ${props.className ?? ''}`} />
 }
 
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={`${control} cursor-pointer ${props.className ?? ''}`} />
+export function Select({ invalid: bad, ...props }: SelectHTMLAttributes<HTMLSelectElement> & Invalidatable) {
+  return <select {...props} className={`${control} cursor-pointer ${bad ? invalid : ''} ${props.className ?? ''}`} />
 }
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea({
+  invalid: bad,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & Invalidatable) {
   return (
     <textarea
       {...props}
-      className={`${control} min-h-[54px] resize-y leading-normal ${props.className ?? ''}`}
+      className={`${control} min-h-[54px] resize-y leading-normal ${bad ? invalid : ''} ${props.className ?? ''}`}
     />
   )
 }

@@ -7,6 +7,7 @@ import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchFullReport } from '@/api/transactions'
 import { mapEmployee, mapEntity, mapLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
+import { useAuth } from '@/features/auth/AuthContext'
 import type { FullReportRow } from '@/types/transactions'
 
 const emptyFilters = {
@@ -19,6 +20,7 @@ const emptyFilters = {
 }
 
 export function FullReportPage() {
+  const { seesAllLocations } = useAuth()
   const [f, setF] = useState(emptyFilters)
   const set = (k: keyof typeof emptyFilters, v: string) => setF((prev) => ({ ...prev, [k]: v }))
   const [rows, setRows] = useState<FullReportRow[]>([])
@@ -153,7 +155,7 @@ export function FullReportPage() {
             </Field>
             <Field label="Location">
               <Select value={f.loc} onChange={(e) => set('loc', e.target.value)}>
-                <option value="">All Locations</option>
+                <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.code} – {s.name}
