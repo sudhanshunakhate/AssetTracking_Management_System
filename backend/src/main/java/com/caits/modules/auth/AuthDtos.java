@@ -1,5 +1,7 @@
 package com.caits.modules.auth;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public final class AuthDtos {
@@ -40,6 +42,8 @@ public final class AuthDtos {
 
     public record MeResponse(
             Integer userId,
+            String loginId,
+            Integer employeeId,
             String employeeName,
             String role,
             Integer entityId,
@@ -48,6 +52,40 @@ public final class AuthDtos {
             String locationAccessScope,
             List<Integer> allowedLocationIds,
             Integer defaultLocationId,
-            List<MenuPermissionDto> menuPermissions
+            List<MenuPermissionDto> menuPermissions,
+            List<String> favouriteMenuCodes
     ) {}
+
+    /**
+     * Own-profile view: employee master fields for the logged-in user,
+     * plus login identity. Read-only from the client.
+     */
+    public record ProfileResponse(
+            Integer userId,
+            String loginId,
+            String role,
+            LocalDateTime lastLoginOn,
+            Integer employeeId,
+            String employeeCode,
+            String firstName,
+            String lastName,
+            String gender,
+            LocalDate dob,
+            LocalDate joiningDate,
+            String employmentType,
+            String designation,
+            String department,
+            String email,
+            String phone,
+            String altPhone,
+            Integer baseLocationId,
+            String baseLocationName,
+            Integer reportingToEmpId,
+            String reportingToName,
+            Boolean isActive
+    ) {}
+
+    public record FavouritesResponse(List<String> menuCodes) {}
+
+    public record FavouritesRequest(List<String> menuCodes) {}
 }

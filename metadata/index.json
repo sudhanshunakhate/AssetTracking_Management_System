@@ -7,6 +7,7 @@
     "transactions-phase2": "features/transactions-phase2.json",
     "store-requisition": "features/store-requisition.json",
     "goods-receipt-note": "features/goods-receipt-note.json",
+    "profile-and-favourites": "features/profile-and-favourites.json",
     "reports-phase2": "features/reports-phase2.json"
   },
   "modules": {
@@ -19,6 +20,10 @@
   },
   "api": {},
   "db_tables": ["caits_local.*"],
+<<<<<<< Updated upstream
   "db_migrations": "db/migrations.json",
   "last_updated": "2026-08-01T13:00:00Z"
+=======
+  "last_updated": "2026-08-03T05:15:00Z"
+>>>>>>> Stashed changes
 }

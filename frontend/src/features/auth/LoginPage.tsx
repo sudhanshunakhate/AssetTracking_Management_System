@@ -5,11 +5,12 @@ import {
   BlurText,
   ClickSpark,
   GhostCursor,
-  GradientText,
   StarBorder,
   TextType,
 } from '@/components/react-bits'
 import { useAuth } from './AuthContext'
+
+const LOGO_SRC = '/logo/caits-mark.png'
 
 export function LoginPage() {
   const { user, login } = useAuth()
@@ -69,24 +70,21 @@ export function LoginPage() {
       <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10">
         <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="hidden text-white lg:block">
-            <div className="mb-4 inline-flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-[var(--accent)] text-[15px] font-bold">
-                  CA
-                </div>
-                <div>
-                  <div className="text-lg font-bold">
-                    <GradientText colors={['#bfdbfe', '#ffffff', '#93c5fd', '#bfdbfe']}>
-                      CAITS
-                    </GradientText>
-                  </div>
-                  <div className="text-[11px] tracking-[0.3px] text-white/55 uppercase">
-                    Centralized Asset & Inventory Tracking
-                  </div>
-                </div>
+            <div className="mb-5">
+              <img
+                src={LOGO_SRC}
+                alt="CAITS"
+                width={280}
+                height={238}
+                className="h-auto w-[min(100%,220px)] object-contain"
+              />
+              <div className="mt-2 text-[11px] tracking-[0.3px] text-white/55 uppercase">
+                Centralized Asset & Inventory Tracking
               </div>
-              <h1 className="mb-3 text-4xl leading-tight font-bold tracking-[-0.5px]">
-                <BlurText text="Track every asset. Control every store." />
-              </h1>
+            </div>
+            <h1 className="mb-3 text-4xl leading-tight font-bold tracking-[-0.5px]">
+              <BlurText text="Track every asset. Control every store." />
+            </h1>
             <p className="max-w-md text-[14px] leading-relaxed text-white/70">
               <TextType
                 text={[
@@ -102,19 +100,17 @@ export function LoginPage() {
 
           <StarBorder className="w-full max-w-[420px] justify-self-center" color="#60a5fa" speed="5s">
             <form onSubmit={onSubmit} className="w-full rounded-[9px] bg-white px-8 pt-9 pb-7">
-              <div className="mb-5 flex items-center gap-3 lg:hidden">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-[var(--accent)] text-[13px] font-bold text-white">
-                  CA
-                </div>
-                <div>
-                  <div className="text-base font-bold text-[var(--text)]">CAITS</div>
-                  <div className="text-[11px] text-[var(--text3)]">Tracking System</div>
-                </div>
+              <div className="mb-5 flex flex-col items-center text-center lg:hidden">
+                <img
+                  src={LOGO_SRC}
+                  alt="CAITS"
+                  width={280}
+                  height={238}
+                  className="h-auto w-[min(100%,160px)] object-contain"
+                />
               </div>
 
-              <div className="mb-1 text-[19px] font-bold text-[var(--text)]">
-                Sign in
-              </div>
+              <div className="mb-1 text-[19px] font-bold text-[var(--text)]">Sign in</div>
               <div className="mb-5 text-[12.5px] text-[var(--text3)]">
                 Enter your Login ID and password to continue
               </div>

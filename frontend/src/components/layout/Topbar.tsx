@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { navGroups } from '@/config/navigation'
 import { useAuth } from '@/features/auth/AuthContext'
+import { ProfileModal } from '@/features/auth/ProfileModal'
+import { FavouritesModal } from '@/features/auth/FavouritesModal'
 
 function crumbFromPath(pathname: string) {
   for (const g of navGroups) {
@@ -20,6 +22,8 @@ export function Topbar() {
   const { pathname } = useLocation()
   const crumb = crumbFromPath(pathname)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [favouritesOpen, setFavouritesOpen] = useState(false)
   const initials =
     user?.displayName
       ?.split(' ')
@@ -61,9 +65,22 @@ export function Topbar() {
             <button
               type="button"
               className="flex w-full rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-[var(--text2)] hover:bg-[var(--surface2)]"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                setMenuOpen(false)
+                setProfileOpen(true)
+              }}
             >
               Profile
+            </button>
+            <button
+              type="button"
+              className="flex w-full rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-[var(--text2)] hover:bg-[var(--surface2)]"
+              onClick={() => {
+                setMenuOpen(false)
+                setFavouritesOpen(true)
+              }}
+            >
+              Favourite Menus
             </button>
             <div className="my-1 h-px bg-[var(--border)]" />
             <button
@@ -71,7 +88,7 @@ export function Topbar() {
               className="flex w-full rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-[var(--danger)] hover:bg-[var(--danger-lt)]"
               onClick={() => {
                 setMenuOpen(false)
-                logout()
+                void logout()
               }}
             >
               Sign out
@@ -79,6 +96,9 @@ export function Topbar() {
           </div>
         )}
       </div>
+
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <FavouritesModal open={favouritesOpen} onClose={() => setFavouritesOpen(false)} />
     </header>
   )
 }

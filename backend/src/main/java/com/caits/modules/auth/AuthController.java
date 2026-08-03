@@ -29,6 +29,21 @@ public class AuthController {
         return authService.me();
     }
 
+    @GetMapping("/profile")
+    public ProfileResponse profile() {
+        return authService.profile();
+    }
+
+    @GetMapping("/favourites")
+    public FavouritesResponse getFavourites() {
+        return authService.getFavourites();
+    }
+
+    @PutMapping("/favourites")
+    public FavouritesResponse saveFavourites(@RequestBody FavouritesRequest request) {
+        return authService.saveFavourites(request);
+    }
+
     @PostMapping("/change-password")
     public MessageResponse changePassword(@RequestBody ChangePasswordRequest request) {
         return authService.changePassword(request);

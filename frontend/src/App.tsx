@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { AuthProvider, useAuth } from '@/features/auth/AuthContext'
 import { LoginPage } from '@/features/auth/LoginPage'
+import { AppBusyBridge } from '@/loading/AppBusyBridge'
+import { GlobalLoader } from '@/loading/GlobalLoader'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import {
   ExceptionsMaster,
@@ -38,6 +40,8 @@ function RootRedirect() {
 export default function App() {
   return (
     <AuthProvider>
+      <AppBusyBridge />
+      <GlobalLoader />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AppShell />}>

@@ -1,3 +1,5 @@
+import { beginLoading, endLoading } from '@/loading/loadingStore'
+
 /** Shared API client for CAITS backend (`/api/v1`). */
 import { cachedFetch, invalidateCache } from '@/api/requestCache'
 
@@ -32,27 +34,32 @@ export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const headers = new Headers(options.headers)
-  // FormData must keep the browser-generated multipart boundary.
-  const isFormData = options.body instanceof FormData
-  if (!headers.has('Content-Type') && options.body && !isFormData) {
-    headers.set('Content-Type', 'application/json')
-  }
-  const token = getToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
+  beginLoading()
+  try {
+    const headers = new Headers(options.headers)
+    // FormData must keep the browser-generated multipart boundary.
+    const isFormData = options.body instanceof FormData
+    if (!headers.has('Content-Type') && options.body && !isFormData) {
+      headers.set('Content-Type', 'application/json')
+    }
+    const token = getToken()
+    if (token) headers.set('Authorization', `Bearer ${token}`)
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
-  const text = await res.text()
-  const body = text ? (JSON.parse(text) as unknown) : null
+    const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+    const text = await res.text()
+    const body = text ? (JSON.parse(text) as unknown) : null
 
-  if (!res.ok) {
-    const msg =
-      body && typeof body === 'object' && 'message' in body
-        ? String((body as { message: string }).message)
-        : res.statusText || 'Request failed'
-    throw new ApiError(res.status, msg)
+    if (!res.ok) {
+      const msg =
+        body && typeof body === 'object' && 'message' in body
+          ? String((body as { message: string }).message)
+          : res.statusText || 'Request failed'
+      throw new ApiError(res.status, msg)
+    }
+    return body as T
+  } finally {
+    endLoading()
   }
-  return body as T
 }
 
 export const http = {
@@ -96,6 +103,8 @@ export type AccessScope = 'ALL' | 'SELECTED'
 
 export type MeResponse = {
   userId: number
+  loginId?: string
+  employeeId?: number
   employeeName: string
   role: string
   entityId?: number
@@ -105,6 +114,32 @@ export type MeResponse = {
   allowedLocationIds: number[]
   defaultLocationId?: number
   menuPermissions: MenuPermission[]
+  favouriteMenuCodes?: string[]
+}
+
+export type ProfileResponse = {
+  userId: number
+  loginId: string
+  role: string
+  lastLoginOn?: string
+  employeeId: number
+  employeeCode: string
+  firstName: string
+  lastName?: string
+  gender?: string
+  dob?: string
+  joiningDate?: string
+  employmentType?: string
+  designation?: string
+  department?: string
+  email?: string
+  phone?: string
+  altPhone?: string
+  baseLocationId?: number
+  baseLocationName?: string
+  reportingToEmpId?: number
+  reportingToName?: string
+  isActive?: boolean
 }
 
 export async function loginApi(loginId: string, password: string) {
@@ -124,6 +159,26 @@ export async function logoutApi() {
 
 export async function meApi() {
   return cachedFetch('auth:me', () => http.get<MeResponse>('/auth/me'), 30_000)
+}
+
+export async function profileApi() {
+  return http.get<ProfileResponse>('/auth/profile')
+}
+
+export async function changePasswordApi(body: {
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+}) {
+  return http.post<{ message: string }>('/auth/change-password', body)
+}
+
+export async function getFavouritesApi() {
+  return http.get<{ menuCodes: string[] }>('/auth/favourites')
+}
+
+export async function saveFavouritesApi(menuCodes: string[]) {
+  return http.put<{ menuCodes: string[] }>('/auth/favourites', { menuCodes })
 }
 
 export type MenuPermission = {

@@ -18,7 +18,13 @@ import {
 } from '@/api/client'
 import { invalidateCache } from '@/api/requestCache'
 
-type AuthUser = { loginId: string; displayName: string; role: string; userId?: number }
+type AuthUser = {
+  loginId: string
+  displayName: string
+  role: string
+  userId?: number
+  employeeId?: number
+}
 
 /** What the logged-in user is allowed to see, as returned by /auth/me. */
 export type DataScope = {
@@ -40,6 +46,8 @@ const UNRESTRICTED: DataScope = {
 type AuthContextValue = {
   user: AuthUser | null
   menuPermissions: MenuPermission[]
+  favouriteMenuCodes: string[]
+  setFavouriteMenuCodes: (codes: string[]) => void
   permissionsReady: boolean
   scope: DataScope
   /** True when the user may see every location. The API is the authority; this is for wording. */
@@ -59,6 +67,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 const STORAGE_KEY = 'caits.auth'
 const PERMS_KEY = 'caits.menuPermissions'
 const SCOPE_KEY = 'caits.dataScope'
+const FAVS_KEY = 'caits.favouriteMenus'
 
 function readStored(): AuthUser | null {
   try {
@@ -95,6 +104,19 @@ function storePerms(perms: MenuPermission[]) {
   sessionStorage.setItem(PERMS_KEY, JSON.stringify(perms))
 }
 
+function readStoredFavs(): string[] {
+  try {
+    const raw = sessionStorage.getItem(FAVS_KEY)
+    return raw ? (JSON.parse(raw) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+function storeFavs(codes: string[]) {
+  sessionStorage.setItem(FAVS_KEY, JSON.stringify(codes))
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = readStored()
@@ -102,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem(STORAGE_KEY)
       sessionStorage.removeItem(PERMS_KEY)
       sessionStorage.removeItem(SCOPE_KEY)
+      sessionStorage.removeItem(FAVS_KEY)
       return null
     }
     return stored
@@ -109,12 +132,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [menuPermissions, setMenuPermissions] = useState<MenuPermission[]>(() =>
     getToken() ? readStoredPerms() : [],
   )
+  const [favouriteMenuCodes, setFavouriteMenuCodesState] = useState<string[]>(() =>
+    getToken() ? readStoredFavs() : [],
+  )
   const [permissionsReady, setPermissionsReady] = useState(() => !getToken() || readStoredPerms().length > 0)
   const [scope, setScope] = useState<DataScope>(() => (getToken() ? readStoredScope() : UNRESTRICTED))
+
+  const setFavouriteMenuCodes = useCallback((codes: string[]) => {
+    setFavouriteMenuCodesState(codes)
+    storeFavs(codes)
+  }, [])
 
   const applyMe = useCallback(async () => {
     if (!getToken()) {
       setMenuPermissions([])
+      setFavouriteMenuCodesState([])
       setScope(UNRESTRICTED)
       setPermissionsReady(true)
       return
@@ -123,6 +155,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const perms = me.menuPermissions ?? []
     setMenuPermissions(perms)
     storePerms(perms)
+    const favs = me.favouriteMenuCodes ?? []
+    setFavouriteMenuCodesState(favs)
+    storeFavs(favs)
     const nextScope: DataScope = {
       entityId: me.entityId,
       buAccessScope: me.buAccessScope ?? 'ALL',
@@ -141,6 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayName: me.employeeName || prev.displayName,
         role: me.role || prev.role,
         userId: me.userId ?? prev.userId,
+        employeeId: me.employeeId ?? prev.employeeId,
+        loginId: me.loginId || prev.loginId,
       }
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       return next
@@ -211,6 +248,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       menuPermissions,
+      favouriteMenuCodes,
+      setFavouriteMenuCodes,
       permissionsReady,
       scope,
       seesAllLocations,
@@ -243,6 +282,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } catch {
             setMenuPermissions([])
             storePerms([])
+            setFavouriteMenuCodesState([])
+            storeFavs([])
             setScope(UNRESTRICTED)
           } finally {
             setPermissionsReady(true)
@@ -258,7 +299,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.removeItem(STORAGE_KEY)
         sessionStorage.removeItem(PERMS_KEY)
         sessionStorage.removeItem(SCOPE_KEY)
+        sessionStorage.removeItem(FAVS_KEY)
         setMenuPermissions([])
+        setFavouriteMenuCodesState([])
         setScope(UNRESTRICTED)
         setPermissionsReady(true)
         setUser(null)
@@ -267,6 +310,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       user,
       menuPermissions,
+      favouriteMenuCodes,
+      setFavouriteMenuCodes,
       permissionsReady,
       scope,
       seesAllLocations,

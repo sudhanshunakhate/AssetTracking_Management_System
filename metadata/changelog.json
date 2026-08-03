@@ -1,8 +1,12 @@
 [
+<<<<<<< Updated upstream
   "2026-08-02: Added inv_bls_mst (Batch/Lot/Serial register). Opening Stock / GRN lines create or reuse a BLS and store txd_bls_id_ibm — serial units, item+batch, or one dummy BLS per non-tracked item. Store min/max stay on inv_stock_mst (no separate store-item table yet).",
   "2026-08-02: Transaction lines can store unit identity (serial / IP / MAC / hostname) on txn_detail_dtl. Opening Stock and GRN add Item Type — choosing Asset + qty N expands into N unit lines with those unique fields; Consumable stays quantity-based.",
   "2026-08-01: DB changes are now tracked in metadata/db/migrations.json — every db_approach/*.sql file records whether local and dev have it. db_approach/sync-migrations.ps1 reports pending migrations (dry run by default) and applies them on confirmation; .cursor/rules/db-migrations.mdc makes the workflow stick. Both databases recorded as in sync at this baseline.",
   "2026-08-01: Local development points at localhost:5432/postgres (schema caits_local); the shared dev server datasource is commented out in application.yml.",
+=======
+  "2026-08-03: Profile + Favourite Menus — Topbar Profile opens a dialog with the logged-in user's employee-master details and change-password; each user can pin up to 12 menus to a Favourites section at the top of the sidebar (sysm_user_favourite_menu_dtl + GET/PUT /auth/favourites).",
+>>>>>>> Stashed changes
   "2026-08-01: Goods Receipt Note rebuilt to match the wireframe — Header, auto-calculated Quantity Summary, item grid with received/accepted/rejected split, live available stock and per-line amount, plus an Other Details sign-off block; every field maps to a txn_header_mst/txn_detail_dtl column (verified by backend/verify-grn.ps1, 47 checks).",
   "2026-08-01: GRN no longer uses an approval workflow — saving the record completes it and receives the accepted quantity into inv_stock_mst; rejected quantity is not stocked. Approved By/Date are recorded sign-off fields only.",
   "2026-08-01: Added txn_header_mst.txh_prepared_by_emp_id_emp (FK hrc_employee_mst) so 'GRN Prepared By' has a real column alongside the existing txh_prepared_date (db_approach/alter_txn_header_add_prepared_by.sql).",

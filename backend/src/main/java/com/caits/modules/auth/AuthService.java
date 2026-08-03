@@ -30,6 +30,8 @@ public class AuthService {
     private final SysmMenutreeMstRepository menuRepo;
     private final SysmRolepermissionDtlRepository rolePermRepo;
     private final SysmUseraccessExceptionDtlRepository exceptionRepo;
+    private final SysmUserFavouriteMenuDtlRepository favouriteRepo;
+    private final OrgLocationMstRepository locationRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AccessScopeService accessScope;
@@ -41,6 +43,8 @@ public class AuthService {
             SysmMenutreeMstRepository menuRepo,
             SysmRolepermissionDtlRepository rolePermRepo,
             SysmUseraccessExceptionDtlRepository exceptionRepo,
+            SysmUserFavouriteMenuDtlRepository favouriteRepo,
+            OrgLocationMstRepository locationRepo,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             AccessScopeService accessScope) {
@@ -50,6 +54,8 @@ public class AuthService {
         this.menuRepo = menuRepo;
         this.rolePermRepo = rolePermRepo;
         this.exceptionRepo = exceptionRepo;
+        this.favouriteRepo = favouriteRepo;
+        this.locationRepo = locationRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.accessScope = accessScope;
@@ -138,6 +144,8 @@ public class AuthService {
         List<MenuPermissionDto> menus = buildMenuPermissions(user, role);
         return new MeResponse(
                 user.getUsrUserId(),
+                user.getUsrLoginId(),
+                user.getUsrEmployeeIdEmp(),
                 employeeName,
                 role.getRolRoleCode(),
                 scope.unrestricted() ? user.getUsrEntityIdEnt() : scope.entityId(),
@@ -146,7 +154,116 @@ public class AuthService {
                 scope.unrestricted() ? "ALL" : scope.locationAccessScope(),
                 allowedLocIds,
                 scope.unrestricted() ? user.getUsrLocationIdLoc() : scope.defaultLocationId(),
-                menus);
+                menus,
+                listFavouriteCodes(user.getUsrUserId()));
+    }
+
+    @Transactional(readOnly = true)
+    public ProfileResponse profile() {
+        CurrentUser cu = SecurityUtils.requireCurrentUser();
+        SysmUserloginMst user = userRepo.findById(cu.userId())
+                .orElseThrow(() -> ApiException.unauthorized("User not found"));
+        SysmRolesMst role = roleRepo.findById(user.getUsrRoleIdRol())
+                .orElseThrow(() -> ApiException.notFound("Role not found"));
+        HrcEmployeeMst emp = employeeRepo.findById(user.getUsrEmployeeIdEmp())
+                .orElseThrow(() -> ApiException.notFound("Employee record not found for this login"));
+
+        String locationName = null;
+        if (emp.getEmpBaseLocationIdLoc() != null) {
+            locationName = locationRepo.findById(emp.getEmpBaseLocationIdLoc())
+                    .map(OrgLocationMst::getLocLocationName)
+                    .orElse(null);
+        }
+
+        String reportingToName = null;
+        if (emp.getEmpReportingToEmpIdEmp() != null) {
+            reportingToName = employeeRepo.findById(emp.getEmpReportingToEmpIdEmp())
+                    .map(m -> (m.getEmpFirstName()
+                            + (m.getEmpLastName() == null ? "" : " " + m.getEmpLastName())).trim())
+                    .orElse(null);
+        }
+
+        return new ProfileResponse(
+                user.getUsrUserId(),
+                user.getUsrLoginId(),
+                role.getRolRoleCode(),
+                user.getUsrLastLoginOn(),
+                emp.getEmpEmployeeId(),
+                emp.getEmpEmployeeCode(),
+                emp.getEmpFirstName(),
+                emp.getEmpLastName(),
+                emp.getEmpGender(),
+                emp.getEmpDob(),
+                emp.getEmpJoiningDate(),
+                emp.getEmpEmploymentType(),
+                emp.getEmpDesignation(),
+                emp.getEmpDepartment(),
+                emp.getEmpEmail(),
+                emp.getEmpPhone(),
+                emp.getEmpAltPhone(),
+                emp.getEmpBaseLocationIdLoc(),
+                locationName,
+                emp.getEmpReportingToEmpIdEmp(),
+                reportingToName,
+                emp.getEmpIsactive());
+    }
+
+    @Transactional(readOnly = true)
+    public FavouritesResponse getFavourites() {
+        CurrentUser cu = SecurityUtils.requireCurrentUser();
+        return new FavouritesResponse(listFavouriteCodes(cu.userId()));
+    }
+
+    /**
+     * Replaces the user's favourite menu list. Only menu codes the user can
+     * actually view are kept, and duplicates are dropped while preserving order.
+     */
+    @Transactional
+    public FavouritesResponse saveFavourites(FavouritesRequest req) {
+        CurrentUser cu = SecurityUtils.requireCurrentUser();
+        SysmUserloginMst user = userRepo.findById(cu.userId())
+                .orElseThrow(() -> ApiException.unauthorized("User not found"));
+        SysmRolesMst role = roleRepo.findById(user.getUsrRoleIdRol())
+                .orElseThrow(() -> ApiException.notFound("Role not found"));
+
+        Set<String> allowed = buildMenuPermissions(user, role).stream()
+                .filter(MenuPermissionDto::view)
+                .map(MenuPermissionDto::menuCode)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        List<String> incoming = req == null || req.menuCodes() == null ? List.of() : req.menuCodes();
+        LinkedHashSet<String> cleaned = new LinkedHashSet<>();
+        for (String code : incoming) {
+            if (code == null || code.isBlank()) continue;
+            String trimmed = code.trim();
+            if (!allowed.contains(trimmed)) {
+                throw ApiException.badRequest("Menu '" + trimmed + "' is not available to pin as a favourite");
+            }
+            cleaned.add(trimmed);
+        }
+        if (cleaned.size() > 12) {
+            throw ApiException.badRequest("You can pin at most 12 favourite menus");
+        }
+
+        favouriteRepo.deleteByUfavUserIdUsr(user.getUsrUserId());
+        favouriteRepo.flush();
+        int order = 0;
+        LocalDateTime now = LocalDateTime.now();
+        for (String code : cleaned) {
+            SysmUserFavouriteMenuDtl row = new SysmUserFavouriteMenuDtl();
+            row.setUfavUserIdUsr(user.getUsrUserId());
+            row.setUfavMenuCodeMtree(code);
+            row.setUfavSortOrder(order++);
+            row.setUfavCreatedOn(now);
+            favouriteRepo.save(row);
+        }
+        return new FavouritesResponse(List.copyOf(cleaned));
+    }
+
+    private List<String> listFavouriteCodes(Integer userId) {
+        return favouriteRepo.findByUfavUserIdUsrOrderByUfavSortOrderAscUfavFavouriteIdAsc(userId).stream()
+                .map(SysmUserFavouriteMenuDtl::getUfavMenuCodeMtree)
+                .toList();
     }
 
     private List<MenuPermissionDto> buildMenuPermissions(SysmUserloginMst user, SysmRolesMst role) {
