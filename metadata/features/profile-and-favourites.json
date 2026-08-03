@@ -1,0 +1,34 @@
+{
+  "id": "profile-and-favourites",
+  "status": "done",
+  "description": "Working Profile dialog (employee-master details for the logged-in user + change password) and per-user favourite menus pinned at the top of the sidebar.",
+  "files": [
+    "frontend/src/features/auth/ProfileModal.tsx",
+    "frontend/src/features/auth/FavouritesModal.tsx",
+    "frontend/src/features/auth/AuthContext.tsx",
+    "frontend/src/components/layout/Topbar.tsx",
+    "frontend/src/components/layout/Sidebar.tsx",
+    "frontend/src/api/client.ts",
+    "backend/src/main/java/com/caits/modules/auth/AuthDtos.java",
+    "backend/src/main/java/com/caits/modules/auth/AuthService.java",
+    "backend/src/main/java/com/caits/modules/auth/AuthController.java",
+    "backend/src/main/java/com/caits/domain/entity/SysmUserFavouriteMenuDtl.java",
+    "backend/src/main/java/com/caits/domain/repository/SysmUserFavouriteMenuDtlRepository.java",
+    "db_approach/create_user_favourite_menus.sql",
+    "backend/verify-profile-favourites.ps1"
+  ],
+  "api_endpoints": [
+    "GET /auth/me (now returns loginId, employeeId, favouriteMenuCodes)",
+    "GET /auth/profile (employee master fields for the current user)",
+    "POST /auth/change-password (wired in Profile UI)",
+    "GET /auth/favourites",
+    "PUT /auth/favourites"
+  ],
+  "db_tables": ["sysm_user_favourite_menu_dtl", "hrc_employee_mst", "sysm_userlogin_mst"],
+  "schema_changes": [
+    "sysm_user_favourite_menu_dtl — per-user pinned menu codes with sort order (FK to sysm_userlogin_mst, unique on user+menu)"
+  ],
+  "depends_on": ["app-shell", "auth-login", "masters-phase1"],
+  "notes": "Profile is view-only from employee master (HR edits stay on Employee Master). Favourites are capped at 12, filtered to menus the user can view, and appear in a Favourites section at the top of the sidebar; manage via avatar menu or the sidebar Edit link.",
+  "updated": "2026-08-03"
+}
