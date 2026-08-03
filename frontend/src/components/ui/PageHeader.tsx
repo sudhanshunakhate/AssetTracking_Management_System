@@ -26,11 +26,15 @@ export function FormActions({
   onBack,
   onSave,
   saveLabel = 'Save',
+  onSaveDraft,
+  draftLabel = 'Save Draft',
 }: {
   onClear?: () => void
   onBack: () => void
   onSave?: () => void
   saveLabel?: string
+  onSaveDraft?: () => void
+  draftLabel?: string
 }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -43,6 +47,11 @@ export function FormActions({
       <Button variant="ghost" onClick={onBack}>
         Back to List
       </Button>
+      {onSaveDraft && (
+        <Button variant="ghost" onClick={onSaveDraft}>
+          {draftLabel}
+        </Button>
+      )}
       {onSave && <Button onClick={onSave}>{saveLabel}</Button>}
     </div>
   )

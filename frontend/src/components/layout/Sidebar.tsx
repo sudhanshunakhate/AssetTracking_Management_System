@@ -10,11 +10,21 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const { canViewMenu, permissionsReady } = useAuth()
+  const { canViewMenu, menuPermissions, permissionsReady } = useAuth()
 
   const visibleGroups = useMemo(() => {
-    const byLabel = (a: { label: string }, b: { label: string }) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+    const orderByCode = new Map<string, number>()
+    const groupOrderByLabel = new Map<string, number>()
+    for (const p of menuPermissions) {
+      orderByCode.set(p.menuCode, p.sortOrder ?? 9999)
+      if (p.menuGroup) {
+        const g = p.groupSortOrder ?? 9999
+        const prev = groupOrderByLabel.get(p.menuGroup)
+        if (prev === undefined || g < prev) groupOrderByLabel.set(p.menuGroup, g)
+      }
+    }
+    const byItemSeq = (a: { menuCode: string }, b: { menuCode: string }) =>
+      (orderByCode.get(a.menuCode) ?? 9999) - (orderByCode.get(b.menuCode) ?? 9999)
 
     // While permissions load, keep static nav visible to avoid a blank flash.
     const groups = !permissionsReady
@@ -27,12 +37,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           .filter((group) => group.items.length > 0)
 
     return [...groups]
-      .map((group) => ({
-        ...group,
-        items: [...group.items].sort(byLabel),
-      }))
-      .sort(byLabel)
-  }, [canViewMenu, permissionsReady])
+      .map((group) => {
+        const items = permissionsReady ? [...group.items].sort(byItemSeq) : [...group.items]
+        // navGroups.label matches sysm_menutree_mst.mtree_menu_group
+        const sectionSeq = groupOrderByLabel.get(group.label)
+        const minItem = items.reduce(
+          (min, item) => Math.min(min, orderByCode.get(item.menuCode) ?? 9999),
+          9999,
+        )
+        return { ...group, items, sectionSeq: sectionSeq ?? minItem }
+      })
+      .sort((a, b) => (permissionsReady ? a.sectionSeq - b.sectionSeq : 0))
+  }, [canViewMenu, menuPermissions, permissionsReady])
 
   return (
     <aside

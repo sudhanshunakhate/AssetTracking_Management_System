@@ -18,8 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -62,7 +64,7 @@ public class SecurityMastersService {
     public List<MenuDto> listMenus() {
         return menuRepo.findByMtreeIsactiveTrueOrderByMtreeSortOrderAsc().stream()
                 .map(m -> new MenuDto(m.getMtreeMenuId(), m.getMtreeMenuCode(), m.getMtreeMenuLabel(),
-                        m.getMtreeMenuGroup(), m.getMtreeSortOrder(), m.getMtreeDocType(),
+                        m.getMtreeMenuGroup(), m.getMtreeSortOrder(), m.getMtreeGroupSortOrder(), m.getMtreeDocType(),
                         m.getMtreeSupportsView(), m.getMtreeSupportsCreate(), m.getMtreeSupportsEdit(),
                         m.getMtreeSupportsDelete(), m.getMtreeSupportsApprove(), m.getMtreeSupportsReject(),
                         m.getMtreeSupportsPrint(), m.getMtreeSupportsExport()))
@@ -132,14 +134,20 @@ public class SecurityMastersService {
     @Transactional(readOnly = true)
     public List<PermissionDto> getPermissions(Integer roleId) {
         findRole(roleId);
-        Map<Integer, String> codeById = menuRepo.findAll().stream()
-                .collect(Collectors.toMap(SysmMenutreeMst::getMtreeMenuId, SysmMenutreeMst::getMtreeMenuCode, (a, b) -> a));
+        Map<Integer, SysmMenutreeMst> menuById = menuRepo.findAll().stream()
+                .collect(Collectors.toMap(SysmMenutreeMst::getMtreeMenuId, m -> m, (a, b) -> a));
         return rolePermRepo.findByRlpmRoleIdRol(roleId).stream()
-                .map(p -> new PermissionDto(
-                        p.getRlpmMenuIdMtree(),
-                        codeById.get(p.getRlpmMenuIdMtree()),
-                        p.getRlpmCanView(), p.getRlpmCanCreate(), p.getRlpmCanEdit(), p.getRlpmCanDelete(),
-                        p.getRlpmCanApprove(), p.getRlpmCanReject(), p.getRlpmCanPrint(), p.getRlpmCanExport()))
+                .map(p -> {
+                    SysmMenutreeMst menu = menuById.get(p.getRlpmMenuIdMtree());
+                    return new PermissionDto(
+                            p.getRlpmMenuIdMtree(),
+                            menu != null ? menu.getMtreeMenuCode() : null,
+                            p.getRlpmCanView(), p.getRlpmCanCreate(), p.getRlpmCanEdit(), p.getRlpmCanDelete(),
+                            p.getRlpmCanApprove(), p.getRlpmCanReject(), p.getRlpmCanPrint(), p.getRlpmCanExport(),
+                            menu != null ? menu.getMtreeSortOrder() : null,
+                            menu != null ? menu.getMtreeGroupSortOrder() : null);
+                })
+                .sorted(Comparator.comparing(d -> d.sortOrder() == null ? Integer.MAX_VALUE : d.sortOrder()))
                 .toList();
     }
 
@@ -151,22 +159,57 @@ public class SecurityMastersService {
         // the old ones on (role, menu). Force the delete out first.
         rolePermRepo.flush();
         if (permissions != null) {
-            Map<String, Integer> idByCode = menuRepo.findAll().stream()
+            List<SysmMenutreeMst> allMenus = menuRepo.findAll();
+            Map<String, SysmMenutreeMst> menuByCode = allMenus.stream()
                     .collect(Collectors.toMap(
                             m -> m.getMtreeMenuCode() == null ? "" : m.getMtreeMenuCode().toUpperCase(),
-                            SysmMenutreeMst::getMtreeMenuId,
+                            m -> m,
                             (a, b) -> a));
+            String loginId = SecurityUtils.requireLoginId();
+            LocalDateTime now = LocalDateTime.now();
+
+            // Section sequence is stored on every menu in the group — apply once per group.
+            Map<String, Integer> groupSortByName = new java.util.LinkedHashMap<>();
             for (PermissionDto dto : permissions) {
-                Integer menuId = dto.menuId();
-                if (menuId == null && dto.module() != null && !dto.module().isBlank()) {
-                    menuId = idByCode.get(dto.module().trim().toUpperCase());
+                if (dto.groupSortOrder() == null) continue;
+                SysmMenutreeMst probe = null;
+                if (dto.menuId() != null) probe = menuRepo.findById(dto.menuId()).orElse(null);
+                if (probe == null && dto.module() != null && !dto.module().isBlank()) {
+                    probe = menuByCode.get(dto.module().trim().toUpperCase());
                 }
-                if (menuId == null) {
+                if (probe != null && probe.getMtreeMenuGroup() != null) {
+                    groupSortByName.put(probe.getMtreeMenuGroup(), dto.groupSortOrder());
+                }
+            }
+            for (Map.Entry<String, Integer> entry : groupSortByName.entrySet()) {
+                for (SysmMenutreeMst m : allMenus) {
+                    if (!Objects.equals(entry.getKey(), m.getMtreeMenuGroup())) continue;
+                    if (Objects.equals(m.getMtreeGroupSortOrder(), entry.getValue())) continue;
+                    m.setMtreeGroupSortOrder(entry.getValue());
+                    m.setMtreeModifiedBy(loginId);
+                    m.setMtreeModifiedOn(now);
+                    menuRepo.save(m);
+                }
+            }
+
+            for (PermissionDto dto : permissions) {
+                SysmMenutreeMst menu = null;
+                if (dto.menuId() != null) {
+                    menu = menuRepo.findById(dto.menuId()).orElse(null);
+                }
+                if (menu == null && dto.module() != null && !dto.module().isBlank()) {
+                    menu = menuByCode.get(dto.module().trim().toUpperCase());
+                }
+                if (menu == null) {
                     throw ApiException.badRequest("Unknown menu for permission: "
                             + (dto.module() != null ? dto.module() : String.valueOf(dto.menuId())));
                 }
-                if (!menuRepo.existsById(menuId)) {
-                    throw ApiException.badRequest("Menu not found: " + menuId);
+                Integer menuId = menu.getMtreeMenuId();
+                if (dto.sortOrder() != null && !Objects.equals(menu.getMtreeSortOrder(), dto.sortOrder())) {
+                    menu.setMtreeSortOrder(dto.sortOrder());
+                    menu.setMtreeModifiedBy(loginId);
+                    menu.setMtreeModifiedOn(now);
+                    menuRepo.save(menu);
                 }
                 SysmRolepermissionDtl p = new SysmRolepermissionDtl();
                 p.setRlpmRoleIdRol(roleId);

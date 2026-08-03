@@ -25,6 +25,7 @@ import {
 import { useAuth } from '@/features/auth/AuthContext'
 import { notBefore, validateFields, type ValidatableField } from '@/features/masters/validation'
 import { RequisitionItemLines, emptyLine, type RequisitionLine } from './RequisitionItemLines'
+import { enrichLinesFromItems } from './lineGrid'
 import {
   empLabel,
   employeeOptions as toEmployeeOptions,
@@ -251,8 +252,8 @@ function RequisitionForm() {
         const mapped = (doc.lines ?? []).map((l) => ({
           ...emptyLine(),
           itemId: l.itemId != null ? String(l.itemId) : '',
-          itemCode: '',
-          itemName: '',
+          itemCode: l.itemCode ?? '',
+          itemName: l.itemName ?? '',
           uomId: l.uomId != null ? String(l.uomId) : '',
           requestedQty: l.requestedQty != null ? String(l.requestedQty) : '',
           availableStock: l.availableStock != null ? String(l.availableStock) : '',
@@ -271,21 +272,11 @@ function RequisitionForm() {
     }
   }, [id, isNew])
 
-  /* Item codes/names come from the master list, which loads independently of the document. */
+  const lineItemKey = lines.map((l) => l.itemId).join('|')
   useEffect(() => {
     if (items.rows.length === 0) return
-    setLines((prev) => {
-      let changed = false
-      const next = prev.map((l) => {
-        if (!l.itemId || l.itemCode) return l
-        const item = items.rows.find((i) => i.id === l.itemId)
-        if (!item) return l
-        changed = true
-        return { ...l, itemCode: String(item.code ?? ''), itemName: String(item.name ?? '') }
-      })
-      return changed ? next : prev
-    })
-  }, [items.rows])
+    setLines((prev) => enrichLinesFromItems(prev, items.rows))
+  }, [items.rows, lineItemKey])
 
   /* Employee variant auto-fills identity fields from the selected employee. */
   const onRequestedByChange = (empId: string) => {

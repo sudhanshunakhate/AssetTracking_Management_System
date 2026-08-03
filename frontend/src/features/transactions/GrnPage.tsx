@@ -19,8 +19,10 @@ import {
 } from '@/api/transactions'
 import { useAuth } from '@/features/auth/AuthContext'
 import { notBefore, validateFields, type ValidatableField } from '@/features/masters/validation'
+import { GEN_TYPE, useGenValues } from '@/api/masters'
 import { GrnItemLines, emptyGrnLine, type GrnLine } from './GrnItemLines'
-import { money, toNum } from './lineGrid'
+import type { ItemKind } from './OpeningStockItemLines'
+import { enrichLinesFromItems, money, toNum } from './lineGrid'
 import {
   employeeOptions as toEmployeeOptions,
   locLabel,
@@ -167,8 +169,10 @@ function GrnForm() {
   const isNew = id === 'new'
 
   const { locations, employees, vendors, items, units } = useTxnFormLookups()
+  const { options: conditionOpts } = useGenValues(GEN_TYPE.ASSET_CONDITION)
 
   const [form, setForm] = useState<FormState>(blankForm)
+  const [itemType, setItemType] = useState<ItemKind>('asset')
   const [lines, setLines] = useState<GrnLine[]>(() => [emptyGrnLine()])
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
@@ -215,16 +219,28 @@ function GrnForm() {
         const mapped = (doc.lines ?? []).map((l) => ({
           ...emptyGrnLine(),
           itemId: l.itemId != null ? String(l.itemId) : '',
+          itemCode: l.itemCode ?? '',
+          itemName: l.itemName ?? '',
           uomId: l.uomId != null ? String(l.uomId) : '',
           receivedQty: l.receivedQty != null ? String(l.receivedQty) : '',
           acceptedQty: l.acceptedQty != null ? String(l.acceptedQty) : '',
           rejectedQty: l.rejectedQty != null ? String(l.rejectedQty) : '',
           availableStock: l.availableStock != null ? String(l.availableStock) : '',
           amount: l.amount != null ? String(l.amount) : '',
+          batch: l.batchLotNo ?? '',
           locationId: l.locationId != null ? String(l.locationId) : '',
+          serialNo: l.serialNo ?? '',
+          ipAddress: l.ipAddress ?? '',
+          macAddress: l.macAddress ?? '',
+          hostname: l.hostname ?? '',
+          itemCondition: l.itemCondition ?? '',
           remark: l.remark ?? '',
         }))
         setLines(mapped.length ? mapped : [emptyGrnLine()])
+        const firstType = doc.lines?.find((l) => l.itemType)?.itemType
+        if (firstType === 'consumable' || firstType === 'asset') {
+          setItemType(firstType)
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load GRN')
       } finally {
@@ -236,21 +252,19 @@ function GrnForm() {
     }
   }, [id, isNew])
 
-  /* Item codes/names come from the master list, which loads independently of the document. */
+  const lineItemKey = lines.map((l) => l.itemId).join('|')
   useEffect(() => {
     if (items.rows.length === 0) return
     setLines((prev) => {
-      let changed = false
-      const next = prev.map((l) => {
-        if (!l.itemId || l.itemCode) return l
-        const item = items.rows.find((i) => i.id === l.itemId)
-        if (!item) return l
-        changed = true
-        return { ...l, itemCode: String(item.code ?? ''), itemName: String(item.name ?? '') }
-      })
-      return changed ? next : prev
+      const enriched = enrichLinesFromItems(prev, items.rows)
+      if (!isNew) {
+        const firstId = enriched.find((l) => l.itemId)?.itemId
+        const hit = firstId ? items.rows.find((i) => i.id === firstId) : undefined
+        if (hit) setItemType(hit.itemType === 'consumable' ? 'consumable' : 'asset')
+      }
+      return enriched
     })
-  }, [items.rows])
+  }, [items.rows, lineItemKey, isNew])
 
   /* ---- quantity summary, auto-calculated from the lines ---- */
   const totals = useMemo(
@@ -294,15 +308,18 @@ function GrnForm() {
     const found = validateFields(fieldDefs, form as unknown as Record<string, unknown>)
     const filled = lines.filter((l) => l.itemId !== '')
     if (filled.length === 0) {
-      found.lines = 'Add at least one item line with an item and a received quantity.'
+      found.lines = 'Add at least one item line.'
     } else if (filled.some((l) => !(toNum(l.receivedQty) > 0))) {
       found.lines = 'Every item line needs a received quantity greater than 0.'
     } else if (
+      itemType === 'consumable' &&
       filled.some(
         (l) => Math.abs(toNum(l.acceptedQty) + toNum(l.rejectedQty) - toNum(l.receivedQty)) > 0.0001,
       )
     ) {
       found.lines = 'On every line, Accepted Qty plus Rejected Qty must equal Received Qty.'
+    } else if (itemType === 'asset' && filled.some((l) => !l.serialNo.trim())) {
+      found.lines = 'Serial No. is required on every asset unit line.'
     } else if (lines.some((l) => l.itemCode !== '' && l.itemId === '')) {
       found.lines = 'One or more item codes do not match an item in the Item Master.'
     }
@@ -312,7 +329,7 @@ function GrnForm() {
     if (form.approvedDate && !form.approvedBy) found.approvedBy = 'Select who approved the GRN.'
     if (form.preparedDate && !form.preparedBy) found.preparedBy = 'Select who prepared the GRN.'
     return found
-  }, [readOnly, form, fieldDefs, lines])
+  }, [readOnly, form, fieldDefs, lines, itemType])
 
   const err = (key: string) => (submitted || touched[key] ? (errors[key] ?? '') : '')
 
@@ -341,20 +358,30 @@ function GrnForm() {
       docSubmitAction: action,
       lines: lines
         .filter((l) => l.itemId !== '')
-        .map((l, i) => ({
-          srNo: i + 1,
-          itemId: Number(l.itemId),
-          uomId: l.uomId ? Number(l.uomId) : undefined,
-          receivedQty: toNum(l.receivedQty),
-          acceptedQty: toNum(l.acceptedQty),
-          rejectedQty: toNum(l.rejectedQty),
-          qty: toNum(l.acceptedQty),
-          availableStock: l.availableStock === '' ? undefined : toNum(l.availableStock),
-          amount: l.amount === '' ? undefined : toNum(l.amount),
-          // Stock is received per line, so every line needs a location.
-          locationId: l.locationId ? Number(l.locationId) : locationId,
-          remark: l.remark || undefined,
-        })),
+        .map((l, i) => {
+          const received = itemType === 'asset' ? 1 : toNum(l.receivedQty)
+          const accepted = itemType === 'asset' ? 1 : toNum(l.acceptedQty)
+          const rejected = itemType === 'asset' ? 0 : toNum(l.rejectedQty)
+          return {
+            srNo: i + 1,
+            itemId: Number(l.itemId),
+            uomId: l.uomId ? Number(l.uomId) : undefined,
+            receivedQty: received,
+            acceptedQty: accepted,
+            rejectedQty: rejected,
+            qty: accepted,
+            availableStock: l.availableStock === '' ? undefined : toNum(l.availableStock),
+            amount: l.amount === '' ? undefined : toNum(l.amount),
+            batchLotNo: l.batch || undefined,
+            locationId: l.locationId ? Number(l.locationId) : locationId,
+            serialNo: l.serialNo || undefined,
+            ipAddress: l.ipAddress || undefined,
+            macAddress: l.macAddress || undefined,
+            hostname: l.hostname || undefined,
+            itemCondition: l.itemCondition || undefined,
+            remark: l.remark || undefined,
+          }
+        }),
     }
   }
 
@@ -589,9 +616,12 @@ function GrnForm() {
       <GrnItemLines
         lines={lines}
         onChange={setLines}
+        itemType={itemType}
+        onItemTypeChange={setItemType}
         items={items.rows}
         units={units.rows}
         locations={locations.rows}
+        conditionOptions={conditionOpts}
         storeLocationId={form.store}
         readOnly={readOnly}
         error={submitted ? errors.lines : undefined}
@@ -660,6 +690,7 @@ function GrnForm() {
             onClick={() => {
               setForm((p) => ({ ...blankForm(), grnNo: p.grnNo, status: p.status }))
               setLines([emptyGrnLine()])
+              setItemType('asset')
               setSubmitted(false)
               setTouched({})
               setError(null)

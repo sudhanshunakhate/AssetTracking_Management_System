@@ -22,10 +22,10 @@ import { FullReportPage } from '@/features/reports/FullReportPage'
 import { StockRegisterPage } from '@/features/reports/StockRegisterPage'
 import { GatepassPage } from '@/features/transactions/GatepassPage'
 import { GrnPages } from '@/features/transactions/GrnPage'
+import { OpeningStockPages } from '@/features/transactions/OpeningStockPage'
+import { IssuesPages } from '@/features/transactions/IssuePage'
 import { RequisitionsPages } from '@/features/transactions/RequisitionPage'
 import {
-  IssuesPages,
-  OpeningStockPages,
   ReturnsPages,
   TransfersPages,
 } from '@/features/transactions/TransactionPages'

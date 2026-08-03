@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { http, listMaster, type PageResponse } from '@/api/client'
+import { cachedFetch, invalidateCache } from '@/api/requestCache'
 
 export type TxnListItem = {
   docId: number
@@ -62,6 +63,10 @@ export type LineRequest = {
   locationId?: number
   locationBin?: string
   itemCondition?: string
+  serialNo?: string
+  ipAddress?: string
+  macAddress?: string
+  hostname?: string
   remark?: string
 }
 
@@ -150,7 +155,11 @@ export type TxnLine = {
   detailId?: number
   srNo?: number
   itemId?: number
+  itemCode?: string
+  itemName?: string
+  itemType?: string
   uomId?: number
+  uomCode?: string
   qty?: number
   orderedQty?: number
   receivedQty?: number
@@ -167,7 +176,12 @@ export type TxnLine = {
   locationId?: number
   locationBin?: string
   itemCondition?: string
+  serialNo?: string
+  ipAddress?: string
+  macAddress?: string
+  hostname?: string
   remark?: string
+  blsId?: number
 }
 
 export type TxnDocument = {
@@ -224,7 +238,7 @@ export function mapOpeningStockForm(doc: TxnDocument): Record<string, unknown> {
     org: doc.entityId != null ? String(doc.entityId) : '',
     store: doc.locationId != null ? String(doc.locationId) : '',
     locationId: doc.locationId != null ? String(doc.locationId) : '',
-    bin: line?.locationBin ?? '',
+    supplier: doc.partyId != null ? String(doc.partyId) : '',
     item: line?.itemId != null ? String(line.itemId) : '',
     batch: line?.batchLotNo ?? '',
     qty: line?.qty ?? 0,
@@ -267,11 +281,15 @@ export function useTxnList(resource: string, enabled = true) {
 }
 
 export async function createTxn(resource: string, body: DocumentRequest) {
-  return http.post(`/${resource}`, body)
+  const res = await http.post(`/${resource}`, body)
+  invalidateDashboardSummary()
+  return res
 }
 
 export async function updateTxn(resource: string, id: string, body: DocumentRequest) {
-  return http.put(`/${resource}/${id}`, body)
+  const res = await http.put(`/${resource}/${id}`, body)
+  invalidateDashboardSummary()
+  return res
 }
 
 export async function fetchTxn(resource: string, id: string) {
@@ -279,12 +297,16 @@ export async function fetchTxn(resource: string, id: string) {
 }
 
 export async function deleteTxn(resource: string, id: string) {
-  return http.del<{ message: string }>(`/${resource}/${id}`)
+  const res = await http.del<{ message: string }>(`/${resource}/${id}`)
+  invalidateDashboardSummary()
+  return res
 }
 
 /** Moves a Pending Approval document to Approved. */
 export async function approveTxn(resource: string, id: string, approvedByEmpId?: number, remarks?: string) {
-  return http.post<TxnDocument>(`/${resource}/${id}/approve`, { approvedByEmpId, remarks })
+  const res = await http.post<TxnDocument>(`/${resource}/${id}/approve`, { approvedByEmpId, remarks })
+  invalidateDashboardSummary()
+  return res
 }
 
 /** Moves a Pending Approval document to Rejected; the reason is mandatory. */
@@ -368,5 +390,10 @@ export type DashboardSummary = {
 }
 
 export async function fetchDashboardSummary() {
-  return http.get<DashboardSummary>('/dashboard/summary')
+  return cachedFetch('dashboard:summary', () => http.get<DashboardSummary>('/dashboard/summary'), 30_000)
+}
+
+/** Drop dashboard KPIs after stock-moving transactions. */
+export function invalidateDashboardSummary() {
+  invalidateCache('dashboard:summary')
 }

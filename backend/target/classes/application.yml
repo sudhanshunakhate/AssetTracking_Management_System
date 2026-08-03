@@ -7,9 +7,13 @@ spring:
   application:
     name: caits-backend
   datasource:
-    url: jdbc:postgresql://192.168.0.223:5432/caits
-    username: caits
-    password: caits123
+    # Shared dev server — re-enable this block to point back at it.
+    # url: jdbc:postgresql://192.168.0.223:5432/caits
+    # username: caits
+    # password: caits123
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: pass121word
     driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false

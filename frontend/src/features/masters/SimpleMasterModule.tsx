@@ -33,6 +33,8 @@ interface SimpleMasterProps<T extends Row> {
   searchPlaceholder?: string
   formTitle?: string
   saveLabel?: string
+  /** When set, shows a secondary Save Draft button next to the primary save. */
+  draftLabel?: string
   addLabel?: string
   /** When false, hides Add New and blocks /new form. */
   allowCreate?: boolean
@@ -47,7 +49,20 @@ interface SimpleMasterProps<T extends Row> {
     set: (k: string, v: unknown) => void,
     recordId: string,
   ) => ReactNode
-  onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
+  onSave?: (
+    id: string,
+    values: Record<string, unknown>,
+    action?: 'SAVE_DRAFT' | 'SUBMIT',
+  ) => Promise<void>
+  /**
+   * When a field changes, return extra patches (e.g. item → auto-fill uom).
+   * Merged into form state after the primary field update.
+   */
+  onFieldChange?: (
+    name: string,
+    value: unknown,
+    values: Record<string, unknown>,
+  ) => Partial<Record<string, unknown>> | void | Promise<Partial<Record<string, unknown>> | void>
   /** Field names that should be read-only on the edit form. */
   readOnlyFields?: string[]
   /**
@@ -85,6 +100,7 @@ export function SimpleMasterModule<T extends Row>({
   searchPlaceholder,
   formTitle = 'Details',
   saveLabel = 'Save',
+  draftLabel,
   addLabel = 'Add New',
   allowCreate = true,
   menuCode,
@@ -93,6 +109,7 @@ export function SimpleMasterModule<T extends Row>({
   extraListContent,
   renderExtraForm,
   onSave,
+  onFieldChange,
   readOnlyFields = [],
   validateForm,
   loadRecord,
@@ -204,8 +221,10 @@ export function SimpleMasterModule<T extends Row>({
         fields={fields}
         formTitle={formTitle}
         saveLabel={saveLabel}
+        draftLabel={draftLabel}
         recordId={id}
         onSave={onSave}
+        onFieldChange={onFieldChange}
         readOnly={formReadOnly}
         readOnlyFields={readOnlyFields}
         initial={initial}
@@ -247,9 +266,11 @@ function MasterForm({
   fields,
   formTitle,
   saveLabel,
+  draftLabel,
   initial,
   recordId,
   onSave,
+  onFieldChange,
   renderExtraForm,
   readOnly = false,
   readOnlyFields = [],
@@ -262,9 +283,19 @@ function MasterForm({
   fields: FieldDef[]
   formTitle: string
   saveLabel: string
+  draftLabel?: string
   initial: Record<string, unknown>
   recordId: string
-  onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
+  onSave?: (
+    id: string,
+    values: Record<string, unknown>,
+    action?: 'SAVE_DRAFT' | 'SUBMIT',
+  ) => Promise<void>
+  onFieldChange?: (
+    name: string,
+    value: unknown,
+    values: Record<string, unknown>,
+  ) => Partial<Record<string, unknown>> | void | Promise<Partial<Record<string, unknown>> | void>
   renderExtraForm?: (
     values: Record<string, unknown>,
     set: (k: string, v: unknown) => void,
@@ -294,7 +325,17 @@ function MasterForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- patchKey captures field values
   }, [patchKey])
 
-  const set = (k: string, v: unknown) => setValues((prev) => ({ ...prev, [k]: v }))
+  const set = (k: string, v: unknown) => {
+    setValues((prev) => {
+      const next = { ...prev, [k]: v }
+      void Promise.resolve(onFieldChange?.(k, v, next)).then((extra) => {
+        if (extra && Object.keys(extra).length > 0) {
+          setValues((p) => ({ ...p, ...extra }))
+        }
+      })
+      return next
+    })
+  }
   const markTouched = (k: string) => setTouched((prev) => (prev[k] ? prev : { ...prev, [k]: true }))
 
   const gridClass = useMemo(() => 'grid gap-2.5 grid-cols-1 md:grid-cols-2 xl:grid-cols-4', [])
@@ -310,7 +351,7 @@ function MasterForm({
   /** Errors stay hidden until the field is visited or the user tries to save. */
   const errorFor = (name: string) => (submitted || touched[name] ? (errors[name] ?? '') : '')
 
-  const handleSave = async () => {
+  const handleSave = async (action: 'SAVE_DRAFT' | 'SUBMIT' = 'SUBMIT') => {
     if (readOnly || !onSave) {
       navigate(basePath)
       return
@@ -331,7 +372,7 @@ function MasterForm({
     setSaving(true)
     setError('')
     try {
-      await onSave(recordId, values)
+      await onSave(recordId, values, action)
       navigate(basePath)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -475,7 +516,11 @@ function MasterForm({
               }
         }
         onBack={() => navigate(basePath)}
-        onSave={readOnly ? undefined : () => void handleSave()}
+        onSaveDraft={
+          readOnly || !draftLabel || !onSave ? undefined : () => void handleSave('SAVE_DRAFT')
+        }
+        draftLabel={saving ? 'Saving…' : draftLabel}
+        onSave={readOnly ? undefined : () => void handleSave('SUBMIT')}
         saveLabel={saving ? 'Saving…' : saveLabel}
       />
     </FadeContent>

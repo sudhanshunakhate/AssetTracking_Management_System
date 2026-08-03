@@ -1,11 +1,10 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Pill } from '@/components/ui/Badge'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { statusColumn, type Column } from '@/components/ui/DataTable'
 import {
   createMaster,
-  getRolePermissions,
   isActiveFromForm,
   listMenus,
   mapAccessException,
@@ -48,6 +47,7 @@ import type {
 import { useAuth } from '@/features/auth/AuthContext'
 import { SimpleMasterModule, type FieldDef } from './SimpleMasterModule'
 import { RULES, notBefore } from './validation'
+import { RoleMenuAccessPanel, type PermFlags } from './RoleMenuAccessPanel'
 
 function MastersRoutes({
   base,
@@ -152,12 +152,12 @@ function ListStatus({ loading, error, label }: { loading: boolean; error: string
   return (
     <>
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
-      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading {label}…</div>}
+      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading {label}?</div>}
     </>
   )
 }
 
-function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} – ${r.name}`) {
+function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} ? ${r.name}`) {
   return rows.map((r) => ({ value: r.id, label: label(r) }))
 }
 
@@ -188,7 +188,7 @@ export function UnitsMaster() {
         rows={rows as never}
         columns={columns as never}
         fields={fields}
-        searchPlaceholder="Search unit code / name…"
+        searchPlaceholder="Search unit code / name?"
         saveLabel="Save Unit"
         formTitle="Unit Information"
         onSave={async (id, values) => {
@@ -567,11 +567,11 @@ export function GeneralMastersMaster() {
       header: 'Parent Type',
       searchText: (r) => {
         const t = typeById[r.typeCode]
-        return t ? `${t.code} – ${t.name}` : r.typeCode
+        return t ? `${t.code} ? ${t.name}` : r.typeCode
       },
       render: (r) => {
         const t = typeById[r.typeCode]
-        return t ? `${t.code} – ${t.name}` : r.typeCode
+        return t ? `${t.code} ? ${t.name}` : r.typeCode
       },
     },
     { key: 'sort', header: 'Sort', searchText: (r) => String(r.sortOrder), render: (r) => r.sortOrder },
@@ -599,7 +599,7 @@ export function GeneralMastersMaster() {
         base="/masters/general-masters"
         menuCode="GNM"
         title="General Master"
-        description="Values / entries mapped to a parent General Type — used to power generic dropdowns across the system."
+        description="Values / entries mapped to a parent General Type ? used to power generic dropdowns across the system."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
@@ -680,11 +680,19 @@ export function RolesMaster() {
             await updateMaster('roles', id, body)
           }
           const matrix = values.__menuPerms as Record<string, PermFlags> | undefined
+          const sequences = values.__menuSeqs as Record<string, number> | undefined
+          const sectionSeqs = values.__sectionSeqs as Record<string, number> | undefined
+          const menuGroupByCode = values.__menuGroupByCode as Record<string, string> | undefined
           if (matrix && roleId && roleId !== 'new') {
-            const perms: RolePermissionApi[] = Object.entries(matrix).map(([module, flags]) => ({
-              module,
-              ...flags,
-            }))
+            const perms: RolePermissionApi[] = Object.entries(matrix).map(([module, flags]) => {
+              const group = menuGroupByCode?.[module]
+              return {
+                module,
+                ...flags,
+                sortOrder: sequences?.[module],
+                groupSortOrder: group ? sectionSeqs?.[group] : undefined,
+              }
+            })
             await putRolePermissions(roleId, perms)
             await refreshPermissions()
           }
@@ -694,6 +702,11 @@ export function RolesMaster() {
           <RoleMenuAccessPanel
             roleId={recordId === 'new' ? null : recordId}
             onMatrixChange={(matrix) => set('__menuPerms', matrix)}
+            onSequencesChange={(seqs) => set('__menuSeqs', seqs)}
+            onSectionSequencesChange={(seqs, groupByCode) => {
+              set('__sectionSeqs', seqs)
+              set('__menuGroupByCode', groupByCode)
+            }}
           />
         )}
       />
@@ -734,7 +747,7 @@ export function UsersMaster() {
       },
       render: (r) => {
         const emp = empById[r.employeeCode]
-        return emp ? `${emp.code} – ${emp.firstName} ${emp.lastName}` : r.employeeCode
+        return emp ? `${emp.code} ? ${emp.firstName} ${emp.lastName}` : r.employeeCode
       },
     },
     {
@@ -774,7 +787,7 @@ export function UsersMaster() {
         .filter((e) => Boolean(e.hasLogin))
         .map((e) => ({
           value: e.id,
-          label: `${e.code} – ${e.firstName} ${e.lastName}`,
+          label: `${e.code} ? ${e.firstName} ${e.lastName}`,
         })),
     [employees],
   )
@@ -794,7 +807,7 @@ export function UsersMaster() {
       type: 'select',
       span: 2,
       options: empOptions,
-      hint: 'Select employee — Login ID and Role fill automatically',
+      hint: 'Select employee ? Login ID and Role fill automatically',
       ...RULES.select(),
     },
     {
@@ -892,7 +905,7 @@ export function UsersMaster() {
             isActive: isActiveFromForm(values.status),
           }
 
-          // Mapping only — login must already exist (created from Employee Master)
+          // Mapping only ? login must already exist (created from Employee Master)
           let userId = id === 'new' ? String(values.existingUserId ?? '') : id
           if (!userId) {
             const existing = userByEmpId[String(values.employeeCode)]
@@ -1063,10 +1076,10 @@ function UserAccessMappingExtra({
         <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
           <Field label="Organization" required className="md:col-span-2">
             <Select value={orgId} onChange={(e) => onOrgChange(e.target.value)}>
-              <option value="">— Select Organization —</option>
+              <option value="">? Select Organization ?</option>
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
-                  {o.code} – {o.name}
+                  {o.code} ? {o.name}
                 </option>
               ))}
             </Select>
@@ -1114,7 +1127,7 @@ function UserAccessMappingExtra({
                   orgOus.map((o) => (
                     <Switch
                       key={o.id}
-                      label={`${o.code} – ${o.name}`}
+                      label={`${o.code} ? ${o.name}`}
                       checked={ouIds.includes(o.id)}
                       onChange={(v) => toggleOu(o.id, v)}
                     />
@@ -1144,7 +1157,7 @@ function UserAccessMappingExtra({
                   orgLocs.map((l) => (
                     <Switch
                       key={l.id}
-                      label={`${l.code} – ${l.name}`}
+                      label={`${l.code} ? ${l.name}`}
                       checked={locationIds.includes(l.id)}
                       onChange={(v) => toggleLoc(l.id, v)}
                     />
@@ -1164,10 +1177,10 @@ function UserAccessMappingExtra({
               onChange={(e) => set('locationId', e.target.value)}
               disabled={!orgId || (locScope === 'SELECTED' && locationIds.length === 0)}
             >
-              <option value="">— Select Location —</option>
+              <option value="">? Select Location ?</option>
               {(locScope === 'SELECTED' ? orgLocs.filter((l) => locationIds.includes(l.id)) : orgLocs).map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.code} – {l.name}
+                  {l.code} ? {l.name}
                 </option>
               ))}
             </Select>
@@ -1210,7 +1223,7 @@ export function ExceptionsMaster() {
       },
       render: (r) => {
         const emp = empById[r.employeeCode]
-        return emp ? `${emp.code} – ${emp.firstName} ${emp.lastName}` : r.employeeCode
+        return emp ? `${emp.code} ? ${emp.firstName} ${emp.lastName}` : r.employeeCode
       },
     },
     { key: 'type', header: 'Type', searchText: (r) => r.exceptionType, render: (r) => <Pill>{r.exceptionType}</Pill> },
@@ -1227,7 +1240,7 @@ export function ExceptionsMaster() {
       span: 2,
       options: employees.map((e) => ({
         value: e.id,
-        label: `${e.code} – ${e.firstName} ${e.lastName}`,
+        label: `${e.code} ? ${e.firstName} ${e.lastName}`,
       })),
       ...RULES.select(),
     },
@@ -1243,7 +1256,7 @@ export function ExceptionsMaster() {
       label: 'Menu Code',
       type: 'select',
       span: 3,
-      options: menus.map((m) => ({ value: m.menuCode, label: `${m.menuCode} – ${m.menuLabel}` })),
+      options: menus.map((m) => ({ value: m.menuCode, label: `${m.menuCode} ? ${m.menuLabel}` })),
       ...RULES.select(),
     },
     {
@@ -1319,257 +1332,8 @@ export function ExceptionsMaster() {
   )
 }
 
-type PermFlags = {
-  canView: boolean
-  canCreate: boolean
-  canEdit: boolean
-  canDelete: boolean
-  canApprove: boolean
-  canReject: boolean
-  canPrint: boolean
-  canExport: boolean
-}
 
-const PERM_COLS: { key: keyof PermFlags; label: string; supportKey: keyof MenuApi }[] = [
-  { key: 'canView', label: 'View', supportKey: 'supportsView' },
-  { key: 'canCreate', label: 'Create', supportKey: 'supportsCreate' },
-  { key: 'canEdit', label: 'Edit', supportKey: 'supportsEdit' },
-  { key: 'canDelete', label: 'Delete', supportKey: 'supportsDelete' },
-  { key: 'canApprove', label: 'Approve', supportKey: 'supportsApprove' },
-  { key: 'canReject', label: 'Reject', supportKey: 'supportsReject' },
-  { key: 'canPrint', label: 'Print', supportKey: 'supportsPrint' },
-  { key: 'canExport', label: 'Export', supportKey: 'supportsExport' },
-]
-
-function emptyPerms(): PermFlags {
-  return {
-    canView: false,
-    canCreate: false,
-    canEdit: false,
-    canDelete: false,
-    canApprove: false,
-    canReject: false,
-    canPrint: false,
-    canExport: false,
-  }
-}
-
-function menuSupports(menu: MenuApi, supportKey: keyof MenuApi): boolean {
-  const v = menu[supportKey]
-  // If support flag missing, allow the checkbox so Edit/Create stay assignable.
-  if (v === undefined || v === null) return true
-  return Boolean(v)
-}
-
-function RoleMenuAccessPanel({
-  roleId,
-  onMatrixChange,
-  readOnly = false,
-}: {
-  roleId: string | null
-  onMatrixChange: (matrix: Record<string, PermFlags>) => void
-  readOnly?: boolean
-}) {
-  const [menus, setMenus] = useState<MenuApi[]>([])
-  const [matrix, setMatrix] = useState<Record<string, PermFlags>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const list = await listMenus()
-        // Menu Access is merged into Role & Menu Mapping — hide standalone MNU row.
-        const filtered = (list ?? []).filter((m) => m.menuCode !== 'MNU')
-        if (!cancelled) setMenus(filtered)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load menus')
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const next: Record<string, PermFlags> = {}
-        for (const m of menus) next[m.menuCode] = emptyPerms()
-        if (roleId) {
-          const perms = await getRolePermissions(roleId)
-          if (cancelled) return
-          for (const p of perms ?? []) {
-            if (p.module === 'MNU') continue
-            next[p.module] = {
-              canView: Boolean(p.canView),
-              canCreate: Boolean(p.canCreate),
-              canEdit: Boolean(p.canEdit),
-              canDelete: Boolean(p.canDelete),
-              canApprove: Boolean(p.canApprove),
-              canReject: Boolean(p.canReject),
-              canPrint: Boolean(p.canPrint),
-              canExport: Boolean(p.canExport),
-            }
-          }
-        }
-        if (cancelled) return
-        setMatrix(next)
-        onMatrixChange(next)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load permissions')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-    // Intentionally omit onMatrixChange to avoid reload loops.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleId, menus])
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, MenuApi[]>()
-    for (const m of menus) {
-      const g = m.menuGroup || 'Other'
-      if (!map.has(g)) map.set(g, [])
-      map.get(g)!.push(m)
-    }
-    return [...map.entries()]
-  }, [menus])
-
-  const applyMatrix = (updater: (prev: Record<string, PermFlags>) => Record<string, PermFlags>) => {
-    setMatrix((prev) => {
-      const next = updater(prev)
-      onMatrixChange(next)
-      return next
-    })
-  }
-
-  const toggle = (menuCode: string, key: keyof PermFlags) => {
-    if (readOnly) return
-    applyMatrix((prev) => ({
-      ...prev,
-      [menuCode]: {
-        ...(prev[menuCode] ?? emptyPerms()),
-        [key]: !(prev[menuCode]?.[key] ?? false),
-      },
-    }))
-  }
-
-  const toggleColumn = (col: (typeof PERM_COLS)[number], checked: boolean) => {
-    if (readOnly) return
-    applyMatrix((prev) => {
-      const next = { ...prev }
-      for (const m of menus) {
-        if (!menuSupports(m, col.supportKey)) continue
-        next[m.menuCode] = {
-          ...(next[m.menuCode] ?? emptyPerms()),
-          [col.key]: checked,
-        }
-      }
-      return next
-    })
-  }
-
-  const columnAllChecked = (col: (typeof PERM_COLS)[number]) => {
-    const eligible = menus.filter((m) => menuSupports(m, col.supportKey))
-    return eligible.length > 0 && eligible.every((m) => Boolean(matrix[m.menuCode]?.[col.key]))
-  }
-
-  return (
-    <Card>
-      <CardHeader
-        title="Menu Access"
-        subtitle={
-          roleId
-            ? 'Grant View / Create / Edit and other rights for this role. Header checkboxes apply to all screens.'
-            : 'Set screen rights now — they are saved together with the new role.'
-        }
-      />
-      <CardBody>
-        {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
-        {loading ? (
-          <div className="text-sm text-[var(--text3)]">Loading menu access…</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs">
-              <thead>
-                <tr className="bg-[var(--surface2)]">
-                  <th className="border-b-2 border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase">
-                    Menu
-                  </th>
-                  <th className="border-b-2 border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase">
-                    Code
-                  </th>
-                  {PERM_COLS.map((c) => (
-                    <th
-                      key={c.key}
-                      className="border-b-2 border-[var(--border)] px-3 py-2 text-center text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
-                    >
-                      <div className="flex flex-col items-center gap-1">
-                        <span>{c.label}</span>
-                        <input
-                          type="checkbox"
-                          className="accent-[var(--accent)]"
-                          title={`Toggle ${c.label} for all screens`}
-                          checked={columnAllChecked(c)}
-                          disabled={readOnly}
-                          onChange={(e) => toggleColumn(c, e.target.checked)}
-                        />
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {grouped.map(([group, items]) => (
-                  <Fragment key={`g-${group}`}>
-                    <tr>
-                      <td
-                        colSpan={2 + PERM_COLS.length}
-                        className="bg-[var(--surface2)] px-3 py-2 text-[11px] font-bold tracking-[0.4px] text-[var(--text2)] uppercase"
-                      >
-                        {group}
-                      </td>
-                    </tr>
-                    {items.map((m) => (
-                      <tr key={m.menuCode} className="hover:bg-[#f0f5ff]">
-                        <td className="border-b border-[var(--border)] px-3 py-2 font-medium">{m.menuLabel}</td>
-                        <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{m.menuCode}</td>
-                        {PERM_COLS.map((c) => {
-                          const supported = menuSupports(m, c.supportKey)
-                          return (
-                            <td key={c.key} className="border-b border-[var(--border)] px-3 py-2 text-center">
-                              <input
-                                type="checkbox"
-                                className="accent-[var(--accent)]"
-                                checked={supported && Boolean(matrix[m.menuCode]?.[c.key])}
-                                disabled={readOnly || !supported}
-                                onChange={() => toggle(m.menuCode, c.key)}
-                              />
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardBody>
-    </Card>
-  )
-}
-
-/** @deprecated Merged into Role & Menu Mapping — redirects for old bookmarks. */
+/** @deprecated Merged into Role & Menu Mapping ? redirects for old bookmarks. */
 export function MenuAccessPage() {
   return <Navigate to="/masters/roles" replace />
 }

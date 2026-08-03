@@ -170,8 +170,7 @@ public class AuthService {
         }
 
         List<MenuPermissionDto> result = new ArrayList<>();
-        for (SysmMenutreeMst menu : menuRepo.findAll()) {
-            if (!Boolean.TRUE.equals(menu.getMtreeIsactive())) continue;
+        for (SysmMenutreeMst menu : menuRepo.findByMtreeIsactiveTrueOrderByMtreeSortOrderAsc()) {
             String code = menu.getMtreeMenuCode();
             if (revoked.contains(code)) continue;
             SysmRolepermissionDtl perm = byMenuId.get(menu.getMtreeMenuId());
@@ -187,7 +186,11 @@ public class AuthService {
                 view = true;
             }
             if (view || create || edit || delete || approve || reject || print || export || granted.contains(code)) {
-                result.add(new MenuPermissionDto(code, view, create, edit, delete, approve, reject, print, export));
+                result.add(new MenuPermissionDto(
+                        code, view, create, edit, delete, approve, reject, print, export,
+                        menu.getMtreeSortOrder(),
+                        menu.getMtreeMenuGroup(),
+                        menu.getMtreeGroupSortOrder()));
             }
         }
         return result;

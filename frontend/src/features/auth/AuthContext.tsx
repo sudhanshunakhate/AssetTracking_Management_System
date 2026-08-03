@@ -16,6 +16,7 @@ import {
   type AccessScope,
   type MenuPermission,
 } from '@/api/client'
+import { invalidateCache } from '@/api/requestCache'
 
 type AuthUser = { loginId: string; displayName: string; role: string; userId?: number }
 
@@ -227,6 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const res = await loginApi(loginId.trim(), password)
           setToken(res.token)
+          invalidateCache('auth:me')
           const next: AuthUser = {
             loginId: loginId.trim().toLowerCase(),
             displayName: res.user.employeeName,

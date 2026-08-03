@@ -13,8 +13,8 @@ export interface OpeningStock {
   openingDate: string
   mfgDate?: string
   expiryDate?: string
-  bin?: string
   org?: string
+  supplier?: string
   remarks?: string
   status: string
 }

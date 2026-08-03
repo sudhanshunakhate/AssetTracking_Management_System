@@ -1,4 +1,6 @@
 /** Shared API client for CAITS backend (`/api/v1`). */
+import { cachedFetch, invalidateCache } from '@/api/requestCache'
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8085/api/v1'
 const TOKEN_KEY = 'caits.token'
 
@@ -116,11 +118,12 @@ export async function logoutApi() {
     // ignore network logout failures
   } finally {
     setToken(null)
+    invalidateCache()
   }
 }
 
 export async function meApi() {
-  return http.get<MeResponse>('/auth/me')
+  return cachedFetch('auth:me', () => http.get<MeResponse>('/auth/me'), 30_000)
 }
 
 export type MenuPermission = {
@@ -133,6 +136,11 @@ export type MenuPermission = {
   reject: boolean
   print: boolean
   export: boolean
+  /** Display order from sysm_menutree_mst.mtree_sort_order. */
+  sortOrder?: number
+  menuGroup?: string
+  /** Section order from mtree_group_sort_order. */
+  groupSortOrder?: number
 }
 
 

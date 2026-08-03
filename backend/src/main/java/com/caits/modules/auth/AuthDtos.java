@@ -32,7 +32,10 @@ public final class AuthDtos {
             boolean approve,
             boolean reject,
             boolean print,
-            boolean export
+            boolean export,
+            Integer sortOrder,
+            String menuGroup,
+            Integer groupSortOrder
     ) {}
 
     public record MeResponse(

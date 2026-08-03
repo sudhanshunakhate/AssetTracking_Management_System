@@ -80,6 +80,21 @@ public class TxnDetailDtl {
     @Column(name = "txd_item_condition")
     private String txdItemCondition;
 
+    @Column(name = "txd_serial_no")
+    private String txdSerialNo;
+
+    @Column(name = "txd_ip_address")
+    private String txdIpAddress;
+
+    @Column(name = "txd_mac_address")
+    private String txdMacAddress;
+
+    @Column(name = "txd_hostname")
+    private String txdHostname;
+
+    @Column(name = "txd_bls_id_ibm")
+    private Integer txdBlsIdIbm;
+
     @Column(name = "txd_remark")
     private String txdRemark;
 
@@ -151,6 +166,21 @@ public class TxnDetailDtl {
 
     public String getTxdItemCondition() { return txdItemCondition; }
     public void setTxdItemCondition(String txdItemCondition) { this.txdItemCondition = txdItemCondition; }
+
+    public String getTxdSerialNo() { return txdSerialNo; }
+    public void setTxdSerialNo(String txdSerialNo) { this.txdSerialNo = txdSerialNo; }
+
+    public String getTxdIpAddress() { return txdIpAddress; }
+    public void setTxdIpAddress(String txdIpAddress) { this.txdIpAddress = txdIpAddress; }
+
+    public String getTxdMacAddress() { return txdMacAddress; }
+    public void setTxdMacAddress(String txdMacAddress) { this.txdMacAddress = txdMacAddress; }
+
+    public String getTxdHostname() { return txdHostname; }
+    public void setTxdHostname(String txdHostname) { this.txdHostname = txdHostname; }
+
+    public Integer getTxdBlsIdIbm() { return txdBlsIdIbm; }
+    public void setTxdBlsIdIbm(Integer txdBlsIdIbm) { this.txdBlsIdIbm = txdBlsIdIbm; }
 
     public String getTxdRemark() { return txdRemark; }
     public void setTxdRemark(String txdRemark) { this.txdRemark = txdRemark; }

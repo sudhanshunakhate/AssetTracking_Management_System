@@ -3,12 +3,18 @@ package com.caits.modules.transactions;
 import com.caits.common.ApiException;
 import com.caits.common.MessageResponse;
 import com.caits.common.PageResponse;
+import com.caits.domain.entity.InvBlsMst;
+import com.caits.domain.entity.InvItemMst;
 import com.caits.domain.entity.InvStockMst;
 import com.caits.domain.entity.TxnDetailDtl;
 import com.caits.domain.entity.TxnHeaderMst;
+import com.caits.domain.entity.UnitMst;
+import com.caits.domain.repository.InvItemMstRepository;
 import com.caits.domain.repository.InvStockMstRepository;
 import com.caits.domain.repository.TxnDetailDtlRepository;
 import com.caits.domain.repository.TxnHeaderMstRepository;
+import com.caits.domain.repository.UnitMstRepository;
+import com.caits.modules.inventory.BlsService;
 import com.caits.modules.transactions.TxnDtos.*;
 import com.caits.security.AccessScopeService;
 import com.caits.security.SecurityUtils;
@@ -34,18 +40,27 @@ public class TxnDocumentService {
     private final TxnHeaderMstRepository headerRepo;
     private final TxnDetailDtlRepository detailRepo;
     private final InvStockMstRepository stockRepo;
+    private final InvItemMstRepository itemRepo;
+    private final UnitMstRepository unitRepo;
     private final AccessScopeService accessScope;
+    private final BlsService blsService;
 
     public TxnDocumentService(
             TxnHeaderMstRepository headerRepo,
             TxnDetailDtlRepository detailRepo,
             InvStockMstRepository stockRepo,
-            AccessScopeService accessScope
+            InvItemMstRepository itemRepo,
+            UnitMstRepository unitRepo,
+            AccessScopeService accessScope,
+            BlsService blsService
     ) {
         this.headerRepo = headerRepo;
         this.detailRepo = detailRepo;
         this.stockRepo = stockRepo;
+        this.itemRepo = itemRepo;
+        this.unitRepo = unitRepo;
         this.accessScope = accessScope;
+        this.blsService = blsService;
     }
 
     public PageResponse<ListItem> list(
@@ -310,21 +325,11 @@ public class TxnDocumentService {
     }
 
     private String initialSubmitStatus(DocType docType) {
-        return switch (docType) {
-            case MATERIAL_REQUISITION, GATEPASS_INWARD -> "Pending Approval";
-            default -> "Completed";
-        };
+        return StockPostingRules.initialSubmitStatus(docType);
     }
 
-    /**
-     * GRN has no approval workflow — submitting it receives the accepted
-     * quantity straight into stock, the same way opening stock does.
-     */
     private boolean postsStockOnSubmit(DocType docType) {
-        return switch (docType) {
-            case GRN, OPENING_STOCK, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN, GATEPASS_OUTWARD -> true;
-            default -> false;
-        };
+        return StockPostingRules.postsStockOnSubmit(docType);
     }
 
     private boolean isEditable(String status) {
@@ -401,12 +406,18 @@ public class TxnDocumentService {
             if (line.itemId() == null) {
                 throw ApiException.badRequest("line.itemId is required");
             }
+            InvItemMst catalog = itemRepo.findById(line.itemId())
+                    .orElseThrow(() -> ApiException.badRequest("Item not found: " + line.itemId()));
+            Integer resolvedUom = line.uomId() != null ? line.uomId() : catalog.getItmUomIdUnt();
+            if (resolvedUom == null) {
+                throw ApiException.badRequest("line.uomId is required (item has no default UOM)");
+            }
             TxnDetailDtl d = new TxnDetailDtl();
             d.setTxdTxnHeaderIdTxh(header.getTxhTxnHeaderId());
             d.setTxdDocType(docType.code());
             d.setTxdSrNo(line.srNo() != null ? line.srNo() : i);
             d.setTxdItemIdItm(line.itemId());
-            d.setTxdUomIdUnt(line.uomId());
+            d.setTxdUomIdUnt(resolvedUom);
             d.setTxdOrderedQty(line.orderedQty());
             d.setTxdReceivedQty(line.receivedQty());
             d.setTxdAcceptedQty(line.acceptedQty());
@@ -423,7 +434,19 @@ public class TxnDocumentService {
             d.setTxdLocationIdLoc(line.locationId() != null ? line.locationId() : header.getTxhLocationIdLoc());
             d.setTxdLocationBin(line.locationBin());
             d.setTxdItemCondition(line.itemCondition());
+            d.setTxdSerialNo(line.serialNo());
+            d.setTxdIpAddress(line.ipAddress());
+            d.setTxdMacAddress(line.macAddress());
+            d.setTxdHostname(line.hostname());
             d.setTxdRemark(line.remark());
+            // Standing register: create / reuse BLS and point the line at it.
+            InvBlsMst bls = blsService.resolveForLine(
+                    header.getTxhEntityIdEnt(),
+                    d.getTxdLocationIdLoc(),
+                    line,
+                    header.getTxhTxnHeaderId(),
+                    docType);
+            d.setTxdBlsIdIbm(bls.getIbmBlsId());
             saved.add(detailRepo.save(d));
             i++;
         }
@@ -449,23 +472,123 @@ public class TxnDocumentService {
             if (!apply) {
                 sign = -sign;
             }
-            upsertStock(line.getTxdItemIdItm(), locationId, line.getTxdUomIdUnt(),
-                    line.getTxdBatchLotNo(), qty.multiply(BigDecimal.valueOf(sign)), header.getTxhTxnHeaderId());
+            String batch = resolveStockBatch(line);
+            Integer headerId = header.getTxhTxnHeaderId();
+            Integer itemId = line.getTxdItemIdItm();
+            Integer uomId = line.getTxdUomIdUnt();
 
-            // Transfer also receives at destination
-            if (docType == DocType.MATERIAL_TRANSFER && header.getTxhToLocationIdLoc() != null) {
-                upsertStock(line.getTxdItemIdItm(), header.getTxhToLocationIdLoc(), line.getTxdUomIdUnt(),
-                        line.getTxdBatchLotNo(), qty, header.getTxhTxnHeaderId());
+            // Transfer: move qty from source → destination (preserve batch buckets; FIFO when omitted).
+            if (docType == DocType.MATERIAL_TRANSFER && apply && sign < 0) {
+                Integer toLoc = header.getTxhToLocationIdLoc();
+                if (toLoc == null) {
+                    throw ApiException.badRequest("To location is required for stock transfer");
+                }
+                if (batch == null || batch.isBlank()) {
+                    for (var taken : consumeFifo(itemId, locationId, uomId, qty, headerId)) {
+                        upsertStock(itemId, toLoc, uomId, taken.batch(), taken.qty(), headerId);
+                    }
+                } else {
+                    upsertStock(itemId, locationId, uomId, batch, qty.negate(), headerId);
+                    upsertStock(itemId, toLoc, uomId, batch, qty, headerId);
+                }
+                continue;
+            }
+
+            BigDecimal delta = qty.multiply(BigDecimal.valueOf(sign));
+            // Outbound without a batch: deplete across existing buckets (FIFO) so UI can omit batchLotNo.
+            if (delta.compareTo(BigDecimal.ZERO) < 0 && (batch == null || batch.isBlank())) {
+                consumeFifo(itemId, locationId, uomId, delta.abs(), headerId);
+            } else {
+                upsertStock(itemId, locationId, uomId, batch, delta, headerId);
             }
         }
     }
 
+    /**
+     * Stock row key: explicit batch, else serial (one bucket per asset unit), else blank (shared).
+     */
+    private String resolveStockBatch(TxnDetailDtl line) {
+        if (line.getTxdBatchLotNo() != null && !line.getTxdBatchLotNo().isBlank()) {
+            return line.getTxdBatchLotNo().trim();
+        }
+        if (line.getTxdSerialNo() != null && !line.getTxdSerialNo().isBlank()) {
+            return line.getTxdSerialNo().trim();
+        }
+        return null;
+    }
+
+    private record BatchQty(String batch, BigDecimal qty) {}
+
+    /** Deplete {@code need} from item+location buckets with available qty, oldest first. */
+    private List<BatchQty> consumeFifo(
+            Integer itemId, Integer locationId, Integer ignoredUomId, BigDecimal need, Integer headerId) {
+        List<InvStockMst> rows = stockRepo.findAll((root, query, cb) -> cb.and(
+                cb.equal(root.get("stkItemIdItm"), itemId),
+                cb.equal(root.get("stkLocationIdLoc"), locationId),
+                cb.or(cb.isNull(root.get("stkIsactive")), cb.isTrue(root.get("stkIsactive")))
+        )).stream()
+                .filter(s -> nz(s.getStkAvailableQty()).compareTo(BigDecimal.ZERO) > 0
+                        || nz(s.getStkCurrentQty()).compareTo(BigDecimal.ZERO) > 0)
+                .sorted((a, b) -> {
+                    LocalDateTime ca = a.getStkCreatedOn();
+                    LocalDateTime cb_ = b.getStkCreatedOn();
+                    if (ca == null && cb_ == null) {
+                        return Integer.compare(
+                                a.getStkStockId() != null ? a.getStkStockId() : 0,
+                                b.getStkStockId() != null ? b.getStkStockId() : 0);
+                    }
+                    if (ca == null) return -1;
+                    if (cb_ == null) return 1;
+                    int cmp = ca.compareTo(cb_);
+                    if (cmp != 0) return cmp;
+                    return Integer.compare(
+                            a.getStkStockId() != null ? a.getStkStockId() : 0,
+                            b.getStkStockId() != null ? b.getStkStockId() : 0);
+                })
+                .toList();
+
+        BigDecimal remaining = need;
+        List<BatchQty> taken = new ArrayList<>();
+        for (InvStockMst stock : rows) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
+            BigDecimal avail = nz(stock.getStkAvailableQty());
+            if (avail.compareTo(BigDecimal.ZERO) <= 0) {
+                avail = nz(stock.getStkCurrentQty());
+            }
+            if (avail.compareTo(BigDecimal.ZERO) <= 0) continue;
+            BigDecimal take = avail.min(remaining);
+            applyDeltaToExisting(stock, take.negate(), headerId);
+            taken.add(new BatchQty(stock.getStkBatchLotNo(), take));
+            remaining = remaining.subtract(take);
+        }
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw ApiException.conflict("Insufficient stock for item " + itemId + " at location " + locationId);
+        }
+        return taken;
+    }
+
+    private void applyDeltaToExisting(InvStockMst stock, BigDecimal delta, Integer headerId) {
+        BigDecimal next = nz(stock.getStkCurrentQty()).add(delta);
+        if (next.compareTo(BigDecimal.ZERO) < 0) {
+            throw ApiException.conflict("Insufficient stock for item " + stock.getStkItemIdItm()
+                    + " at location " + stock.getStkLocationIdLoc());
+        }
+        stock.setStkCurrentQty(next);
+        stock.setStkAvailableQty(next.subtract(nz(stock.getStkReservedQty())));
+        if (delta.compareTo(BigDecimal.ZERO) > 0) {
+            stock.setStkInwardQty(nz(stock.getStkInwardQty()).add(delta));
+        } else {
+            stock.setStkIssuedQty(nz(stock.getStkIssuedQty()).add(delta.abs()));
+        }
+        stock.setStkModifiedBy(SecurityUtils.loginIdOrSystem());
+        stock.setStkModifiedOn(LocalDateTime.now());
+        stock.setStkLastTransactionDate(LocalDate.now());
+        stock.setStkLastTxnHeaderIdTxh(headerId);
+        stockRepo.save(stock);
+    }
+
     private int stockSign(DocType docType) {
-        return switch (docType) {
-            case GRN, GATEPASS_INWARD, OPENING_STOCK, MATERIAL_RETURN -> 1;
-            case MATERIAL_ISSUE, GATEPASS_OUTWARD, MATERIAL_TRANSFER -> -1;
-            case MATERIAL_REQUISITION -> 0;
-        };
+        return StockPostingRules.stockSign(docType);
     }
 
     private BigDecimal resolveQty(DocType docType, TxnDetailDtl line) {
@@ -648,11 +771,22 @@ public class TxnDocumentService {
     }
 
     private LineResponse toLine(TxnDetailDtl d) {
+        InvItemMst item = d.getTxdItemIdItm() != null
+                ? itemRepo.findById(d.getTxdItemIdItm()).orElse(null)
+                : null;
+        Integer uomId = d.getTxdUomIdUnt() != null
+                ? d.getTxdUomIdUnt()
+                : (item != null ? item.getItmUomIdUnt() : null);
+        UnitMst unit = uomId != null ? unitRepo.findById(uomId).orElse(null) : null;
         return new LineResponse(
                 d.getTxdTxnDetailId(),
                 d.getTxdSrNo(),
                 d.getTxdItemIdItm(),
-                d.getTxdUomIdUnt(),
+                item != null ? item.getItmItemCode() : null,
+                item != null ? item.getItmItemName() : null,
+                item != null ? item.getItmItemType() : null,
+                uomId,
+                unit != null ? unit.getUntUnitCode() : null,
                 d.getTxdOrderedQty(),
                 d.getTxdReceivedQty(),
                 d.getTxdAcceptedQty(),
@@ -669,7 +803,12 @@ public class TxnDocumentService {
                 d.getTxdLocationIdLoc(),
                 d.getTxdLocationBin(),
                 d.getTxdItemCondition(),
-                d.getTxdRemark()
+                d.getTxdSerialNo(),
+                d.getTxdIpAddress(),
+                d.getTxdMacAddress(),
+                d.getTxdHostname(),
+                d.getTxdRemark(),
+                d.getTxdBlsIdIbm()
         );
     }
 }

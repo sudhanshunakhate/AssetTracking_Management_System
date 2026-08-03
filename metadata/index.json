@@ -19,5 +19,6 @@
   },
   "api": {},
   "db_tables": ["caits_local.*"],
-  "last_updated": "2026-08-01T07:35:00Z"
+  "db_migrations": "db/migrations.json",
+  "last_updated": "2026-08-01T13:00:00Z"
 }

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Field'
 import type { ApiMasterRow } from '@/api/masters'
 import {
   ItemCodeOptions,
+  applyItemMaster,
   baseLine,
   gridCell,
   gridHeadCell,
@@ -77,11 +78,7 @@ export function RequisitionItemLines({
     }
     const stockLocation = deliverToLocationId || String(item.store ?? '')
     patch(line.key, {
-      itemCode: String(item.code ?? ''),
-      itemId: item.id,
-      itemName: String(item.name ?? ''),
-      uomId: String(item.uom ?? ''),
-      locationId: stockLocation,
+      ...applyItemMaster(item, stockLocation),
       availableStock: '',
     })
     void lookup(line.key, Number(item.id), stockLocation)

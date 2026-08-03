@@ -57,15 +57,7 @@ public class TransactionControllers {
         return service.delete(DocType.GRN, docId);
     }
 
-    @PostMapping("/grn/{docId}/approve")
-    public DocumentResponse approveGrn(@PathVariable Integer docId, @RequestBody(required = false) ApproveRequest body) {
-        return service.approve(DocType.GRN, docId, body);
-    }
-
-    @PostMapping("/grn/{docId}/reject")
-    public MessageResponse rejectGrn(@PathVariable Integer docId, @RequestBody RejectRequest body) {
-        return service.reject(DocType.GRN, docId, body);
-    }
+    // GRN completes and posts stock on SUBMIT — no approval workflow (unlike requisition / gatepass inward).
 
     @GetMapping("/grn/{docId}/print")
     public DocumentResponse printGrn(@PathVariable Integer docId) {

@@ -94,6 +94,7 @@ public final class MasterDtos {
                                  BigDecimal availableQty, String batchLotNo) {}
 
     public record MenuDto(Integer menuId, String menuCode, String menuLabel, String menuGroup, Integer sortOrder,
+                          Integer groupSortOrder,
                           String docType, Boolean supportsView, Boolean supportsCreate, Boolean supportsEdit,
                           Boolean supportsDelete, Boolean supportsApprove, Boolean supportsReject,
                           Boolean supportsPrint, Boolean supportsExport) {}
@@ -105,7 +106,7 @@ public final class MasterDtos {
                               Boolean isSystemRole, Boolean isActive) {}
     public record PermissionDto(Integer menuId, String module, Boolean canView, Boolean canCreate, Boolean canEdit,
                                 Boolean canDelete, Boolean canApprove, Boolean canReject, Boolean canPrint,
-                                Boolean canExport) {}
+                                Boolean canExport, Integer sortOrder, Integer groupSortOrder) {}
 
     public record EmployeeDto(Integer employeeId, String employeeCode, String firstName, String lastName,
                               String gender, java.time.LocalDate dob, java.time.LocalDate joiningDate, String employmentType,

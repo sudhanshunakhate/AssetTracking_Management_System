@@ -24,6 +24,9 @@ public class SysmMenutreeMst {
     @Column(name = "mtree_sort_order", nullable = false)
     private Integer mtreeSortOrder;
 
+    @Column(name = "mtree_group_sort_order", nullable = false)
+    private Integer mtreeGroupSortOrder;
+
     @Column(name = "mtree_icon")
     private String mtreeIcon;
 
@@ -86,6 +89,9 @@ public class SysmMenutreeMst {
 
     public Integer getMtreeSortOrder() { return mtreeSortOrder; }
     public void setMtreeSortOrder(Integer mtreeSortOrder) { this.mtreeSortOrder = mtreeSortOrder; }
+
+    public Integer getMtreeGroupSortOrder() { return mtreeGroupSortOrder; }
+    public void setMtreeGroupSortOrder(Integer mtreeGroupSortOrder) { this.mtreeGroupSortOrder = mtreeGroupSortOrder; }
 
     public String getMtreeIcon() { return mtreeIcon; }
     public void setMtreeIcon(String mtreeIcon) { this.mtreeIcon = mtreeIcon; }

@@ -1,10 +1,11 @@
-import { useCallback, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Field'
+import { Input, Select } from '@/components/ui/Field'
 import type { ApiMasterRow } from '@/api/masters'
 import {
   ItemCodeOptions,
+  applyItemMaster,
   baseLine,
   gridCell,
   gridHeadCell,
@@ -13,52 +14,87 @@ import {
   money,
   toNum,
   useCodeIndex,
-  useItemIndex,
   useStockLookup,
   type BaseLine,
 } from './lineGrid'
+import type { ItemKind } from './OpeningStockItemLines'
 
 export type GrnLine = BaseLine & {
   receivedQty: string
   acceptedQty: string
   rejectedQty: string
   amount: string
+  serialNo: string
+  ipAddress: string
+  macAddress: string
+  hostname: string
+  itemCondition: string
+  batch: string
 }
 
 export function emptyGrnLine(): GrnLine {
-  return { ...baseLine(), receivedQty: '', acceptedQty: '', rejectedQty: '', amount: '' }
+  return {
+    ...baseLine(),
+    receivedQty: '',
+    acceptedQty: '',
+    rejectedQty: '',
+    amount: '',
+    serialNo: '',
+    ipAddress: '',
+    macAddress: '',
+    hostname: '',
+    itemCondition: '',
+    batch: '',
+  }
 }
 
 const DATALIST_ID = 'grn-item-options'
 
 /**
- * Editable GRN line grid. Picking an item fills name, UOM, receiving location
- * and live available stock; accepted/rejected are kept consistent with received
- * and the amount defaults to the item's standard cost.
+ * GRN Item Details — Item Type drives extra columns:
+ * Asset → serial / network fields (qty columns stay visible, locked to 1).
+ * Consumable → batch + editable received / accepted / rejected.
+ * Shared on every line: Received, Accepted, Rejected, Available Stock, Amount, Location, Remark.
  */
 export function GrnItemLines({
   lines,
   onChange,
+  itemType,
+  onItemTypeChange,
   items,
   units,
   locations,
+  vendors: _vendors,
+  conditionOptions = [],
   storeLocationId,
   readOnly = false,
   error,
 }: {
   lines: GrnLine[]
-  /** Functional setter so async stock lookups always patch the latest rows. */
   onChange: Dispatch<SetStateAction<GrnLine[]>>
+  itemType: ItemKind
+  onItemTypeChange: (next: ItemKind) => void
   items: ApiMasterRow[]
   units: ApiMasterRow[]
   locations: ApiMasterRow[]
+  vendors?: ApiMasterRow[]
+  conditionOptions?: { value: string; label: string; code?: string }[]
   storeLocationId: string
   readOnly?: boolean
   error?: string
 }) {
-  const itemByCode = useItemIndex(items)
+  void _vendors
+  const isAsset = itemType === 'asset'
+  const filteredItems = useMemo(
+    () => items.filter((i) => (i.itemType === 'consumable' ? 'consumable' : 'asset') === itemType),
+    [items, itemType],
+  )
   const unitById = useCodeIndex(units)
   const locationById = useCodeIndex(locations)
+
+  const [pickItemId, setPickItemId] = useState('')
+  const [pickQty, setPickQty] = useState('1')
+  const [addError, setAddError] = useState('')
 
   const patch = useCallback(
     (key: string, changes: Partial<GrnLine>) => {
@@ -73,29 +109,66 @@ export function GrnItemLines({
   )
   const { loading: stockLoading, lookup } = useStockLookup(onStock)
 
-  const selectItem = (line: GrnLine, rawCode: string) => {
-    const code = rawCode.toUpperCase()
-    const item = itemByCode.get(code)
-    if (!item) {
-      patch(line.key, { itemCode: code, itemId: '', itemName: '', uomId: '', availableStock: '' })
-      return
-    }
+  const buildLine = (item: ApiMasterRow, qty: number): GrnLine => {
     const location = storeLocationId || String(item.store ?? '')
-    const received = toNum(line.receivedQty)
-    patch(line.key, {
-      itemCode: String(item.code ?? ''),
-      itemId: item.id,
-      itemName: String(item.name ?? ''),
-      uomId: String(item.uom ?? ''),
-      locationId: location,
-      availableStock: '',
-      amount: received > 0 ? String(received * toNum(item.standardCost as number)) : line.amount,
-    })
-    void lookup(line.key, Number(item.id), location)
+    const cost = toNum(item.standardCost as number)
+    return {
+      ...emptyGrnLine(),
+      ...applyItemMaster(item, location),
+      receivedQty: String(qty),
+      acceptedQty: String(qty),
+      rejectedQty: '0',
+      amount: cost > 0 ? String(qty * cost) : '',
+    }
   }
 
-  /* Received drives accepted (default all-good) and the line amount. */
+  const addUnits = () => {
+    setAddError('')
+    const item = filteredItems.find((i) => i.id === pickItemId)
+    if (!item) {
+      setAddError('Select an item first')
+      return
+    }
+    const n = Math.floor(toNum(pickQty))
+    if (n <= 0) {
+      setAddError('Quantity must be greater than 0')
+      return
+    }
+    if (isAsset && n > 200) {
+      setAddError('Max 200 asset units at a time')
+      return
+    }
+
+    const location = storeLocationId || String(item.store ?? '')
+    if (isAsset) {
+      const created = Array.from({ length: n }, () => buildLine(item, 1))
+      onChange((prev) => {
+        const keep = prev.filter((l) => l.itemId !== '')
+        return [...keep, ...created]
+      })
+      created.forEach((l) => void lookup(l.key, Number(item.id), location))
+    } else {
+      const line = buildLine(item, n)
+      onChange((prev) => {
+        const keep = prev.filter((l) => l.itemId !== '')
+        return [...keep, line]
+      })
+      void lookup(line.key, Number(item.id), location)
+    }
+    setPickQty('1')
+    setPickItemId('')
+  }
+
+  const changeType = (next: ItemKind) => {
+    onItemTypeChange(next)
+    onChange([emptyGrnLine()])
+    setPickItemId('')
+    setPickQty('1')
+    setAddError('')
+  }
+
   const setReceived = (line: GrnLine, value: string) => {
+    if (isAsset) return
     const received = toNum(value)
     const item = items.find((i) => i.id === line.itemId)
     const cost = item ? toNum(item.standardCost as number) : 0
@@ -109,189 +182,312 @@ export function GrnItemLines({
   }
 
   const setAccepted = (line: GrnLine, value: string) => {
+    if (isAsset) return
     patch(line.key, {
       acceptedQty: value,
       rejectedQty: String(Math.max(toNum(line.receivedQty) - toNum(value), 0)),
     })
   }
 
-  const addLine = () => onChange((prev) => [...prev, emptyGrnLine()])
   const removeLine = (key: string) =>
     onChange((prev) => {
       const next = prev.filter((l) => l.key !== key)
       return next.length ? next : [emptyGrnLine()]
     })
 
-  const totalAmount = lines.reduce((sum, l) => sum + toNum(l.amount), 0)
+  const filled = lines.filter((l) => l.itemId !== '')
+  const totalAmount = filled.reduce((sum, l) => sum + toNum(l.amount), 0)
+  const typeColSpan = isAsset ? 5 : 1
+  const emptyColSpan = 4 + typeColSpan + 7
 
   return (
     <Card>
-      <CardHeader title="Item Details" subtitle="Received, accepted and rejected quantities per line" />
+      <CardHeader
+        title="Item Details"
+        subtitle={
+          isAsset
+            ? 'Asset qty expands into unit lines — fill serial / network details; qty columns stay on each unit'
+            : 'Received, accepted and rejected quantities per line'
+        }
+      />
       <CardBody className="p-0">
+        {!readOnly && (
+          <div className="flex flex-wrap items-end gap-2 border-b border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2.5">
+            <label className="flex min-w-[140px] flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
+              Item Type
+              <Select value={itemType} onChange={(e) => changeType(e.target.value as ItemKind)} className={gridInput}>
+                <option value="asset">Asset</option>
+                <option value="consumable">Consumable</option>
+              </Select>
+            </label>
+            <label className="flex min-w-[220px] flex-1 flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
+              Item
+              <Select value={pickItemId} onChange={(e) => setPickItemId(e.target.value)} className={gridInput}>
+                <option value="">— Select {isAsset ? 'Asset' : 'Consumable'} —</option>
+                {filteredItems.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.code} – {i.name}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label className="flex w-[100px] flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
+              Qty
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                value={pickQty}
+                onChange={(e) => setPickQty(e.target.value)}
+                className={gridInputRight}
+              />
+            </label>
+            <Button onClick={addUnits}>{isAsset ? '+ Add Units' : '+ Add Line'}</Button>
+            {(addError || error) && (
+              <span className="text-[11px] font-medium text-[var(--danger)]">{addError || error}</span>
+            )}
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-[var(--surface2)]">
                 <th className={`${gridHeadCell} w-[48px]`}>Sr No.</th>
-                <th className={`${gridHeadCell} w-[150px]`}>Item Code</th>
+                <th className={`${gridHeadCell} w-[130px]`}>Item Code</th>
                 <th className={gridHeadCell}>Item Name</th>
-                <th className={`${gridHeadCell} w-[90px]`}>UOM</th>
-                <th className={`${gridHeadCell} w-[110px]`}>Received Qty</th>
-                <th className={`${gridHeadCell} w-[110px]`}>Accepted Qty</th>
-                <th className={`${gridHeadCell} w-[110px]`}>Rejected Qty</th>
+                <th className={`${gridHeadCell} w-[70px]`}>UOM</th>
+                {isAsset ? (
+                  <>
+                    <th className={`${gridHeadCell} w-[130px]`}>Serial No.</th>
+                    <th className={`${gridHeadCell} w-[120px]`}>IP Address</th>
+                    <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
+                    <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
+                    <th className={`${gridHeadCell} w-[120px]`}>Condition</th>
+                  </>
+                ) : (
+                  <th className={`${gridHeadCell} w-[110px]`}>Batch / Lot</th>
+                )}
+                <th className={`${gridHeadCell} w-[100px]`}>Received Qty</th>
+                <th className={`${gridHeadCell} w-[100px]`}>Accepted Qty</th>
+                <th className={`${gridHeadCell} w-[100px]`}>Rejected Qty</th>
                 <th className={`${gridHeadCell} w-[115px]`}>Available Stock</th>
-                <th className={`${gridHeadCell} w-[115px]`}>Amount (₹)</th>
-                <th className={`${gridHeadCell} w-[130px]`}>Location</th>
-                <th className={`${gridHeadCell} w-[150px]`}>Remark</th>
+                <th className={`${gridHeadCell} w-[110px]`}>Amount (₹)</th>
+                <th className={`${gridHeadCell} w-[110px]`}>Location</th>
+                <th className={`${gridHeadCell} w-[130px]`}>Remark</th>
                 <th className={`${gridHeadCell} w-[54px] text-center`}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {lines.map((line, idx) => {
-                const unit = unitById.get(line.uomId)
-                const location = locationById.get(line.locationId)
-                const received = toNum(line.receivedQty)
-                const split = toNum(line.acceptedQty) + toNum(line.rejectedQty)
-                const splitMismatch = line.itemId !== '' && received > 0 && Math.abs(split - received) > 0.0001
-                return (
-                  <tr key={line.key} className="border-b border-[var(--border)] align-middle">
-                    <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
-                    <td className={gridCell}>
-                      <Input
-                        list={DATALIST_ID}
-                        value={line.itemCode}
-                        onChange={(e) => selectItem(line, e.target.value)}
-                        disabled={readOnly}
-                        placeholder="Select Item"
-                        invalid={line.itemCode !== '' && line.itemId === ''}
-                        className={gridInput}
-                      />
-                    </td>
-                    <td className={gridCell}>
-                      <Input value={line.itemName} readOnly placeholder="Auto" className={gridInput} />
-                    </td>
-                    <td className={gridCell}>
-                      <Input
-                        value={unit ? String(unit.code ?? '') : ''}
-                        readOnly
-                        placeholder="Auto"
-                        className={gridInput}
-                      />
-                    </td>
-                    <td className={gridCell}>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={line.receivedQty}
-                        onChange={(e) => setReceived(line, e.target.value)}
-                        disabled={readOnly}
-                        placeholder="0.00"
-                        className={gridInputRight}
-                      />
-                    </td>
-                    <td className={gridCell}>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={line.acceptedQty}
-                        onChange={(e) => setAccepted(line, e.target.value)}
-                        disabled={readOnly}
-                        placeholder="0.00"
-                        invalid={splitMismatch}
-                        className={gridInputRight}
-                      />
-                    </td>
-                    <td className={gridCell}>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={line.rejectedQty}
-                        onChange={(e) => patch(line.key, { rejectedQty: e.target.value })}
-                        disabled={readOnly}
-                        placeholder="0.00"
-                        invalid={splitMismatch}
-                        title={splitMismatch ? 'Accepted + Rejected must equal Received' : undefined}
-                        className={gridInputRight}
-                      />
-                    </td>
-                    <td className={gridCell}>
-                      <Input
-                        value={stockLoading[line.key] ? '…' : line.availableStock}
-                        readOnly
-                        placeholder="Auto"
-                        className={gridInputRight}
-                      />
-                    </td>
-                    <td className={gridCell}>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={line.amount}
-                        onChange={(e) => patch(line.key, { amount: e.target.value })}
-                        disabled={readOnly}
-                        placeholder="0.00"
-                        className={gridInputRight}
-                      />
-                    </td>
-                    <td className={gridCell}>
-                      <Input
-                        value={location ? String(location.code ?? '') : ''}
-                        readOnly
-                        placeholder="Auto"
-                        className={gridInput}
-                      />
-                    </td>
-                    <td className={gridCell}>
-                      <Input
-                        value={line.remark}
-                        onChange={(e) => patch(line.key, { remark: e.target.value })}
-                        disabled={readOnly}
-                        maxLength={200}
-                        placeholder="Remark…"
-                        className={gridInput}
-                      />
-                    </td>
-                    <td className={`${gridCell} text-center`}>
-                      <button
-                        type="button"
-                        aria-label={`Remove line ${idx + 1}`}
-                        onClick={() => removeLine(line.key)}
-                        disabled={readOnly}
-                        className="rounded px-1.5 text-[14px] leading-none text-[var(--text3)] transition hover:text-[var(--danger)] disabled:opacity-40"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-              <tr>
-                <td colSpan={8} className="px-2 py-1.5 text-right text-[11px] font-semibold text-[var(--accent)]">
-                  Total Amount →
-                </td>
-                <td className="px-2 py-1.5 text-right text-[12px] font-bold text-[var(--accent)] tabular-nums">
-                  {money(totalAmount)}
-                </td>
-                <td colSpan={3} />
-              </tr>
+              {filled.length === 0 ? (
+                <tr>
+                  <td colSpan={emptyColSpan} className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">
+                    {isAsset
+                      ? 'No units yet — choose an asset and qty, then click Add Units.'
+                      : 'No lines yet — choose a consumable and qty, then click Add Line.'}
+                  </td>
+                </tr>
+              ) : (
+                filled.map((line, idx) => {
+                  const unit = unitById.get(line.uomId)
+                  const location = locationById.get(line.locationId)
+                  const received = toNum(line.receivedQty)
+                  const split = toNum(line.acceptedQty) + toNum(line.rejectedQty)
+                  const splitMismatch =
+                    !isAsset && line.itemId !== '' && received > 0 && Math.abs(split - received) > 0.0001
+                  return (
+                    <tr key={line.key} className="border-b border-[var(--border)] align-middle">
+                      <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
+                      <td className={gridCell}>
+                        <Input value={line.itemCode} readOnly className={gridInput} />
+                      </td>
+                      <td className={gridCell}>
+                        <Input value={line.itemName} readOnly className={gridInput} />
+                      </td>
+                      <td className={gridCell}>
+                        <Input value={unit ? String(unit.code ?? '') : ''} readOnly className={gridInput} />
+                      </td>
+                      {isAsset ? (
+                        <>
+                          <td className={gridCell}>
+                            <Input
+                              value={line.serialNo}
+                              onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
+                              disabled={readOnly}
+                              maxLength={100}
+                              placeholder="SN-…"
+                              className={gridInput}
+                            />
+                          </td>
+                          <td className={gridCell}>
+                            <Input
+                              value={line.ipAddress}
+                              onChange={(e) => patch(line.key, { ipAddress: e.target.value })}
+                              disabled={readOnly}
+                              maxLength={45}
+                              placeholder="192.168.0.25"
+                              className={gridInput}
+                            />
+                          </td>
+                          <td className={gridCell}>
+                            <Input
+                              value={line.macAddress}
+                              onChange={(e) =>
+                                patch(line.key, { macAddress: e.target.value.toUpperCase() })
+                              }
+                              disabled={readOnly}
+                              maxLength={17}
+                              placeholder="AA-BB-…"
+                              className={gridInput}
+                            />
+                          </td>
+                          <td className={gridCell}>
+                            <Input
+                              value={line.hostname}
+                              onChange={(e) => patch(line.key, { hostname: e.target.value })}
+                              disabled={readOnly}
+                              maxLength={150}
+                              placeholder="host.local"
+                              className={gridInput}
+                            />
+                          </td>
+                          <td className={gridCell}>
+                            <Select
+                              value={line.itemCondition}
+                              onChange={(e) => patch(line.key, { itemCondition: e.target.value })}
+                              disabled={readOnly}
+                              className={gridInput}
+                            >
+                              <option value="">— Select —</option>
+                              {conditionOptions.map((c) => (
+                                <option key={c.code ?? c.value} value={c.value}>
+                                  {c.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </td>
+                        </>
+                      ) : (
+                        <td className={gridCell}>
+                          <Input
+                            value={line.batch}
+                            onChange={(e) => patch(line.key, { batch: e.target.value })}
+                            disabled={readOnly}
+                            placeholder="Batch / lot"
+                            className={gridInput}
+                          />
+                        </td>
+                      )}
+                      <td className={gridCell}>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={line.receivedQty}
+                          onChange={(e) => setReceived(line, e.target.value)}
+                          disabled={readOnly || isAsset}
+                          className={gridInputRight}
+                        />
+                      </td>
+                      <td className={gridCell}>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={line.acceptedQty}
+                          onChange={(e) => setAccepted(line, e.target.value)}
+                          disabled={readOnly || isAsset}
+                          invalid={splitMismatch}
+                          className={gridInputRight}
+                        />
+                      </td>
+                      <td className={gridCell}>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={line.rejectedQty}
+                          onChange={(e) => patch(line.key, { rejectedQty: e.target.value })}
+                          disabled={readOnly || isAsset}
+                          invalid={splitMismatch}
+                          className={gridInputRight}
+                        />
+                      </td>
+                      <td className={gridCell}>
+                        <Input
+                          value={stockLoading[line.key] ? '…' : line.availableStock}
+                          readOnly
+                          className={gridInputRight}
+                        />
+                      </td>
+                      <td className={gridCell}>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={line.amount}
+                          onChange={(e) => patch(line.key, { amount: e.target.value })}
+                          disabled={readOnly}
+                          className={gridInputRight}
+                        />
+                      </td>
+                      <td className={gridCell}>
+                        <Input
+                          value={location ? String(location.code ?? '') : ''}
+                          readOnly
+                          placeholder="Auto"
+                          className={gridInput}
+                        />
+                      </td>
+                      <td className={gridCell}>
+                        <Input
+                          value={line.remark}
+                          onChange={(e) => patch(line.key, { remark: e.target.value })}
+                          disabled={readOnly}
+                          maxLength={200}
+                          placeholder="Remark…"
+                          className={gridInput}
+                        />
+                      </td>
+                      <td className={`${gridCell} text-center`}>
+                        <button
+                          type="button"
+                          aria-label={`Remove line ${idx + 1}`}
+                          onClick={() => removeLine(line.key)}
+                          disabled={readOnly}
+                          className="rounded px-1.5 text-[14px] leading-none text-[var(--text3)] transition hover:text-[var(--danger)] disabled:opacity-40"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+              {filled.length > 0 && (
+                <tr>
+                  <td
+                    colSpan={4 + typeColSpan + 3}
+                    className="px-2 py-1.5 text-right text-[11px] font-semibold text-[var(--accent)]"
+                  >
+                    Total Amount →
+                  </td>
+                  <td className="px-2 py-1.5 text-right text-[12px] font-bold text-[var(--accent)] tabular-nums">
+                    {money(totalAmount)}
+                  </td>
+                  <td colSpan={3} />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
-        <ItemCodeOptions id={DATALIST_ID} items={items} />
+        <ItemCodeOptions id={DATALIST_ID} items={filteredItems} />
 
         <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
-          <Button variant="ghost" onClick={addLine} disabled={readOnly}>
-            + Add Line
-          </Button>
-          {error && <span className="text-[11px] font-medium text-[var(--danger)]">{error}</span>}
           <div className="flex-1" />
           <span className="text-[11px] font-semibold text-[var(--text2)]">
-            Total Items: {lines.filter((l) => l.itemId !== '').length}
+            Total {isAsset ? 'Units' : 'Items'}: {filled.length}
           </span>
         </div>
       </CardBody>

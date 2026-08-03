@@ -1,32 +1,28 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { Pill } from '@/components/ui/Badge'
 import { type Column } from '@/components/ui/DataTable'
 import {
   createTxn,
+  fetchAvailableStock,
   fetchTxn,
-  mapOpeningStockForm,
   numOrUndef,
   todayIso,
-  updateTxn,
   useTxnList,
   type DocumentRequest,
+  type TxnDocument,
 } from '@/api/transactions'
 import {
   mapEmployee,
-  mapEntity,
   mapItem,
   mapLocation,
   mapUnit,
-  mapVendor,
   useMasterList,
   type ApiMasterRow,
 } from '@/api/masters'
 import type {
   MaterialReturn,
   MaterialTransfer,
-  OpeningStock,
-  StoreIssue,
 } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
 
@@ -52,10 +48,12 @@ function TxnRoutes({
   fields,
   searchPlaceholder,
   saveLabel,
+  draftLabel,
   formTitle,
   getDefaults,
   addLabel = 'Add New',
   onSave,
+  onFieldChange,
   menuCode,
   listLoading = false,
   loadRecord,
@@ -69,10 +67,20 @@ function TxnRoutes({
   fields: FieldDef[]
   searchPlaceholder?: string
   saveLabel?: string
+  draftLabel?: string
   formTitle?: string
   getDefaults?: () => Record<string, unknown>
   addLabel?: string
-  onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
+  onSave?: (
+    id: string,
+    values: Record<string, unknown>,
+    action?: 'SAVE_DRAFT' | 'SUBMIT',
+  ) => Promise<void>
+  onFieldChange?: (
+    name: string,
+    value: unknown,
+    values: Record<string, unknown>,
+  ) => Partial<Record<string, unknown>> | void | Promise<Partial<Record<string, unknown>> | void>
   menuCode?: string
   listLoading?: boolean
   loadRecord?: (id: string) => Promise<Record<string, unknown> | null>
@@ -87,10 +95,12 @@ function TxnRoutes({
     fields,
     searchPlaceholder,
     saveLabel,
+    draftLabel,
     formTitle,
     getDefaults,
     addLabel,
     onSave,
+    onFieldChange,
     menuCode,
     listLoading,
     loadRecord,
@@ -107,17 +117,13 @@ function TxnRoutes({
 function useTxnLookups() {
   const mapLoc = useCallback(mapLocation, [])
   const mapEmp = useCallback(mapEmployee, [])
-  const mapVend = useCallback(mapVendor, [])
   const mapItm = useCallback(mapItem, [])
   const mapUnt = useCallback(mapUnit, [])
-  const mapEnt = useCallback(mapEntity, [])
   const locations = useMasterList('locations', mapLoc)
   const employees = useMasterList('employees', mapEmp)
-  const vendors = useMasterList('vendors', mapVend)
   const items = useMasterList('items', mapItm)
   const units = useMasterList('units', mapUnt)
-  const entities = useMasterList('entities', mapEnt)
-  return { locations, employees, vendors, items, units, entities }
+  return { locations, employees, items, units }
 }
 
 function locLabel(locations: ApiMasterRow[], id: string) {
@@ -130,252 +136,93 @@ function empLabel(employees: ApiMasterRow[], id: string) {
   return e ? `${e.code} – ${e.firstName} ${e.lastName}` : id || '—'
 }
 
-function lineFromForm(values: Record<string, unknown>): DocumentRequest['lines'] {
+/** When Item changes, patch UOM (and clear stale stock) from the item master. */
+function itemFieldPatch(items: ApiMasterRow[]) {
+  return (name: string, value: unknown): Partial<Record<string, unknown>> | void => {
+    if (name !== 'item') return
+    const item = items.find((i) => i.id === String(value ?? ''))
+    if (!item) return { uom: '', availableStock: '' }
+    return {
+      uom: String(item.uom ?? ''),
+      availableStock: '',
+      itemCode: String(item.code ?? ''),
+      itemName: String(item.name ?? ''),
+      itemType: String(item.itemType ?? ''),
+    }
+  }
+}
+
+function lineFromForm(
+  values: Record<string, unknown>,
+  items: ApiMasterRow[],
+): DocumentRequest['lines'] {
   const itemId = numOrUndef(values.item)
   if (itemId == null) {
     throw new Error('Item is required for transaction lines')
   }
+  const item = items.find((i) => i.id === String(itemId))
   const qty = numOrUndef(values.qty) ?? 1
   const rate = numOrUndef(values.rate) ?? 0
+  const uomId = numOrUndef(values.uom) ?? numOrUndef(item?.uom)
   const mfgDate = String(values.mfgDate ?? '').trim() || undefined
   const expiryDate = String(values.expiryDate ?? '').trim() || undefined
+  const availableStock = numOrUndef(values.availableStock)
   return [
     {
       srNo: 1,
       itemId,
-      uomId: numOrUndef(values.uom),
+      uomId,
       qty,
       orderedQty: qty,
       receivedQty: qty,
       acceptedQty: qty,
       requestedQty: qty,
+      availableStock: availableStock ?? undefined,
       rate,
       mrp: numOrUndef(values.mrp),
       amount: qty * rate,
       batchLotNo: String(values.batch ?? '') || undefined,
       mfgDate,
       expiryDate,
-      locationId: numOrUndef(values.store) ?? numOrUndef(values.toStore) ?? numOrUndef(values.deliverTo),
+      locationId:
+        numOrUndef(values.store) ?? numOrUndef(values.fromStore) ?? numOrUndef(values.toStore),
       locationBin: String(values.bin ?? '') || undefined,
+      serialNo: String(values.serialNo ?? '') || undefined,
+      ipAddress: String(values.ipAddress ?? '') || undefined,
+      macAddress: String(values.macAddress ?? '') || undefined,
+      hostname: String(values.hostname ?? '') || undefined,
+      itemCondition: String(values.itemCondition ?? '') || undefined,
       remark: String(values.remarks ?? '') || undefined,
     },
   ]
 }
 
-export function OpeningStockPages() {
-  const { rows, loading, error, reload } = useTxnList('opening-stock')
-  const { locations, items, units, entities } = useTxnLookups()
-  const locById = useMemo(
-    () => Object.fromEntries(locations.rows.map((l) => [l.id, l])),
-    [locations.rows],
-  )
-
-  const columns: Column<OpeningStock & { locationId?: string; totalAmount?: number }>[] = [
-    { key: 'no', header: 'Entry No.', searchText: (r) => r.entryNo, render: (r) => <b className="font-mono">{r.entryNo}</b> },
-    { key: 'date', header: 'Opening Date', searchText: (r) => r.openingDate, render: (r) => r.openingDate },
-    {
-      key: 'store',
-      header: 'Store',
-      searchText: (r) => locById[String(r.locationId ?? r.store)]?.code ?? String(r.store ?? ''),
-      render: (r) => locById[String(r.locationId ?? r.store)]?.code ?? r.store ?? '—',
-    },
-    {
-      key: 'amt',
-      header: 'Amount (₹)',
-      searchText: (r) => String(r.totalAmount ?? r.rate ?? 0),
-      render: (r) => Number(r.totalAmount ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
-    },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status}</Pill> },
-  ]
-  const fields: FieldDef[] = [
-    {
-      name: 'entryNo',
-      label: 'Entry No.',
-      hint: 'Auto-generated on save (e.g. OST-2026-0001)',
-    },
-    { name: 'openingDate', label: 'Opening Date', type: 'date', required: true },
-    {
-      name: 'org',
-      label: 'Entity (Organization)',
-      type: 'select',
-      required: true,
-      options: opt(entities.rows),
-      placeholder: '— Select Organization —',
-    },
-    {
-      name: 'store',
-      label: 'Store',
-      type: 'select',
-      required: true,
-      options: opt(locations.rows),
-      placeholder: '— Select Store —',
-    },
-    { name: 'bin', label: 'Location / Bin', uppercase: true, hint: 'Rack A-12-B3' },
-    {
-      name: 'item',
-      label: 'Item',
-      type: 'select',
-      required: true,
-      span: 2,
-      options: opt(items.rows),
-      placeholder: '— Select Item —',
-    },
-    { name: 'batch', label: 'Batch / Lot No.', uppercase: true, hint: 'BATCH-001' },
-    { name: 'qty', label: 'Opening Quantity', type: 'number', required: true },
-    {
-      name: 'uom',
-      label: 'Unit',
-      type: 'select',
-      options: opt(units.rows, (u) => String(u.code)),
-      placeholder: '— Select Unit —',
-    },
-    { name: 'rate', label: 'Rate (₹)', type: 'number' },
-    { name: 'mrp', label: 'MRP (₹)', type: 'number' },
-    { name: 'mfgDate', label: 'Manufacturing Date', type: 'date' },
-    { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
-    { name: 'remarks', label: 'Remarks', span: 4, hint: 'Optional notes...' },
-  ]
-  return (
-    <>
-      <ListStatus loading={loading} error={error} label="opening stock" />
-      <TxnRoutes
-        listLoading={loading}
-        base="/transactions/opening-stock"
-        menuCode="OPN"
-        title="Opening Stock"
-        description="Record the starting quantity of an item at a store, before any Inward, Issue or Transfer transactions are posted."
-        rows={rows as never}
-        columns={columns as never}
-        fields={fields}
-        searchPlaceholder="Search opening stock entries…"
-        saveLabel="Save Opening Stock"
-        formTitle="Opening Stock Details"
-        addLabel="Add Opening Stock"
-        readOnlyFields={['entryNo']}
-        getDefaults={() => ({
-          entryNo: '(auto)',
-          openingDate: todayIso(),
-          qty: 0,
-          rate: 0,
-          mrp: 0,
-          status: true,
-        })}
-        loadRecord={async (id) => {
-          const doc = await fetchTxn('opening-stock', id)
-          return mapOpeningStockForm(doc)
-        }}
-        onSave={async (id, values) => {
-          const qty = numOrUndef(values.qty)
-          if (qty == null || qty <= 0) {
-            throw new Error('Opening Quantity must be greater than 0')
-          }
-          if (!numOrUndef(values.org)) {
-            throw new Error('Entity (Organization) is required')
-          }
-          if (!numOrUndef(values.store)) {
-            throw new Error('Store is required')
-          }
-          const rate = numOrUndef(values.rate) ?? 0
-          const body: DocumentRequest = {
-            docDate: String(values.openingDate || todayIso()),
-            postingDate: String(values.openingDate || todayIso()),
-            entityId: numOrUndef(values.org),
-            locationId: numOrUndef(values.store),
-            remarks: String(values.remarks ?? ''),
-            totalAmount: qty * rate,
-            docSubmitAction: 'SAVE_DRAFT',
-            lines: lineFromForm(values),
-          }
-          if (id === 'new') await createTxn('opening-stock', body)
-          else await updateTxn('opening-stock', id, body)
-          await reload()
-        }}
-      />
-    </>
-  )
-}
-
-export function IssuesPages() {
-  const { rows, loading, error, reload } = useTxnList('material-issues')
-  const { locations, employees, items, units } = useTxnLookups()
-  const reqs = useTxnList('requisitions')
-
-  const columns: Column<StoreIssue>[] = [
-    { key: 'no', header: 'Issue No.', searchText: (r) => r.issueNo, render: (r) => <b className="font-mono">{r.issueNo}</b> },
-    { key: 'date', header: 'Date', searchText: (r) => r.date, render: (r) => r.date },
-    {
-      key: 'req',
-      header: 'Requisition',
-      searchText: (r) => String((r as { refTxnHeaderId?: string }).refTxnHeaderId ?? r.requisitionNo ?? ''),
-      render: (r) => {
-        const ref = String((r as { refTxnHeaderId?: string }).refTxnHeaderId ?? '')
-        const hit = reqs.rows.find((x) => x.id === ref)
-        return hit?.docNo ?? (ref || '—')
-      },
-    },
-    {
-      key: 'store',
-      header: 'Store',
-      searchText: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
-      render: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
-    },
-    {
-      key: 'to',
-      header: 'Issued To',
-      searchText: (r) => empLabel(employees.rows, String((r as { initiatedByEmpId?: string }).initiatedByEmpId ?? '')),
-      render: (r) => empLabel(employees.rows, String((r as { initiatedByEmpId?: string }).initiatedByEmpId ?? '')),
-    },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status}</Pill> },
-  ]
-  const fields: FieldDef[] = [
-    { name: 'date', label: 'Issue Date', required: true },
-    { name: 'requisitionNo', label: 'Against Requisition', type: 'select', options: reqs.rows.map((r) => ({ value: r.id, label: r.docNo })) },
-    { name: 'store', label: 'Store', type: 'select', required: true, options: opt(locations.rows) },
-    { name: 'issuedTo', label: 'Issued To', type: 'select', required: true, span: 2, options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`) },
-    { name: 'item', label: 'Item', type: 'select', required: true, span: 2, options: opt(items.rows) },
-    { name: 'qty', label: 'Issue Qty', type: 'number', required: true },
-    { name: 'uom', label: 'Unit', type: 'select', options: opt(units.rows, (u) => String(u.code)) },
-    { name: 'remarks', label: 'Remarks', span: 2 },
-  ]
-  return (
-    <>
-      <ListStatus loading={loading} error={error} label="issues" />
-      <TxnRoutes
-        listLoading={loading}
-        base="/transactions/issues"
-        menuCode="ISS"
-        title="Store Issue"
-        description="Issue material from a store against a requisition."
-        rows={rows as never}
-        columns={columns as never}
-        fields={fields}
-        searchPlaceholder="Search issues…"
-        saveLabel="Save Issue"
-        formTitle="Issue Details"
-        addLabel="New Issue"
-        getDefaults={() => ({ date: todayIso(), qty: 1 })}
-        onSave={async (id, values) => {
-          const body: DocumentRequest = {
-            docDate: String(values.date || todayIso()),
-            locationId: numOrUndef(values.store),
-            initiatedByEmpId: numOrUndef(values.issuedTo),
-            refTxnHeaderId: numOrUndef(values.requisitionNo),
-            remarks: String(values.remarks ?? ''),
-            docSubmitAction: 'SAVE_DRAFT',
-            lines: lineFromForm(values),
-          }
-          if (id === 'new') await createTxn('material-issues', body)
-          else throw new Error('Material issue update is not supported by API')
-          await reload()
-        }}
-      />
-    </>
-  )
+function mapDocToFlatForm(doc: TxnDocument, extras: Record<string, unknown> = {}) {
+  const line = doc.lines?.[0]
+  return {
+    date: doc.docDate ?? todayIso(),
+    remarks: doc.remarks ?? '',
+    item: line?.itemId != null ? String(line.itemId) : '',
+    itemCode: line?.itemCode ?? '',
+    itemName: line?.itemName ?? '',
+    itemType: line?.itemType ?? '',
+    uom: line?.uomId != null ? String(line.uomId) : '',
+    qty: line?.qty != null ? String(line.qty) : line?.requestedQty != null ? String(line.requestedQty) : '1',
+    batch: line?.batchLotNo ?? '',
+    availableStock: line?.availableStock != null ? String(line.availableStock) : '',
+    serialNo: line?.serialNo ?? '',
+    ipAddress: line?.ipAddress ?? '',
+    macAddress: line?.macAddress ?? '',
+    hostname: line?.hostname ?? '',
+    itemCondition: line?.itemCondition ?? '',
+    ...extras,
+  }
 }
 
 export function TransfersPages() {
   const { rows, loading, error, reload } = useTxnList('transfers')
   const { locations, items, units } = useTxnLookups()
+  const patchItem = itemFieldPatch(items.rows)
 
   const columns: Column<MaterialTransfer>[] = [
     { key: 'no', header: 'Transfer No.', searchText: (r) => r.transferNo, render: (r) => <b className="font-mono">{r.transferNo}</b> },
@@ -399,10 +246,14 @@ export function TransfersPages() {
     { name: 'fromStore', label: 'From Store', type: 'select', required: true, options: opt(locations.rows) },
     { name: 'toStore', label: 'To Store', type: 'select', required: true, options: opt(locations.rows) },
     { name: 'item', label: 'Item', type: 'select', required: true, span: 2, options: opt(items.rows) },
+    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
     { name: 'qty', label: 'Transfer Qty', type: 'number', required: true },
-    { name: 'uom', label: 'Unit', type: 'select', options: opt(units.rows, (u) => String(u.code)) },
-    { name: 'remarks', label: 'Remarks', span: 4 },
+    { name: 'uom', label: 'Unit', type: 'select', required: true, options: opt(units.rows, (u) => String(u.code)) },
+    { name: 'availableStock', label: 'Available at From Store' },
+    { name: 'batch', label: 'Batch / Lot (optional)', hint: 'Leave blank to move FIFO' },
+    { name: 'remarks', label: 'Remarks', span: 3 },
   ]
+
   return (
     <>
       <ListStatus loading={loading} error={error} label="transfers" />
@@ -416,19 +267,42 @@ export function TransfersPages() {
         columns={columns as never}
         fields={fields}
         searchPlaceholder="Search transfers…"
-        saveLabel="Save Transfer"
+        saveLabel="Submit Transfer"
+        draftLabel="Save Draft"
         formTitle="Transfer Details"
         addLabel="New Transfer"
         getDefaults={() => ({ date: todayIso(), qty: 1 })}
-        onSave={async (id, values) => {
+        readOnlyFields={['itemName', 'availableStock']}
+        onFieldChange={async (name, value, values) => {
+          const next = { ...values, [name]: value }
+          const base = patchItem(name, value) ?? {}
+          if ((name === 'item' || name === 'fromStore') && next.item && next.fromStore) {
+            try {
+              const qty = await fetchAvailableStock(Number(next.item), Number(next.fromStore))
+              return { ...base, availableStock: String(qty) }
+            } catch {
+              return { ...base, availableStock: '0' }
+            }
+          }
+          return base
+        }}
+        loadRecord={async (id) => {
+          const doc = await fetchTxn('transfers', id)
+          return mapDocToFlatForm(doc, {
+            fromStore: doc.fromLocationId != null ? String(doc.fromLocationId) : '',
+            toStore: doc.toLocationId != null ? String(doc.toLocationId) : '',
+            store: doc.fromLocationId != null ? String(doc.fromLocationId) : '',
+          })
+        }}
+        onSave={async (id, values, action = 'SUBMIT') => {
           const body: DocumentRequest = {
             docDate: String(values.date || todayIso()),
             fromLocationId: numOrUndef(values.fromStore),
             toLocationId: numOrUndef(values.toStore),
             locationId: numOrUndef(values.fromStore),
             remarks: String(values.remarks ?? ''),
-            docSubmitAction: 'SAVE_DRAFT',
-            lines: lineFromForm(values),
+            docSubmitAction: action,
+            lines: lineFromForm({ ...values, store: values.fromStore }, items.rows),
           }
           if (id === 'new') await createTxn('transfers', body)
           else throw new Error('Transfer update is not supported by API')
@@ -442,6 +316,7 @@ export function TransfersPages() {
 export function ReturnsPages() {
   const { rows, loading, error, reload } = useTxnList('returns')
   const { locations, employees, items, units } = useTxnLookups()
+  const patchItem = itemFieldPatch(items.rows)
 
   const columns: Column<MaterialReturn>[] = [
     { key: 'no', header: 'Return No.', searchText: (r) => r.returnNo, render: (r) => <b className="font-mono">{r.returnNo}</b> },
@@ -465,10 +340,13 @@ export function ReturnsPages() {
     { name: 'returnedBy', label: 'Returned By', type: 'select', required: true, span: 2, options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`) },
     { name: 'store', label: 'Return to Store', type: 'select', required: true, options: opt(locations.rows) },
     { name: 'item', label: 'Item', type: 'select', required: true, span: 2, options: opt(items.rows) },
+    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
     { name: 'qty', label: 'Return Qty', type: 'number', required: true },
-    { name: 'uom', label: 'Unit', type: 'select', options: opt(units.rows, (u) => String(u.code)) },
+    { name: 'uom', label: 'Unit', type: 'select', required: true, options: opt(units.rows, (u) => String(u.code)) },
+    { name: 'batch', label: 'Batch / Lot (optional)' },
     { name: 'remarks', label: 'Remarks', span: 2 },
   ]
+
   return (
     <>
       <ListStatus loading={loading} error={error} label="returns" />
@@ -482,18 +360,28 @@ export function ReturnsPages() {
         columns={columns as never}
         fields={fields}
         searchPlaceholder="Search returns…"
-        saveLabel="Save Return"
+        saveLabel="Submit Return"
+        draftLabel="Save Draft"
         formTitle="Return Details"
         addLabel="New Return"
         getDefaults={() => ({ date: todayIso(), qty: 1 })}
-        onSave={async (id, values) => {
+        readOnlyFields={['itemName']}
+        onFieldChange={patchItem}
+        loadRecord={async (id) => {
+          const doc = await fetchTxn('returns', id)
+          return mapDocToFlatForm(doc, {
+            store: doc.locationId != null ? String(doc.locationId) : '',
+            returnedBy: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : '',
+          })
+        }}
+        onSave={async (id, values, action = 'SUBMIT') => {
           const body: DocumentRequest = {
             docDate: String(values.date || todayIso()),
             locationId: numOrUndef(values.store),
             initiatedByEmpId: numOrUndef(values.returnedBy),
             remarks: String(values.remarks ?? ''),
-            docSubmitAction: 'SAVE_DRAFT',
-            lines: lineFromForm(values),
+            docSubmitAction: action,
+            lines: lineFromForm(values, items.rows),
           }
           if (id === 'new') await createTxn('returns', body)
           else throw new Error('Return update is not supported by API')

@@ -26,8 +26,11 @@ public final class ConstraintMessages {
             Map.entry("hrc_employee_mst_emp_employee_code_key", "Employee code already exists"),
             Map.entry("hrc_employee_mst_emp_email_key", "This email is already used by another employee"),
             Map.entry("sysm_userlogin_mst_usr_login_id_key", "Login ID already exists"),
-            Map.entry("uq_user_location", "That location is already mapped to this user")
-    );
+                    Map.entry("uq_user_location", "That location is already mapped to this user"),
+                    Map.entry("uq_bls_serial_no", "This serial number is already registered"),
+                    Map.entry("uq_bls_dummy_per_item", "A dummy BLS already exists for this item"),
+                    Map.entry("uq_bls_item_batch", "This batch is already registered for the item")
+            );
 
     private ConstraintMessages() {
     }

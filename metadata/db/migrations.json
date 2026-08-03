@@ -1,0 +1,163 @@
+﻿{
+    "purpose":  "Ledger of every SQL change made to the CAITS schema, and which database has it. Keeps the local Postgres and the shared dev server in step.",
+    "environments":  {
+                         "local":  {
+                                       "label":  "Local Postgres (active in application.yml)",
+                                       "url":  "jdbc:postgresql://localhost:5432/postgres",
+                                       "schema":  "caits_local"
+                                   },
+                         "dev":  {
+                                     "label":  "Shared dev server (commented out in application.yml)",
+                                     "url":  "jdbc:postgresql://192.168.0.223:5432/caits",
+                                     "schema":  "caits_local"
+                                 }
+                     },
+    "rules":  [
+                  "Every schema or seed change goes in a file under db_approach/ â€” never as an ad-hoc psql statement.",
+                  "Scripts must be re-runnable: use IF NOT EXISTS / ON CONFLICT / guarded DO blocks.",
+                  "Apply to local first, set applied.local, and leave applied.dev null.",
+                  "Never run anything against dev without asking the user first."
+              ],
+    "baseline":  {
+                     "date":  "2026-08-01",
+                     "note":  "Both databases were compared and matched at this point: 21 tables, 25 menus, 27 general types, 134 general masters, 10 categories. Everything below predates the ledger and is recorded as already applied to both.",
+                     "local_snapshot":  {
+                                            "tables":  21,
+                                            "columns":  389,
+                                            "indexes":  46,
+                                            "menus":  25,
+                                            "gentypes":  27,
+                                            "genmasters":  134,
+                                            "categories":  10
+                                        }
+                 },
+    "migrations":  [
+                       {
+                           "id":  "001-seed-menus-and-role-access",
+                           "file":  "db_approach/seed_menus_and_role_access.sql",
+                           "description":  "Seeds sysm_menutree_mst and grants ADMIN full role permissions.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "002-seed-general-types-and-masters",
+                           "file":  "db_approach/seed_general_types_and_masters.sql",
+                           "description":  "Base gentype_mst / genmaster_mst lookup values.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "003-seed-general-lookups-extended",
+                           "file":  "db_approach/seed_general_lookups_extended.sql",
+                           "description":  "Additional lookup values for transaction and item screens.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "004-seed-department-designation-lookups",
+                           "file":  "db_approach/seed_department_designation_lookups.sql",
+                           "description":  "Department and designation lookups used by Employee Master.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "005-seed-categories-and-subcategories",
+                           "file":  "db_approach/seed_categories_and_subcategories.sql",
+                           "description":  "Inventory category / sub-category seed data.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "006-alter-txn-header-add-prepared-by",
+                           "file":  "db_approach/alter_txn_header_add_prepared_by.sql",
+                           "description":  "Adds prepared-by column to txn_header_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-30"
+                                       }
+                       },
+                       {
+                           "id":  "007-alter-item-inspection-needed",
+                           "file":  "db_approach/alter_item_inspection_needed.sql",
+                           "description":  "Adds inspection-needed flag to inv_item_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-30"
+                                       }
+                       },
+                       {
+                           "id":  "008-migrate-roleperm-menu-fk",
+                           "file":  "db_approach/migrate_roleperm_menu_fk.sql",
+                           "description":  "Foreign key from sysm_rolepermission_dtl to sysm_menutree_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-30"
+                                       }
+                       },
+                       {
+                           "id":  "009-migrate-user-location-mapping",
+                           "file":  "db_approach/migrate_user_location_mapping.sql",
+                           "description":  "Adds sysm_user_location_mapping_dtl and usr_location_access_scope for multi-location user access.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-30"
+                                       }
+                       },
+                       {
+                           "id":  "010-migrate-item-hardware-network-fields",
+                           "file":  "db_approach/migrate_item_hardware_network_fields.sql",
+                           "description":  "Item Master gap fields from the Assets workbook: RAM/storage/processor, IP/MAC/hostname, asset condition, parent asset.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-31"
+                                       }
+                       },
+                       {
+                           "id":  "011-migrate-master-integrity-constraints",
+                           "file":  "db_approach/migrate_master_integrity_constraints.sql",
+                           "description":  "Unique indexes uq_item_serial_no and uq_access_exception plus lowercase lookup indexes, backing the master form validation.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-31"
+                                       }
+                       },
+                       {
+                           "id":  "012-migrate-txn-line-instance-fields",
+                           "file":  "db_approach/migrate_txn_line_instance_fields.sql",
+                           "description":  "Adds serial/IP/MAC/hostname on txn_detail_dtl so each asset unit line can store instance identity (Item Master stays catalog-only).",
+                           "applied":  {
+                                           "local":  "2026-08-02",
+                                           "dev":  "2026-08-03"
+                                       }
+                       },
+                       {
+                           "id":  "013-migrate-inv-bls-mst",
+                           "file":  "db_approach/migrate_inv_bls_mst.sql",
+                           "description":  "Adds inv_bls_mst (Batch/Lot/Serial register) and txn_detail_dtl.txd_bls_id_ibm FK. Dummy BLS per non-tracked item; serial/batch uniqueness.",
+                           "applied":  {
+                                           "local":  "2026-08-02",
+                                           "dev":  "2026-08-03"
+                                       }
+                       },
+                       {
+                           "id":  "014-migrate-menu-group-sort-order",
+                           "file":  "db_approach/migrate_menu_group_sort_order.sql",
+                           "description":  "Adds mtree_group_sort_order so sidebar sections can be reordered from Role \u0026 Menu Mapping.",
+                           "applied":  {
+                                           "local":  "2026-08-03",
+                                           "dev":  "2026-08-03"
+                                       }
+                       }
+                   ],
+    "updated":  "2026-08-03"
+}

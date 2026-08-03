@@ -86,6 +86,41 @@ export function useStockLookup(onResolved: (key: string, qty: number) => void) {
   return { loading, lookup }
 }
 
+export function applyItemMaster(
+  item: ApiMasterRow,
+  locationId?: string,
+): Pick<BaseLine, 'itemId' | 'itemCode' | 'itemName' | 'uomId' | 'locationId'> {
+  return {
+    itemId: item.id,
+    itemCode: String(item.code ?? ''),
+    itemName: String(item.name ?? ''),
+    uomId: String(item.uom ?? ''),
+    locationId: locationId || String(item.store ?? ''),
+  }
+}
+
+/** Fill blank display fields on loaded lines from the item master (or API enrichment). */
+export function enrichLinesFromItems<T extends BaseLine>(lines: T[], items: ApiMasterRow[]): T[] {
+  if (items.length === 0) return lines
+  let changed = false
+  const next = lines.map((l) => {
+    if (!l.itemId) return l
+    const item = items.find((i) => i.id === l.itemId)
+    if (!item) return l
+    const patch = {
+      itemCode: l.itemCode || String(item.code ?? ''),
+      itemName: l.itemName || String(item.name ?? ''),
+      uomId: l.uomId || String(item.uom ?? ''),
+    }
+    if (patch.itemCode === l.itemCode && patch.itemName === l.itemName && patch.uomId === l.uomId) {
+      return l
+    }
+    changed = true
+    return { ...l, ...patch }
+  })
+  return changed ? next : lines
+}
+
 /** Shared `<datalist>` of item codes so line grids get type-ahead search. */
 export function ItemCodeOptions({ id, items }: { id: string; items: ApiMasterRow[] }) {
   return (

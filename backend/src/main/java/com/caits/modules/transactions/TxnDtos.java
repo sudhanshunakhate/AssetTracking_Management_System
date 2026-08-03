@@ -27,6 +27,10 @@ public final class TxnDtos {
             Integer locationId,
             String locationBin,
             String itemCondition,
+            String serialNo,
+            String ipAddress,
+            String macAddress,
+            String hostname,
             String remark
     ) {}
 
@@ -89,7 +93,11 @@ public final class TxnDtos {
             Integer detailId,
             Integer srNo,
             Integer itemId,
+            String itemCode,
+            String itemName,
+            String itemType,
             Integer uomId,
+            String uomCode,
             BigDecimal orderedQty,
             BigDecimal receivedQty,
             BigDecimal acceptedQty,
@@ -106,7 +114,12 @@ public final class TxnDtos {
             Integer locationId,
             String locationBin,
             String itemCondition,
-            String remark
+            String serialNo,
+            String ipAddress,
+            String macAddress,
+            String hostname,
+            String remark,
+            Integer blsId
     ) {}
 
     public record DocumentResponse(

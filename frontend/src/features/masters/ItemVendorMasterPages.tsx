@@ -13,7 +13,6 @@ import {
   isActiveFromForm,
   itemTypeFromGenCode,
   mapCategory,
-  mapEmployee,
   mapItem,
   mapLocation,
   mapSubcategory,
@@ -29,16 +28,9 @@ import {
 import { http } from '@/api/client'
 import type { Item, Vendor } from '@/types/masters'
 import { useAuth } from '@/features/auth/AuthContext'
-import { MSG, PATTERNS, RULES, notBefore, validateFields } from './validation'
+import { MSG, PATTERNS, RULES, validateFields } from './validation'
 
 const URL_RE = /^https?:\/\/[^\s]+$/i
-
-function notInFuture(label: string) {
-  return (value: string): string => {
-    const today = new Date().toISOString().slice(0, 10)
-    return value > today ? `${label} cannot be in the future` : ''
-  }
-}
 
 function opt(rows: { id: string; code?: string; name?: string }[], label?: (r: { id: string; code?: string; name?: string }) => string) {
   const fmt = label ?? ((r: { code?: string; name?: string }) => `${r.code} – ${r.name}`)
@@ -214,19 +206,13 @@ function ItemFormPage() {
   const mapCat = useCallback(mapCategory, [])
   const mapSub = useCallback(mapSubcategory, [])
   const mapUnt = useCallback(mapUnit, [])
-  const mapEmp = useCallback(mapEmployee, [])
-  const mapLoc = useCallback(mapLocation, [])
   const { rows: categories } = useMasterList('categories', mapCat)
   const { rows: subCategories } = useMasterList('subcategories', mapSub)
   const { rows: units } = useMasterList('units', mapUnt)
-  const { rows: employees } = useMasterList('employees', mapEmp)
-  const { rows: stores } = useMasterList('locations', mapLoc)
   const { options: itemParamOpts } = useGenValues(GEN_TYPE.ITEM_PARAM, 'code')
   const { options: assetTypeOpts } = useGenValues(GEN_TYPE.ASSET_TYPE)
   const { options: consumableTypeOpts } = useGenValues(GEN_TYPE.CONSUMABLE_TYPE)
   const { options: deprOpts } = useGenValues(GEN_TYPE.DEPRECIATION)
-  const { options: assetCondOpts } = useGenValues(GEN_TYPE.ASSET_CONDITION)
-  const { options: ipModeOpts } = useGenValues(GEN_TYPE.IP_MODE)
   const mapItm = useCallback(mapItem, [])
   const { rows: allItems } = useMasterList('items', mapItm)
 
@@ -245,23 +231,12 @@ function ItemFormPage() {
     [subCategories, values.category],
   )
 
-  const parentAssetOptions = useMemo(
-    () =>
-      allItems
-        .filter((i) => i.itemType === 'asset' && String(i.id) !== String(id))
-        .map((i) => ({
-          value: String(i.id),
-          label: `${i.code} – ${i.name}${i.serialNo ? ` (${i.serialNo})` : ''}`,
-        })),
-    [allItems, id],
-  )
-
   const isAsset = values.itemType === 'asset'
 
   const errors = useMemo(() => {
     if (readOnly) return {} as Record<string, string>
     const bag = values as unknown as Record<string, unknown>
-    const siblings = allItems.map((i) => ({ id: String(i.id), code: i.code, serialNo: i.serialNo ?? '' }))
+    const siblings = allItems.map((i) => ({ id: String(i.id), code: i.code }))
     const found = validateFields(
       [
         { name: 'code', label: 'Item Code', ...RULES.code(40), uniqueMessage: 'This Item Code is already used' },
@@ -301,53 +276,21 @@ function ItemFormPage() {
             { name: 'assetType', label: 'Asset Type', required: true },
             { name: 'makeBrand', label: 'Make / Brand', maxLength: 100 },
             { name: 'model', label: 'Model', maxLength: 100 },
-            {
-              name: 'serialNo',
-              label: 'Serial No.',
-              maxLength: 100,
-              unique: true,
-              uniqueMessage: 'This Serial No. is already recorded against another item',
-            },
             { name: 'productNo', label: 'Product No.', maxLength: 100 },
-            { name: 'purchaseDate', label: 'Purchase Date', type: 'date', validate: notInFuture('Purchase Date') },
-            { name: 'purchaseCost', label: 'Purchase Cost', type: 'number', min: 0, max: 99999999 },
             { name: 'usefulLifeYears', label: 'Useful Life (Years)', type: 'number', integer: true, min: 0, max: 50 },
-            {
-              name: 'warrantyExpiry',
-              label: 'Warranty Expiry',
-              type: 'date',
-              validate: notBefore('purchaseDate', 'Purchase Date'),
-            },
             { name: 'depreciationRate', label: 'Depreciation Rate (%)', type: 'number', min: 0, max: 100 },
             { name: 'ram', label: 'RAM', maxLength: 50 },
             { name: 'storage', label: 'Storage', maxLength: 100 },
             { name: 'processor', label: 'Processor', maxLength: 100 },
-            { name: 'ipAddress', label: 'IP Address', pattern: PATTERNS.ipv4, patternMessage: MSG.ipv4 },
-            { name: 'macAddress', label: 'MAC Address', pattern: PATTERNS.mac, patternMessage: MSG.mac },
-            {
-              name: 'hostname',
-              label: 'Hostname',
-              maxLength: 150,
-              pattern: PATTERNS.hostname,
-              patternMessage: 'Use letters, digits, dot or dash only',
-            },
-            { name: 'faultDesc', label: 'Fault / Problem Notes', maxLength: 500 },
           ],
           bag,
-          siblings,
-          id ?? 'new',
         ),
       )
     } else {
       Object.assign(
         found,
         validateFields(
-          [
-            { name: 'consumableType', label: 'Consumable Type', required: true },
-            { name: 'shelfBin', label: 'Shelf / Bin', maxLength: 50 },
-            { name: 'batchLotNo', label: 'Batch / Lot No.', maxLength: 60 },
-            { name: 'expiryDate', label: 'Expiry Date', type: 'date' },
-          ],
+          [{ name: 'consumableType', label: 'Consumable Type', required: true }],
           bag,
         ),
       )
@@ -443,8 +386,6 @@ function ItemFormPage() {
     setSaving(true)
     setError('')
     try {
-      const locId =
-        values.itemType === 'asset' ? numOrUndef(values.currentStore) : numOrUndef(values.storageLocation)
       const body = {
         itemCode: values.code.trim().toUpperCase(),
         itemName: values.name.trim(),
@@ -459,24 +400,25 @@ function ItemFormPage() {
         assetType: values.itemType === 'asset' ? str(values.assetType) || null : null,
         makeBrand: values.itemType === 'asset' ? str(values.makeBrand) || null : null,
         model: values.itemType === 'asset' ? str(values.model) || null : null,
-        serialNo: values.itemType === 'asset' ? str(values.serialNo) || null : null,
-        purchaseDate: values.itemType === 'asset' ? values.purchaseDate || null : null,
-        purchaseCost: values.itemType === 'asset' ? numOrNull(values.purchaseCost) : null,
+        // Instance-unique fields belong on stock / transactions, not the catalog item.
+        serialNo: null,
+        purchaseDate: null,
+        purchaseCost: null,
         usefulLifeYears: values.itemType === 'asset' ? numOrNull(values.usefulLifeYears) : null,
-        warrantyExpiry: values.itemType === 'asset' ? values.warrantyExpiry || null : null,
+        warrantyExpiry: null,
         depreciationMethod: values.itemType === 'asset' ? str(values.depreciationMethod) || null : null,
         depreciationRate: values.itemType === 'asset' ? numOrNull(values.depreciationRate) : null,
-        assignedToEmpId: values.itemType === 'asset' ? numOrNull(values.assignedTo) : null,
-        currentLocationId: locId ?? null,
+        assignedToEmpId: null,
+        currentLocationId: null,
         isSerialized: values.itemType === 'asset' ? values.isSerialized : false,
         isReturnable: values.itemType === 'asset' ? values.isReturnable : false,
         isUnderAmc: values.itemType === 'asset' ? values.isUnderAmc : false,
         isInsuranceRequired: values.itemType === 'asset' ? values.isInsuranceRequired : false,
         inspectionNeeded: values.inspectionNeeded,
         consumableType: values.itemType === 'consumable' ? str(values.consumableType) || null : null,
-        shelfBin: values.itemType === 'consumable' ? str(values.shelfBin) || null : null,
-        expiryDate: values.itemType === 'consumable' ? values.expiryDate || null : null,
-        batchLotNo: values.itemType === 'consumable' ? str(values.batchLotNo) || null : null,
+        shelfBin: null,
+        expiryDate: null,
+        batchLotNo: null,
         trackBatchLot: values.itemType === 'consumable' ? values.trackBatchLot : false,
         trackExpiry: values.itemType === 'consumable' ? values.trackExpiry : false,
         isConsumable: values.itemType === 'consumable' ? values.isConsumable : false,
@@ -485,13 +427,13 @@ function ItemFormPage() {
         storage: values.itemType === 'asset' ? str(values.storage) || null : null,
         processor: values.itemType === 'asset' ? str(values.processor) || null : null,
         productNo: values.itemType === 'asset' ? str(values.productNo) || null : null,
-        ipAddress: values.itemType === 'asset' ? str(values.ipAddress) || null : null,
-        macAddress: values.itemType === 'asset' ? str(values.macAddress) || null : null,
-        ipAssignMode: values.itemType === 'asset' ? str(values.ipAssignMode) || null : null,
-        hostname: values.itemType === 'asset' ? str(values.hostname) || null : null,
-        assetCondition: str(values.assetCondition) || null,
-        faultDesc: str(values.faultDesc) || null,
-        parentItemId: values.itemType === 'asset' ? numOrNull(values.parentItemId) : null,
+        ipAddress: null,
+        macAddress: null,
+        ipAssignMode: null,
+        hostname: null,
+        assetCondition: null,
+        faultDesc: null,
+        parentItemId: null,
         isActive: isActiveFromForm(values.status),
       }
       if (isNew) await createMaster('items', body)
@@ -710,7 +652,7 @@ function ItemFormPage() {
 
       {isAsset ? (
         <Card>
-          <CardHeader title="Asset Details" subtitle="Technical specs, depreciation and assignment" />
+          <CardHeader title="Asset Details" subtitle="Catalog attributes for this asset type" />
           <CardBody>
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
               <Field label="Asset Type" required error={err('assetType')}>
@@ -753,20 +695,9 @@ function ItemFormPage() {
                   placeholder="Latitude 5540"
                 />
               </Field>
-              <Field label="Serial No." error={err('serialNo')}>
-                <Input
-                  value={values.serialNo}
-                  disabled={readOnly}
-                  onChange={(e) => set('serialNo', e.target.value)}
-                  onBlur={() => touch('serialNo')}
-                  maxLength={100}
-                  invalid={Boolean(err('serialNo'))}
-                  placeholder="SN-XXXXXXXXX"
-                />
-              </Field>
               <Field
                 label="Product No."
-                hint="Manufacturer product code, if different from serial"
+                hint="Manufacturer product / model code"
                 error={err('productNo')}
               >
                 <Input
@@ -777,29 +708,6 @@ function ItemFormPage() {
                   maxLength={100}
                   invalid={Boolean(err('productNo'))}
                   placeholder="LAP_AVAIDHYA"
-                />
-              </Field>
-              <Field label="Purchase Date" error={err('purchaseDate')}>
-                <Input
-                  type="date"
-                  value={values.purchaseDate}
-                  disabled={readOnly}
-                  onChange={(e) => set('purchaseDate', e.target.value)}
-                  onBlur={() => touch('purchaseDate')}
-                  invalid={Boolean(err('purchaseDate'))}
-                />
-              </Field>
-              <Field label="Purchase Cost (₹)" error={err('purchaseCost')}>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={values.purchaseCost}
-                  disabled={readOnly}
-                  onChange={(e) => set('purchaseCost', e.target.value)}
-                  onBlur={() => touch('purchaseCost')}
-                  invalid={Boolean(err('purchaseCost'))}
-                  placeholder="0.00"
                 />
               </Field>
               <Field label="Useful Life (Years)" error={err('usefulLifeYears')}>
@@ -813,16 +721,6 @@ function ItemFormPage() {
                   onBlur={() => touch('usefulLifeYears')}
                   invalid={Boolean(err('usefulLifeYears'))}
                   placeholder="5"
-                />
-              </Field>
-              <Field label="Warranty Expiry" error={err('warrantyExpiry')}>
-                <Input
-                  type="date"
-                  value={values.warrantyExpiry}
-                  disabled={readOnly}
-                  onChange={(e) => set('warrantyExpiry', e.target.value)}
-                  onBlur={() => touch('warrantyExpiry')}
-                  invalid={Boolean(err('warrantyExpiry'))}
                 />
               </Field>
               <Field label="Depreciation Method">
@@ -852,34 +750,6 @@ function ItemFormPage() {
                   invalid={Boolean(err('depreciationRate'))}
                   placeholder="20"
                 />
-              </Field>
-              <Field label="Assigned To (Employee)">
-                <Select
-                  value={values.assignedTo}
-                  disabled={readOnly}
-                  onChange={(e) => set('assignedTo', e.target.value)}
-                >
-                  <option value="">— Unassigned —</option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.code} – {String(e.firstName ?? '')} {String(e.lastName ?? '')}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Current Location">
-                <Select
-                  value={values.currentStore}
-                  disabled={readOnly}
-                  onChange={(e) => set('currentStore', e.target.value)}
-                >
-                  <option value="">— Assign Location —</option>
-                  {opt(stores).map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
               </Field>
               <div className="flex flex-wrap gap-6 pt-2 xl:col-span-4">
                 <Switch
@@ -916,7 +786,7 @@ function ItemFormPage() {
         <Card>
           <CardHeader
             title="Hardware Specification"
-            subtitle="Configuration of IT assets — laptops, desktops and servers"
+            subtitle="Typical configuration for this item type — not a specific unit"
           />
           <CardBody>
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
@@ -953,122 +823,14 @@ function ItemFormPage() {
                   placeholder="Intel Core i5-1135G7"
                 />
               </Field>
-              <Field label="Attached To (Parent Asset)" hint="For monitors, keyboards and other peripherals">
-                <Select
-                  value={values.parentItemId}
-                  disabled={readOnly}
-                  onChange={(e) => set('parentItemId', e.target.value)}
-                >
-                  <option value="">— Standalone Asset —</option>
-                  {parentAssetOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
             </div>
           </CardBody>
         </Card>
       ) : null}
-
-      {isAsset ? (
-        <Card>
-          <CardHeader title="Network Identity" subtitle="IP, MAC and hostname for networked assets" />
-          <CardBody>
-            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-              <Field label="IP Address" error={err('ipAddress')}>
-                <Input
-                  value={values.ipAddress}
-                  disabled={readOnly}
-                  onChange={(e) => set('ipAddress', e.target.value)}
-                  onBlur={() => touch('ipAddress')}
-                  maxLength={45}
-                  invalid={Boolean(err('ipAddress'))}
-                  placeholder="192.168.0.25"
-                />
-              </Field>
-              <Field label="IP Assignment">
-                <Select
-                  value={values.ipAssignMode}
-                  disabled={readOnly}
-                  onChange={(e) => set('ipAssignMode', e.target.value)}
-                >
-                  <option value="">— Select —</option>
-                  {ipModeOpts.map((m) => (
-                    <option key={m.code} value={m.value}>
-                      {m.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="MAC Address" error={err('macAddress')}>
-                <Input
-                  value={values.macAddress}
-                  disabled={readOnly}
-                  onChange={(e) => set('macAddress', e.target.value.toUpperCase())}
-                  onBlur={() => touch('macAddress')}
-                  maxLength={17}
-                  invalid={Boolean(err('macAddress'))}
-                  placeholder="F4-3B-D8-25-5E-CC"
-                />
-              </Field>
-              <Field label="Hostname" error={err('hostname')}>
-                <Input
-                  value={values.hostname}
-                  disabled={readOnly}
-                  onChange={(e) => set('hostname', e.target.value)}
-                  onBlur={() => touch('hostname')}
-                  maxLength={150}
-                  invalid={Boolean(err('hostname'))}
-                  placeholder="fileserver.microproindia.com"
-                />
-              </Field>
-            </div>
-          </CardBody>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader title="Condition & Disposition" subtitle="Current physical condition and fault notes" />
-        <CardBody>
-          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Asset Condition">
-              <Select
-                value={values.assetCondition}
-                disabled={readOnly}
-                onChange={(e) => set('assetCondition', e.target.value)}
-              >
-                <option value="">— Select —</option>
-                {assetCondOpts.map((c) => (
-                  <option key={c.code} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field
-              label="Fault / Problem Notes"
-              error={err('faultDesc')}
-              className="xl:col-span-3 md:col-span-2"
-            >
-              <Input
-                value={values.faultDesc}
-                disabled={readOnly}
-                onChange={(e) => set('faultDesc', e.target.value)}
-                onBlur={() => touch('faultDesc')}
-                maxLength={500}
-                invalid={Boolean(err('faultDesc'))}
-                placeholder="Battery backup problem, keyboard not working"
-              />
-            </Field>
-          </div>
-        </CardBody>
-      </Card>
 
       {!isAsset ? (
         <Card>
-          <CardHeader title="Consumable Details" subtitle="Stock levels, thresholds and tracking" />
+          <CardHeader title="Consumable Details" subtitle="Tracking policy for this item type" />
           <CardBody>
             <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
               <Field label="Consumable Type" required error={err('consumableType')}>
@@ -1088,52 +850,6 @@ function ItemFormPage() {
                     </option>
                   ))}
                 </Select>
-              </Field>
-              <Field label="Storage Location">
-                <Select
-                  value={values.storageLocation}
-                  disabled={readOnly}
-                  onChange={(e) => set('storageLocation', e.target.value)}
-                >
-                  <option value="">— Assign Location —</option>
-                  {opt(stores).map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Shelf / Bin" error={err('shelfBin')}>
-                <Input
-                  value={values.shelfBin}
-                  disabled={readOnly}
-                  onChange={(e) => set('shelfBin', e.target.value)}
-                  onBlur={() => touch('shelfBin')}
-                  maxLength={50}
-                  invalid={Boolean(err('shelfBin'))}
-                  placeholder="A-12-B3"
-                />
-              </Field>
-              <Field label="Expiry Date" error={err('expiryDate')}>
-                <Input
-                  type="date"
-                  value={values.expiryDate}
-                  disabled={readOnly}
-                  onChange={(e) => set('expiryDate', e.target.value)}
-                  onBlur={() => touch('expiryDate')}
-                  invalid={Boolean(err('expiryDate'))}
-                />
-              </Field>
-              <Field label="Batch / Lot No." error={err('batchLotNo')}>
-                <Input
-                  value={values.batchLotNo}
-                  disabled={readOnly}
-                  onChange={(e) => set('batchLotNo', e.target.value)}
-                  onBlur={() => touch('batchLotNo')}
-                  maxLength={60}
-                  invalid={Boolean(err('batchLotNo'))}
-                  placeholder="BATCH-001"
-                />
               </Field>
               <div className="flex flex-wrap gap-6 pt-2 xl:col-span-4">
                 <Switch
@@ -1192,14 +908,11 @@ function ItemList() {
   const mapItemStable = useCallback(mapItem, [])
   const mapCatStable = useCallback(mapCategory, [])
   const mapUnitStable = useCallback(mapUnit, [])
-  const mapLocStable = useCallback(mapLocation, [])
   const { rows, loading, error } = useMasterList('items', mapItemStable)
   const { rows: categories } = useMasterList('categories', mapCatStable)
   const { rows: units } = useMasterList('units', mapUnitStable)
-  const { rows: stores } = useMasterList('locations', mapLocStable)
   const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
   const uomById = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
-  const storeById = useMemo(() => Object.fromEntries(stores.map((s) => [s.id, s])), [stores])
 
   const columns: Column<Item>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono font-semibold">{r.code}</span> },
@@ -1227,12 +940,6 @@ function ItemList() {
       header: 'Std. Cost (₹)',
       searchText: (r) => String(r.standardCost),
       render: (r) => Number(r.standardCost).toLocaleString('en-IN', { minimumFractionDigits: 2 }),
-    },
-    {
-      key: 'store',
-      header: 'Location',
-      searchText: (r) => storeById[r.store ?? '']?.code ?? r.store ?? '',
-      render: (r) => storeById[r.store ?? '']?.code ?? r.store ?? '—',
     },
     statusColumn(),
   ]

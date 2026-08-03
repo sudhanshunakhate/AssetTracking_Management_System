@@ -16,6 +16,9 @@ public interface TxnDetailDtlRepository extends JpaRepository<TxnDetailDtl, Inte
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     void deleteByTxdTxnHeaderIdTxh(Integer headerId);
 
+    /** True when another document still points at this BLS (blocks inbound re-receipt of the same serial). */
+    boolean existsByTxdBlsIdIbmAndTxdTxnHeaderIdTxhNot(Integer blsId, Integer headerId);
+
     /** Line counts for a page of headers, so the list grid avoids an N+1 lookup. */
     @Query("""
             select d.txdTxnHeaderIdTxh, count(d)

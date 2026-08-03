@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { http, listMaster, type PageResponse } from '@/api/client'
+import { cachedFetch, invalidateCache } from '@/api/requestCache'
 
 type Status = 'Active' | 'Inactive'
 
@@ -23,20 +24,28 @@ const MAX_LIST_PAGES = 40
  * this array, so a partial list would silently let duplicates through.
  */
 async function listMasterAll<TApi extends Record<string, unknown>>(resource: string): Promise<TApi[]> {
-  const first = await listMaster<TApi>(resource, { page: 1, pageSize: LIST_PAGE_SIZE })
-  const rows = first.data ?? []
-  const total = first.totalRecords ?? rows.length
-  if (rows.length >= total || rows.length === 0) return rows
+  return cachedFetch(`master:${resource}`, async () => {
+    const first = await listMaster<TApi>(resource, { page: 1, pageSize: LIST_PAGE_SIZE })
+    const rows = first.data ?? []
+    const total = first.totalRecords ?? rows.length
+    if (rows.length >= total || rows.length === 0) return rows
 
-  // The API may cap page size below what we asked for, so page off what it actually returned.
-  const served = rows.length
-  const pageCount = Math.min(Math.ceil(total / served), MAX_LIST_PAGES)
-  const rest = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, i) =>
-      listMaster<TApi>(resource, { page: i + 2, pageSize: served }),
-    ),
-  )
-  return rest.reduce<TApi[]>((all, page) => all.concat(page.data ?? []), rows)
+    // The API may cap page size below what we asked for, so page off what it actually returned.
+    const served = rows.length
+    const pageCount = Math.min(Math.ceil(total / served), MAX_LIST_PAGES)
+    const rest = await Promise.all(
+      Array.from({ length: pageCount - 1 }, (_, i) =>
+        listMaster<TApi>(resource, { page: i + 2, pageSize: served }),
+      ),
+    )
+    return rest.reduce<TApi[]>((all, page) => all.concat(page.data ?? []), rows)
+  })
+}
+
+/** Call after mutating a master so lists refetch on next use. */
+export function invalidateMasterList(resource?: string) {
+  if (resource) invalidateCache(`master:${resource}`)
+  else invalidateCache('master:')
 }
 
 /** Loads a master list from the API and maps it to UI table rows. */
@@ -49,8 +58,9 @@ export function useMasterList<TApi extends Record<string, unknown>>(
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!enabled) return
+    if (opts?.force) invalidateMasterList(resource)
     setLoading(true)
     setError(null)
     try {
@@ -68,19 +78,34 @@ export function useMasterList<TApi extends Record<string, unknown>>(
     void reload()
   }, [reload])
 
-  return { rows, loading, error, reload }
+  return { rows, loading, error, reload: () => reload({ force: true }) }
 }
 
 export async function createMaster<TReq extends object, TRes>(resource: string, body: TReq) {
-  return http.post<TRes>(`/${resource}`, body)
+  const res = await http.post<TRes>(`/${resource}`, body)
+  invalidateMasterList(resource)
+  if (resource === 'general-masters' || resource === 'general-types') {
+    invalidateCache('genvalues:')
+  }
+  return res
 }
 
 export async function updateMaster<TReq extends object, TRes>(resource: string, id: string, body: TReq) {
-  return http.put<TRes>(`/${resource}/${id}`, body)
+  const res = await http.put<TRes>(`/${resource}/${id}`, body)
+  invalidateMasterList(resource)
+  if (resource === 'general-masters' || resource === 'general-types') {
+    invalidateCache('genvalues:')
+  }
+  return res
 }
 
 export async function deleteMaster(resource: string, id: string) {
-  return http.del<{ message: string }>(`/${resource}/${id}`)
+  const res = await http.del<{ message: string }>(`/${resource}/${id}`)
+  invalidateMasterList(resource)
+  if (resource === 'general-masters' || resource === 'general-types') {
+    invalidateCache('genvalues:')
+  }
+  return res
 }
 
 export function activeStatus(isActive: boolean | undefined): Status {
@@ -240,7 +265,9 @@ export type GenValueApi = {
 
 /** Loads active general-master values for a type code (payload key: typeCode in path). */
 export async function listGenValues(typeCode: string): Promise<GenValueApi[]> {
-  return http.get<GenValueApi[]>(`/general-types/${encodeURIComponent(typeCode)}/values`)
+  return cachedFetch(`genvalues:${typeCode}`, () =>
+    http.get<GenValueApi[]>(`/general-types/${encodeURIComponent(typeCode)}/values`),
+  )
 }
 
 /**
@@ -607,6 +634,7 @@ export type MenuApi = {
   menuLabel: string
   menuGroup?: string
   sortOrder?: number
+  groupSortOrder?: number
   docType?: string
   supportsView?: boolean
   supportsCreate?: boolean
@@ -629,6 +657,10 @@ export type RolePermissionApi = {
   canReject?: boolean
   canPrint?: boolean
   canExport?: boolean
+  /** Writes through to sysm_menutree_mst.mtree_sort_order (global menu sequence). */
+  sortOrder?: number
+  /** Writes through to mtree_group_sort_order for the menu's section (global). */
+  groupSortOrder?: number
 }
 
 /** GET /menus returns a raw array (not PageResponse). */

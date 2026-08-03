@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
-import { createTxn, numOrUndef, todayIso, useTxnList } from '@/api/transactions'
+import { createTxn, fetchTxn, numOrUndef, todayIso, useTxnList } from '@/api/transactions'
 import { mapEmployee, mapItem, mapLocation, mapUnit, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 
@@ -56,13 +56,59 @@ export function GatepassPage() {
     item: '',
     qty: '1',
     uom: '',
+    batch: '',
     remarks: '',
   })
 
-  const setIn = (k: keyof typeof inwardForm, v: string) => setInwardForm((p) => ({ ...p, [k]: v }))
-  const setOut = (k: keyof typeof outwardForm, v: string) => setOutwardForm((p) => ({ ...p, [k]: v }))
+  const setIn = (k: keyof typeof inwardForm, v: string) => {
+    setInwardForm((p) => {
+      const next = { ...p, [k]: v }
+      if (k === 'item') {
+        const item = items.find((i) => i.id === v)
+        next.uom = item ? String(item.uom ?? '') : ''
+      }
+      return next
+    })
+  }
+  const setOut = (k: keyof typeof outwardForm, v: string) => {
+    setOutwardForm((p) => {
+      const next = { ...p, [k]: v }
+      if (k === 'item') {
+        const item = items.find((i) => i.id === v)
+        next.uom = item ? String(item.uom ?? '') : ''
+      }
+      return next
+    })
+  }
 
-  const saveInward = async () => {
+  const selectReturnableOutward = async (docId: string) => {
+    setIn('returnableOutwardId', docId)
+    if (!docId) return
+    try {
+      const doc = await fetchTxn('gatepass/outward', docId)
+      const line = doc.lines?.[0]
+      setInwardForm((p) => ({
+        ...p,
+        returnableOutwardId: docId,
+        store: doc.locationId != null ? String(doc.locationId) : p.store,
+        item: line?.itemId != null ? String(line.itemId) : p.item,
+        uom: line?.uomId != null ? String(line.uomId) : p.uom,
+        qty: line?.qty != null ? String(line.qty) : p.qty,
+        remarks: doc.remarks ?? p.remarks,
+      }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load outward document')
+    }
+  }
+
+  const resolveUom = (itemId: string | undefined, uom: string) => {
+    const fromForm = numOrUndef(uom)
+    if (fromForm != null) return fromForm
+    const item = items.find((i) => i.id === String(itemId ?? ''))
+    return numOrUndef(item?.uom)
+  }
+
+  const saveInward = async (action: 'SAVE_DRAFT' | 'SUBMIT') => {
     if (!canSaveGp) {
       setError('You do not have Create/Edit permission for Gatepass')
       return
@@ -74,25 +120,27 @@ export function GatepassPage() {
       const itemId = numOrUndef(inwardForm.item)
       if (itemId == null) throw new Error('Item is required')
       const qty = numOrUndef(inwardForm.qty) ?? 1
+      const uomId = resolveUom(inwardForm.item, inwardForm.uom)
       await createTxn('gatepass/inward', {
         docDate: inwardForm.date || todayIso(),
         locationId: numOrUndef(inwardForm.store),
         initiatedByEmpId: numOrUndef(inwardForm.preparedBy),
         refTxnHeaderId: numOrUndef(inwardForm.returnableOutwardId),
         remarks: inwardForm.remarks,
-        docSubmitAction: 'SAVE_DRAFT',
+        docSubmitAction: action,
         lines: [
           {
             srNo: 1,
             itemId,
-            uomId: numOrUndef(inwardForm.uom),
+            uomId,
             qty,
             receivedQty: qty,
             acceptedQty: qty,
+            locationId: numOrUndef(inwardForm.store),
           },
         ],
       })
-      setMessage('Inward gatepass saved as draft')
+      setMessage(action === 'SAVE_DRAFT' ? 'Inward gatepass saved as draft' : 'Inward gatepass submitted for approval')
       await inward.reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -101,7 +149,7 @@ export function GatepassPage() {
     }
   }
 
-  const saveOutward = async () => {
+  const saveOutward = async (action: 'SAVE_DRAFT' | 'SUBMIT') => {
     if (!canSaveGp) {
       setError('You do not have Create/Edit permission for Gatepass')
       return
@@ -113,6 +161,7 @@ export function GatepassPage() {
       const itemId = numOrUndef(outwardForm.item)
       if (itemId == null) throw new Error('Item is required')
       const qty = numOrUndef(outwardForm.qty) ?? 1
+      const uomId = resolveUom(outwardForm.item, outwardForm.uom)
       await createTxn('gatepass/outward', {
         docDate: outwardForm.date || todayIso(),
         locationId: numOrUndef(outwardForm.store),
@@ -120,17 +169,19 @@ export function GatepassPage() {
         initiatedByEmpId: numOrUndef(outwardForm.preparedBy),
         returnFlag: outwardForm.returnFlag,
         remarks: outwardForm.remarks || outwardForm.party,
-        docSubmitAction: 'SAVE_DRAFT',
+        docSubmitAction: action,
         lines: [
           {
             srNo: 1,
             itemId,
-            uomId: numOrUndef(outwardForm.uom),
+            uomId,
             qty,
+            batchLotNo: outwardForm.batch || undefined,
+            locationId: numOrUndef(outwardForm.store),
           },
         ],
       })
-      setMessage('Outward gatepass saved as draft')
+      setMessage(action === 'SAVE_DRAFT' ? 'Outward gatepass saved as draft' : 'Outward gatepass completed')
       await outward.reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -243,7 +294,7 @@ export function GatepassPage() {
                   <Field label="Returnable Outward No." required className="md:col-span-2">
                     <Select
                       value={inwardForm.returnableOutwardId}
-                      onChange={(e) => setIn('returnableOutwardId', e.target.value)}
+                      onChange={(e) => void selectReturnableOutward(e.target.value)}
                     >
                       <option value="">— Select Outward No. —</option>
                       {returnableOutwards.map((r) => (
@@ -297,9 +348,12 @@ export function GatepassPage() {
                     </Select>
                   </Field>
                 </div>
-                <div className="mt-4 flex justify-end">
-                  <Button onClick={() => void saveInward()} disabled={saving || !canSaveGp}>
-                    {saving ? 'Saving…' : 'Save Inward Draft'}
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="ghost" onClick={() => void saveInward('SAVE_DRAFT')} disabled={saving || !canSaveGp}>
+                    {saving ? 'Saving…' : 'Save Draft'}
+                  </Button>
+                  <Button onClick={() => void saveInward('SUBMIT')} disabled={saving || !canSaveGp}>
+                    {saving ? 'Saving…' : 'Submit for Approval'}
                   </Button>
                 </div>
               </CardBody>
@@ -383,8 +437,10 @@ export function GatepassPage() {
                   })
                 }
                 onBack={() => setInwardType('returnable')}
-                onSave={canSaveGp ? () => void saveInward() : undefined}
-                saveLabel={saving ? 'Saving…' : 'Save Inward'}
+                onSaveDraft={canSaveGp ? () => void saveInward('SAVE_DRAFT') : undefined}
+                draftLabel={saving ? 'Saving…' : 'Save Draft'}
+                onSave={canSaveGp ? () => void saveInward('SUBMIT') : undefined}
+                saveLabel={saving ? 'Saving…' : 'Submit for Approval'}
               />
             </>
           )}
@@ -508,6 +564,13 @@ export function GatepassPage() {
                     ))}
                   </Select>
                 </Field>
+                <Field label="Batch / Lot" hint="Optional — blank depletes FIFO">
+                  <Input
+                    value={outwardForm.batch}
+                    onChange={(e) => setOut('batch', e.target.value)}
+                    placeholder="Batch / lot"
+                  />
+                </Field>
                 <Field label="Remarks" className="md:col-span-2">
                   <Input
                     placeholder="Remarks…"
@@ -529,12 +592,15 @@ export function GatepassPage() {
                 item: '',
                 qty: '1',
                 uom: '',
+                batch: '',
                 remarks: '',
               })
             }
             onBack={() => setTab('inward')}
-            onSave={canSaveGp ? () => void saveOutward() : undefined}
-            saveLabel={saving ? 'Saving…' : 'Save Outward'}
+            onSaveDraft={canSaveGp ? () => void saveOutward('SAVE_DRAFT') : undefined}
+            draftLabel={saving ? 'Saving…' : 'Save Draft'}
+            onSave={canSaveGp ? () => void saveOutward('SUBMIT') : undefined}
+            saveLabel={saving ? 'Saving…' : 'Submit Outward'}
           />
         </div>
       )}

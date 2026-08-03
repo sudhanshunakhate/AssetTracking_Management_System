@@ -190,6 +190,7 @@ public class DataSeeder implements ApplicationRunner {
             m.setMtreeMenuLabel(d.label());
             m.setMtreeMenuGroup(d.group());
             m.setMtreeSortOrder(d.sort());
+            m.setMtreeGroupSortOrder(groupSortFor(d.group()));
             m.setMtreeIcon(d.icon());
             m.setMtreeDocType(d.docType());
             m.setMtreeSupportsView(d.view());
@@ -233,6 +234,18 @@ public class DataSeeder implements ApplicationRunner {
             p.setRlpmCanExport(Boolean.TRUE.equals(menu.getMtreeSupportsExport()));
             rolePermRepo.save(p);
         }
+    }
+
+    private static int groupSortFor(String group) {
+        if (group == null) return 90;
+        return switch (group) {
+            case "Master Setup" -> 10;
+            case "Organization" -> 20;
+            case "Access & People" -> 30;
+            case "Transactions" -> 40;
+            case "Reports" -> 50;
+            default -> 90;
+        };
     }
 
     private record MenuDef(
