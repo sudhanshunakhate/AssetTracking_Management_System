@@ -175,6 +175,15 @@
                                            "local":  "2026-08-03",
                                            "dev":  "2026-08-04"
                                        }
+                       },
+                       {
+                           "id":  "017-seed-report-menus-owner-movement-item",
+                           "file":  "db_approach/seed_report_menus_owner_movement_item.sql",
+                           "description":  "Adds Reports menus STKOWN / STKMOV / ITEMREG and ADMIN view+export permissions.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-04"
+                                       }
                        }
                    ],
     "updated":  "2026-08-04"

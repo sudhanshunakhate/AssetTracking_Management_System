@@ -65,6 +65,9 @@ export const navGroups: NavGroup[] = [
       { id: 'dashboard', label: 'Dashboard', path: '/dashboard', menuCode: 'DASH', icon: 'dashboard' },
       { id: 'stock-register', label: 'Stock Register', path: '/reports/stock-register', menuCode: 'STKREG', icon: 'stockRegister' },
       { id: 'full-report', label: 'Full Report', path: '/reports/full-report', menuCode: 'FULLRPT', icon: 'fullReport' },
+      { id: 'stock-owner', label: 'Stock Owner Report', path: '/reports/stock-owner', menuCode: 'STKOWN', icon: 'storeWiseStock' },
+      { id: 'stock-movement', label: 'Stock Movement Report', path: '/reports/stock-movement', menuCode: 'STKMOV', icon: 'materialTransfer' },
+      { id: 'item-register', label: 'Item Register', path: '/reports/item-register', menuCode: 'ITEMREG', icon: 'itemMaster' },
     ],
   },
 ]

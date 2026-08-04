@@ -21,6 +21,9 @@ import {
 import { EmployeesMaster } from '@/features/masters/EmployeeMasterPages'
 import { ItemsMaster, VendorsMaster } from '@/features/masters/ItemVendorMasterPages'
 import { FullReportPage } from '@/features/reports/FullReportPage'
+import { ItemRegisterPage } from '@/features/reports/ItemRegisterPage'
+import { StockMovementReportPage } from '@/features/reports/StockMovementReportPage'
+import { StockOwnerReportPage } from '@/features/reports/StockOwnerReportPage'
 import { StockRegisterPage } from '@/features/reports/StockRegisterPage'
 import { GatepassPage } from '@/features/transactions/GatepassPage'
 import { GrnPages } from '@/features/transactions/GrnPage'
@@ -73,6 +76,9 @@ export default function App() {
 
           <Route path="/reports/stock-register" element={<StockRegisterPage />} />
           <Route path="/reports/full-report" element={<FullReportPage />} />
+          <Route path="/reports/stock-owner" element={<StockOwnerReportPage />} />
+          <Route path="/reports/stock-movement" element={<StockMovementReportPage />} />
+          <Route path="/reports/item-register" element={<ItemRegisterPage />} />
         </Route>
         <Route path="/" element={<RootRedirect />} />
         <Route path="*" element={<RootRedirect />} />

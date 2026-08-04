@@ -371,7 +371,7 @@ export async function fetchStockRegister(params: Record<string, string | number 
   return http.get<PageResponse<Record<string, unknown>>>(`/reports/stock-register?${qs}`)
 }
 
-export async function fetchFullReport(params: Record<string, string | number | undefined> = {}) {
+export async function fetchFullReport(params: Record<string, string | number | boolean | undefined> = {}) {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
@@ -379,6 +379,36 @@ export async function fetchFullReport(params: Record<string, string | number | u
   if (!qs.has('page')) qs.set('page', '1')
   if (!qs.has('pageSize')) qs.set('pageSize', '200')
   return http.get<PageResponse<Record<string, unknown>>>(`/reports/full-report?${qs}`)
+}
+
+export async function fetchStockOwner(params: Record<string, string | number | boolean | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+  })
+  if (!qs.has('page')) qs.set('page', '1')
+  if (!qs.has('pageSize')) qs.set('pageSize', '200')
+  return http.get<PageResponse<Record<string, unknown>>>(`/reports/stock-owner?${qs}`)
+}
+
+export async function fetchStockMovement(params: Record<string, string | number | boolean | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+  })
+  if (!qs.has('page')) qs.set('page', '1')
+  if (!qs.has('pageSize')) qs.set('pageSize', '200')
+  return http.get<PageResponse<Record<string, unknown>>>(`/reports/stock-movement?${qs}`)
+}
+
+export async function fetchItemRegister(params: Record<string, string | number | boolean | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+  })
+  if (!qs.has('page')) qs.set('page', '1')
+  if (!qs.has('pageSize')) qs.set('pageSize', '200')
+  return http.get<PageResponse<Record<string, unknown>>>(`/reports/item-register?${qs}`)
 }
 
 export type DashboardSummary = {

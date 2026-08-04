@@ -284,6 +284,12 @@ public class DataSeeder implements ApplicationRunner {
                 new MenuDef("STKREG", "Stock Register", "Reports", 52, null, null,
                         true, false, false, false, false, false, false, true),
                 new MenuDef("FULLRPT", "Full Report", "Reports", 53, null, null,
+                        true, false, false, false, false, false, false, true),
+                new MenuDef("STKOWN", "Stock Owner Report", "Reports", 54, null, null,
+                        true, false, false, false, false, false, false, true),
+                new MenuDef("STKMOV", "Stock Movement Report", "Reports", 55, null, null,
+                        true, false, false, false, false, false, false, true),
+                new MenuDef("ITEMREG", "Item Register", "Reports", 56, null, null,
                         true, false, false, false, false, false, false, true)
         );
     }
