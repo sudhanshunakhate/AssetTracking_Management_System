@@ -9,6 +9,10 @@ export function Modal({
   children,
   footer,
   width = 'max-w-md',
+  panelClassName = '',
+  bodyClassName = '',
+  /** Centre the dialog in the main content area (right of the sidebar). */
+  offsetSidebar = false,
 }: {
   open: boolean
   title: string
@@ -17,6 +21,9 @@ export function Modal({
   children: ReactNode
   footer?: ReactNode
   width?: string
+  panelClassName?: string
+  bodyClassName?: string
+  offsetSidebar?: boolean
 }) {
   useEffect(() => {
     if (!open) return
@@ -31,7 +38,8 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[10vh]"
+      className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+      style={{ left: offsetSidebar ? 'var(--sidebar-current, 256px)' : 0 }}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -40,9 +48,9 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full ${width} rounded-[10px] border border-[var(--border)] bg-[var(--surface)] shadow-[0_12px_32px_rgba(15,23,42,.22)]`}
+        className={`my-auto flex w-full ${width} max-h-[min(94vh,900px)] flex-col overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--surface)] shadow-[0_12px_32px_rgba(15,23,42,.22)] ${panelClassName}`}
       >
-        <div className="flex items-start gap-2.5 border-b border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2.5">
+        <div className="flex shrink-0 items-start gap-2.5 border-b border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2">
           <div className="flex-1">
             <div className="text-[13px] font-semibold text-[var(--text)]">{title}</div>
             {subtitle && <div className="mt-0.5 text-[10.5px] text-[var(--text3)]">{subtitle}</div>}
@@ -56,9 +64,9 @@ export function Modal({
             ×
           </button>
         </div>
-        <div className="px-3.5 py-3">{children}</div>
+        <div className={`min-h-0 flex-1 overflow-y-auto px-3.5 py-3 ${bodyClassName}`}>{children}</div>
         {footer && (
-          <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2.5">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2">
             {footer}
           </div>
         )}

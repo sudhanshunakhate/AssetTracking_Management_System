@@ -20,8 +20,8 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
           collapsed ? 'justify-center px-0' : ''
         } ${
           isActive
-            ? 'bg-[var(--accent-lt)] text-[var(--accent)] before:absolute before:-left-1.5 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-sm before:bg-[var(--accent)] before:content-[""]'
-            : 'text-[var(--text2)] hover:bg-[var(--bg)] hover:text-[var(--text)]'
+            ? 'bg-[var(--warm-lt)] text-[var(--warm-deep)] before:absolute before:-left-1.5 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-sm before:bg-[var(--warm)] before:content-[""]'
+            : 'text-[var(--text2)] hover:bg-[var(--accent-lt)] hover:text-[var(--accent-deep)]'
         }`
       }
     >
@@ -35,9 +35,9 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
             {item.badge && (
               <span
                 className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] ${
-                  isActive
-                    ? 'bg-[var(--accent-mid)] text-[var(--accent)]'
-                    : 'bg-[var(--border)] text-[var(--text3)]'
+                    isActive
+                      ? 'bg-white/80 text-[var(--warm-deep)]'
+                      : 'bg-[var(--border)] text-[var(--text3)]'
                 }`}
               >
                 {item.badge}
@@ -51,7 +51,7 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const { canViewMenu, permissionsReady, favouriteMenuCodes } = useAuth()
+  const { canViewMenu, permissionsReady, favouriteMenuCodes, menuPermissions } = useAuth()
   const [favouritesOpen, setFavouritesOpen] = useState(false)
 
   const itemByCode = useMemo(() => {
@@ -73,8 +73,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   }, [favouriteMenuCodes, itemByCode, canViewMenu, permissionsReady])
 
   const visibleGroups = useMemo(() => {
-    const byLabel = (a: { label: string }, b: { label: string }) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+    const orderByCode = new Map<string, number>()
+    const groupOrderByLabel = new Map<string, number>()
+    for (const p of menuPermissions) {
+      orderByCode.set(p.menuCode, p.sortOrder ?? 9999)
+      if (p.menuGroup) {
+        const g = p.groupSortOrder ?? 9999
+        const prev = groupOrderByLabel.get(p.menuGroup)
+        if (prev === undefined || g < prev) groupOrderByLabel.set(p.menuGroup, g)
+      }
+    }
+    const byItemSeq = (a: { menuCode: string }, b: { menuCode: string }) =>
+      (orderByCode.get(a.menuCode) ?? 9999) - (orderByCode.get(b.menuCode) ?? 9999)
 
     // While permissions load, keep static nav visible to avoid a blank flash.
     const groups = !permissionsReady
@@ -87,12 +97,18 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           .filter((group) => group.items.length > 0)
 
     return [...groups]
-      .map((group) => ({
-        ...group,
-        items: [...group.items].sort(byLabel),
-      }))
-      .sort(byLabel)
-  }, [canViewMenu, permissionsReady])
+      .map((group) => {
+        const items = permissionsReady ? [...group.items].sort(byItemSeq) : [...group.items]
+        // navGroups.label matches sysm_menutree_mst.mtree_menu_group
+        const sectionSeq = groupOrderByLabel.get(group.label)
+        const minItem = items.reduce(
+          (min, item) => Math.min(min, orderByCode.get(item.menuCode) ?? 9999),
+          9999,
+        )
+        return { ...group, items, sectionSeq: sectionSeq ?? minItem }
+      })
+      .sort((a, b) => (permissionsReady ? a.sectionSeq - b.sectionSeq : 0))
+  }, [canViewMenu, menuPermissions, permissionsReady])
 
   return (
     <aside

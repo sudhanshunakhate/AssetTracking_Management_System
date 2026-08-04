@@ -67,7 +67,7 @@ export function GlobalLoader() {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/55 backdrop-blur-[1px]"
+      className="pointer-events-none fixed inset-0 z-[9999] flex items-center justify-center bg-white/55 backdrop-blur-[1px]"
       role="status"
       aria-live="polite"
       aria-busy="true"

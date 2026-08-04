@@ -94,7 +94,7 @@ export function RoleMenuAccessPanel({
       nextMenus[m.menuCode] = m.sortOrder ?? 0
       const g = m.menuGroup || 'Other'
       groupByCode[m.menuCode] = g
-      if (nextSections[g] === undefined) nextSections[g] = m.groupSortOrder ?? 90
+      if (nextSections[g] === undefined) nextSections[g] = m.groupSortOrder ?? 9
     }
     setSequences(nextMenus)
     setSectionSequences(nextSections)
@@ -161,7 +161,7 @@ export function RoleMenuAccessPanel({
             ),
           ] as [string, MenuApi[]],
       )
-      .sort((a, b) => (sectionSequences[a[0]] ?? 90) - (sectionSequences[b[0]] ?? 90))
+      .sort((a, b) => (sectionSequences[a[0]] ?? 9) - (sectionSequences[b[0]] ?? 9))
   }, [menus, sequences, sectionSequences])
 
   const applyMatrix = (updater: (prev: Record<string, PermFlags>) => Record<string, PermFlags>) => {
@@ -297,7 +297,7 @@ export function RoleMenuAccessPanel({
                           type="number"
                           min={0}
                           step={1}
-                          value={sectionSequences[group] ?? 90}
+                          value={sectionSequences[group] ?? 9}
                           disabled={readOnly}
                           onChange={(e) => setSectionSequence(group, e.target.value)}
                           className="w-[72px] rounded border border-[var(--border2)] bg-[var(--surface)] px-1.5 py-1 text-center text-[12px] tabular-nums text-[var(--text)] disabled:opacity-50"

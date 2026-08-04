@@ -2,12 +2,12 @@
     "purpose":  "Ledger of every SQL change made to the CAITS schema, and which database has it. Keeps the local Postgres and the shared dev server in step.",
     "environments":  {
                          "local":  {
-                                       "label":  "Local Postgres (active in application.yml)",
+                                       "label":  "Local Postgres (commented out in application.yml)",
                                        "url":  "jdbc:postgresql://localhost:5432/postgres",
                                        "schema":  "caits_local"
                                    },
                          "dev":  {
-                                     "label":  "Shared dev server (commented out in application.yml)",
+                                     "label":  "Shared dev server (active in application.yml)",
                                      "url":  "jdbc:postgresql://192.168.0.223:5432/caits",
                                      "schema":  "caits_local"
                                  }
@@ -157,7 +157,25 @@
                                            "local":  "2026-08-03",
                                            "dev":  "2026-08-03"
                                        }
+                       },
+                       {
+                           "id":  "015-create-user-favourite-menus",
+                           "file":  "db_approach/create_user_favourite_menus.sql",
+                           "description":  "Adds sysm_user_favourite_menu_dtl for per-user sidebar favourite menu pins.",
+                           "applied":  {
+                                           "local":  "2026-08-03",
+                                           "dev":  "2026-08-03"
+                                       }
+                       },
+                       {
+                           "id":  "016-simplify-menu-sequences",
+                           "file":  "db_approach/simplify_menu_sequences.sql",
+                           "description":  "Renumbers sections 1-5 and menus as N1/N2/N3 (e.g. Master Setup 11-17, Organization 21-23).",
+                           "applied":  {
+                                           "local":  "2026-08-03",
+                                           "dev":  "2026-08-04"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-03"
+    "updated":  "2026-08-04"
 }

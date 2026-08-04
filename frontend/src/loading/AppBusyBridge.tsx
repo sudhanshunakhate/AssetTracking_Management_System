@@ -4,12 +4,15 @@ import { beginLoading, endLoading, pulseLoading } from './loadingStore'
 
 function isInteractiveTarget(target: EventTarget | null): HTMLElement | null {
   if (!(target instanceof Element)) return null
+  // Links navigate via the route effect — pulsing on pointerdown steals the click
+  // once GlobalLoader covers the screen (even briefly).
   const el = target.closest(
-    'a[href], button, [role="button"], input[type="submit"], input[type="button"], summary, [data-loading]',
+    'button, [role="button"], input[type="submit"], input[type="button"], summary, [data-loading]',
   )
   if (!(el instanceof HTMLElement)) return null
   if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') return null
   if (el.closest('[data-no-loader]')) return null
+  if (el.closest('a[href]')) return null
   return el
 }
 

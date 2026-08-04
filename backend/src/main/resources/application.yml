@@ -11,6 +11,7 @@ spring:
     # url: jdbc:postgresql://localhost:5432/postgres
     # username: postgres
     # password: pass121word
+    # Shared dev server (active).
     url: jdbc:postgresql://192.168.0.223:5432/caits
     username: caits
     password: caits123

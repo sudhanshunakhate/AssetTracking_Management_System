@@ -36,21 +36,24 @@ export function Topbar() {
     <header className="sticky top-0 z-[100] flex h-[54px] items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-6 shadow-[var(--sh)]">
       <div className="flex items-center gap-1.5 text-[13px]">
         <span className="font-medium text-[var(--text3)]">{crumb.group}</span>
-        <span className="text-[11px] text-[var(--border2)]">/</span>
+        <span className="text-[11px] text-[var(--warm-mid)]">/</span>
         <span className="font-bold text-[var(--text)]">{crumb.current}</span>
       </div>
       <div className="flex-1" />
-      <div className="flex items-center gap-1.5 rounded-full bg-[var(--success-lt)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--success)]">
-        <span className="h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+      <div className="flex items-center gap-1.5 rounded-full border border-[var(--accent-mid)]/60 bg-[var(--accent-lt)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--accent-deep)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--warm)] shadow-[0_0_0_3px_rgba(234,88,12,0.2)]" />
         Online
       </div>
       <div className="relative ml-3">
         <button
           type="button"
           onClick={() => setMenuOpen((v) => !v)}
-          className="flex items-center gap-2 rounded-full py-1 pr-2.5 pl-1 transition hover:bg-[var(--surface2)]"
+          className="flex items-center gap-2 rounded-full py-1 pr-2.5 pl-1 transition hover:bg-[var(--warm-lt)]"
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent)] text-[12.5px] font-bold text-white">
+          <span
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[12.5px] font-bold text-white shadow-[var(--brand-glow)]"
+            style={{ background: 'var(--brand-gradient-hot)' }}
+          >
             {initials}
           </span>
           <span className="hidden text-left sm:block">

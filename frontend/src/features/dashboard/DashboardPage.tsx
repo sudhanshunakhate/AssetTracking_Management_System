@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { AnimatedContent, CountUp, FadeContent, SpotlightCard } from '@/components/react-bits'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
+import { Icon, type IconName } from '@/components/ui/Icon'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchDashboardSummary, type DashboardSummary } from '@/api/transactions'
 
@@ -10,6 +11,68 @@ const emptySummary: DashboardSummary = {
   totalTransactions: 0,
   lowStockCount: 0,
   stockRows: 0,
+}
+
+type KpiTone = 'sky' | 'blue' | 'warm' | 'danger'
+
+const TONE: Record<
+  KpiTone,
+  { color: string; soft: string; ring: string; glow: string }
+> = {
+  sky: {
+    color: 'var(--accent)',
+    soft: 'var(--accent-lt)',
+    ring: 'rgba(14, 165, 233, 0.35)',
+    glow: 'rgba(14, 165, 233, 0.28)',
+  },
+  blue: {
+    color: 'var(--accent-deep)',
+    soft: '#eef2ff',
+    ring: 'rgba(3, 105, 161, 0.3)',
+    glow: 'rgba(37, 99, 235, 0.22)',
+  },
+  warm: {
+    color: 'var(--warm)',
+    soft: 'var(--warm-lt)',
+    ring: 'rgba(234, 88, 12, 0.35)',
+    glow: 'rgba(249, 115, 22, 0.3)',
+  },
+  danger: {
+    color: 'var(--danger)',
+    soft: 'var(--danger-lt)',
+    ring: 'rgba(220, 38, 38, 0.4)',
+    glow: 'rgba(220, 38, 38, 0.28)',
+  },
+}
+
+function KpiIcon({
+  name,
+  tone,
+  motion,
+}: {
+  name: IconName
+  tone: KpiTone
+  motion: 'float' | 'pulse' | 'spin-soft' | 'bounce' | 'blink'
+}) {
+  const t = TONE[tone]
+  return (
+    <div
+      className={`kpi-icon kpi-icon--${motion}`}
+      style={
+        {
+          '--kpi-color': t.color,
+          '--kpi-soft': t.soft,
+          '--kpi-ring': t.ring,
+          '--kpi-glow': t.glow,
+        } as CSSProperties
+      }
+    >
+      <span className="kpi-icon__ring" aria-hidden />
+      <span className="kpi-icon__core">
+        <Icon name={name} size={22} />
+      </span>
+    </div>
+  )
 }
 
 export function DashboardPage() {
@@ -39,12 +102,60 @@ export function DashboardPage() {
     }
   }, [])
 
-  const kpis = [
-    { id: 'items', label: 'Total Items', value: summary.totalItems, hint: 'Active item master rows' },
-    { id: 'vendors', label: 'Vendors', value: summary.totalVendors, hint: 'Registered parties' },
-    { id: 'txns', label: 'Transactions', value: summary.totalTransactions, hint: 'All document headers' },
-    { id: 'low', label: 'Low Stock', value: summary.lowStockCount, hint: 'At or below reorder' },
-    { id: 'stock', label: 'Stock Rows', value: summary.stockRows, hint: 'inv_stock_mst rows' },
+  const kpis: {
+    id: string
+    label: string
+    value: number
+    hint: string
+    icon: IconName
+    tone: KpiTone
+    motion: 'float' | 'pulse' | 'spin-soft' | 'bounce' | 'blink'
+  }[] = [
+    {
+      id: 'items',
+      label: 'Total Items',
+      value: summary.totalItems,
+      hint: 'Active item master rows',
+      icon: 'itemMaster',
+      tone: 'sky',
+      motion: 'float',
+    },
+    {
+      id: 'vendors',
+      label: 'Vendors',
+      value: summary.totalVendors,
+      hint: 'Registered parties',
+      icon: 'vendorParty',
+      tone: 'blue',
+      motion: 'pulse',
+    },
+    {
+      id: 'txns',
+      label: 'Transactions',
+      value: summary.totalTransactions,
+      hint: 'All document headers',
+      icon: 'materialTransfer',
+      tone: 'warm',
+      motion: 'spin-soft',
+    },
+    {
+      id: 'low',
+      label: 'Low Stock',
+      value: summary.lowStockCount,
+      hint: 'At or below reorder',
+      icon: 'lowStockAlert',
+      tone: 'danger',
+      motion: 'blink',
+    },
+    {
+      id: 'stock',
+      label: 'Stock Rows',
+      value: summary.stockRows,
+      hint: 'inv_stock_mst rows',
+      icon: 'storeWiseStock',
+      tone: 'sky',
+      motion: 'bounce',
+    },
   ]
 
   return (
@@ -61,8 +172,11 @@ export function DashboardPage() {
           <AnimatedContent key={kpi.id} delay={i * 0.06}>
             <SpotlightCard>
               <div className="p-4">
-                <div className="text-[11px] font-semibold tracking-[0.3px] text-[var(--text3)] uppercase">
-                  {kpi.label}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-[11px] font-semibold tracking-[0.3px] text-[var(--text3)] uppercase">
+                    {kpi.label}
+                  </div>
+                  <KpiIcon name={kpi.icon} tone={kpi.tone} motion={kpi.motion} />
                 </div>
                 <div className="mt-1 text-[26px] font-bold tracking-tight text-[var(--text)]">
                   <CountUp to={kpi.value} duration={1.4} />

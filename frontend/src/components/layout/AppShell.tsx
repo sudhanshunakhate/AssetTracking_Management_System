@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { ClickSpark, FadeContent } from '@/components/react-bits'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -10,10 +10,17 @@ export function AppShell() {
   const { pathname } = useLocation()
   const [collapsed, setCollapsed] = useState(false)
 
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--sidebar-current',
+      collapsed ? '62px' : '256px',
+    )
+  }, [collapsed])
+
   if (!user) return <Navigate to="/login" replace />
 
   return (
-    <ClickSpark className="min-h-screen" sparkColor="#2563eb" sparkCount={6}>
+    <ClickSpark className="min-h-screen" sparkColor="#0ea5e9" sparkCount={6}>
       <div className="flex min-h-screen w-full">
         <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
         <div

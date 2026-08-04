@@ -20,7 +20,7 @@ export function StatusBadge({ status }: { status: string }) {
 
 export function Pill({ children }: { children: string }) {
   return (
-    <span className="inline-flex rounded-full bg-[var(--accent-lt)] px-2 py-0.5 text-[10.5px] font-semibold text-[var(--accent)]">
+    <span className="inline-flex rounded-full border border-[var(--warm-mid)]/50 bg-[var(--warm-lt)] px-2 py-0.5 text-[10.5px] font-semibold text-[var(--warm-deep)]">
       {children}
     </span>
   )

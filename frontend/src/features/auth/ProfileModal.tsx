@@ -43,10 +43,10 @@ function initialsFrom(name: string) {
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   const empty = !value || !String(value).trim()
   return (
-    <div className="min-w-0 rounded-lg bg-[var(--surface2)]/80 px-3 py-2.5 ring-1 ring-[var(--border)]/80">
-      <div className="text-[10px] font-bold tracking-[0.06em] text-[var(--text3)] uppercase">{label}</div>
+    <div className="min-w-0 rounded-lg bg-[var(--surface2)] px-2.5 py-2 ring-1 ring-[var(--border)]/70">
+      <div className="text-[9.5px] font-bold tracking-[0.05em] text-[var(--text3)] uppercase">{label}</div>
       <div
-        className={`mt-1 truncate text-[13px] font-semibold ${
+        className={`mt-0.5 truncate text-[12.5px] font-semibold leading-tight ${
           empty ? 'text-[var(--text3)]' : 'text-[var(--text)]'
         }`}
         title={empty ? undefined : String(value)}
@@ -57,29 +57,17 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-function Section({
-  title,
-  hint,
-  children,
-}: {
-  title: string
-  hint?: string
-  children: ReactNode
-}) {
+function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <section className="space-y-2.5">
-      <div className="flex items-baseline gap-2">
-        <h3 className="text-[12px] font-bold tracking-wide text-[var(--text)]">{title}</h3>
-        {hint && <span className="text-[11px] text-[var(--text3)]">{hint}</span>}
-      </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{children}</div>
-    </section>
+    <div className="col-span-4 pt-1.5 text-[11.5px] font-bold tracking-wide text-[var(--text2)] first:pt-0">
+      {children}
+    </div>
   )
 }
 
 /**
  * Own-profile dialog opened from the topbar avatar menu.
- * Shows employee-master details for the logged-in user and lets them change password.
+ * Compact square card — details + security share one fixed footprint.
  */
 export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [profile, setProfile] = useState<ProfileResponse | null>(null)
@@ -150,7 +138,10 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
       onClose={onClose}
       title="My Profile"
       subtitle="Account details and security"
-      width="max-w-3xl"
+      width="max-w-[720px]"
+      panelClassName="w-[min(720px,calc(100%-2rem))]"
+      bodyClassName="!px-4 !py-3.5"
+      offsetSidebar
       footer={
         tab === 'password' ? (
           <>
@@ -168,61 +159,41 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
         )
       }
     >
-      {/* Identity banner */}
-      <div className="relative mb-4 overflow-hidden rounded-xl bg-gradient-to-br from-[var(--accent)] to-[#1e40af] p-4 text-white shadow-[var(--sh)]">
-        <div
-          className="pointer-events-none absolute -top-10 -right-8 h-36 w-36 rounded-full bg-white/10"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute -bottom-12 left-1/3 h-28 w-28 rounded-full bg-white/10"
-          aria-hidden
-        />
-        <div className="relative flex flex-wrap items-center gap-3.5">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-[18px] font-bold tracking-wide ring-2 ring-white/30 backdrop-blur-sm">
+      <div className="relative mb-3 overflow-hidden rounded-xl bg-gradient-to-br from-[var(--accent)] to-[#1e40af] px-3.5 py-2.5 text-white">
+        <div className="relative flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 text-[14px] font-bold ring-2 ring-white/30">
             {loading ? '…' : initialsFrom(fullName || profile?.loginId || 'U')}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[16px] font-bold tracking-tight">
+            <div className="truncate text-[14.5px] font-bold leading-tight">
               {loading ? 'Loading…' : fullName || profile?.loginId || '—'}
             </div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-white/85">
-              {profile?.designation && <span>{profile.designation}</span>}
-              {profile?.designation && profile?.department && <span>·</span>}
-              {profile?.department && <span>{profile.department}</span>}
-              {!profile?.designation && !profile?.department && !loading && (
-                <span>{profile?.role ?? 'User'}</span>
-              )}
+            <div className="mt-0.5 truncate text-[11.5px] text-white/85">
+              {[profile?.designation, profile?.department].filter(Boolean).join(' · ') ||
+                profile?.role ||
+                (loading ? '' : 'User')}
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {profile?.role && (
-                <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10.5px] font-semibold tracking-wide uppercase ring-1 ring-white/25">
-                  {profile.role}
-                </span>
-              )}
-              {profile && (
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold ${
-                    active
-                      ? 'bg-[var(--success-lt)] text-[var(--success)]'
-                      : 'bg-white/20 text-white'
-                  }`}
-                >
-                  {active ? 'Active' : 'Inactive'}
-                </span>
-              )}
-              {profile?.employeeCode && (
-                <span className="rounded-full bg-black/15 px-2.5 py-0.5 font-mono text-[10.5px] text-white/90">
-                  {profile.employeeCode}
-                </span>
-              )}
-            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+            {profile?.role && (
+              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-semibold uppercase ring-1 ring-white/25">
+                {profile.role}
+              </span>
+            )}
+            {profile && (
+              <span
+                className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                  active ? 'bg-[var(--success-lt)] text-[var(--success)]' : 'bg-white/20 text-white'
+                }`}
+              >
+                {active ? 'Active' : 'Inactive'}
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-4 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1">
+      <div className="mb-3 flex gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1">
         <button
           type="button"
           onClick={() => setTab('details')}
@@ -248,93 +219,94 @@ export function ProfileModal({ open, onClose }: { open: boolean; onClose: () => 
       </div>
 
       {loading && (
-        <div className="rounded-xl border border-dashed border-[var(--border2)] bg-[var(--surface2)] px-4 py-8 text-center text-[12.5px] text-[var(--text3)]">
+        <div className="rounded-lg border border-dashed border-[var(--border2)] px-3 py-6 text-center text-[12px] text-[var(--text3)]">
           Loading profile…
         </div>
       )}
       {error && (
-        <div className="rounded-xl border border-[#fecaca] bg-[var(--danger-lt)] px-3.5 py-3 text-[12.5px] font-medium text-[var(--danger)]">
+        <div className="rounded-lg border border-[#fecaca] bg-[var(--danger-lt)] px-3 py-2 text-[12px] font-medium text-[var(--danger)]">
           {error}
         </div>
       )}
 
-      {!loading && !error && profile && tab === 'details' && (
-        <div className="space-y-4">
-          <Section title="Identity" hint="Login & employee">
-            <InfoRow label="Employee Code" value={profile.employeeCode} />
-            <InfoRow label="Login ID" value={profile.loginId} />
-            <InfoRow label="First Name" value={profile.firstName} />
-            <InfoRow label="Last Name" value={profile.lastName} />
-            <InfoRow label="Gender" value={profile.gender} />
-            <InfoRow label="Date of Birth" value={formatDate(profile.dob)} />
-          </Section>
+      {!loading && !error && profile && (
+        <div className="grid [&>*]:col-start-1 [&>*]:row-start-1">
+          <div
+            className={tab === 'details' ? 'visible' : 'invisible pointer-events-none'}
+            aria-hidden={tab !== 'details'}
+          >
+            <div className="grid grid-cols-4 gap-2">
+              <SectionLabel>Identity</SectionLabel>
+              <InfoRow label="Employee Code" value={profile.employeeCode} />
+              <InfoRow label="Login ID" value={profile.loginId} />
+              <InfoRow label="First Name" value={profile.firstName} />
+              <InfoRow label="Last Name" value={profile.lastName} />
+              <InfoRow label="Gender" value={profile.gender} />
+              <InfoRow label="Date of Birth" value={formatDate(profile.dob)} />
+              <InfoRow label="Status" value={active ? 'Active' : 'Inactive'} />
+              <InfoRow label="Last Login" value={formatDateTime(profile.lastLoginOn)} />
 
-          <Section title="Contact">
-            <InfoRow label="Email" value={profile.email} />
-            <InfoRow label="Phone" value={profile.phone} />
-            <InfoRow label="Alt. Phone" value={profile.altPhone} />
-            <InfoRow label="Base Location" value={profile.baseLocationName} />
-          </Section>
+              <SectionLabel>Contact</SectionLabel>
+              <InfoRow label="Email" value={profile.email} />
+              <InfoRow label="Phone" value={profile.phone} />
+              <InfoRow label="Alt. Phone" value={profile.altPhone} />
+              <InfoRow label="Base Location" value={profile.baseLocationName} />
 
-          <Section title="Employment">
-            <InfoRow label="Designation" value={profile.designation} />
-            <InfoRow label="Department" value={profile.department} />
-            <InfoRow label="Employment Type" value={profile.employmentType} />
-            <InfoRow label="Joining Date" value={formatDate(profile.joiningDate)} />
-            <InfoRow label="Reporting To" value={profile.reportingToName} />
-            <InfoRow label="Role" value={profile.role} />
-          </Section>
-
-          <Section title="Activity">
-            <InfoRow label="Status" value={active ? 'Active' : 'Inactive'} />
-            <InfoRow label="Last Login" value={formatDateTime(profile.lastLoginOn)} />
-          </Section>
-        </div>
-      )}
-
-      {!loading && tab === 'password' && (
-        <div className="space-y-3.5">
-          <div className="rounded-xl border border-[var(--accent-mid)] bg-[var(--accent-lt)] px-3.5 py-3 text-[12px] leading-relaxed text-[var(--text2)]">
-            Choose a strong password (at least 8 characters). You’ll stay signed in on this device
-            after updating.
-          </div>
-          <div className="grid grid-cols-1 gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 shadow-[var(--sh)]">
-            <Field label="Current Password" required>
-              <Input
-                type="password"
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-            </Field>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="New Password" required hint="At least 8 characters">
-                <Input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </Field>
-              <Field label="Confirm New Password" required>
-                <Input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </Field>
+              <SectionLabel>Employment</SectionLabel>
+              <InfoRow label="Designation" value={profile.designation} />
+              <InfoRow label="Department" value={profile.department} />
+              <InfoRow label="Employment Type" value={profile.employmentType} />
+              <InfoRow label="Joining Date" value={formatDate(profile.joiningDate)} />
+              <InfoRow label="Reporting To" value={profile.reportingToName} />
+              <InfoRow label="Role" value={profile.role} />
             </div>
-            {pwError && (
-              <div className="rounded-lg bg-[var(--danger-lt)] px-3 py-2 text-[11.5px] font-medium text-[var(--danger)]">
-                {pwError}
+          </div>
+
+          <div
+            className={tab === 'password' ? 'visible' : 'invisible pointer-events-none'}
+            aria-hidden={tab !== 'password'}
+          >
+            <div className="flex h-full flex-col justify-center gap-2.5">
+              <div className="rounded-lg border border-[var(--accent-mid)] bg-[var(--accent-lt)] px-3 py-2 text-[11.5px] leading-snug text-[var(--text2)]">
+                Choose a strong password (at least 8 characters). You’ll stay signed in after updating.
               </div>
-            )}
-            {pwMessage && (
-              <div className="rounded-lg bg-[var(--success-lt)] px-3 py-2 text-[11.5px] font-medium text-[var(--success)]">
-                {pwMessage}
+              <div className="grid gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                <Field label="Current Password" required>
+                  <Input
+                    type="password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </Field>
+                <Field label="New Password" required hint="At least 8 characters">
+                  <Input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </Field>
+                <Field label="Confirm New Password" required>
+                  <Input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </Field>
+                {pwError && (
+                  <div className="rounded-md bg-[var(--danger-lt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--danger)]">
+                    {pwError}
+                  </div>
+                )}
+                {pwMessage && (
+                  <div className="rounded-md bg-[var(--success-lt)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--success)]">
+                    {pwMessage}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}

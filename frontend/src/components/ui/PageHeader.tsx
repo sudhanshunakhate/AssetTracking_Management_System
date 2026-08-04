@@ -13,8 +13,15 @@ export function PageHeader({
   return (
     <div className="mb-3 flex flex-wrap items-start justify-between gap-2.5">
       <div>
-        <div className="text-lg font-bold tracking-[-0.3px] text-[var(--text)]">{title}</div>
-        {description && <div className="mt-0.5 text-[12.5px] text-[var(--text2)]">{description}</div>}
+        <div className="relative inline-block text-lg font-bold tracking-[-0.3px] text-[var(--text)]">
+          {title}
+          <span
+            aria-hidden
+            className="mt-1.5 block h-[3px] w-[min(100%,72px)] rounded-full"
+            style={{ background: 'var(--brand-gradient-hot)' }}
+          />
+        </div>
+        {description && <div className="mt-1.5 text-[12.5px] text-[var(--text2)]">{description}</div>}
       </div>
       {actions}
     </div>

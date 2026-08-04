@@ -237,14 +237,14 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private static int groupSortFor(String group) {
-        if (group == null) return 90;
+        if (group == null) return 9;
         return switch (group) {
-            case "Master Setup" -> 10;
-            case "Organization" -> 20;
-            case "Access & People" -> 30;
-            case "Transactions" -> 40;
-            case "Reports" -> 50;
-            default -> 90;
+            case "Master Setup" -> 1;
+            case "Organization" -> 2;
+            case "Access & People" -> 3;
+            case "Transactions" -> 4;
+            case "Reports" -> 5;
+            default -> 9;
         };
     }
 
@@ -256,34 +256,34 @@ public class DataSeeder implements ApplicationRunner {
 
     private static List<MenuDef> menuDefinitions() {
         return List.of(
-                master("UOM", "Unit Master", 10),
-                master("AIM", "Item Master", 20),
-                master("ICM", "Inventory Category", 30),
-                master("ISC", "Inventory Sub-Category", 40),
-                master("GTY", "General Type", 50),
-                master("GNM", "General Master", 60),
-                master("VPM", "Vendor / Party", 70),
-                master("ORG", "Organization (Entity)", 110, "Organization"),
-                master("OU", "Operating Unit", 120, "Organization"),
-                master("STR", "Location", 130, "Organization"),
-                master("ARM", "Role & Menu Mapping", 210, "Access & People"),
-                master("EMP", "Employee", 220, "Access & People"),
-                master("USR", "User Access Mapping", 230, "Access & People"),
-                new MenuDef("MNU", "Menu Access", "Access & People", 240, "MNU", null,
+                master("UOM", "Unit Master", 11),
+                master("AIM", "Item Master", 12),
+                master("ICM", "Inventory Category", 13),
+                master("ISC", "Inventory Sub-Category", 14),
+                master("GTY", "General Type", 15),
+                master("GNM", "General Master", 16),
+                master("VPM", "Vendor / Party", 17),
+                master("ORG", "Organization (Entity)", 21, "Organization"),
+                master("OU", "Operating Unit", 22, "Organization"),
+                master("STR", "Location", 23, "Organization"),
+                master("ARM", "Role & Menu Mapping", 31, "Access & People"),
+                master("EMP", "Employee", 32, "Access & People"),
+                master("USR", "User Access Mapping", 33, "Access & People"),
+                new MenuDef("MNU", "Menu Access", "Access & People", 34, "MNU", null,
                         true, true, true, false, false, false, false, true),
-                master("UAE", "User Access Exception", 250, "Access & People"),
-                txn("OPN", "Opening Stock", 310, "OPENING_STOCK", false, false),
-                txn("SR", "Store Requisitions", 320, "MATERIAL_REQUISITION", true, true),
-                txn("GRN", "Goods Receipt Note", 330, "GRN", true, true),
-                txn("GP", "Gatepass", 340, null, true, false),
-                txn("ISS", "Store Issue", 350, "MATERIAL_ISSUE", false, false),
-                txn("TRF", "Material Transfer", 360, "MATERIAL_TRANSFER", false, false),
-                txn("RTN", "Material Return", 370, "MATERIAL_RETURN", false, false),
-                new MenuDef("DASH", "Dashboard", "Reports", 410, null, null,
+                master("UAE", "User Access Exception", 35, "Access & People"),
+                txn("OPN", "Opening Stock", 41, "OPENING_STOCK", false, false),
+                txn("SR", "Store Requisitions", 42, "MATERIAL_REQUISITION", true, true),
+                txn("GRN", "Goods Receipt Note", 43, "GRN", true, true),
+                txn("GP", "Gatepass", 44, null, true, false),
+                txn("ISS", "Store Issue", 45, "MATERIAL_ISSUE", false, false),
+                txn("TRF", "Material Transfer", 46, "MATERIAL_TRANSFER", false, false),
+                txn("RTN", "Material Return", 47, "MATERIAL_RETURN", false, false),
+                new MenuDef("DASH", "Dashboard", "Reports", 51, null, null,
                         true, false, false, false, false, false, false, true),
-                new MenuDef("STKREG", "Stock Register", "Reports", 420, null, null,
+                new MenuDef("STKREG", "Stock Register", "Reports", 52, null, null,
                         true, false, false, false, false, false, false, true),
-                new MenuDef("FULLRPT", "Full Report", "Reports", 430, null, null,
+                new MenuDef("FULLRPT", "Full Report", "Reports", 53, null, null,
                         true, false, false, false, false, false, false, true)
         );
     }
