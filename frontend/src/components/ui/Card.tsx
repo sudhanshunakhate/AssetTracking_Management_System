@@ -10,13 +10,22 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
   )
 }
 
-export function CardHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function CardHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string
+  subtitle?: string
+  actions?: ReactNode
+}) {
   return (
     <div className="flex items-center gap-2.5 border-b border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2">
-      <div>
+      <div className="min-w-0 flex-1">
         <div className="text-[12.5px] font-semibold text-[var(--text)]">{title}</div>
         {subtitle && <div className="mt-0.5 text-[10.5px] text-[var(--text3)]">{subtitle}</div>}
       </div>
+      {actions}
     </div>
   )
 }

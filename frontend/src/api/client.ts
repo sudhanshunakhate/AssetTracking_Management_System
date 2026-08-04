@@ -22,6 +22,32 @@ export function setToken(token: string | null) {
   else sessionStorage.removeItem(TOKEN_KEY)
 }
 
+/**
+ * Lightweight reachability check — does not use the shared `api()` helper
+ * (avoids global loader). Any HTTP response means the backend is up.
+ */
+export async function pingBackend(timeoutMs = 4000): Promise<boolean> {
+  const ctrl = new AbortController()
+  const timer = window.setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const headers = new Headers()
+    const token = getToken()
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+    const res = await fetch(`${API_BASE}/dashboard/summary`, {
+      method: 'GET',
+      headers,
+      signal: ctrl.signal,
+      cache: 'no-store',
+    })
+    // Any response (incl. 401/403/500) proves the process is listening.
+    return res.status > 0
+  } catch {
+    return false
+  } finally {
+    window.clearTimeout(timer)
+  }
+}
+
 export class ApiError extends Error {
   status: number
   constructor(status: number, message: string) {

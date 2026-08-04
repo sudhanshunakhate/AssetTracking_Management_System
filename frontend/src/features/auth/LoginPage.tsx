@@ -10,7 +10,7 @@ import {
 } from '@/components/react-bits'
 import { useAuth } from './AuthContext'
 
-const LOGO_SRC = '/logo/caits-mark.png'
+const LOGO_SRC = '/logo/caits-login.png?v=2'
 
 export function LoginPage() {
   const { user, login } = useAuth()
