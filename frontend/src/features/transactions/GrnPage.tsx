@@ -62,7 +62,7 @@ type FormState = {
   status: string
 }
 
-function blankForm(): FormState {
+function blankForm(employeeId?: number | null): FormState {
   return {
     grnNo: '(auto)',
     grnDate: todayIso(),
@@ -75,8 +75,8 @@ function blankForm(): FormState {
     inspectedBy: '',
     inspectionDate: '',
     remarks: '',
-    preparedBy: '',
-    preparedDate: '',
+    preparedBy: employeeId != null ? String(employeeId) : '',
+    preparedDate: todayIso(),
     approvedBy: '',
     approvedDate: '',
     status: '',
@@ -166,13 +166,13 @@ function GrnList() {
 function GrnForm() {
   const { id = 'new' } = useParams()
   const navigate = useNavigate()
-  const { canCreateMenu, canEditMenu } = useAuth()
+  const { user, canCreateMenu, canEditMenu } = useAuth()
   const isNew = id === 'new'
 
   const { locations, employees, vendors, items, units } = useTxnFormLookups()
   const { options: conditionOpts } = useGenValues(GEN_TYPE.ASSET_CONDITION)
 
-  const [form, setForm] = useState<FormState>(blankForm)
+  const [form, setForm] = useState<FormState>(() => blankForm(user?.employeeId))
   const [itemType, setItemType] = useState<ItemKind>('asset')
   const [lines, setLines] = useState<GrnLine[]>(() => [emptyGrnLine()])
   const [loading, setLoading] = useState(!isNew)
@@ -181,6 +181,16 @@ function GrnForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
+
+  /* Prefill prepared-by from session when /auth/me resolves after first paint */
+  useEffect(() => {
+    if (!isNew || user?.employeeId == null) return
+    setForm((p) =>
+      p.preparedBy
+        ? p
+        : { ...p, preparedBy: String(user.employeeId), preparedDate: p.preparedDate || todayIso() },
+    )
+  }, [isNew, user?.employeeId])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }))
@@ -640,17 +650,12 @@ function GrnForm() {
               options={employeeOptions}
               placeholder="— Select —"
               error={err('preparedBy')}
-              disabled={readOnly}
-              quickAdd={addEmployee}
+              disabled
+              hint="Auto-filled from the logged-in user"
             />
 
-            <Field label="Prepared Date">
-              <Input
-                type="date"
-                value={form.preparedDate}
-                onChange={(e) => set('preparedDate', e.target.value)}
-                disabled={readOnly}
-              />
+            <Field label="Prepared Date" hint="Auto-filled with today’s date">
+              <Input type="date" value={form.preparedDate} readOnly disabled />
             </Field>
 
             <LookupSelect
@@ -689,7 +694,7 @@ function GrnForm() {
           <Button
             variant="danger"
             onClick={() => {
-              setForm((p) => ({ ...blankForm(), grnNo: p.grnNo, status: p.status }))
+              setForm((p) => ({ ...blankForm(user?.employeeId), grnNo: p.grnNo, status: p.status }))
               setLines([emptyGrnLine()])
               setItemType('asset')
               setSubmitted(false)

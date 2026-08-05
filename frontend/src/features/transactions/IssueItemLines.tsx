@@ -14,6 +14,7 @@ import {
   toNum,
   useCodeIndex,
   useItemIndex,
+  useLocationStock,
   useStockLookup,
   type BaseLine,
 } from './lineGrid'
@@ -55,6 +56,7 @@ export function IssueItemLines({
   const itemByCode = useItemIndex(items)
   const unitById = useCodeIndex(units)
   const locationById = useCodeIndex(locations)
+  const { stockByItemId } = useLocationStock(storeLocationId)
 
   const patch = useCallback(
     (key: string, changes: Partial<IssueLine>) => {
@@ -215,7 +217,7 @@ export function IssueItemLines({
           </table>
         </div>
 
-        <ItemCodeOptions id={DATALIST_ID} items={items} />
+        <ItemCodeOptions id={DATALIST_ID} items={items} stockByItemId={stockByItemId} />
 
         <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
           <Button variant="ghost" onClick={addLine} disabled={readOnly}>

@@ -335,6 +335,22 @@ export async function fetchAvailableStock(itemId: number, locationId?: number): 
   return (page.data ?? []).reduce((sum, r) => sum + Number(r.availableQty ?? 0), 0)
 }
 
+/** All available qty by itemId for one store (sums batches). */
+export async function fetchStockMapForLocation(locationId: number): Promise<Record<string, number>> {
+  const qs = new URLSearchParams({
+    locationId: String(locationId),
+    page: '1',
+    pageSize: '500',
+  })
+  const page = await http.get<PageResponse<StockRow>>(`/stock?${qs}`)
+  const map: Record<string, number> = {}
+  for (const r of page.data ?? []) {
+    const id = String(r.itemId)
+    map[id] = (map[id] ?? 0) + Number(r.availableQty ?? r.currentQty ?? 0)
+  }
+  return map
+}
+
 export type UploadedFile = {
   url: string
   fileName: string

@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { StatusPill } from '@/components/ui/Badge'
 import { type Column } from '@/components/ui/DataTable'
@@ -26,6 +26,7 @@ import type {
   MaterialTransfer,
 } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
+import { itemOptionLabel, useLocationStock } from './lineGrid'
 
 function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} – ${r.name}`) {
   return rows.map((r) => ({ value: r.id, label: label(r) }))
@@ -224,6 +225,8 @@ export function TransfersPages() {
   const { rows, loading, error, reload } = useTxnList('transfers')
   const { locations, items, units } = useTxnLookups()
   const patchItem = itemFieldPatch(items.rows)
+  const [stockLoc, setStockLoc] = useState('')
+  const { stockByItemId } = useLocationStock(stockLoc)
 
   const columns: Column<MaterialTransfer>[] = [
     { key: 'no', header: 'Transfer No.', searchText: (r) => r.transferNo, render: (r) => <b className="font-mono">{r.transferNo}</b> },
@@ -252,9 +255,13 @@ export function TransfersPages() {
       type: 'select',
       required: true,
       span: 2,
-      options: (values) => opt(itemsForLocation(items.rows, String(values.fromStore ?? ''))),
+      options: (values) =>
+        itemsForLocation(items.rows, String(values.fromStore ?? '')).map((i) => ({
+          value: i.id,
+          label: itemOptionLabel(i, String(values.fromStore ?? '') === stockLoc ? stockByItemId : undefined),
+        })),
       placeholder: '— Select From Store first —',
-      hint: 'Only items assigned to the From Store in Item Master',
+      hint: 'Only items assigned to the From Store — stock shown for that store',
     },
     { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
     { name: 'qty', label: 'Transfer Qty', type: 'number', required: true },
@@ -287,6 +294,7 @@ export function TransfersPages() {
           const next = { ...values, [name]: value }
           let base = patchItem(name, value) ?? {}
           if (name === 'fromStore') {
+            setStockLoc(String(value ?? ''))
             const allowed = itemsForLocation(items.rows, String(value ?? ''))
             if (next.item && !allowed.some((i) => i.id === String(next.item))) {
               base = { ...base, item: '', itemName: '', uom: '', availableStock: '' }
@@ -304,10 +312,12 @@ export function TransfersPages() {
         }}
         loadRecord={async (id) => {
           const doc = await fetchTxn('transfers', id)
+          const fromStore = doc.fromLocationId != null ? String(doc.fromLocationId) : ''
+          setStockLoc(fromStore)
           return mapDocToFlatForm(doc, {
-            fromStore: doc.fromLocationId != null ? String(doc.fromLocationId) : '',
+            fromStore,
             toStore: doc.toLocationId != null ? String(doc.toLocationId) : '',
-            store: doc.fromLocationId != null ? String(doc.fromLocationId) : '',
+            store: fromStore,
           })
         }}
         onSave={async (id, values, action = 'SUBMIT') => {
@@ -333,6 +343,8 @@ export function ReturnsPages() {
   const { rows, loading, error, reload } = useTxnList('returns')
   const { locations, employees, items, units } = useTxnLookups()
   const patchItem = itemFieldPatch(items.rows)
+  const [stockLoc, setStockLoc] = useState('')
+  const { stockByItemId } = useLocationStock(stockLoc)
 
   const columns: Column<MaterialReturn>[] = [
     { key: 'no', header: 'Return No.', searchText: (r) => r.returnNo, render: (r) => <b className="font-mono">{r.returnNo}</b> },
@@ -361,9 +373,13 @@ export function ReturnsPages() {
       type: 'select',
       required: true,
       span: 2,
-      options: (values) => opt(itemsForLocation(items.rows, String(values.store ?? ''))),
+      options: (values) =>
+        itemsForLocation(items.rows, String(values.store ?? '')).map((i) => ({
+          value: i.id,
+          label: itemOptionLabel(i, String(values.store ?? '') === stockLoc ? stockByItemId : undefined),
+        })),
       placeholder: '— Select Store first —',
-      hint: 'Only items assigned to this store in Item Master',
+      hint: 'Only items assigned to this store — stock shown for that store',
     },
     { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
     { name: 'qty', label: 'Return Qty', type: 'number', required: true },
@@ -394,6 +410,7 @@ export function ReturnsPages() {
         onFieldChange={(name, value, values) => {
           const base = patchItem(name, value) ?? {}
           if (name === 'store') {
+            setStockLoc(String(value ?? ''))
             const allowed = itemsForLocation(items.rows, String(value ?? ''))
             if (values.item && !allowed.some((i) => i.id === String(values.item))) {
               return { ...base, item: '', itemName: '', uom: '' }
@@ -403,8 +420,10 @@ export function ReturnsPages() {
         }}
         loadRecord={async (id) => {
           const doc = await fetchTxn('returns', id)
+          const store = doc.locationId != null ? String(doc.locationId) : ''
+          setStockLoc(store)
           return mapDocToFlatForm(doc, {
-            store: doc.locationId != null ? String(doc.locationId) : '',
+            store,
             returnedBy: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : '',
           })
         }}

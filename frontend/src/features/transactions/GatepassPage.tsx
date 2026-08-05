@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
@@ -7,13 +7,12 @@ import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import { createTxn, fetchTxn, numOrUndef, todayIso, useTxnList } from '@/api/transactions'
 import { mapEmployee, mapItem, mapLocation, mapUnit, itemsForLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
-
-type Tab = 'inward' | 'outward'
+import { itemOptionLabel, useLocationStock } from './lineGrid'
 
 export function GatepassPage() {
-  const { canCreateMenu, canEditMenu } = useAuth()
+  const { user, canCreateMenu, canEditMenu } = useAuth()
   const canSaveGp = canCreateMenu('GP') || canEditMenu('GP')
-  const [tab, setTab] = useState<Tab>('inward')
+  const [tab, setTab] = useState<'inward' | 'outward'>('inward')
   const [inwardType, setInwardType] = useState<'returnable' | 'new'>('returnable')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -32,6 +31,8 @@ export function GatepassPage() {
   const outward = useTxnList('gatepass/outward')
   const inward = useTxnList('gatepass/inward')
 
+  const sessionEmpId = user?.employeeId != null ? String(user.employeeId) : ''
+
   const returnableOutwards = useMemo(
     () => outward.rows.filter((r) => String(r.returnFlag).toUpperCase() === 'Y' || String(r.returnFlag).toLowerCase() === 'returnable'),
     [outward.rows],
@@ -40,7 +41,7 @@ export function GatepassPage() {
   const [inwardForm, setInwardForm] = useState({
     date: todayIso(),
     store: '',
-    preparedBy: '',
+    preparedBy: sessionEmpId,
     item: '',
     qty: '1',
     uom: '',
@@ -50,7 +51,7 @@ export function GatepassPage() {
   const [outwardForm, setOutwardForm] = useState({
     date: todayIso(),
     store: '',
-    preparedBy: '',
+    preparedBy: sessionEmpId,
     returnFlag: 'N',
     party: '',
     item: '',
@@ -60,8 +61,23 @@ export function GatepassPage() {
     remarks: '',
   })
 
+  /* When /auth/me fills employeeId after mount */
+  useEffect(() => {
+    if (!sessionEmpId) return
+    setInwardForm((p) => (p.preparedBy ? p : { ...p, preparedBy: sessionEmpId, date: p.date || todayIso() }))
+    setOutwardForm((p) => (p.preparedBy ? p : { ...p, preparedBy: sessionEmpId, date: p.date || todayIso() }))
+  }, [sessionEmpId])
+
+  const preparedByLabel = useMemo(() => {
+    const emp = employees.find((e) => e.id === sessionEmpId)
+    if (emp) return `${emp.code} – ${String(emp.firstName ?? '')} ${String(emp.lastName ?? '')}`.trim()
+    return user?.displayName || sessionEmpId || '—'
+  }, [employees, sessionEmpId, user?.displayName])
+
   const inwardItems = useMemo(() => itemsForLocation(items, inwardForm.store), [items, inwardForm.store])
   const outwardItems = useMemo(() => itemsForLocation(items, outwardForm.store), [items, outwardForm.store])
+  const { stockByItemId: inwardStock } = useLocationStock(inwardForm.store)
+  const { stockByItemId: outwardStock } = useLocationStock(outwardForm.store)
 
   const setIn = (k: keyof typeof inwardForm, v: string) => {
     setInwardForm((p) => {
@@ -325,22 +341,15 @@ export function GatepassPage() {
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Received By">
-                    <Select value={inwardForm.preparedBy} onChange={(e) => setIn('preparedBy', e.target.value)}>
-                      <option value="">— Select Employee —</option>
-                      {employees.map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.code} – {String(e.firstName ?? '')} {String(e.lastName ?? '')}
-                        </option>
-                      ))}
-                    </Select>
+                  <Field label="Received By" hint="Logged-in user">
+                    <Input value={preparedByLabel} readOnly disabled />
                   </Field>
                   <Field label="Item" required className="md:col-span-2">
                     <Select value={inwardForm.item} onChange={(e) => setIn('item', e.target.value)}>
                       <option value="">{inwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
                       {inwardItems.map((i) => (
                         <option key={i.id} value={i.id}>
-                          {i.code} – {i.name}
+                          {itemOptionLabel(i, inwardStock)}
                         </option>
                       ))}
                     </Select>
@@ -378,18 +387,11 @@ export function GatepassPage() {
                     <Field label="Inward No." required>
                       <Input value="Auto-generated" disabled />
                     </Field>
-                    <Field label="Inward Date" required>
-                      <Input type="date" value={inwardForm.date} onChange={(e) => setIn('date', e.target.value)} />
+                    <Field label="Inward Date" required hint="Today">
+                      <Input type="date" value={inwardForm.date} readOnly disabled />
                     </Field>
-                    <Field label="Prepared By">
-                      <Select value={inwardForm.preparedBy} onChange={(e) => setIn('preparedBy', e.target.value)}>
-                        <option value="">— Select Employee —</option>
-                        {employees.map((e) => (
-                          <option key={e.id} value={e.id}>
-                            {e.code} – {String(e.firstName ?? '')} {String(e.lastName ?? '')}
-                          </option>
-                        ))}
-                      </Select>
+                    <Field label="Prepared By" hint="Logged-in user">
+                      <Input value={preparedByLabel} readOnly disabled />
                     </Field>
                     <Field label="Store" required>
                       <Select value={inwardForm.store} onChange={(e) => setIn('store', e.target.value)}>
@@ -406,7 +408,7 @@ export function GatepassPage() {
                         <option value="">{inwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
                         {inwardItems.map((i) => (
                           <option key={i.id} value={i.id}>
-                            {i.code} – {i.name}
+                            {itemOptionLabel(i, inwardStock)}
                           </option>
                         ))}
                       </Select>
@@ -439,7 +441,7 @@ export function GatepassPage() {
                   setInwardForm({
                     date: todayIso(),
                     store: '',
-                    preparedBy: '',
+                    preparedBy: sessionEmpId,
                     item: '',
                     qty: '1',
                     uom: '',
@@ -507,8 +509,8 @@ export function GatepassPage() {
                 <Field label="Outward No." required>
                   <Input value="Auto-generated" disabled />
                 </Field>
-                <Field label="Outward Date" required>
-                  <Input type="date" value={outwardForm.date} onChange={(e) => setOut('date', e.target.value)} />
+                <Field label="Outward Date" required hint="Today">
+                  <Input type="date" value={outwardForm.date} readOnly disabled />
                 </Field>
                 <Field label="Returnable / Non Returnable" required>
                   <Select value={outwardForm.returnFlag} onChange={(e) => setOut('returnFlag', e.target.value)}>
@@ -525,15 +527,8 @@ export function GatepassPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Prepared By" required>
-                  <Select value={outwardForm.preparedBy} onChange={(e) => setOut('preparedBy', e.target.value)}>
-                    <option value="">— Select Employee —</option>
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.code} – {String(e.firstName ?? '')} {String(e.lastName ?? '')}
-                      </option>
-                    ))}
-                  </Select>
+                <Field label="Prepared By" required hint="Logged-in user">
+                  <Input value={preparedByLabel} readOnly disabled />
                 </Field>
                 <Field label="Store" required>
                   <Select value={outwardForm.store} onChange={(e) => setOut('store', e.target.value)}>
@@ -557,7 +552,7 @@ export function GatepassPage() {
                     <option value="">{outwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
                     {outwardItems.map((i) => (
                       <option key={i.id} value={i.id}>
-                        {i.code} – {i.name}
+                        {itemOptionLabel(i, outwardStock)}
                       </option>
                     ))}
                   </Select>
@@ -597,7 +592,7 @@ export function GatepassPage() {
               setOutwardForm({
                 date: todayIso(),
                 store: '',
-                preparedBy: '',
+                preparedBy: sessionEmpId,
                 returnFlag: 'N',
                 party: '',
                 item: '',

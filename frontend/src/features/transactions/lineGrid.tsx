@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiMasterRow } from '@/api/masters'
-import { fetchAvailableStock } from '@/api/transactions'
+import { fetchAvailableStock, fetchStockMapForLocation } from '@/api/transactions'
 
 /** Fields every document line grid shares. */
 export type BaseLine = {
@@ -121,13 +121,67 @@ export function enrichLinesFromItems<T extends BaseLine>(lines: T[], items: ApiM
   return changed ? next : lines
 }
 
+/** Loads available stock for every item at a store; used to annotate item pickers. */
+export function useLocationStock(locationId: string | undefined | null) {
+  const [stockByItemId, setStockByItemId] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!locationId || !/^\d+$/.test(locationId)) {
+      setStockByItemId({})
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    ;(async () => {
+      try {
+        const map = await fetchStockMapForLocation(Number(locationId))
+        if (!cancelled) setStockByItemId(map)
+      } catch {
+        if (!cancelled) setStockByItemId({})
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [locationId])
+
+  return { stockByItemId, loading }
+}
+
+export function formatStockQty(qty: number) {
+  return qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })
+}
+
+/** Label for item selects / datalist entries with on-hand at the chosen location. */
+export function itemOptionLabel(item: ApiMasterRow, stockByItemId?: Record<string, number>) {
+  const code = String(item.code ?? '')
+  const name = String(item.name ?? '')
+  const base = name ? `${code} – ${name}` : code
+  if (!stockByItemId) return base
+  const qty = stockByItemId[item.id]
+  const shown = qty == null ? 0 : qty
+  return `${base} (Stock: ${formatStockQty(shown)})`
+}
+
 /** Shared `<datalist>` of item codes so line grids get type-ahead search. */
-export function ItemCodeOptions({ id, items }: { id: string; items: ApiMasterRow[] }) {
+export function ItemCodeOptions({
+  id,
+  items,
+  stockByItemId,
+}: {
+  id: string
+  items: ApiMasterRow[]
+  stockByItemId?: Record<string, number>
+}) {
   return (
     <datalist id={id}>
       {items.map((i) => (
         <option key={i.id} value={String(i.code ?? '')}>
-          {String(i.name ?? '')}
+          {itemOptionLabel(i, stockByItemId).replace(`${String(i.code ?? '')} – `, '')}
         </option>
       ))}
     </datalist>

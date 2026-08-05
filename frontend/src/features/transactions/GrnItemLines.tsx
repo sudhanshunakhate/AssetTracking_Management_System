@@ -11,9 +11,11 @@ import {
   gridHeadCell,
   gridInput,
   gridInputRight,
+  itemOptionLabel,
   money,
   toNum,
   useCodeIndex,
+  useLocationStock,
   useStockLookup,
   type BaseLine,
 } from './lineGrid'
@@ -91,6 +93,7 @@ export function GrnItemLines({
   )
   const unitById = useCodeIndex(units)
   const locationById = useCodeIndex(locations)
+  const { stockByItemId } = useLocationStock(storeLocationId)
 
   const [pickItemId, setPickItemId] = useState('')
   const [pickQty, setPickQty] = useState('1')
@@ -226,7 +229,7 @@ export function GrnItemLines({
                 <option value="">— Select {isAsset ? 'Asset' : 'Consumable'} —</option>
                 {filteredItems.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.code} – {i.name}
+                    {itemOptionLabel(i, stockByItemId)}
                   </option>
                 ))}
               </Select>
@@ -482,7 +485,7 @@ export function GrnItemLines({
           </table>
         </div>
 
-        <ItemCodeOptions id={DATALIST_ID} items={filteredItems} />
+        <ItemCodeOptions id={DATALIST_ID} items={filteredItems} stockByItemId={stockByItemId} />
 
         <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
           <div className="flex-1" />
