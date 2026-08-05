@@ -196,6 +196,24 @@ export function validateFields(
   return errors
 }
 
+/** True when every required field has a non-empty value (booleans always count as filled). */
+export function areRequiredFieldsFilled(
+  fields: { name: string; required?: boolean }[],
+  values: Record<string, unknown>,
+): boolean {
+  return fields
+    .filter((f) => f.required)
+    .every((f) => {
+      const v = values[f.name]
+      if (v == null) return false
+      if (typeof v === 'boolean') return true
+      return String(v).trim() !== ''
+    })
+}
+
+export const HEADER_BEFORE_LINES_HINT =
+  'Complete all required header fields before selecting items.'
+
 /** `validate` helper: the value must not be earlier than another date field. */
 export function notBefore(otherField: string, otherLabel: string) {
   return (value: string, values: Record<string, unknown>): string => {

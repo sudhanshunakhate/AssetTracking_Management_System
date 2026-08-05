@@ -20,7 +20,7 @@ import {
 } from '@/api/transactions'
 import { mapEntity, useGenValues, useMasterList, GEN_TYPE } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
-import { validateFields, type ValidatableField } from '@/features/masters/validation'
+import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { enrichLinesFromItems, toNum } from './lineGrid'
 import {
   emptyOpeningStockLine,
@@ -248,6 +248,11 @@ function OpeningStockForm() {
     return next
   }, [form, headerFields, lines, readOnly, itemType])
 
+  const headerReady = useMemo(
+    () => areRequiredFieldsFilled(headerFields, form as unknown as Record<string, unknown>),
+    [headerFields, form],
+  )
+
   const err = (name: string) => (submitted || touched[name] ? (errors[name] ?? '') : '')
 
   const locationOptions = toLocationOptions(locations.rows)
@@ -423,6 +428,7 @@ function OpeningStockForm() {
         conditionOptions={conditionOpts}
         locationId={form.locationId}
         readOnly={readOnly}
+        headerReady={headerReady}
         error={submitted ? errors.lines : undefined}
       />
 

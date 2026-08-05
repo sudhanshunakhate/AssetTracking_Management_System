@@ -21,7 +21,7 @@ import {
   type TxnRow,
 } from '@/api/transactions'
 import { useAuth } from '@/features/auth/AuthContext'
-import { notBefore, validateFields, type ValidatableField } from '@/features/masters/validation'
+import { notBefore, validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { RequisitionItemLines, emptyLine, type RequisitionLine } from './RequisitionItemLines'
 import { enrichLinesFromItems } from './lineGrid'
 import {
@@ -342,6 +342,11 @@ function RequisitionForm() {
     }
     return found
   }, [readOnly, form, fieldDefs, lines])
+
+  const headerReady = useMemo(
+    () => areRequiredFieldsFilled(fieldDefs, form as unknown as Record<string, unknown>),
+    [fieldDefs, form],
+  )
 
   const err = (key: string) => (submitted || touched[key] ? (errors[key] ?? '') : '')
 
@@ -665,6 +670,7 @@ function RequisitionForm() {
         locations={locations.rows}
         deliverToLocationId={form.deliverTo}
         readOnly={readOnly}
+        headerReady={headerReady}
         error={submitted ? errors.lines : undefined}
       />
 

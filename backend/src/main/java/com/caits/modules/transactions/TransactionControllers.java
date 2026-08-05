@@ -57,7 +57,7 @@ public class TransactionControllers {
         return service.delete(DocType.GRN, docId);
     }
 
-    // GRN completes and posts stock on SUBMIT — no approval workflow (unlike requisition / gatepass inward).
+    // GRN / Gatepass complete and post stock on SUBMIT — no approval workflow.
 
     @GetMapping("/grn/{docId}/print")
     public DocumentResponse printGrn(@PathVariable Integer docId) {
@@ -93,6 +93,7 @@ public class TransactionControllers {
         return service.delete(DocType.GATEPASS_INWARD, docId);
     }
 
+    /** Kept for any legacy Pending Approval inward docs created before approval was removed. */
     @PostMapping("/gatepass/inward/{docId}/approve")
     public DocumentResponse approveGpi(@PathVariable Integer docId, @RequestBody(required = false) ApproveRequest body) {
         return service.approve(DocType.GATEPASS_INWARD, docId, body);

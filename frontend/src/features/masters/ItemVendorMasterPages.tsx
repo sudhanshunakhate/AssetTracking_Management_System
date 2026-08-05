@@ -980,7 +980,7 @@ function ItemList() {
       key: 'type',
       header: 'Type',
       searchText: (r) => r.itemType,
-      render: (r) => <Pill>{r.itemType === 'consumable' ? 'Inventory' : 'Asset'}</Pill>,
+      render: (r) => <Pill>{r.itemType === 'consumable' ? 'Consumable' : 'Asset'}</Pill>,
     },
     {
       key: 'category',

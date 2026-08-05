@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Button } from './Button'
-import { StatusBadge } from './Badge'
+import { StatusPill } from './Badge'
 
 export type Column<T> = {
   key: string
@@ -131,6 +131,6 @@ export function statusColumn<T extends { status: string }>(): Column<T> {
     key: 'status',
     header: 'Status',
     searchText: (r) => r.status,
-    render: (r) => <StatusBadge status={r.status} />,
+    render: (r) => <StatusPill status={r.status} />,
   }
 }

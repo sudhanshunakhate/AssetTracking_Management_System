@@ -202,7 +202,9 @@ public final class TxnDtos {
             BigDecimal totalAmount,
             String status,
             String docSubtype,
-            String returnFlag
+            String returnFlag,
+            java.time.LocalDateTime createdOn,
+            java.time.LocalDateTime modifiedOn
     ) {}
 
     public record ApproveRequest(Integer approvedByEmpId, String remarks) {}

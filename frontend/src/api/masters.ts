@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { http, listMaster, type PageResponse } from '@/api/client'
 import { cachedFetch, invalidateCache } from '@/api/requestCache'
+import { sortMasterListRows } from '@/lib/listOrder'
 
 type Status = 'Active' | 'Inactive'
 
@@ -65,7 +66,7 @@ export function useMasterList<TApi extends Record<string, unknown>>(
     setError(null)
     try {
       const data = await listMasterAll<TApi>(resource)
-      setRows(data.map(mapRow))
+      setRows(sortMasterListRows(data.map(mapRow), resource))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
       setRows([])

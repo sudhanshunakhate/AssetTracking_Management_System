@@ -20,12 +20,11 @@ public final class StockPostingRules {
     /** Status after SUBMIT (final save that posts stock or raises a request). */
     public static String initialSubmitStatus(DocType docType) {
         return switch (docType) {
-            case GATEPASS_INWARD -> "Pending Approval";
             case MATERIAL_REQUISITION -> "Requested";
             case MATERIAL_ISSUE -> "Issued";
             case MATERIAL_TRANSFER -> "Transferred";
             case MATERIAL_RETURN -> "Returned";
-            case GRN, OPENING_STOCK, GATEPASS_OUTWARD -> "Completed";
+            case GRN, OPENING_STOCK, GATEPASS_INWARD, GATEPASS_OUTWARD -> "Completed";
             default -> "Completed";
         };
     }
@@ -43,7 +42,8 @@ public final class StockPostingRules {
     /** Whether SUBMIT immediately posts stock (approval-gated types return false). */
     public static boolean postsStockOnSubmit(DocType docType) {
         return switch (docType) {
-            case GRN, OPENING_STOCK, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN, GATEPASS_OUTWARD -> true;
+            case GRN, OPENING_STOCK, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN,
+                    GATEPASS_INWARD, GATEPASS_OUTWARD -> true;
             default -> false;
         };
     }

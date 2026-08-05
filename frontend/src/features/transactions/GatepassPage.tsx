@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
+import { Pill, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
@@ -78,6 +79,9 @@ export function GatepassPage() {
   const outwardItems = useMemo(() => itemsForLocation(items, outwardForm.store), [items, outwardForm.store])
   const { stockByItemId: inwardStock } = useLocationStock(inwardForm.store)
   const { stockByItemId: outwardStock } = useLocationStock(outwardForm.store)
+
+  const inwardHeaderReady = Boolean(inwardForm.store) && (inwardType === 'new' || Boolean(inwardForm.returnableOutwardId))
+  const outwardHeaderReady = Boolean(outwardForm.store && outwardForm.returnFlag)
 
   const setIn = (k: keyof typeof inwardForm, v: string) => {
     setInwardForm((p) => {
@@ -301,7 +305,9 @@ export function GatepassPage() {
                       <tr key={r.id}>
                         <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.docNo}</td>
                         <td className="border-b border-[var(--border)] px-3 py-2">{r.docDate}</td>
-                        <td className="border-b border-[var(--border)] px-3 py-2">{r.status}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-2">
+                          <StatusPill status={r.status || '—'} />
+                        </td>
                       </tr>
                     ))
                   )}
@@ -345,8 +351,14 @@ export function GatepassPage() {
                     <Input value={preparedByLabel} readOnly disabled />
                   </Field>
                   <Field label="Item" required className="md:col-span-2">
-                    <Select value={inwardForm.item} onChange={(e) => setIn('item', e.target.value)}>
-                      <option value="">{inwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
+                    <Select
+                      value={inwardForm.item}
+                      onChange={(e) => setIn('item', e.target.value)}
+                      disabled={!inwardHeaderReady}
+                    >
+                      <option value="">
+                        {!inwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'}
+                      </option>
                       {inwardItems.map((i) => (
                         <option key={i.id} value={i.id}>
                           {itemOptionLabel(i, inwardStock)}
@@ -355,10 +367,19 @@ export function GatepassPage() {
                     </Select>
                   </Field>
                   <Field label="Qty" required>
-                    <Input value={inwardForm.qty} onChange={(e) => setIn('qty', e.target.value)} type="number" />
+                    <Input
+                      value={inwardForm.qty}
+                      onChange={(e) => setIn('qty', e.target.value)}
+                      type="number"
+                      disabled={!inwardHeaderReady}
+                    />
                   </Field>
                   <Field label="Unit">
-                    <Select value={inwardForm.uom} onChange={(e) => setIn('uom', e.target.value)}>
+                    <Select
+                      value={inwardForm.uom}
+                      onChange={(e) => setIn('uom', e.target.value)}
+                      disabled={!inwardHeaderReady}
+                    >
                       <option value="">—</option>
                       {units.map((u) => (
                         <option key={u.id} value={u.id}>
@@ -373,7 +394,7 @@ export function GatepassPage() {
                     {saving ? 'Saving…' : 'Save Draft'}
                   </Button>
                   <Button onClick={() => void saveInward('SUBMIT')} disabled={saving || !canSaveGp}>
-                    {saving ? 'Saving…' : 'Submit for Approval'}
+                    {saving ? 'Saving…' : 'Submit Inward'}
                   </Button>
                 </div>
               </CardBody>
@@ -404,8 +425,14 @@ export function GatepassPage() {
                       </Select>
                     </Field>
                     <Field label="Item" required className="md:col-span-2">
-                      <Select value={inwardForm.item} onChange={(e) => setIn('item', e.target.value)}>
-                        <option value="">{inwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
+                      <Select
+                        value={inwardForm.item}
+                        onChange={(e) => setIn('item', e.target.value)}
+                        disabled={!inwardHeaderReady}
+                      >
+                        <option value="">
+                          {!inwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'}
+                        </option>
                         {inwardItems.map((i) => (
                           <option key={i.id} value={i.id}>
                             {itemOptionLabel(i, inwardStock)}
@@ -414,10 +441,19 @@ export function GatepassPage() {
                       </Select>
                     </Field>
                     <Field label="Qty" required>
-                      <Input type="number" value={inwardForm.qty} onChange={(e) => setIn('qty', e.target.value)} />
+                      <Input
+                        type="number"
+                        value={inwardForm.qty}
+                        onChange={(e) => setIn('qty', e.target.value)}
+                        disabled={!inwardHeaderReady}
+                      />
                     </Field>
                     <Field label="Unit">
-                      <Select value={inwardForm.uom} onChange={(e) => setIn('uom', e.target.value)}>
+                      <Select
+                        value={inwardForm.uom}
+                        onChange={(e) => setIn('uom', e.target.value)}
+                        disabled={!inwardHeaderReady}
+                      >
                         <option value="">—</option>
                         {units.map((u) => (
                           <option key={u.id} value={u.id}>
@@ -453,7 +489,7 @@ export function GatepassPage() {
                 onSaveDraft={canSaveGp ? () => void saveInward('SAVE_DRAFT') : undefined}
                 draftLabel={saving ? 'Saving…' : 'Save Draft'}
                 onSave={canSaveGp ? () => void saveInward('SUBMIT') : undefined}
-                saveLabel={saving ? 'Saving…' : 'Submit for Approval'}
+                saveLabel={saving ? 'Saving…' : 'Submit Inward'}
               />
             </>
           )}
@@ -492,8 +528,12 @@ export function GatepassPage() {
                       <tr key={r.id}>
                         <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.docNo}</td>
                         <td className="border-b border-[var(--border)] px-3 py-2">{r.docDate}</td>
-                        <td className="border-b border-[var(--border)] px-3 py-2">{r.returnFlag || '—'}</td>
-                        <td className="border-b border-[var(--border)] px-3 py-2">{r.status}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-2">
+                          {r.returnFlag ? <Pill>{String(r.returnFlag)}</Pill> : '—'}
+                        </td>
+                        <td className="border-b border-[var(--border)] px-3 py-2">
+                          <StatusPill status={r.status || '—'} />
+                        </td>
                       </tr>
                     ))
                   )}
@@ -548,8 +588,14 @@ export function GatepassPage() {
                   />
                 </Field>
                 <Field label="Item" required className="md:col-span-2">
-                  <Select value={outwardForm.item} onChange={(e) => setOut('item', e.target.value)}>
-                    <option value="">{outwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
+                  <Select
+                    value={outwardForm.item}
+                    onChange={(e) => setOut('item', e.target.value)}
+                    disabled={!outwardHeaderReady}
+                  >
+                    <option value="">
+                      {!outwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'}
+                    </option>
                     {outwardItems.map((i) => (
                       <option key={i.id} value={i.id}>
                         {itemOptionLabel(i, outwardStock)}
@@ -558,10 +604,19 @@ export function GatepassPage() {
                   </Select>
                 </Field>
                 <Field label="Qty" required>
-                  <Input type="number" value={outwardForm.qty} onChange={(e) => setOut('qty', e.target.value)} />
+                  <Input
+                    type="number"
+                    value={outwardForm.qty}
+                    onChange={(e) => setOut('qty', e.target.value)}
+                    disabled={!outwardHeaderReady}
+                  />
                 </Field>
                 <Field label="Unit">
-                  <Select value={outwardForm.uom} onChange={(e) => setOut('uom', e.target.value)}>
+                  <Select
+                    value={outwardForm.uom}
+                    onChange={(e) => setOut('uom', e.target.value)}
+                    disabled={!outwardHeaderReady}
+                  >
                     <option value="">—</option>
                     {units.map((u) => (
                       <option key={u.id} value={u.id}>
@@ -575,6 +630,7 @@ export function GatepassPage() {
                     value={outwardForm.batch}
                     onChange={(e) => setOut('batch', e.target.value)}
                     placeholder="Batch / lot"
+                    disabled={!outwardHeaderReady}
                   />
                 </Field>
                 <Field label="Remarks" className="md:col-span-2">

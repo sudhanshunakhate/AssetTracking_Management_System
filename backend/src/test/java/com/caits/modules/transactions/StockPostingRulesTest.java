@@ -22,7 +22,7 @@ class StockPostingRulesTest {
     @Test
     void submitStatuses() {
         assertEquals("Requested", StockPostingRules.initialSubmitStatus(DocType.MATERIAL_REQUISITION));
-        assertEquals("Pending Approval", StockPostingRules.initialSubmitStatus(DocType.GATEPASS_INWARD));
+        assertEquals("Completed", StockPostingRules.initialSubmitStatus(DocType.GATEPASS_INWARD));
         assertEquals("Completed", StockPostingRules.initialSubmitStatus(DocType.GRN));
         assertEquals("Completed", StockPostingRules.initialSubmitStatus(DocType.OPENING_STOCK));
         assertEquals("Issued", StockPostingRules.initialSubmitStatus(DocType.MATERIAL_ISSUE));
@@ -46,7 +46,7 @@ class StockPostingRulesTest {
     void postsStockOnSubmit() {
         assertTrue(StockPostingRules.postsStockOnSubmit(DocType.GRN));
         assertFalse(StockPostingRules.postsStockOnSubmit(DocType.MATERIAL_REQUISITION));
-        assertFalse(StockPostingRules.postsStockOnSubmit(DocType.GATEPASS_INWARD));
+        assertTrue(StockPostingRules.postsStockOnSubmit(DocType.GATEPASS_INWARD));
         assertTrue(StockPostingRules.postsStockOnSubmit(DocType.MATERIAL_ISSUE));
     }
 

@@ -18,7 +18,7 @@ import {
   type TxnRow,
 } from '@/api/transactions'
 import { useAuth } from '@/features/auth/AuthContext'
-import { notBefore, validateFields, type ValidatableField } from '@/features/masters/validation'
+import { notBefore, validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { GEN_TYPE, useGenValues } from '@/api/masters'
 import { GrnItemLines, emptyGrnLine, type GrnLine } from './GrnItemLines'
 import type { ItemKind } from './OpeningStockItemLines'
@@ -342,6 +342,11 @@ function GrnForm() {
     return found
   }, [readOnly, form, fieldDefs, lines, itemType])
 
+  const headerReady = useMemo(
+    () => areRequiredFieldsFilled(fieldDefs, form as unknown as Record<string, unknown>),
+    [fieldDefs, form],
+  )
+
   const err = (key: string) => (submitted || touched[key] ? (errors[key] ?? '') : '')
 
   /* ---- actions ---- */
@@ -635,6 +640,7 @@ function GrnForm() {
         conditionOptions={conditionOpts}
         storeLocationId={form.store}
         readOnly={readOnly}
+        headerReady={headerReady}
         error={submitted ? errors.lines : undefined}
       />
 

@@ -59,11 +59,11 @@ const TONE: Record<KpiTone, { color: string; soft: string; ring: string; glow: s
 
 const DOC_LABEL: Record<string, string> = {
   OPENING_STOCK: 'Opening Stock',
-  MATERIAL_REQUISITION: 'Requisition',
+  MATERIAL_REQUISITION: 'Store Requisition',
   GRN: 'GRN',
   GATEPASS_INWARD: 'GP Inward',
   GATEPASS_OUTWARD: 'GP Outward',
-  MATERIAL_ISSUE: 'Issue',
+  MATERIAL_ISSUE: 'Store Issue',
   MATERIAL_TRANSFER: 'Transfer',
   MATERIAL_RETURN: 'Return',
 }

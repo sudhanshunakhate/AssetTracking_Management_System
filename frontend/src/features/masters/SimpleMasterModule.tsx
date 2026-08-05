@@ -7,7 +7,7 @@ import { DataTable, statusColumn, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import { useAuth } from '@/features/auth/AuthContext'
-import { validateFields, type ValidationRules } from './validation'
+import { validateFields, areRequiredFieldsFilled, HEADER_BEFORE_LINES_HINT, type ValidationRules } from './validation'
 
 export type FieldDef = ValidationRules & {
   name: string
@@ -21,6 +21,11 @@ export type FieldDef = ValidationRules & {
   uppercase?: boolean
   /** Shown as the empty option label for select fields. */
   placeholder?: string
+  /**
+   * When true, the field stays disabled until every other required field
+   * (without this flag) is filled — used for item / line fields on txn forms.
+   */
+  lockedUntilHeader?: boolean
 }
 
 type Row = { id: string; [key: string]: unknown }
@@ -350,6 +355,12 @@ function MasterForm({
     }
   }, [fields, values, siblings, recordId, readOnly, validateForm])
 
+  const headerReady = useMemo(() => {
+    const headerFields = fields.filter((f) => f.required && !f.lockedUntilHeader)
+    if (headerFields.length === 0) return true
+    return areRequiredFieldsFilled(headerFields, values)
+  }, [fields, values])
+
   /** Errors stay hidden until the field is visited or the user tries to save. */
   const errorFor = (name: string) => (submitted || touched[name] ? (errors[name] ?? '') : '')
 
@@ -419,8 +430,10 @@ function MasterForm({
                       ? 'md:col-span-2'
                       : ''
               // loginId stays locked even on Add when listed (auto-filled identity)
+              const lockedByHeader = Boolean(f.lockedUntilHeader) && !headerReady
               const fieldReadOnly =
                 readOnly ||
+                lockedByHeader ||
                 (readOnlyFields.includes(f.name) && (!isNew || f.name === 'loginId'))
               if (f.type === 'switch') {
                 return (
@@ -440,7 +453,7 @@ function MasterForm({
                   key={f.name}
                   label={f.label}
                   required={f.required}
-                  hint={f.hint}
+                  hint={lockedByHeader ? HEADER_BEFORE_LINES_HINT : f.hint}
                   error={fieldError}
                   className={span}
                 >

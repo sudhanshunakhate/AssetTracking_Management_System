@@ -70,6 +70,7 @@ export function GrnItemLines({
   conditionOptions = [],
   storeLocationId,
   readOnly = false,
+  headerReady = true,
   error,
 }: {
   lines: GrnLine[]
@@ -83,10 +84,12 @@ export function GrnItemLines({
   conditionOptions?: { value: string; label: string; code?: string }[]
   storeLocationId: string
   readOnly?: boolean
+  headerReady?: boolean
   error?: string
 }) {
   void _vendors
   const isAsset = itemType === 'asset'
+  const linesLocked = readOnly || !headerReady
   const filteredItems = useMemo(
     () => items.filter((i) => (i.itemType === 'consumable' ? 'consumable' : 'asset') === itemType),
     [items, itemType],
@@ -126,6 +129,7 @@ export function GrnItemLines({
   }
 
   const addUnits = () => {
+    if (linesLocked) return
     setAddError('')
     const item = filteredItems.find((i) => i.id === pickItemId)
     if (!item) {
@@ -208,9 +212,11 @@ export function GrnItemLines({
       <CardHeader
         title="Item Details"
         subtitle={
-          isAsset
-            ? 'Asset qty expands into unit lines — fill serial / network details; qty columns stay on each unit'
-            : 'Received, accepted and rejected quantities per line'
+          !headerReady
+            ? 'Complete all required header fields before selecting items.'
+            : isAsset
+              ? 'Asset qty expands into unit lines — fill serial / network details; qty columns stay on each unit'
+              : 'Received, accepted and rejected quantities per line'
         }
       />
       <CardBody className="p-0">
@@ -218,15 +224,29 @@ export function GrnItemLines({
           <div className="flex flex-wrap items-end gap-2 border-b border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2.5">
             <label className="flex min-w-[140px] flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
               Item Type
-              <Select value={itemType} onChange={(e) => changeType(e.target.value as ItemKind)} className={gridInput}>
+              <Select
+                value={itemType}
+                onChange={(e) => changeType(e.target.value as ItemKind)}
+                disabled={linesLocked}
+                className={gridInput}
+              >
                 <option value="asset">Asset</option>
                 <option value="consumable">Consumable</option>
               </Select>
             </label>
             <label className="flex min-w-[220px] flex-1 flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
               Item
-              <Select value={pickItemId} onChange={(e) => setPickItemId(e.target.value)} className={gridInput}>
-                <option value="">— Select {isAsset ? 'Asset' : 'Consumable'} —</option>
+              <Select
+                value={pickItemId}
+                onChange={(e) => setPickItemId(e.target.value)}
+                disabled={linesLocked}
+                className={gridInput}
+              >
+                <option value="">
+                  {!headerReady
+                    ? '— Fill header first —'
+                    : `— Select ${isAsset ? 'Asset' : 'Consumable'} —`}
+                </option>
                 {filteredItems.map((i) => (
                   <option key={i.id} value={i.id}>
                     {itemOptionLabel(i, stockByItemId)}
@@ -242,10 +262,13 @@ export function GrnItemLines({
                 step={1}
                 value={pickQty}
                 onChange={(e) => setPickQty(e.target.value)}
+                disabled={linesLocked}
                 className={gridInputRight}
               />
             </label>
-            <Button onClick={addUnits}>{isAsset ? '+ Add Units' : '+ Add Line'}</Button>
+            <Button onClick={addUnits} disabled={linesLocked}>
+              {isAsset ? '+ Add Units' : '+ Add Line'}
+            </Button>
             {(addError || error) && (
               <span className="text-[11px] font-medium text-[var(--danger)]">{addError || error}</span>
             )}
@@ -316,7 +339,7 @@ export function GrnItemLines({
                             <Input
                               value={line.serialNo}
                               onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
-                              disabled={readOnly}
+                              disabled={linesLocked}
                               maxLength={100}
                               placeholder="SN-…"
                               className={gridInput}
@@ -326,7 +349,7 @@ export function GrnItemLines({
                             <Input
                               value={line.ipAddress}
                               onChange={(e) => patch(line.key, { ipAddress: e.target.value })}
-                              disabled={readOnly}
+                              disabled={linesLocked}
                               maxLength={45}
                               placeholder="192.168.0.25"
                               className={gridInput}
@@ -338,7 +361,7 @@ export function GrnItemLines({
                               onChange={(e) =>
                                 patch(line.key, { macAddress: e.target.value.toUpperCase() })
                               }
-                              disabled={readOnly}
+                              disabled={linesLocked}
                               maxLength={17}
                               placeholder="AA-BB-…"
                               className={gridInput}
@@ -348,7 +371,7 @@ export function GrnItemLines({
                             <Input
                               value={line.hostname}
                               onChange={(e) => patch(line.key, { hostname: e.target.value })}
-                              disabled={readOnly}
+                              disabled={linesLocked}
                               maxLength={150}
                               placeholder="host.local"
                               className={gridInput}
@@ -358,7 +381,7 @@ export function GrnItemLines({
                             <Select
                               value={line.itemCondition}
                               onChange={(e) => patch(line.key, { itemCondition: e.target.value })}
-                              disabled={readOnly}
+                              disabled={linesLocked}
                               className={gridInput}
                             >
                               <option value="">— Select —</option>
@@ -375,7 +398,7 @@ export function GrnItemLines({
                           <Input
                             value={line.batch}
                             onChange={(e) => patch(line.key, { batch: e.target.value })}
-                            disabled={readOnly}
+                            disabled={linesLocked}
                             placeholder="Batch / lot"
                             className={gridInput}
                           />
@@ -388,7 +411,7 @@ export function GrnItemLines({
                           step="0.01"
                           value={line.receivedQty}
                           onChange={(e) => setReceived(line, e.target.value)}
-                          disabled={readOnly || isAsset}
+                          disabled={linesLocked || isAsset}
                           className={gridInputRight}
                         />
                       </td>
@@ -399,7 +422,7 @@ export function GrnItemLines({
                           step="0.01"
                           value={line.acceptedQty}
                           onChange={(e) => setAccepted(line, e.target.value)}
-                          disabled={readOnly || isAsset}
+                          disabled={linesLocked || isAsset}
                           invalid={splitMismatch}
                           className={gridInputRight}
                         />
@@ -411,7 +434,7 @@ export function GrnItemLines({
                           step="0.01"
                           value={line.rejectedQty}
                           onChange={(e) => patch(line.key, { rejectedQty: e.target.value })}
-                          disabled={readOnly || isAsset}
+                          disabled={linesLocked || isAsset}
                           invalid={splitMismatch}
                           className={gridInputRight}
                         />
@@ -430,7 +453,7 @@ export function GrnItemLines({
                           step="0.01"
                           value={line.amount}
                           onChange={(e) => patch(line.key, { amount: e.target.value })}
-                          disabled={readOnly}
+                          disabled={linesLocked}
                           className={gridInputRight}
                         />
                       </td>
@@ -446,7 +469,7 @@ export function GrnItemLines({
                         <Input
                           value={line.remark}
                           onChange={(e) => patch(line.key, { remark: e.target.value })}
-                          disabled={readOnly}
+                          disabled={linesLocked}
                           maxLength={200}
                           placeholder="Remark…"
                           className={gridInput}
@@ -457,7 +480,7 @@ export function GrnItemLines({
                           type="button"
                           aria-label={`Remove line ${idx + 1}`}
                           onClick={() => removeLine(line.key)}
-                          disabled={readOnly}
+                          disabled={linesLocked}
                           className="rounded px-1.5 text-[14px] leading-none text-[var(--text3)] transition hover:text-[var(--danger)] disabled:opacity-40"
                         >
                           ×

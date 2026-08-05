@@ -1,21 +1,5 @@
 export function StatusBadge({ status }: { status: string }) {
-  const active = status === 'Active'
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
-        active
-          ? 'bg-[var(--success-lt)] text-[var(--success)]'
-          : 'bg-[var(--border)] text-[var(--text3)]'
-      }`}
-    >
-      <span
-        className={`h-[5px] w-[5px] shrink-0 rounded-full ${
-          active ? 'bg-[var(--success)]' : 'bg-[var(--text3)]'
-        }`}
-      />
-      {status}
-    </span>
-  )
+  return <StatusPill status={status} />
 }
 
 export type PillTone =
@@ -43,11 +27,43 @@ const TONE_CLASS: Record<PillTone, string> = {
   red: 'border-red-300/70 bg-red-50 text-red-700',
 }
 
-/** Soft colored chip. Defaults to warm (brand) when tone is omitted. */
-export function Pill({ children, tone = 'warm' }: { children: string; tone?: PillTone }) {
+const TONE_CYCLE: PillTone[] = ['sky', 'blue', 'green', 'teal', 'violet', 'rose', 'amber', 'warm']
+
+const KNOWN_LABEL_TONE: Record<string, PillTone> = {
+  asset: 'sky',
+  consumable: 'amber',
+  inventory: 'amber',
+  vendor: 'teal',
+  customer: 'violet',
+  supplier: 'teal',
+  active: 'green',
+  inactive: 'slate',
+  yes: 'green',
+  no: 'slate',
+  y: 'green',
+  n: 'slate',
+  returnable: 'teal',
+  'non returnable': 'rose',
+  department: 'violet',
+  employee: 'sky',
+}
+
+/** Stable multicolor tone from a free-text label (roles, types, flags, etc.). */
+export function toneForLabel(label: string): PillTone {
+  const key = (label || '').trim().toLowerCase()
+  if (!key) return 'slate'
+  if (KNOWN_LABEL_TONE[key]) return KNOWN_LABEL_TONE[key]
+  let h = 0
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
+  return TONE_CYCLE[h % TONE_CYCLE.length]
+}
+
+/** Soft colored chip. Picks a stable tone from the label when tone is omitted. */
+export function Pill({ children, tone }: { children: string; tone?: PillTone }) {
+  const resolved = tone ?? toneForLabel(children)
   return (
     <span
-      className={`inline-flex rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${TONE_CLASS[tone]}`}
+      className={`inline-flex rounded-full border px-2 py-0.5 text-[10.5px] font-semibold ${TONE_CLASS[resolved]}`}
     >
       {children}
     </span>
@@ -66,10 +82,23 @@ const DOC_TYPE_TONE: Record<string, PillTone> = {
   GATEPASS: 'teal',
 }
 
+const DOC_TYPE_LABEL: Record<string, string> = {
+  OPENING_STOCK: 'Opening Stock',
+  GRN: 'GRN',
+  MATERIAL_REQUISITION: 'Store Requisition',
+  MATERIAL_ISSUE: 'Store Issue',
+  MATERIAL_TRANSFER: 'Material Transfer',
+  MATERIAL_RETURN: 'Material Return',
+  GATEPASS_INWARD: 'Gatepass Inward',
+  GATEPASS_OUTWARD: 'Gatepass Outward',
+  GATEPASS: 'Gatepass',
+}
+
 /** Multicolor badge for transaction / document type codes. */
 export function DocTypeBadge({ type }: { type: string }) {
   const key = (type || '').trim().toUpperCase()
-  return <Pill tone={DOC_TYPE_TONE[key] ?? 'slate'}>{type || '—'}</Pill>
+  const label = DOC_TYPE_LABEL[key] ?? (type || '—')
+  return <Pill tone={DOC_TYPE_TONE[key] ?? 'slate'}>{label}</Pill>
 }
 
 const STATUS_TONE: Record<string, PillTone> = {
@@ -96,10 +125,15 @@ const STATUS_TONE: Record<string, PillTone> = {
   in_store: 'sky',
   assigned: 'violet',
   issued_to: 'amber',
+  y: 'teal',
+  n: 'rose',
+  returnable: 'teal',
+  'non-returnable': 'rose',
+  'non returnable': 'rose',
 }
 
 /** Multicolor badge for workflow / stock statuses. */
 export function StatusPill({ status }: { status: string }) {
   const key = (status || '').trim().toLowerCase()
-  return <Pill tone={STATUS_TONE[key] ?? 'warm'}>{status || '—'}</Pill>
+  return <Pill tone={STATUS_TONE[key] ?? toneForLabel(status)}>{status || '—'}</Pill>
 }

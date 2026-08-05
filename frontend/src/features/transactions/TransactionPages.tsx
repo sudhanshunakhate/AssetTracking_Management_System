@@ -255,6 +255,7 @@ export function TransfersPages() {
       type: 'select',
       required: true,
       span: 2,
+      lockedUntilHeader: true,
       options: (values) =>
         itemsForLocation(items.rows, String(values.fromStore ?? '')).map((i) => ({
           value: i.id,
@@ -263,11 +264,18 @@ export function TransfersPages() {
       placeholder: '— Select From Store first —',
       hint: 'Only items assigned to the From Store — stock shown for that store',
     },
-    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
-    { name: 'qty', label: 'Transfer Qty', type: 'number', required: true },
-    { name: 'uom', label: 'Unit', type: 'select', required: true, options: opt(units.rows, (u) => String(u.code)) },
-    { name: 'availableStock', label: 'Available at From Store' },
-    { name: 'batch', label: 'Batch / Lot (optional)', hint: 'Leave blank to move FIFO' },
+    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master', lockedUntilHeader: true },
+    { name: 'qty', label: 'Transfer Qty', type: 'number', required: true, lockedUntilHeader: true },
+    {
+      name: 'uom',
+      label: 'Unit',
+      type: 'select',
+      required: true,
+      options: opt(units.rows, (u) => String(u.code)),
+      lockedUntilHeader: true,
+    },
+    { name: 'availableStock', label: 'Available at From Store', lockedUntilHeader: true },
+    { name: 'batch', label: 'Batch / Lot (optional)', hint: 'Leave blank to move FIFO', lockedUntilHeader: true },
     { name: 'remarks', label: 'Remarks', span: 3 },
   ]
 
@@ -373,6 +381,7 @@ export function ReturnsPages() {
       type: 'select',
       required: true,
       span: 2,
+      lockedUntilHeader: true,
       options: (values) =>
         itemsForLocation(items.rows, String(values.store ?? '')).map((i) => ({
           value: i.id,
@@ -381,10 +390,17 @@ export function ReturnsPages() {
       placeholder: '— Select Store first —',
       hint: 'Only items assigned to this store — stock shown for that store',
     },
-    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
-    { name: 'qty', label: 'Return Qty', type: 'number', required: true },
-    { name: 'uom', label: 'Unit', type: 'select', required: true, options: opt(units.rows, (u) => String(u.code)) },
-    { name: 'batch', label: 'Batch / Lot (optional)' },
+    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master', lockedUntilHeader: true },
+    { name: 'qty', label: 'Return Qty', type: 'number', required: true, lockedUntilHeader: true },
+    {
+      name: 'uom',
+      label: 'Unit',
+      type: 'select',
+      required: true,
+      options: opt(units.rows, (u) => String(u.code)),
+      lockedUntilHeader: true,
+    },
+    { name: 'batch', label: 'Batch / Lot (optional)', lockedUntilHeader: true },
     { name: 'remarks', label: 'Remarks', span: 2 },
   ]
 

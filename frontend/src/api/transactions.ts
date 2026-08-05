@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { http, listMaster, type PageResponse } from '@/api/client'
 import { cachedFetch, invalidateCache } from '@/api/requestCache'
+import { sortTxnListRows } from '@/lib/listOrder'
 
 export type TxnListItem = {
   docId: number
@@ -23,6 +24,8 @@ export type TxnListItem = {
   status?: string
   docSubtype?: string
   returnFlag?: string
+  createdOn?: string
+  modifiedOn?: string
 }
 
 export type TxnRow = {
@@ -40,6 +43,8 @@ export type TxnRow = {
   totalItems: number
   docSubtype: string
   returnFlag: string
+  createdOn?: string
+  modifiedOn?: string
   [key: string]: unknown
 }
 
@@ -134,6 +139,8 @@ export function mapTxnListItem(item: TxnListItem): TxnRow {
     totalItems: Number(item.totalItems ?? 0),
     docSubtype: item.docSubtype ?? '',
     returnFlag: item.returnFlag ?? '',
+    createdOn: item.createdOn ?? '',
+    modifiedOn: item.modifiedOn ?? '',
     // aliases used by existing column / form keys
     entryNo: item.docNo ?? '',
     reqNo: item.docNo ?? '',
@@ -264,7 +271,7 @@ export function useTxnList(resource: string, enabled = true) {
     setError(null)
     try {
       const page = await listMaster<TxnListItem>(resource, { page: 1, pageSize: 200 })
-      setRows((page.data ?? []).map(mapTxnListItem))
+      setRows(sortTxnListRows((page.data ?? []).map(mapTxnListItem)))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
       setRows([])

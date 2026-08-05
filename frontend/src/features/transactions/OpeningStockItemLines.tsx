@@ -68,6 +68,7 @@ export function OpeningStockItemLines({
   conditionOptions = [],
   locationId,
   readOnly = false,
+  headerReady = true,
   error,
 }: {
   lines: OpeningStockLine[]
@@ -80,9 +81,11 @@ export function OpeningStockItemLines({
   conditionOptions?: { value: string; label: string; code?: string }[]
   locationId: string
   readOnly?: boolean
+  headerReady?: boolean
   error?: string
 }) {
   const isAsset = itemType === 'asset'
+  const linesLocked = readOnly || !headerReady
   const filteredItems = useMemo(
     () => items.filter((i) => (i.itemType === 'consumable' ? 'consumable' : 'asset') === itemType),
     [items, itemType],
@@ -109,6 +112,7 @@ export function OpeningStockItemLines({
   })
 
   const addUnits = () => {
+    if (linesLocked) return
     setAddError('')
     const item = filteredItems.find((i) => i.id === pickItemId)
     if (!item) {
@@ -161,9 +165,11 @@ export function OpeningStockItemLines({
       <CardHeader
         title="Item Details"
         subtitle={
-          isAsset
-            ? 'Select Asset, enter qty, then Add Units — each unit becomes its own line for serial / network details'
-            : 'Select Consumable and quantity, then Add Line'
+          !headerReady
+            ? 'Complete all required header fields before selecting items.'
+            : isAsset
+              ? 'Select Asset, enter qty, then Add Units — each unit becomes its own line for serial / network details'
+              : 'Select Consumable and quantity, then Add Line'
         }
       />
       <CardBody className="p-0">
@@ -171,15 +177,29 @@ export function OpeningStockItemLines({
           <div className="flex flex-wrap items-end gap-2 border-b border-[var(--border)] bg-[var(--surface2)] px-3.5 py-2.5">
             <label className="flex min-w-[140px] flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
               Item Type
-              <Select value={itemType} onChange={(e) => changeType(e.target.value as ItemKind)} className={gridInput}>
+              <Select
+                value={itemType}
+                onChange={(e) => changeType(e.target.value as ItemKind)}
+                disabled={linesLocked}
+                className={gridInput}
+              >
                 <option value="asset">Asset</option>
                 <option value="consumable">Consumable</option>
               </Select>
             </label>
             <label className="flex min-w-[220px] flex-1 flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
               Item
-              <Select value={pickItemId} onChange={(e) => setPickItemId(e.target.value)} className={gridInput}>
-                <option value="">— Select {isAsset ? 'Asset' : 'Consumable'} —</option>
+              <Select
+                value={pickItemId}
+                onChange={(e) => setPickItemId(e.target.value)}
+                disabled={linesLocked}
+                className={gridInput}
+              >
+                <option value="">
+                  {!headerReady
+                    ? '— Fill header first —'
+                    : `— Select ${isAsset ? 'Asset' : 'Consumable'} —`}
+                </option>
                 {filteredItems.map((i) => (
                   <option key={i.id} value={i.id}>
                     {itemOptionLabel(i, stockByItemId)}
@@ -195,10 +215,13 @@ export function OpeningStockItemLines({
                 step={1}
                 value={pickQty}
                 onChange={(e) => setPickQty(e.target.value)}
+                disabled={linesLocked}
                 className={gridInputRight}
               />
             </label>
-            <Button onClick={addUnits}>{isAsset ? '+ Add Units' : '+ Add Line'}</Button>
+            <Button onClick={addUnits} disabled={linesLocked}>
+              {isAsset ? '+ Add Units' : '+ Add Line'}
+            </Button>
             {(addError || error) && (
               <span className="text-[11px] font-medium text-[var(--danger)]">{addError || error}</span>
             )}
@@ -273,7 +296,7 @@ export function OpeningStockItemLines({
                               <Input
                                 value={line.serialNo}
                                 onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 maxLength={100}
                                 placeholder="SN-…"
                                 className={gridInput}
@@ -283,7 +306,7 @@ export function OpeningStockItemLines({
                               <Input
                                 value={line.ipAddress}
                                 onChange={(e) => patch(line.key, { ipAddress: e.target.value })}
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 maxLength={45}
                                 placeholder="192.168.0.25"
                                 className={gridInput}
@@ -295,7 +318,7 @@ export function OpeningStockItemLines({
                                 onChange={(e) =>
                                   patch(line.key, { macAddress: e.target.value.toUpperCase() })
                                 }
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 maxLength={17}
                                 placeholder="AA-BB-…"
                                 className={gridInput}
@@ -305,7 +328,7 @@ export function OpeningStockItemLines({
                               <Input
                                 value={line.hostname}
                                 onChange={(e) => patch(line.key, { hostname: e.target.value })}
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 maxLength={150}
                                 placeholder="host.local"
                                 className={gridInput}
@@ -315,7 +338,7 @@ export function OpeningStockItemLines({
                               <Select
                                 value={line.itemCondition}
                                 onChange={(e) => patch(line.key, { itemCondition: e.target.value })}
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 className={gridInput}
                               >
                                 <option value="">— Select —</option>
@@ -333,7 +356,7 @@ export function OpeningStockItemLines({
                               <Input
                                 value={line.batch}
                                 onChange={(e) => patch(line.key, { batch: e.target.value.toUpperCase() })}
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 maxLength={40}
                                 placeholder="BATCH-001"
                                 className={gridInput}
@@ -346,7 +369,7 @@ export function OpeningStockItemLines({
                                 step="0.01"
                                 value={line.qty}
                                 onChange={(e) => patch(line.key, { qty: e.target.value })}
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 className={gridInputRight}
                               />
                             </td>
@@ -355,7 +378,7 @@ export function OpeningStockItemLines({
                                 type="date"
                                 value={line.mfgDate}
                                 onChange={(e) => patch(line.key, { mfgDate: e.target.value })}
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 className={gridInput}
                               />
                             </td>
@@ -364,7 +387,7 @@ export function OpeningStockItemLines({
                                 type="date"
                                 value={line.expiryDate}
                                 onChange={(e) => patch(line.key, { expiryDate: e.target.value })}
-                                disabled={readOnly}
+                                disabled={linesLocked}
                                 className={gridInput}
                               />
                             </td>
@@ -374,7 +397,7 @@ export function OpeningStockItemLines({
                           <Select
                             value={line.supplierId}
                             onChange={(e) => patch(line.key, { supplierId: e.target.value })}
-                            disabled={readOnly}
+                            disabled={linesLocked}
                             className={gridInput}
                           >
                             <option value="">— Select —</option>
@@ -389,7 +412,7 @@ export function OpeningStockItemLines({
                           <Input
                             value={line.remark}
                             onChange={(e) => patch(line.key, { remark: e.target.value })}
-                            disabled={readOnly}
+                            disabled={linesLocked}
                             maxLength={200}
                             placeholder="Remark…"
                             className={gridInput}
@@ -400,7 +423,7 @@ export function OpeningStockItemLines({
                             type="button"
                             aria-label={`Remove line ${idx + 1}`}
                             onClick={() => removeLine(line.key)}
-                            disabled={readOnly}
+                            disabled={linesLocked}
                             className="rounded px-1.5 text-[14px] leading-none text-[var(--text3)] transition hover:text-[var(--danger)] disabled:opacity-40"
                           >
                             ×

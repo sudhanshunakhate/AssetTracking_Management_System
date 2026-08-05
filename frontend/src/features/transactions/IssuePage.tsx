@@ -20,7 +20,7 @@ import {
   type TxnRow,
 } from '@/api/transactions'
 import { useAuth } from '@/features/auth/AuthContext'
-import { validateFields, type ValidatableField } from '@/features/masters/validation'
+import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { IssueItemLines, emptyLine, type IssueLine } from './IssueItemLines'
 import { enrichLinesFromItems } from './lineGrid'
 import {
@@ -224,6 +224,7 @@ function IssueForm() {
           itemCode: l.itemCode ?? '',
           itemName: l.itemName ?? '',
           uomId: l.uomId != null ? String(l.uomId) : '',
+          requestedQty: l.requestedQty != null ? String(l.requestedQty) : '',
           issueQty: l.qty != null ? String(l.qty) : '',
           availableStock: l.availableStock != null ? String(l.availableStock) : '',
           batchLotNo: l.batchLotNo ?? '',
@@ -271,22 +272,22 @@ function IssueForm() {
         issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : p.issuedTo,
       }))
       const storeLoc = doc.locationId != null ? String(doc.locationId) : ''
-      const mapped = (doc.lines ?? []).map((l) => ({
-        ...emptyLine(),
-        itemId: l.itemId != null ? String(l.itemId) : '',
-        itemCode: l.itemCode ?? '',
-        itemName: l.itemName ?? '',
-        uomId: l.uomId != null ? String(l.uomId) : '',
-        issueQty:
-          l.requestedQty != null
-            ? String(l.requestedQty)
-            : l.qty != null
-              ? String(l.qty)
-              : '',
-        availableStock: l.availableStock != null ? String(l.availableStock) : '',
-        locationId: l.locationId != null ? String(l.locationId) : storeLoc,
-        remark: l.remark ?? '',
-      }))
+      const mapped = (doc.lines ?? []).map((l) => {
+        const reqQty =
+          l.requestedQty != null ? String(l.requestedQty) : l.qty != null ? String(l.qty) : ''
+        return {
+          ...emptyLine(),
+          itemId: l.itemId != null ? String(l.itemId) : '',
+          itemCode: l.itemCode ?? '',
+          itemName: l.itemName ?? '',
+          uomId: l.uomId != null ? String(l.uomId) : '',
+          requestedQty: reqQty,
+          issueQty: reqQty,
+          availableStock: l.availableStock != null ? String(l.availableStock) : '',
+          locationId: l.locationId != null ? String(l.locationId) : storeLoc,
+          remark: l.remark ?? '',
+        }
+      })
       setLines(mapped.length ? enrichLinesFromItems(mapped, items.rows) : [emptyLine()])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load requisition')
@@ -298,6 +299,11 @@ function IssueForm() {
     { name: 'storeId', label: 'Store', required: true },
     { name: 'issuedTo', label: 'Issued To', required: true },
   ]
+
+  const headerReady = useMemo(
+    () => areRequiredFieldsFilled(fieldDefs, form as unknown as Record<string, unknown>),
+    [form],
+  )
 
   const errors = useMemo(() => {
     const e = validateFields(fieldDefs, form as unknown as Record<string, unknown>)
@@ -330,6 +336,7 @@ function IssueForm() {
             srNo: i + 1,
             itemId: Number(l.itemId),
             uomId: l.uomId ? Number(l.uomId) : undefined,
+            requestedQty: l.requestedQty === '' ? undefined : Number(l.requestedQty),
             qty,
             availableStock: l.availableStock === '' ? undefined : Number(l.availableStock),
             batchLotNo: l.batchLotNo || undefined,
@@ -479,6 +486,7 @@ function IssueForm() {
           locations={locations.rows}
           storeLocationId={form.storeId}
           readOnly={readOnly}
+          headerReady={headerReady}
           error={submitted ? errors.lines : undefined}
         />
       </div>

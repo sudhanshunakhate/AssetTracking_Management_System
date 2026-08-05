@@ -41,6 +41,7 @@ export function RequisitionItemLines({
   locations,
   deliverToLocationId,
   readOnly = false,
+  headerReady = true,
   error,
 }: {
   lines: RequisitionLine[]
@@ -51,12 +52,14 @@ export function RequisitionItemLines({
   locations: ApiMasterRow[]
   deliverToLocationId: string
   readOnly?: boolean
+  headerReady?: boolean
   error?: string
 }) {
   const itemByCode = useItemIndex(items)
   const unitById = useCodeIndex(units)
   const locationById = useCodeIndex(locations)
   const { stockByItemId } = useLocationStock(deliverToLocationId)
+  const linesLocked = readOnly || !headerReady
 
   const patch = useCallback(
     (key: string, changes: Partial<RequisitionLine>) => {
@@ -72,6 +75,7 @@ export function RequisitionItemLines({
   const { loading: stockLoading, lookup } = useStockLookup(onStock)
 
   const selectItem = (line: RequisitionLine, rawCode: string) => {
+    if (linesLocked) return
     const code = rawCode.toUpperCase()
     const item = itemByCode.get(code)
     if (!item) {
@@ -97,7 +101,11 @@ export function RequisitionItemLines({
     <Card>
       <CardHeader
         title="Item Details"
-        subtitle="Select Deliver To first — then pick an item assigned to that location"
+        subtitle={
+          !headerReady
+            ? 'Complete all required header fields before selecting items.'
+            : 'Select Deliver To first — then pick an item assigned to that location'
+        }
       />
       <CardBody className="p-0">
         <div className="overflow-x-auto">
@@ -131,8 +139,8 @@ export function RequisitionItemLines({
                         list={DATALIST_ID}
                         value={line.itemCode}
                         onChange={(e) => selectItem(line, e.target.value)}
-                        disabled={readOnly}
-                        placeholder="Select Item"
+                        disabled={linesLocked}
+                        placeholder={!headerReady ? 'Fill header first' : 'Select Item'}
                         invalid={line.itemCode !== '' && line.itemId === ''}
                         className={gridInput}
                       />
@@ -155,7 +163,7 @@ export function RequisitionItemLines({
                         step="0.01"
                         value={line.requestedQty}
                         onChange={(e) => patch(line.key, { requestedQty: e.target.value })}
-                        disabled={readOnly}
+                        disabled={linesLocked}
                         placeholder="0.00"
                         invalid={shortfall}
                         className={gridInputRight}
@@ -183,7 +191,7 @@ export function RequisitionItemLines({
                       <Input
                         value={line.remark}
                         onChange={(e) => patch(line.key, { remark: e.target.value })}
-                        disabled={readOnly}
+                        disabled={linesLocked}
                         maxLength={200}
                         placeholder="Remark…"
                         className={gridInput}
@@ -194,7 +202,7 @@ export function RequisitionItemLines({
                         type="button"
                         aria-label={`Remove line ${idx + 1}`}
                         onClick={() => removeLine(line.key)}
-                        disabled={readOnly}
+                        disabled={linesLocked}
                         className="rounded px-1.5 text-[14px] leading-none text-[var(--text3)] transition hover:text-[var(--danger)] disabled:opacity-40"
                       >
                         ×
@@ -210,7 +218,7 @@ export function RequisitionItemLines({
         <ItemCodeOptions id={DATALIST_ID} items={items} stockByItemId={stockByItemId} />
 
         <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
-          <Button variant="ghost" onClick={addLine} disabled={readOnly}>
+          <Button variant="ghost" onClick={addLine} disabled={linesLocked}>
             + Add Line
           </Button>
           {error && <span className="text-[11px] font-medium text-[var(--danger)]">{error}</span>}

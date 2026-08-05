@@ -21,6 +21,7 @@ import com.caits.security.SecurityUtils;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -139,7 +140,17 @@ public class TxnDocumentService {
             return cb.and(preds.toArray(Predicate[]::new));
         };
 
-        Page<TxnHeaderMst> result = headerRepo.findAll(spec, PageRequest.of(p - 1, size));
+        // Edited / recently touched first, then newer doc dates, then higher id.
+        PageRequest pageable = PageRequest.of(
+                p - 1,
+                size,
+                Sort.by(
+                        Sort.Order.desc("txhModifiedOn"),
+                        Sort.Order.desc("txhDocDate"),
+                        Sort.Order.desc("txhTxnHeaderId")
+                )
+        );
+        Page<TxnHeaderMst> result = headerRepo.findAll(spec, pageable);
         Map<Integer, Integer> lineCounts = lineCountsFor(result.getContent());
         List<ListItem> data = result.getContent().stream()
                 .map(h -> toListItem(h, lineCounts.getOrDefault(h.getTxhTxnHeaderId(), 0)))
@@ -725,7 +736,9 @@ public class TxnDocumentService {
                 h.getTxhTotalAmount(),
                 h.getTxhStatus(),
                 h.getTxhDocSubtype(),
-                h.getTxhReturnFlag()
+                h.getTxhReturnFlag(),
+                h.getTxhCreatedOn(),
+                h.getTxhModifiedOn()
         );
     }
 
