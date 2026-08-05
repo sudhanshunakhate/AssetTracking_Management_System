@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { Route, Routes } from 'react-router-dom'
-import { Pill } from '@/components/ui/Badge'
+import { StatusPill } from '@/components/ui/Badge'
 import { type Column } from '@/components/ui/DataTable'
 import {
   createTxn,
@@ -13,6 +13,7 @@ import {
   type TxnDocument,
 } from '@/api/transactions'
 import {
+  itemsForLocation,
   mapEmployee,
   mapItem,
   mapLocation,
@@ -239,13 +240,22 @@ export function TransfersPages() {
       searchText: (r) => locLabel(locations.rows, String((r as { toLocationId?: string }).toLocationId ?? '')),
       render: (r) => locLabel(locations.rows, String((r as { toLocationId?: string }).toLocationId ?? '')),
     },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status}</Pill> },
+    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status} /> },
   ]
   const fields: FieldDef[] = [
     { name: 'date', label: 'Transfer Date', required: true },
     { name: 'fromStore', label: 'From Store', type: 'select', required: true, options: opt(locations.rows) },
     { name: 'toStore', label: 'To Store', type: 'select', required: true, options: opt(locations.rows) },
-    { name: 'item', label: 'Item', type: 'select', required: true, span: 2, options: opt(items.rows) },
+    {
+      name: 'item',
+      label: 'Item',
+      type: 'select',
+      required: true,
+      span: 2,
+      options: (values) => opt(itemsForLocation(items.rows, String(values.fromStore ?? ''))),
+      placeholder: '— Select From Store first —',
+      hint: 'Only items assigned to the From Store in Item Master',
+    },
     { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
     { name: 'qty', label: 'Transfer Qty', type: 'number', required: true },
     { name: 'uom', label: 'Unit', type: 'select', required: true, options: opt(units.rows, (u) => String(u.code)) },
@@ -275,7 +285,13 @@ export function TransfersPages() {
         readOnlyFields={['itemName', 'availableStock']}
         onFieldChange={async (name, value, values) => {
           const next = { ...values, [name]: value }
-          const base = patchItem(name, value) ?? {}
+          let base = patchItem(name, value) ?? {}
+          if (name === 'fromStore') {
+            const allowed = itemsForLocation(items.rows, String(value ?? ''))
+            if (next.item && !allowed.some((i) => i.id === String(next.item))) {
+              base = { ...base, item: '', itemName: '', uom: '', availableStock: '' }
+            }
+          }
           if ((name === 'item' || name === 'fromStore') && next.item && next.fromStore) {
             try {
               const qty = await fetchAvailableStock(Number(next.item), Number(next.fromStore))
@@ -333,13 +349,22 @@ export function ReturnsPages() {
       searchText: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
       render: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
     },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status}</Pill> },
+    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status} /> },
   ]
   const fields: FieldDef[] = [
     { name: 'date', label: 'Return Date', required: true },
     { name: 'returnedBy', label: 'Returned By', type: 'select', required: true, span: 2, options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`) },
     { name: 'store', label: 'Return to Store', type: 'select', required: true, options: opt(locations.rows) },
-    { name: 'item', label: 'Item', type: 'select', required: true, span: 2, options: opt(items.rows) },
+    {
+      name: 'item',
+      label: 'Item',
+      type: 'select',
+      required: true,
+      span: 2,
+      options: (values) => opt(itemsForLocation(items.rows, String(values.store ?? ''))),
+      placeholder: '— Select Store first —',
+      hint: 'Only items assigned to this store in Item Master',
+    },
     { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
     { name: 'qty', label: 'Return Qty', type: 'number', required: true },
     { name: 'uom', label: 'Unit', type: 'select', required: true, options: opt(units.rows, (u) => String(u.code)) },
@@ -366,7 +391,16 @@ export function ReturnsPages() {
         addLabel="New Return"
         getDefaults={() => ({ date: todayIso(), qty: 1 })}
         readOnlyFields={['itemName']}
-        onFieldChange={patchItem}
+        onFieldChange={(name, value, values) => {
+          const base = patchItem(name, value) ?? {}
+          if (name === 'store') {
+            const allowed = itemsForLocation(items.rows, String(value ?? ''))
+            if (values.item && !allowed.some((i) => i.id === String(values.item))) {
+              return { ...base, item: '', itemName: '', uom: '' }
+            }
+          }
+          return base
+        }}
         loadRecord={async (id) => {
           const doc = await fetchTxn('returns', id)
           return mapDocToFlatForm(doc, {

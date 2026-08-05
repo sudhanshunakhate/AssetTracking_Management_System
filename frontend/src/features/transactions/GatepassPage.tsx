@@ -5,7 +5,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import { createTxn, fetchTxn, numOrUndef, todayIso, useTxnList } from '@/api/transactions'
-import { mapEmployee, mapItem, mapLocation, mapUnit, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
+import { mapEmployee, mapItem, mapLocation, mapUnit, itemsForLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 
 type Tab = 'inward' | 'outward'
@@ -60,9 +60,16 @@ export function GatepassPage() {
     remarks: '',
   })
 
+  const inwardItems = useMemo(() => itemsForLocation(items, inwardForm.store), [items, inwardForm.store])
+  const outwardItems = useMemo(() => itemsForLocation(items, outwardForm.store), [items, outwardForm.store])
+
   const setIn = (k: keyof typeof inwardForm, v: string) => {
     setInwardForm((p) => {
       const next = { ...p, [k]: v }
+      if (k === 'store') {
+        next.item = ''
+        next.uom = ''
+      }
       if (k === 'item') {
         const item = items.find((i) => i.id === v)
         next.uom = item ? String(item.uom ?? '') : ''
@@ -73,6 +80,10 @@ export function GatepassPage() {
   const setOut = (k: keyof typeof outwardForm, v: string) => {
     setOutwardForm((p) => {
       const next = { ...p, [k]: v }
+      if (k === 'store') {
+        next.item = ''
+        next.uom = ''
+      }
       if (k === 'item') {
         const item = items.find((i) => i.id === v)
         next.uom = item ? String(item.uom ?? '') : ''
@@ -326,8 +337,8 @@ export function GatepassPage() {
                   </Field>
                   <Field label="Item" required className="md:col-span-2">
                     <Select value={inwardForm.item} onChange={(e) => setIn('item', e.target.value)}>
-                      <option value="">— Select Item —</option>
-                      {items.map((i) => (
+                      <option value="">{inwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
+                      {inwardItems.map((i) => (
                         <option key={i.id} value={i.id}>
                           {i.code} – {i.name}
                         </option>
@@ -392,8 +403,8 @@ export function GatepassPage() {
                     </Field>
                     <Field label="Item" required className="md:col-span-2">
                       <Select value={inwardForm.item} onChange={(e) => setIn('item', e.target.value)}>
-                        <option value="">— Select Item —</option>
-                        {items.map((i) => (
+                        <option value="">{inwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
+                        {inwardItems.map((i) => (
                           <option key={i.id} value={i.id}>
                             {i.code} – {i.name}
                           </option>
@@ -543,8 +554,8 @@ export function GatepassPage() {
                 </Field>
                 <Field label="Item" required className="md:col-span-2">
                   <Select value={outwardForm.item} onChange={(e) => setOut('item', e.target.value)}>
-                    <option value="">— Select Item —</option>
-                    {items.map((i) => (
+                    <option value="">{outwardForm.store ? '— Select Item —' : '— Select Store first —'}</option>
+                    {outwardItems.map((i) => (
                       <option key={i.id} value={i.id}>
                         {i.code} – {i.name}
                       </option>

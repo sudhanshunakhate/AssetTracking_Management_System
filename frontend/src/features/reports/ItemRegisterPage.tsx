@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
-import { Pill, StatusBadge } from '@/components/ui/Badge'
+import { Pill, StatusBadge, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -245,7 +245,7 @@ export function ItemRegisterPage() {
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.assignedTo}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.currentStore}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">
-                      {r.active ? <StatusBadge status="Active" /> : <Pill>Inactive</Pill>}
+                      {r.active ? <StatusBadge status="Active" /> : <StatusPill status="Inactive" />}
                     </td>
                   </tr>
                 ))}

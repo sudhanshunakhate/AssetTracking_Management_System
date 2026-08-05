@@ -379,11 +379,22 @@ export const mapItem = (i: ItemApi): ApiMasterRow => ({
   uom: i.uomId != null ? String(i.uomId) : '',
   standardCost: Number(i.standardCost ?? 0),
   store: i.currentLocationId != null ? String(i.currentLocationId) : '',
+  assignedTo: i.assignedToEmpId != null ? String(i.assignedToEmpId) : '',
   serialNo: i.serialNo ?? '',
   assetCondition: i.assetCondition ?? '',
   ipAddress: i.ipAddress ?? '',
   status: activeStatus(i.isActive),
 })
+
+/** Items whose Item Master home location matches the selected store. Empty until a location is chosen. */
+export function itemsForLocation(
+  items: ApiMasterRow[],
+  locationId: string | null | undefined,
+): ApiMasterRow[] {
+  if (!locationId) return []
+  const loc = String(locationId)
+  return items.filter((i) => String(i.store ?? '') === loc)
+}
 
 export type VendorApi = {
   vendorId: number

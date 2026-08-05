@@ -988,20 +988,20 @@ export function DashboardPage() {
               className="w-full text-left"
               title={kpi.hint}
             >
-              <SpotlightCard>
+            <SpotlightCard>
                 <div className="p-4 transition hover:bg-[var(--surface2)]/60">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="text-[11px] font-semibold tracking-[0.3px] text-[var(--text3)] uppercase">
-                      {kpi.label}
+                <div className="text-[11px] font-semibold tracking-[0.3px] text-[var(--text3)] uppercase">
+                  {kpi.label}
                     </div>
                     <KpiIcon name={kpi.icon} tone={kpi.tone} motion={kpi.motion} />
-                  </div>
-                  <div className="mt-1 text-[26px] font-bold tracking-tight text-[var(--text)]">
+                </div>
+                <div className="mt-1 text-[26px] font-bold tracking-tight text-[var(--text)]">
                     {loading ? '—' : <CountUp to={kpi.value} duration={1.2} />}
                   </div>
                   <div className="mt-1 text-[11px] text-[var(--accent)]">{kpi.hint} →</div>
-                </div>
-              </SpotlightCard>
+              </div>
+            </SpotlightCard>
             </button>
           </AnimatedContent>
         ))}
@@ -1102,9 +1102,9 @@ export function DashboardPage() {
                 >
                   See all →
                 </Link>
-              </div>
-            </CardBody>
-          </Card>
+                  </div>
+          </CardBody>
+        </Card>
         </FadeContent>
 
         <FadeContent delay={0.14} className="lg:col-span-4">
@@ -1138,8 +1138,8 @@ export function DashboardPage() {
                   Trail →
                 </Link>
               </div>
-            </CardBody>
-          </Card>
+          </CardBody>
+        </Card>
         </FadeContent>
       </div>
     </div>

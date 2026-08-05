@@ -95,7 +95,7 @@ export function IssueItemLines({
     <Card>
       <CardHeader
         title="Item Details"
-        subtitle="Select item, enter issue quantity — stock fills from the store; batch is optional (FIFO if blank)"
+        subtitle="Select Store first — then pick an item assigned to that store; batch is optional (FIFO if blank)"
       />
       <CardBody className="p-0">
         <div className="overflow-x-auto">

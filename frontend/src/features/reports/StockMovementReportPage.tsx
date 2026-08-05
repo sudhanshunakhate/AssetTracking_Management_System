@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
-import { Pill } from '@/components/ui/Badge'
+import { DocTypeBadge, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
@@ -261,7 +261,9 @@ export function StockMovementReportPage() {
                         {r.direction}
                       </span>
                     </td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.docType}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">
+                      <DocTypeBadge type={r.docType} />
+                    </td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.docNo}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.itemCode}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemName}</td>
@@ -272,7 +274,7 @@ export function StockMovementReportPage() {
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.employee}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.serialNo}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">
-                      <Pill>{r.status}</Pill>
+                      <StatusPill status={r.status} />
                     </td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">
                       {r.value.toLocaleString('en-IN')}

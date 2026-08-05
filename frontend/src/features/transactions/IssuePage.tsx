@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
-import { Pill } from '@/components/ui/Badge'
+import { StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, type Column } from '@/components/ui/DataTable'
@@ -26,6 +26,7 @@ import { enrichLinesFromItems } from './lineGrid'
 import {
   empLabel,
   employeeOptions as toEmployeeOptions,
+  itemsForLocation,
   locLabel,
   locationOptions as toLocationOptions,
   quickAddEmployee,
@@ -38,7 +39,7 @@ const MENU = 'ISS'
 const RESOURCE = 'material-issues'
 
 /** Statuses where a brand-new document can still be edited (create-only API). */
-const EDITABLE_STATUSES = ['', 'Draft']
+const EDITABLE_STATUSES = ['', 'Pending', 'Draft']
 
 type FormState = {
   issueNo: string
@@ -116,14 +117,14 @@ function IssueList() {
       searchText: (r) => String(r.totalItems ?? 0),
       render: (r) => <span className="tabular-nums">{Number(r.totalItems ?? 0)}</span>,
     },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status || '—'}</Pill> },
+    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status || '—'} /> },
   ]
 
   return (
     <FadeContent>
       <PageHeader
         title="Store Issues"
-        description="Issue material from a store against an approved requisition."
+        description="Issue material from a store against a requested requisition."
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading issues…</div>}
@@ -172,14 +173,17 @@ function IssueForm() {
   const locationOptions = useMemo(() => toLocationOptions(locations.rows), [locations.rows])
   const employeeOptions = useMemo(() => toEmployeeOptions(employees.rows), [employees.rows])
   const reqOptions = useMemo(
-    () => pendingReqs.map((r) => ({ value: r.id, label: `${r.docNo} · ${r.docDate || ''}` })),
+    () =>
+      pendingReqs
+        .filter((r) => String(r.status ?? '').toLowerCase() === 'requested')
+        .map((r) => ({ value: r.id, label: `${r.docNo} · ${r.docDate || ''}` })),
     [pendingReqs],
   )
 
   const addLocation = quickAddLocation(locations.reload)
   const addEmployee = quickAddEmployee(employees.reload)
 
-  /* ---- pending approved requisitions ---- */
+  /* ---- requested requisitions for Against Requisition ---- */
   useEffect(() => {
     if (!isNew) return
     let cancelled = false
@@ -227,8 +231,8 @@ function IssueForm() {
           remark: l.remark ?? '',
         }))
         setLines(mapped.length ? mapped : [emptyLine()])
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load issue')
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -376,11 +380,11 @@ function IssueForm() {
         <div>
           <PageHeader
             title={isNew ? 'New Store Issue' : `Issue ${form.issueNo}`}
-            description="Issue material from a store against an approved requisition."
+            description="Issue material from a store against a requested requisition."
           />
           {form.status && (
             <div className="mt-1">
-              <Pill>{form.status}</Pill>
+              <StatusPill status={form.status} />
             </div>
           )}
           {!isNew && (
@@ -398,7 +402,7 @@ function IssueForm() {
         <CardHeader title="Issue Details" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Issue No." required hint={isNew ? 'Auto-generated on save (MISS-2026-0001)' : undefined}>
+            <Field label="Issue No." required hint={isNew ? 'Auto-generated on save (STIS-2026-0001)' : undefined}>
               <Input value={form.issueNo} readOnly />
             </Field>
 
@@ -422,7 +426,7 @@ function IssueForm() {
                   ? [{ value: form.requisitionId, label: `Req #${form.requisitionId}` }, ...reqOptions]
                   : reqOptions
               }
-              placeholder="— Select Approved Requisition —"
+              placeholder="— Select Requested Requisition —"
               disabled={readOnly}
             />
 
@@ -470,7 +474,7 @@ function IssueForm() {
         <IssueItemLines
           lines={lines}
           onChange={setLines}
-          items={items.rows}
+          items={itemsForLocation(items.rows, form.storeId)}
           units={units.rows}
           locations={locations.rows}
           storeLocationId={form.storeId}

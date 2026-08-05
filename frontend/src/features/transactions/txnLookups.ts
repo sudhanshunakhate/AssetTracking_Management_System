@@ -59,6 +59,9 @@ export const empLabel = (e: ApiMasterRow) => `${e.code} – ${e.firstName} ${e.l
 export const locLabel = (l: ApiMasterRow) => `${l.code} – ${l.name}`
 export const vendorLabel = (v: ApiMasterRow) => `${v.code} – ${v.name}`
 
+/** Items assigned to the selected store in Item Master. */
+export { itemsForLocation } from '@/api/masters'
+
 export const employeeOptions = (rows: ApiMasterRow[]) =>
   rows.map((e) => ({ value: e.id, label: empLabel(e) }))
 export const locationOptions = (rows: ApiMasterRow[]) =>

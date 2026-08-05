@@ -95,7 +95,7 @@ export function RequisitionItemLines({
     <Card>
       <CardHeader
         title="Item Details"
-        subtitle="Select item, enter requested quantity — stock and location fill in automatically"
+        subtitle="Select Deliver To first — then pick an item assigned to that location"
       />
       <CardBody className="p-0">
         <div className="overflow-x-auto">

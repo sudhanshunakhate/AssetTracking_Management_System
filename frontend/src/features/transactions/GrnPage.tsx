@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
-import { Pill } from '@/components/ui/Badge'
+import { StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, type Column } from '@/components/ui/DataTable'
@@ -25,6 +25,7 @@ import type { ItemKind } from './OpeningStockItemLines'
 import { enrichLinesFromItems, money, toNum } from './lineGrid'
 import {
   employeeOptions as toEmployeeOptions,
+  itemsForLocation,
   locLabel,
   locationOptions as toLocationOptions,
   quickAddEmployee,
@@ -39,8 +40,8 @@ const BASE = '/transactions/grn'
 const MENU = 'GRN'
 const RESOURCE = 'grn'
 
-/** A GRN posts stock the moment it is saved, so only Draft stays editable. */
-const EDITABLE_STATUSES = ['', 'Draft']
+/** A GRN posts stock on save; only draft (In Pending) stays editable. */
+const EDITABLE_STATUSES = ['', 'In Pending', 'Draft']
 
 type FormState = {
   grnNo: string
@@ -136,7 +137,7 @@ function GrnList() {
       searchText: (r) => String(r.totalAmount ?? 0),
       render: (r) => <span className="tabular-nums">{money(Number(r.totalAmount ?? 0))}</span>,
     },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status || '—'}</Pill> },
+    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status || '—'} /> },
   ]
 
   return (
@@ -441,7 +442,7 @@ function GrnForm() {
             </span>
             {form.status && (
               <span className="ml-2 align-middle">
-                <Pill>{form.status}</Pill>
+                <StatusPill status={form.status} />
               </span>
             )}
           </div>
@@ -618,7 +619,7 @@ function GrnForm() {
         onChange={setLines}
         itemType={itemType}
         onItemTypeChange={setItemType}
-        items={items.rows}
+        items={itemsForLocation(items.rows, form.store)}
         units={units.rows}
         locations={locations.rows}
         conditionOptions={conditionOpts}

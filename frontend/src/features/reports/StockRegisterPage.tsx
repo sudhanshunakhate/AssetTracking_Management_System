@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
-import { Pill, StatusBadge } from '@/components/ui/Badge'
+import { StatusBadge, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -195,7 +195,7 @@ export function StockRegisterPage() {
                       {r.status === 'In Stock' ? (
                         <StatusBadge status="Active" />
                       ) : (
-                        <Pill>{r.status}</Pill>
+                        <StatusPill status={r.status} />
                       )}
                     </td>
                   </tr>

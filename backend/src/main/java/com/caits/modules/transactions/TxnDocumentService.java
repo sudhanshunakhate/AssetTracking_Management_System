@@ -172,7 +172,7 @@ public class TxnDocumentService {
         accessScope.requireLocationAllowed(req.fromLocationId());
         accessScope.requireLocationAllowed(req.toLocationId());
         String action = normalizeAction(req.docSubmitAction());
-        String status = "SAVE_DRAFT".equals(action) ? "Draft" : initialSubmitStatus(docType);
+        String status = "SAVE_DRAFT".equals(action) ? draftStatus(docType) : initialSubmitStatus(docType);
 
         TxnHeaderMst header = new TxnHeaderMst();
         applyHeader(header, docType, req);
@@ -185,9 +185,10 @@ public class TxnDocumentService {
         List<TxnDetailDtl> savedLines = saveLines(header, docType, req.lines());
         if ("SUBMIT".equals(action) && postsStockOnSubmit(docType)) {
             postStock(header, savedLines, true);
-            header.setTxhStatus("Completed");
+            header.setTxhStatus(initialSubmitStatus(docType));
             header.setTxhPostingDate(header.getTxhPostingDate() != null ? header.getTxhPostingDate() : LocalDate.now());
             header = headerRepo.save(header);
+            markLinkedRequisitionIssued(docType, header);
         }
         return toDocument(header, savedLines, docType.name().replace('_', ' ') + " created successfully");
     }
@@ -196,7 +197,7 @@ public class TxnDocumentService {
     public DocumentResponse update(DocType docType, Integer docId, DocumentRequest req) {
         TxnHeaderMst header = requireHeader(docType, docId);
         if (!isEditable(header.getTxhStatus())) {
-            throw ApiException.conflict("Only Draft / Rejected documents can be updated");
+            throw ApiException.conflict("Only draft / pending documents can be updated");
         }
         validateLines(req.lines());
         accessScope.requireLocationAllowed(req.locationId());
@@ -205,7 +206,9 @@ public class TxnDocumentService {
 
         applyHeader(header, docType, req);
         String action = normalizeAction(req.docSubmitAction());
-        if ("SUBMIT".equals(action)) {
+        if ("SAVE_DRAFT".equals(action)) {
+            header.setTxhStatus(draftStatus(docType));
+        } else if ("SUBMIT".equals(action)) {
             header.setTxhStatus(initialSubmitStatus(docType));
         }
         header.setTxhModifiedBy(SecurityUtils.loginIdOrSystem());
@@ -217,9 +220,10 @@ public class TxnDocumentService {
 
         if ("SUBMIT".equals(action) && postsStockOnSubmit(docType)) {
             postStock(header, savedLines, true);
-            header.setTxhStatus("Completed");
+            header.setTxhStatus(initialSubmitStatus(docType));
             header.setTxhPostingDate(LocalDate.now());
             header = headerRepo.save(header);
+            markLinkedRequisitionIssued(docType, header);
         }
         return toDocument(header, savedLines, "Document updated successfully");
     }
@@ -227,8 +231,8 @@ public class TxnDocumentService {
     @Transactional
     public MessageResponse delete(DocType docType, Integer docId) {
         TxnHeaderMst header = requireHeader(docType, docId);
-        if (!"Draft".equalsIgnoreCase(header.getTxhStatus()) && !"Rejected".equalsIgnoreCase(header.getTxhStatus())) {
-            throw ApiException.conflict("Only Draft / Rejected documents can be deleted");
+        if (!isEditable(header.getTxhStatus())) {
+            throw ApiException.conflict("Only draft / pending documents can be deleted");
         }
         detailRepo.deleteByTxdTxnHeaderIdTxh(header.getTxhTxnHeaderId());
         headerRepo.delete(header);
@@ -280,7 +284,7 @@ public class TxnDocumentService {
     public PageResponse<ListItem> pendingRequisitions(Integer locationId) {
         return list(
                 DocType.MATERIAL_REQUISITION,
-                "Approved",
+                "Requested",
                 null, null, locationId, null, null, null, null, null, null, null,
                 1, 100
         );
@@ -324,8 +328,26 @@ public class TxnDocumentService {
         return "SUBMIT";
     }
 
+    private String draftStatus(DocType docType) {
+        return StockPostingRules.draftStatus(docType);
+    }
+
     private String initialSubmitStatus(DocType docType) {
         return StockPostingRules.initialSubmitStatus(docType);
+    }
+
+    /** When a store issue is submitted against a requisition, mark that requisition Issued. */
+    private void markLinkedRequisitionIssued(DocType docType, TxnHeaderMst issueHeader) {
+        if (docType != DocType.MATERIAL_ISSUE) return;
+        Integer refId = issueHeader.getTxhRefTxnHeaderIdTxh();
+        if (refId == null) return;
+        headerRepo.findById(refId).ifPresent(req -> {
+            if (!DocType.MATERIAL_REQUISITION.code().equals(req.getTxhDocType())) return;
+            req.setTxhStatus("Issued");
+            req.setTxhModifiedBy(SecurityUtils.loginIdOrSystem());
+            req.setTxhModifiedOn(LocalDateTime.now());
+            headerRepo.save(req);
+        });
     }
 
     private boolean postsStockOnSubmit(DocType docType) {
@@ -333,7 +355,7 @@ public class TxnDocumentService {
     }
 
     private boolean isEditable(String status) {
-        return "Draft".equalsIgnoreCase(status) || "Rejected".equalsIgnoreCase(status);
+        return StockPostingRules.isEditableStatus(status);
     }
 
     private String nextDocNo(DocType docType) {

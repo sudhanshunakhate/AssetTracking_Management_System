@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
-import { Pill } from '@/components/ui/Badge'
+import { StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, type Column } from '@/components/ui/DataTable'
@@ -11,10 +11,8 @@ import { LookupSelect } from '@/components/form/LookupSelect'
 import { resolveApiUrl } from '@/api/client'
 import { GEN_TYPE } from '@/api/masters'
 import {
-  approveTxn,
   createTxn,
   fetchTxn,
-  rejectTxn,
   todayIso,
   updateTxn,
   uploadAttachment,
@@ -29,6 +27,7 @@ import { enrichLinesFromItems } from './lineGrid'
 import {
   empLabel,
   employeeOptions as toEmployeeOptions,
+  itemsForLocation,
   locLabel,
   locationOptions as toLocationOptions,
   quickAddEmployee,
@@ -51,7 +50,7 @@ const REQ_TYPES: { value: ReqType; label: string; caption: string }[] = [
 ]
 
 /** Statuses in which the document body can still be edited (backend rule). */
-const EDITABLE_STATUSES = ['', 'Draft', 'Rejected']
+const EDITABLE_STATUSES = ['', 'Pending', 'Draft', 'Rejected']
 
 type FormState = {
   reqType: ReqType
@@ -163,7 +162,7 @@ function RequisitionList() {
       searchText: (r) => String(r.totalItems ?? 0),
       render: (r) => <span className="tabular-nums">{Number(r.totalItems ?? 0)}</span>,
     },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status || '—'}</Pill> },
+    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status || '—'} /> },
   ]
 
   return (
@@ -192,7 +191,7 @@ function RequisitionList() {
 function RequisitionForm() {
   const { id = 'new' } = useParams()
   const navigate = useNavigate()
-  const { canCreateMenu, canEditMenu, canApproveMenu, canRejectMenu } = useAuth()
+  const { canCreateMenu, canEditMenu } = useAuth()
   const isNew = id === 'new'
 
   const { locations, employees, items, units } = useTxnFormLookups()
@@ -217,7 +216,6 @@ function RequisitionForm() {
   const canEdit = isNew ? canCreateMenu(MENU) : canEditMenu(MENU)
   const statusEditable = EDITABLE_STATUSES.includes(form.status)
   const readOnly = !canEdit || !statusEditable
-  const isPending = form.status === 'Pending Approval'
 
   const employeeById = useMemo(() => new Map(employees.rows.map((e) => [e.id, e])), [employees.rows])
 
@@ -327,12 +325,6 @@ function RequisitionForm() {
     if (form.reqType === 'DEPARTMENT') {
       base.push({ name: 'departmentId', label: 'Department', required: true })
     }
-    base.push({
-      name: 'approvedDate',
-      label: 'Approved Date',
-      type: 'date',
-      validate: notBefore('reqDate', 'Requisition Date'),
-    })
     return base
   }, [form.reqType])
 
@@ -347,9 +339,6 @@ function RequisitionForm() {
       found.lines = 'Every item line needs a requested quantity greater than 0.'
     } else if (lines.some((l) => l.itemCode !== '' && l.itemId === '')) {
       found.lines = 'One or more item codes do not match an item in the Item Master.'
-    }
-    if (form.approvedDate && !form.approvedBy) {
-      found.approvedBy = 'Select who approved the requisition.'
     }
     return found
   }, [readOnly, form, fieldDefs, lines])
@@ -369,8 +358,6 @@ function RequisitionForm() {
       employeeRefCode: form.employeeCode || undefined,
       designation: form.reqType === 'EMPLOYEE' ? form.designation || undefined : undefined,
       attachmentUrl: form.attachmentUrl || undefined,
-      approvedByEmpId: form.approvedBy ? Number(form.approvedBy) : undefined,
-      approvedDate: form.approvedDate || undefined,
       remarks: form.remark || undefined,
       docSubmitAction: action,
       lines: lines
@@ -384,7 +371,7 @@ function RequisitionForm() {
             requestedQty: qty,
             qty,
             availableStock: l.availableStock === '' ? undefined : Number(l.availableStock),
-            // Stock posting on approve needs a location on every line.
+            // Location on every line for later issue posting.
             locationId: l.locationId ? Number(l.locationId) : locationId,
             remark: l.remark || undefined,
           }
@@ -405,41 +392,13 @@ function RequisitionForm() {
     try {
       const body = buildBody(action)
       if (isNew) {
-        const created = await createTxn(RESOURCE, body)
-        const docId = (created as { docId?: number })?.docId
-        setMessage(action === 'SUBMIT' ? 'Requisition submitted for approval.' : 'Requisition saved as draft.')
-        if (docId != null) navigate(`${BASE}/${docId}`, { replace: true })
-        else navigate(BASE)
+        await createTxn(RESOURCE, body)
       } else {
         await updateTxn(RESOURCE, id, body)
-        setMessage(action === 'SUBMIT' ? 'Requisition submitted for approval.' : 'Requisition updated.')
-        navigate(BASE)
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const decide = async (kind: 'approve' | 'reject') => {
-    setSaving(true)
-    setError(null)
-    setMessage(null)
-    try {
-      if (kind === 'approve') {
-        await approveTxn(RESOURCE, id, form.approvedBy ? Number(form.approvedBy) : undefined)
-      } else {
-        const reason = window.prompt('Reason for rejection')?.trim()
-        if (!reason) {
-          setSaving(false)
-          return
-        }
-        await rejectTxn(RESOURCE, id, reason)
       }
       navigate(BASE)
     } catch (e) {
-      setError(e instanceof Error ? e.message : `Could not ${kind} the requisition`)
+      setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setSaving(false)
     }
@@ -485,12 +444,12 @@ function RequisitionForm() {
             </span>
             {form.status && (
               <span className="ml-2 align-middle">
-                <Pill>{form.status}</Pill>
+                <StatusPill status={form.status} />
               </span>
             )}
           </div>
           <div className="mt-0.5 text-[12.5px] text-[var(--text2)]">
-            Raise a request for material to be issued from a store, then send it for approval.
+            Raise a request for material to be issued from a store. Saving returns you to the list.
           </div>
           {!canEdit && (
             <div className="mt-1 text-[12px] text-[var(--danger)]">
@@ -499,7 +458,7 @@ function RequisitionForm() {
           )}
           {canEdit && !statusEditable && (
             <div className="mt-1 text-[12px] text-[var(--text3)]">
-              A {form.status} requisition can no longer be edited. Only Draft and Rejected documents are editable.
+              A {form.status} requisition can no longer be edited. Only Pending and Rejected documents are editable.
             </div>
           )}
         </div>
@@ -533,7 +492,7 @@ function RequisitionForm() {
         <CardHeader title="Requisition Details" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Requisition No." required hint={isNew ? 'Auto-generated on save (MREQ-2026-0001)' : undefined}>
+            <Field label="Requisition No." required hint={isNew ? 'Auto-generated on save (STRQ-2026-0001)' : undefined}>
               <Input value={form.reqNo} readOnly />
             </Field>
 
@@ -701,7 +660,7 @@ function RequisitionForm() {
       <RequisitionItemLines
         lines={lines}
         onChange={setLines}
-        items={items.rows}
+        items={itemsForLocation(items.rows, form.deliverTo)}
         units={units.rows}
         locations={locations.rows}
         deliverToLocationId={form.deliverTo}
@@ -709,49 +668,10 @@ function RequisitionForm() {
         error={submitted ? errors.lines : undefined}
       />
 
-      <Card>
-        <CardHeader title="Approvals" subtitle="Recorded on the document; approval itself changes the status." />
-        <CardBody>
-          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-            <LookupSelect
-              label="Approved By"
-              value={form.approvedBy}
-              onChange={(v) => set('approvedBy', v)}
-              onBlur={() => touch('approvedBy')}
-              options={employeeOptions}
-              placeholder="— Select Employee —"
-              error={err('approvedBy')}
-              disabled={readOnly && !isPending}
-              quickAdd={addEmployee}
-            />
-            <Field label="Approved Date" error={err('approvedDate')}>
-              <Input
-                type="date"
-                value={form.approvedDate}
-                onChange={(e) => set('approvedDate', e.target.value)}
-                onBlur={() => touch('approvedDate')}
-                disabled={readOnly}
-                invalid={Boolean(err('approvedDate'))}
-              />
-            </Field>
-          </div>
-        </CardBody>
-      </Card>
-
       {error && <div className="mt-2 text-[12.5px] font-medium text-[var(--danger)]">{error}</div>}
       {message && <div className="mt-2 text-[12.5px] font-medium text-[var(--accent)]">{message}</div>}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {isPending && canApproveMenu(MENU) && (
-          <Button onClick={() => void decide('approve')} disabled={saving}>
-            Approve
-          </Button>
-        )}
-        {isPending && canRejectMenu(MENU) && (
-          <Button variant="danger" onClick={() => void decide('reject')} disabled={saving}>
-            Reject
-          </Button>
-        )}
         <div className="flex-1" />
         {!readOnly && (
           <Button
@@ -776,7 +696,7 @@ function RequisitionForm() {
               Save Draft
             </Button>
             <Button onClick={() => void save('SUBMIT')} disabled={saving}>
-              {saving ? 'Saving…' : 'Submit for Approval'}
+              {saving ? 'Saving…' : 'Save'}
             </Button>
           </>
         )}

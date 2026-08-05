@@ -15,7 +15,9 @@ export type FieldDef = ValidationRules & {
   type?: 'text' | 'number' | 'select' | 'textarea' | 'switch' | 'date'
   hint?: string
   span?: 1 | 2 | 3 | 4
-  options?: { value: string; label: string }[]
+  options?:
+    | { value: string; label: string }[]
+    | ((values: Record<string, unknown>) => { value: string; label: string }[])
   uppercase?: boolean
   /** Shown as the empty option label for select fields. */
   placeholder?: string
@@ -464,7 +466,7 @@ function MasterForm({
                       disabled={fieldReadOnly}
                     >
                       <option value="">{f.placeholder ?? '— Select —'}</option>
-                      {f.options?.map((o) => (
+                      {(typeof f.options === 'function' ? f.options(values) : f.options ?? []).map((o) => (
                         <option key={o.value} value={String(o.value)}>
                           {o.label}
                         </option>

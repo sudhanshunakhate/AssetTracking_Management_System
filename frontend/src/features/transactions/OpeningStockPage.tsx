@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
-import { Pill } from '@/components/ui/Badge'
+import { StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, type Column } from '@/components/ui/DataTable'
@@ -29,6 +29,7 @@ import {
   type OpeningStockLine,
 } from './OpeningStockItemLines'
 import {
+  itemsForLocation,
   locationOptions as toLocationOptions,
   quickAddLocation,
   useTxnFormLookups,
@@ -37,7 +38,7 @@ import {
 const BASE = '/transactions/opening-stock'
 const MENU = 'OPN'
 const RESOURCE = 'opening-stock'
-const EDITABLE_STATUSES = ['', 'Draft', 'Rejected']
+const EDITABLE_STATUSES = ['', 'In Pending', 'Draft', 'Rejected']
 
 type FormState = {
   entryNo: string
@@ -106,7 +107,7 @@ function OpeningStockList() {
       searchText: (r) => String(r.totalItems ?? 0),
       render: (r) => String(r.totalItems ?? 0),
     },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <Pill>{r.status}</Pill> },
+    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status} /> },
   ]
 
   return (
@@ -330,7 +331,7 @@ function OpeningStockForm() {
             </span>
             {form.status && (
               <span className="ml-2 align-middle">
-                <Pill>{form.status}</Pill>
+                <StatusPill status={form.status} />
               </span>
             )}
           </div>
@@ -416,7 +417,7 @@ function OpeningStockForm() {
         onChange={setLines}
         itemType={itemType}
         onItemTypeChange={setItemType}
-        items={items.rows}
+        items={itemsForLocation(items.rows, form.locationId)}
         units={units.rows}
         vendors={vendors.rows}
         conditionOptions={conditionOpts}

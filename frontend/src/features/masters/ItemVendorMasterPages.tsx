@@ -7,12 +7,14 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, statusColumn, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
+import { LookupSelect } from '@/components/form/LookupSelect'
 import {
   createMaster,
   GEN_TYPE,
   isActiveFromForm,
   itemTypeFromGenCode,
   mapCategory,
+  mapEmployee,
   mapItem,
   mapLocation,
   mapSubcategory,
@@ -206,15 +208,29 @@ function ItemFormPage() {
   const mapCat = useCallback(mapCategory, [])
   const mapSub = useCallback(mapSubcategory, [])
   const mapUnt = useCallback(mapUnit, [])
+  const mapLoc = useCallback(mapLocation, [])
+  const mapEmp = useCallback(mapEmployee, [])
   const { rows: categories } = useMasterList('categories', mapCat)
   const { rows: subCategories } = useMasterList('subcategories', mapSub)
   const { rows: units } = useMasterList('units', mapUnt)
+  const { rows: locations } = useMasterList('locations', mapLoc)
+  const { rows: employees } = useMasterList('employees', mapEmp)
   const { options: itemParamOpts } = useGenValues(GEN_TYPE.ITEM_PARAM, 'code')
   const { options: assetTypeOpts } = useGenValues(GEN_TYPE.ASSET_TYPE)
   const { options: consumableTypeOpts } = useGenValues(GEN_TYPE.CONSUMABLE_TYPE)
   const { options: deprOpts } = useGenValues(GEN_TYPE.DEPRECIATION)
   const mapItm = useCallback(mapItem, [])
   const { rows: allItems } = useMasterList('items', mapItm)
+
+  const locationOptions = useMemo(() => opt(locations), [locations])
+  const employeeOptions = useMemo(
+    () =>
+      employees.map((e) => ({
+        value: e.id,
+        label: `${e.code} – ${String(e.firstName ?? '')} ${String(e.lastName ?? '')}`.trim(),
+      })),
+    [employees],
+  )
 
   const [values, setValues] = useState<ItemForm>(emptyItem)
   const [loading, setLoading] = useState(!isNew)
@@ -242,6 +258,7 @@ function ItemFormPage() {
         { name: 'code', label: 'Item Code', ...RULES.code(40), uniqueMessage: 'This Item Code is already used' },
         { name: 'name', label: 'Item / Asset Name', ...RULES.name(150) },
         { name: 'uom', label: 'Unit of Measure', required: true },
+        { name: 'currentStore', label: 'Location', required: true },
         {
           name: 'subCategory',
           label: 'Sub Category',
@@ -408,8 +425,8 @@ function ItemFormPage() {
         warrantyExpiry: null,
         depreciationMethod: values.itemType === 'asset' ? str(values.depreciationMethod) || null : null,
         depreciationRate: values.itemType === 'asset' ? numOrNull(values.depreciationRate) : null,
-        assignedToEmpId: null,
-        currentLocationId: null,
+        assignedToEmpId: numOrNull(values.assignedTo),
+        currentLocationId: numOrNull(values.currentStore),
         isSerialized: values.itemType === 'asset' ? values.isSerialized : false,
         isReturnable: values.itemType === 'asset' ? values.isReturnable : false,
         isUnderAmc: values.itemType === 'asset' ? values.isUnderAmc : false,
@@ -646,6 +663,45 @@ function ItemFormPage() {
                 onChange={(v) => set('inspectionNeeded', v)}
               />
             </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Location & Owner"
+          subtitle="Home store for this item — transactions filter the item list by the selected location"
+        />
+        <CardBody>
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+            <LookupSelect
+              label="Location"
+              required
+              value={values.currentStore}
+              onChange={(v) => {
+                touch('currentStore')
+                set('currentStore', v)
+                set('storageLocation', v)
+              }}
+              onBlur={() => touch('currentStore')}
+              options={locationOptions}
+              placeholder="— Select Location —"
+              error={err('currentStore')}
+              disabled={readOnly}
+            />
+            <LookupSelect
+              label="Location Owner (Assigned)"
+              value={values.assignedTo}
+              onChange={(v) => {
+                touch('assignedTo')
+                set('assignedTo', v)
+              }}
+              onBlur={() => touch('assignedTo')}
+              options={employeeOptions}
+              placeholder="— Select Employee —"
+              error={err('assignedTo')}
+              disabled={readOnly}
+            />
           </div>
         </CardBody>
       </Card>
@@ -908,11 +964,14 @@ function ItemList() {
   const mapItemStable = useCallback(mapItem, [])
   const mapCatStable = useCallback(mapCategory, [])
   const mapUnitStable = useCallback(mapUnit, [])
+  const mapLocStable = useCallback(mapLocation, [])
   const { rows, loading, error } = useMasterList('items', mapItemStable)
   const { rows: categories } = useMasterList('categories', mapCatStable)
   const { rows: units } = useMasterList('units', mapUnitStable)
+  const { rows: locations } = useMasterList('locations', mapLocStable)
   const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
   const uomById = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
+  const locById = useMemo(() => Object.fromEntries(locations.map((l) => [l.id, l])), [locations])
 
   const columns: Column<Item>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono font-semibold">{r.code}</span> },
@@ -928,6 +987,20 @@ function ItemList() {
       header: 'Category',
       searchText: (r) => catById[r.category]?.name ?? r.category,
       render: (r) => catById[r.category]?.name ?? r.category,
+    },
+    {
+      key: 'location',
+      header: 'Location',
+      searchText: (r) => {
+        const locId = String((r as { store?: string }).store ?? '')
+        const loc = locById[locId]
+        return loc ? `${loc.code} ${loc.name}` : ''
+      },
+      render: (r) => {
+        const locId = String((r as { store?: string }).store ?? '')
+        const loc = locById[locId]
+        return loc ? `${loc.code} – ${loc.name}` : '—'
+      },
     },
     {
       key: 'uom',

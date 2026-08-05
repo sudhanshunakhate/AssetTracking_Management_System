@@ -10,8 +10,8 @@ class DocTypeTest {
     void seriesPrefixes() {
         assertEquals("GRN", DocType.GRN.seriesPrefix());
         assertEquals("OST", DocType.OPENING_STOCK.seriesPrefix());
-        assertEquals("MREQ", DocType.MATERIAL_REQUISITION.seriesPrefix());
-        assertEquals("MISS", DocType.MATERIAL_ISSUE.seriesPrefix());
+        assertEquals("STRQ", DocType.MATERIAL_REQUISITION.seriesPrefix());
+        assertEquals("STIS", DocType.MATERIAL_ISSUE.seriesPrefix());
         assertEquals("MTRF", DocType.MATERIAL_TRANSFER.seriesPrefix());
         assertEquals("MRET", DocType.MATERIAL_RETURN.seriesPrefix());
         assertEquals("GPI", DocType.GATEPASS_INWARD.seriesPrefix());

@@ -273,7 +273,7 @@ public class DataSeeder implements ApplicationRunner {
                         true, true, true, false, false, false, false, true),
                 master("UAE", "User Access Exception", 35, "Access & People"),
                 txn("OPN", "Opening Stock", 41, "OPENING_STOCK", false, false),
-                txn("SR", "Store Requisitions", 42, "MATERIAL_REQUISITION", true, true),
+                txn("SR", "Store Requisitions", 42, "MATERIAL_REQUISITION", false, false),
                 txn("GRN", "Goods Receipt Note", 43, "GRN", true, true),
                 txn("GP", "Gatepass", 44, null, true, false),
                 txn("ISS", "Store Issue", 45, "MATERIAL_ISSUE", false, false),

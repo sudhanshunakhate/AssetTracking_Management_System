@@ -1,4 +1,4 @@
-﻿{
+{
     "purpose":  "Ledger of every SQL change made to the CAITS schema, and which database has it. Keeps the local Postgres and the shared dev server in step.",
     "environments":  {
                          "local":  {
@@ -180,6 +180,24 @@
                            "id":  "017-seed-report-menus-owner-movement-item",
                            "file":  "db_approach/seed_report_menus_owner_movement_item.sql",
                            "description":  "Adds Reports menus STKOWN / STKMOV / ITEMREG and ADMIN view+export permissions.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-04"
+                                       }
+                       },
+                       {
+                           "id":  "018-requisition-drop-pending-approval",
+                           "file":  "db_approach/requisition_drop_pending_approval.sql",
+                           "description":  "Convert MATERIAL_REQUISITION Pending Approval rows to Submitted; SR has no approval step.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-04"
+                                       }
+                       },
+                       {
+                           "id":  "019-remap-txn-status-labels",
+                           "file":  "db_approach/remap_txn_status_labels.sql",
+                           "description":  "Remap draft/submit statuses: In Pending/Completed (GRN/OST), Pending/Requested/Issued (SR), Pending/Issued (Issue), Pending/Transferred, Pending/Returned.",
                            "applied":  {
                                            "local":  null,
                                            "dev":  "2026-08-04"

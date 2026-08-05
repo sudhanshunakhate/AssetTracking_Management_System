@@ -8,12 +8,36 @@ public final class StockPostingRules {
 
     private StockPostingRules() {}
 
-    /** Status after SUBMIT (before optional approval). */
+    /** Status stored when the user saves as draft. */
+    public static String draftStatus(DocType docType) {
+        return switch (docType) {
+            case GRN, OPENING_STOCK -> "In Pending";
+            case MATERIAL_REQUISITION, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN -> "Pending";
+            default -> "Draft";
+        };
+    }
+
+    /** Status after SUBMIT (final save that posts stock or raises a request). */
     public static String initialSubmitStatus(DocType docType) {
         return switch (docType) {
-            case MATERIAL_REQUISITION, GATEPASS_INWARD -> "Pending Approval";
+            case GATEPASS_INWARD -> "Pending Approval";
+            case MATERIAL_REQUISITION -> "Requested";
+            case MATERIAL_ISSUE -> "Issued";
+            case MATERIAL_TRANSFER -> "Transferred";
+            case MATERIAL_RETURN -> "Returned";
+            case GRN, OPENING_STOCK, GATEPASS_OUTWARD -> "Completed";
             default -> "Completed";
         };
+    }
+
+    /** Draft-like statuses that may still be edited or deleted. */
+    public static boolean isEditableStatus(String status) {
+        if (status == null || status.isBlank()) return true;
+        String s = status.trim();
+        return "Draft".equalsIgnoreCase(s)
+                || "Pending".equalsIgnoreCase(s)
+                || "In Pending".equalsIgnoreCase(s)
+                || "Rejected".equalsIgnoreCase(s);
     }
 
     /** Whether SUBMIT immediately posts stock (approval-gated types return false). */

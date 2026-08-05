@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
-import { Pill, StatusBadge } from '@/components/ui/Badge'
+import { Pill, StatusBadge, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -233,7 +233,17 @@ export function StockOwnerReportPage() {
                       {r.value.toLocaleString('en-IN')}
                     </td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">
-                      <Pill>{CUSTODY_LABEL[r.custodyMode] ?? r.custodyMode}</Pill>
+                      <Pill
+                        tone={
+                          r.custodyMode === 'ISSUED_TO'
+                            ? 'amber'
+                            : r.custodyMode === 'ASSIGNED'
+                              ? 'violet'
+                              : 'sky'
+                        }
+                      >
+                        {CUSTODY_LABEL[r.custodyMode] ?? r.custodyMode}
+                      </Pill>
                     </td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.custodian}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.custodianDept}</td>
@@ -248,7 +258,11 @@ export function StockOwnerReportPage() {
                       )}
                     </td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">
-                      {r.status === 'In Stock' ? <StatusBadge status="Active" /> : <Pill>{r.status}</Pill>}
+                      {r.status === 'In Stock' ? (
+                        <StatusBadge status="Active" />
+                      ) : (
+                        <StatusPill status={r.status} />
+                      )}
                     </td>
                   </tr>
                 ))}
