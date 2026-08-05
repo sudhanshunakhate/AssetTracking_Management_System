@@ -1,4 +1,4 @@
-{
+﻿{
     "purpose":  "Ledger of every SQL change made to the CAITS schema, and which database has it. Keeps the local Postgres and the shared dev server in step.",
     "environments":  {
                          "local":  {
@@ -13,7 +13,7 @@
                                  }
                      },
     "rules":  [
-                  "Every schema or seed change goes in a file under db_approach/ â€” never as an ad-hoc psql statement.",
+                  "Every schema or seed change goes in a file under db_approach/ Ã¢â‚¬â€ never as an ad-hoc psql statement.",
                   "Scripts must be re-runnable: use IF NOT EXISTS / ON CONFLICT / guarded DO blocks.",
                   "Apply to local first, set applied.local, and leave applied.dev null.",
                   "Never run anything against dev without asking the user first."
@@ -202,7 +202,25 @@
                                            "local":  null,
                                            "dev":  "2026-08-04"
                                        }
+                       },
+                       {
+                           "id":  "020-seed-unit-master",
+                           "file":  "db_approach/seed_unit_master.sql",
+                           "description":  "Seed Unit Master UOMs (NOS, PCS, RM, BOX, SET, MTR, ROL, PAC, BTL, LIC, CORE, KG, LTR, PAIR, CAN).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-05"
+                                       }
+                       },
+                       {
+                           "id":  "021-seed-office-item-master",
+                           "file":  "db_approach/seed_office_item_master.sql",
+                           "description":  "Seed Item Master catalog from office assets workbook (laptops, desktops, peripherals, consumables).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-05"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-04"
+    "updated":  "2026-08-05"
 }

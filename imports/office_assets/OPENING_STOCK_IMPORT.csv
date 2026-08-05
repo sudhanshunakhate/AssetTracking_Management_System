@@ -1,0 +1,243 @@
+itemCode,itemName,itemType,qty,uomCode,serialNo,ram,storage,productNo,ipAddress,macAddress,assignedToName,stockStatusHint,monitorMake,monitorModel,accessories,remark,sourceSheet
+LAP-LENOVO-LENOVO-MODEL-V15-G,LENOVO Lenovo Model -V15 G3 IAP,asset,1,NOS,PG04JHKB,16GB,512GB (Nvme),,,,Sohil khan,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-LENOVO-LENOVO-V15G3,LENOVO Lenovo-V15G3,asset,1,NOS,PG0459LD,16GB,512GBSSD(Nvme),,,,Shrikant Gawande,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG7162FFP,16 GB,480 GB,,,,Aniket Meshram,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-LENOVO-LENOVO-MODEL-V15-G,LENOVO Lenovo Model -V15 G3 IAP,asset,1,NOS,PG04HZPY,16GB,512GB (Nvme),,,,Mayur Akotkar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-LENOVO-LENOVO-MODEL-V15-G,LENOVO Lenovo Model -V15 G3 IAP,asset,1,NOS,PG04HZS9,16GB,512GB (Nvme),,,,Yogita Dhumale,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-LENOVO-LENOVO-MODEL-V15-G,LENOVO Lenovo Model -V15 G3 IAP,asset,1,NOS,PG04GZL6,16GB,512GB (Nvme),,,,Marunali Dahiwale,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G-2,HP HP EliteBook 840 G4,asset,1,NOS,5CG8081FKJ,16 GB,480 GB,,,,Roshan Joshi,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG6160802,16 GB,480 GB,,,,( Nikita -Laptop)Under Dinshaw Projet For Deployment,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586HG,16 GB,480 GB,,,,Instok keybord & Screen problem - flickering,ASSIGNED,Dell,1720C -17.2Inch,Keyboard Logitech K120 S\N -2413MR15CDE8 &MouseLogitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-ZBOOK-14U-G6,HP HP ZBook 14u G6,asset,1,NOS,5CG014B2S8,16 GB,480 GB,,,,Manish Peshkar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG8012H8Y,16 GB,238GB,,,,Sanjay Gonnade sir (team),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-E6410,DELL Latitude E6410,asset,1,NOS,81G3MN1,8 GB,240 GB,,,,Instok( Battery problem - Sarang sir Oder),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-240-G8-NOTEBOOK,HP HP 240 G8 Notebook PC,asset,1,NOS,5CG1366ZV2,8 GB,480 GB,,,,Amit Vaidya (NO Return),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ACER-ACER-ONE-14-Z2-485,ACER Acer One 14 Z2-485,asset,1,NOS,NXEFMSI00B03000CE60X10,8 GB,1TB,,,,Kanchan Hatwar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VGL,16 GB,480 GB,,,,Amol Wagh,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586GF,16 GB,480 GB,,,,Ankit ninave,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81032J3,16 GB,480 GB,,,,Akshay Alshi,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG6151XGD,16 GB,480 GB,,,,Sanjay Gonnade (Nashik),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG6160H6Y,16 GB,480 GB,,,,Vasu sir Office(Mangalm),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG61607ZY,16 GB,480 GB,,,,Rizwan Qureshi,ASSIGNED,Dell,1720C -17.2Inch,Keybord Dell S\N -CN-OPIPDR-RAC00-11I-C4L6-A+Mouse,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81032VZ,16 GB,480 GB,,,,Mayur Skashikar(Raj Sir team),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG7331YK0,16 GB,480 GB,,,,Aparna Kubde,ASSIGNED,,,Keyboard HP SK-2885 S\N -537746-L31 & Mouse HP M10,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G-3,HP HP EliteBook 840 G1,asset,1,NOS,CNU4129PWR,16 GB,238 GB,,,,Sanjay Gonnade sir (team),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG7460251,16 GB,480 GB,,,,Akshata Mahajan (temprely work from home),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81032PZ,16 GB,480 GB,,,,Bhargavi Deshmukh,ASSIGNED,,,Mouse Dell,Out of Warranty,Laptop Detail
+LAP-ASUS-VIVOBOOK-ASUSLAPTO,ASUS VivoBook_ASUSLaptop X510QA_X510QA,asset,1,NOS,K9N0CX00W467363,8 GB,480 GB,,,,Jayant Deshmukh,ASSIGNED,,,Keyboard Logitech K120 S\N -2152SC32256M8 &MouseLogitech M90,Out of Warranty,Laptop Detail
+LAP-LENOVO-82TT,LENOVO 82TT,asset,1,NOS,PG03R53A,16 GB,480 GB,,,,Amit Peshkar,ASSIGNED,NOC,719Sw -17 Inch,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG8154DFX,16 GB,480 GB,,,,Arshad rangoonwala,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG7462MXK,8 GB,480 GB,,,,,IN_STORE,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-FOLIO,HP HP EliteBook Folio 9480m,asset,1,NOS,5CG448354B,8 GB,250 GB,,,,Use for testing (Out side - Vikram sir Order),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5-2,HP HP Probook 440-G5,asset,1,NOS,5CD81586MQ,16 GB,480 GB,,,,Roshani Mulunde,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81032P0,16 GB,480 GB,,,,Vikram Sarve,ASSIGNED,SAMSUNG,,Keybord Dell S\N -CN-OPIYDR-RAC00-10I-C2L6-A17&Mouse Dell,Out of Warranty,Laptop Detail
+LAP-TOSHIBA-SATELLITE-C640,TOSHIBA Satellite C640,asset,1,NOS,5B261134Q,4 GB,620 GB,,,,Sunil Chaudhari,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VDY,16 GB,480 GB,,,,Vishal Drugwar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG7041SBP,16 GB,480 GB,,,,Pratik Badguy(Raj sir Team),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586H7,16 GB,480 GB,,,,Parimal Bawne Home( keyborad & Power ON \Shutdown slow ),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G-3,HP HP EliteBook 840 G1,asset,1,NOS,CNU4249MF6,16 GB,128GB M.2&500 GB SSD SATA,,,,Under Hospy Team,ASSIGNED,SAMSUNG,B1930N -18.5 Inch,Keyboard Logitech K120 S\N -2152SC32256M8 &MouseLogitech M90,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-3400,DELL Latitude 3400,asset,1,NOS,BF6DYZ2,16 GB,480 GB,,,,Sanjay Badguye ( Pharma Office ),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-E6230,DELL Latitude E6230,asset,1,NOS,BZ824Y1,8 GB,480 GB,,,,Amit Peshkar sir (Home),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-E6230,DELL Latitude E6230,asset,1,NOS,5F434Y1,4 GB,1 TB,,,,Kapil Dhiria,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586DM,16 GB,480 GB,,,,tejal Zhade,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G8,HP Hp Probook 440 G8,asset,1,NOS,5CD2526P5B,8 GB,512GBSSD(NVMV),,,,Omkesh Upadhyay (AISL),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG61254PZ,16 GB,480 GB +240GB SSD,,,,Prasanna peshkar (Amit Peshkar -Outside),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VDL,16 GB,480 GB,,,,Sulabh Parihar (HR),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VBC,16 GB,480 GB,,,,Mohit Padole,ASSIGNED,Dell,1720C -17.2Inch,Keyboard HP HAS-A013K S\N -24017AA & Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81032WZ,N\A,N\A,,,,,IN_STORE,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586QB,16 GB,480 GB,,,,Akash jamgade,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276V77,16 GB,480 GB,,,,Tanmay Dorle (By courier) Dombiwali)19\6\2026,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G-4,HP HP EliteBook 840 G2,asset,1,NOS,5CG5253SP9,8 GB,256 GB,,,,Mayur bagare( pharma Raj sir team),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HONOR-HONOR-MAGICBOOK-BR,HONOR Honor Magicbook(BRN-F56),asset,1,NOS,A6JEBB3C18801517,16GB,512GBPCle SSD,,,,SARANG CHAUHAN,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VJD,16 GB,480 GB,,,,Ganesh Iwnate,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G-4,HP HP EliteBook 840 G2,asset,1,NOS,5CG5397JNF,8 GB,256 GB,,,,Vishal Nagose,ASSIGNED,SAMSUNG,B1930N -18.5Inch,Keyboard Logitech K120 S\N -2150MR045387 &Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F658389,16GB,512GBSSD(NVMV),,,,VISHAS_ASHTIKAR,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586D0,16 GB,480 GB,,,,Shruti Jumale,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586QJ,16 GB,480 GB,,,,Ankush Bhure,ASSIGNED,,,Keyboard HP HAS-A013K S\N -24021AA & Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276V8K,16 GB,480 GB,,,,Tejal Chandure,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-ASUS-VIVOBOOK-ASUSLAPTO,ASUS VivoBook_ASUSLaptop X510QA_X510QA,asset,1,NOS,K9N0CX01W36436A,8 GB,230GB,,,,Aditaya Indurkar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK-B1,ASUS Asus Expertbook(B1402CBA-EK0170),asset,1,NOS,R9NXCV14F69338F,16GB,512GBSSD(NVMV),,,,Hanshul Thakur,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-EXPERTBOOK-840-,HP HP Expertbook 840 G1,asset,1,NOS,CNU435B4GM,8 GB,512 GB SSD,,,,Amol wagh (Out side -Home),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F71238F,16GB,512GBSSD(NVMV),,,,Vinit Pande,ASSIGNED,SAMSUNG,B1930N -18.5Inch,Keybord HP SK-2885 S\N-542429-D32 & Mouse dell,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F39338C,8GB,512GBSSD(NVMV),,,,Sayli Katole,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F300388,16GB,512GBSSD(NVMV),,,,sonali pawar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F71438G,16GB,512GBSSD(NVMV),,,,Vishal gabel,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F66638B,16GB,512GBSSD(NVMV),,,,Ankit Lede,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F596388,8GB,512GBSSD(NVMV),,,,Sanika Sapkale,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F67138E,8GB,512GBSSD(NVMV),,,,sumant joshi,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F71838F,8GB,512GBSSD(NVMV),,,,Manish Peshkar sir(Out Side - Home)18\6\2026,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F67038E,16GB,512GBSSD(NVMV),,,,Abhijeet Jhanjhot,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F35138E,8GB,512GBSSD(NVMV),,,,Sakshi Koche,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F72238B,16GB,512GBSSD(NVMV),,,,Yash dhoot,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F555389,8GB,512GBSSD(NVMV),,,,Yukta Morey,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F69038C,16GB,512GBSSD(NVMV),,,,Vijay Gopnarayan,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F663385,8GB,512GBSSD(NVMV),,,,Revati Khandare,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F67538H,16GB,512GBSSD(NVMV),,,,Sakshi Patil,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F66138D,8GB,512GBSSD(NVMV),,,,Mohan Bhambere,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F726383,16GB,512GBSSD(NVMV),,,,Suraj Kapte,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F32038B,8GB,512GBSSD(NVMV),,,,Hussain Darbar,ASSIGNED,,,Mouse HP M10,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F60038G,8GB + 8GB = 16GB,512GBSSD(NVMV),,,,Akansha Timande,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F581382,8GB,512GBSSD(NVMV),,,,Nilesh Thakre,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F304389,8GB,512GBSSD(NVMV),,,,Riddi Gadewar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F71038E,8GB,512GBSSD(NVMV),,,,Vishwas Ashtikar sir ( for pharma zip software Demo),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F70538E,16GB,512GBSSD(NVMV),,,,Parchva Chordia,ASSIGNED,Lapcare,LM195WDH- 19 Inch,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F74238C,8GB,512GBSSD(NVMV),,,,Siddhesh Chute,ASSIGNED,,,Keyboard HP SK-2885 S\N -537746-L31 & Mouse iBall B150,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F717384,8GB + 8GB = 16GB,512GBSSD(NVMV),,,,Anshul Ghumdwar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586RZ,8 GB,480 GB,,,,Chetan barbude,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F554384,8GB + 8GB = 16GB,512GBSSD(NVMV),,,,Swapnil Bante,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F317386,16GB + 8GB = 24GB,512GBSSD(NVMV),,,,Mayuresh Gajbhiye,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,1,NOS,R9NXCV14F72938C,8GB,512GBSSD(NVMV),,,,Shreyas Bhatt,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-640-G1,HP HP ProBook 640 G1,asset,1,NOS,5CG45212ZD,8 GB,700 GB,,,,Raj Diwate,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-LENOVO-82TT,LENOVO 82TT,asset,1,NOS,PG045AJ9,16 GB,480 GB,,,,Mahesh Tambhekar,ASSIGNED,Lapcare,LM195WDH- 19 Inch,Keyboard HP HAS-A013K S\N -240J7AA & Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-LENOVO-LENOVO-V15G3,LENOVO Lenovo-V15G3,asset,1,NOS,PG045D70,16GB,512GBSSD(NVMV),,,,Vinod Patel,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VDW,16 GB,480 GB,,,,Shyam Awacht,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VDF,16 GB,480 GB,,,,Kushal Kadu,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276V7Q,16 GB,480 GB,,,,Vinay Dekate,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-LENOVO-LENOVO-V15G3,LENOVO Lenovo-V15G3,asset,1,NOS,PG0459RL,16GB,512GBSSD,,,,Rahul Meshram,ASSIGNED,,,Keyboard HP HAS-A013K S\N -7CH234C2T & Mouse HP M10,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-3510,DELL Latitude 3510,asset,1,NOS,B4JF463,12 GB,512GB(NVMV) +230GB SSD,,,,Sonu Karemore,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586DP,16 GB,480 GB,,,,Vaishanvi Gawande,ASSIGNED,,,Mouse-Dell,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG6160MYC,16 GB,480 GB,,,,Prasanna Saoji,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586P0,16 GB,480 GB,,,,Nikitesh Parekar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586NT,16 GB,480 GB,,,,Ramesh Panicker,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUS-EXPERTBOOK-B1,ASUS Asus Expertbook(B1402CBA-EK0170),asset,1,NOS,R4NXCV12V98317H,8GB,512GBSSD(NVMV),,,,Meher Pophali sir,ASSIGNED,,,,03-06-2027(3year),Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VH6,16 GB,480 GB,,,,Dipanjay Waghade,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81586Q0,16 GB,480 GB,,,,Anjali Rathore,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81032R1,16 GB,480 GB,,,,Rutuja Modak,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG8472FRD,16 GB,480 GB,,,,Akshay Telkunte,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG6151XFC,16 GB,480 GB,,,,Robin Bastian,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81032RV,16 GB,480 GB,,,,Swati Khatri,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG8150LX8,16 GB,480 GB,,,,Sanket Dambhe,ASSIGNED,,,Keyboard Logitech K120 S\N -2305MR10ADD8& Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VBK,16 GB,480 GB,,,,Siddhant Alone,ASSIGNED,Dell,1720C -17.2 Inch,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,1,NOS,5CG92764RS,16 GB,480 GB,,,,Tejas Harshe,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G-4,HP HP EliteBook 840 G2,asset,1,NOS,5CG6012WKV,8 GB,256 GB,,,,Aaditya Bang,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VK1,16 GB,480 GB,,,,Dnyaeshwari Nare,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-245-G7-NOTEBOOK,HP HP 245 G7 Notebook PC,asset,1,NOS,5CG0325GJQ,16 GB,480 GB,,,,Rahul Aboti Handover to Vijay Gopnarayan,ASSIGNED,HP,V192-18.5 Inch,,Out of Warranty,Laptop Detail
+LAP-HP-HP-245-G7-NOTEBOOK,HP HP 245 G7 Notebook PC,asset,1,NOS,5CG0325GJL,16 GB,512 GB Nvme+1TB,,,,Avinash Maind,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD81032JR,16 GB,480 GB,,,,AISL Team,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUSPRO-P1440FA-P1,ASUS ASUSPRO P1440FA_P1440FA,asset,1,NOS,K5NXCV09X466218,4 GB,1 TB,,,,Sanjay Badguye,ASSIGNED,SAMSUNG,B1930N -18.5 Inch,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-E7240,DELL Latitude E7240,asset,1,NOS,70ZCJ12,4 GB,250GB,,,,Mokashi sir (DonateTaken),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-E7240,DELL Latitude E7240,asset,1,NOS,DX3MP12,8 GB,250 GB,,,,AISL Team,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-ASUSPRO-P1440FA-P1,ASUS ASUSPRO P1440FA_P1440FA,asset,1,NOS,K5NXCV111394225,12 GB,480 GB,,,,Jugat Bhatiya,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-ELITEBOOK-840-G-4,HP HP EliteBook 840 G2,asset,1,NOS,5CG5370MHV,8 GB,250 GB,,,,Anirudh Aashtikar,ASSIGNED,,,Mouse Logitech M90,Out of Warranty,Laptop Detail
+LAP-HP-HP-430-NOTEBOOK-PC,HP HP 430 Notebook PC,asset,1,NOS,5CB22604C0,4 GB,320 GB,,,,Manish Sharma,ASSIGNED,SAMSUNG,B1930N -18.5 Inch,Keyboard HP KU-0316 S\N-5478HD31 & Mouse HP,Out of Warranty,Laptop Detail
+LAP-HONOR-HONOR-MAGICBOOK-BR,HONOR Honor Magicbook(BRN-F56),asset,1,NOS,A6JEBB3C18800932,16GB,512GBPCle SSD,,,,Parimal Bawne,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-LENOVO-LENOVO-MODEL-V15-G,LENOVO Lenovo Model -V15 G3 IAP,asset,1,NOS,PG04JKKQ,16GB,512GB (Nvme),,,,Priya Wadighare,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-430-G2,HP HP ProBook 430 G2,asset,1,NOS,CND5067NCR,8 GB,480 GB,,,,Deshpande sir ( Employee Taken),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,1,NOS,5CD8276VLJ,16 GB,480 GB,,,,Kanchan Hatwar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-E7240,DELL Latitude E7240,asset,1,NOS,CKFPP12,8 GB,120GB,,,,AISL Team,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-E7240,DELL Latitude E7240,asset,1,NOS,H3QNS22,8 GB,128 GB,,,,UAE Office,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-HP-HP-PROBOOK440-G9,HP Hp probook440-G9,asset,1,NOS,5CD3523VMG,16GB,512GBSSD(NVMV),,,,Saurabh Shrivastav,ASSIGNED,,,,08-03-2027(3year),Laptop Detail
+LAP-HP-HP-PROBOOK440-G9,HP Hp probook440-G9,asset,1,NOS,5CD3523VQ4,16GB,512GBSSD(NVMV),,,,Neil Iyer,ASSIGNED,,,,08-03-2027(3year),Laptop Detail
+LAP-HP-HP-PROBOOK440-G9,HP Hp probook440-G9,asset,1,NOS,5CD3523VVB,16GB,512GBSSD(NVMV),,,,Niranjan Batthe,ASSIGNED,,,,08-03-2027(3year),Laptop Detail
+LAP-ACER-NITRO-5-AN15-58-79,ACER Nitro 5(AN15-58-79X9),asset,1,NOS,NHQFSSIOO1333052393400,16 GB,1024GB(NVMe),,,,Omkesh Upadhyay,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-EXPERT-BOOK-B1503C,ASUS Expert book (B1503CVA),asset,1,NOS,T2NXCV07B811087,8GB,512GBSSD(NVMV),,,,,IN_STORE,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-EXPERT-BOOK-B1503C,ASUS Expert book (B1503CVA),asset,1,NOS,T4NXCV11A856177,8GB,512GBSSD(NVMV),,,,Sudhanshu Nakhate,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-ASUS-EXPERT-BOOK-B1503C,ASUS Expert book (B1503CVA),asset,1,NOS,T2NXCV07B78808B,8GB,512GBSSD(NVMV),,,,Sumaiya Kausar,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-7320,DELL Latitude 7320,asset,1,NOS,80MC8G3,16GB,512GBSSD(NVMV),,,,Swapnil Dhore,ASSIGNED,,,,16-08-2026,Laptop Detail
+LAP-DELL-LATITUDE-7320,DELL Latitude 7320,asset,1,NOS,7J4B8G3,16GB,512GBSSD(NVMV),,,,Mohamd Elaf Aster,ASSIGNED,,,,16-08-2026,Laptop Detail
+LAP-DELL-LATITUDE-7320,DELL Latitude 7320,asset,1,NOS,1V4J9K3,16GB,512GBSSD(NVMV),,,,Shweta Bhaje,ASSIGNED,,,Mouse Logitech M90,16-08-2026,Laptop Detail
+LAP-APPLE-MAC-BOOK-AIR,APPLE Mac Book Air,asset,1,NOS,SG62Q6C4WP1,8 GB,256 GBG SSD,,,,Mokashi Sir,ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-APPLE-MAC-BOOK-PRO,APPLE Mac Book pro,asset,1,NOS,,,,,,,,IN_STORE,,,,Out of Warranty,Laptop Detail
+LAP-UNKNOWN-ONLINE-ODER,UNKNOWN (Online Oder),asset,1,NOS,-,,,,,,,IN_STORE,,,WirelessMouse & Keybord,,Laptop Detail
+LAP-HP-ELITE-X2-1012-G1,HP Elite X2 1012 G1,asset,1,NOS,5CG65060HH,4GB,120 GB SSD,,,,Amit peshkar sir (Table Drover),ASSIGNED,,,,Out of Warranty,Laptop Detail
+LAP-DELL-LATITUDE-5420,DELL Latitude 5420,asset,1,NOS,G7W5043,16GB,512GBSSD(NVMV),,,,Nirmala Kadam,ASSIGNED,,,,21-10-2026,Laptop Detail
+LAP-DELL-LATITUDE-5420,DELL Latitude 5420,asset,1,NOS,5YQL1J3,16GB,512GBSSD(NVMV),,,,Prashik Tipale,ASSIGNED,,,Keyboard HP SK-2885 S\N -434821-L32 & Mouse Logitech M10,21-10-2026,Laptop Detail
+LAP-DELL-LATITUDE-5420,DELL Latitude 5420,asset,1,NOS,94RS2D3,16GB,512GBSSD(NVMV),,,,Sarang Hedaoo,ASSIGNED,,,,21-10-2026,Laptop Detail
+LAP-DELL-LATITUDE-5420,DELL Latitude 5420,asset,1,NOS,98H6043,16GB,512GBSSD(NVMV),,,,Surabh Nagrale,ASSIGNED,,,,21-10-2026,Laptop Detail
+LAP-DELL-LATITUDE-5420,DELL Latitude 5420,asset,1,NOS,FRN6043,16GB,1TB (NVME),,,,DY bhute,ASSIGNED,,,Mouse Logitech M90,21-10-2026,Laptop Detail
+LAP-ASUS-EXPERT-BOOK-B1503C,ASUS Expert book (B1503CVA),asset,1,NOS,W4NXRU0000JN156,8GB,512GBSSD(NVMV),,,,Rohit Bhargav,ASSIGNED,,,,Out of Warranty,Laptop Detail
+DESK-HP-HP-COMPAQ-PRO-6300,HP HP Compaq Pro 6300 SFF,asset,1,NOS,JPA402T4LB,16 GB,500 GB,,,,Suraj KapAte,ASSIGNED,DELL,IN1720 -17.2 Inch,Keyboard Logitech K120 S\N -2149SC32-TUB &MouseLogitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-PRO-6300,HP HP Compaq Pro 6300 SFF,asset,1,NOS,2UA3170ZFN,12 GB,500 GB,,,,Umakant Bareju,ASSIGNED,DELL,IN1720 -17.2 Inch,Keyboard Logitech K200 S\N -SY205UK &Mouse Fingers,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-PRO-6300,HP HP Compaq Pro 6300 SFF,asset,1,NOS,JPA316QGLS,8 GB,500 GB,,,,DY Bhute sir,ASSIGNED,AOC,TFT17W80PS -17 Inch,,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-6200-PRO,HP HP Compaq 6200 Pro SFF PC,asset,1,NOS,2UA13600GJ,8 GB,240 GB,,,,Shyam Awachat,ASSIGNED,SAMSUNG,SMB1930N -18.5 Inch,Keyboard Logitech K120 S\N -2149SC32-32WQD8 &MouseLogitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-ELITEDESK-800-G,HP HP EliteDesk 800 G2 SFF,asset,1,NOS,SGH651RK2M,8 GB,240 GB,,,,Kilash BHANDAKAR,ASSIGNED,SAMSUNG,SMB1930N -18.5 Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-PRO-6300,HP HP Compaq Pro 6300 SFF,asset,1,NOS,JPA316QGLT,16 GB,240 GB,,,,Kajal Sahu,ASSIGNED,AOC,185LM00013-18.5 Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL8291VSW,8 GB,256 GB,,,,(Old Pharma )Janvi Ingole,ASSIGNED,DELL,IN1720 -17.2 Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-6200-PRO,HP HP Compaq 6200 Pro SFF PC,asset,1,NOS,2UA20614N8,16 GB,320 GB,,,,,IN_STORE,,,,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL8301WDW,16 GB,256 GB,,,,(Old Pharma )Nikita Bubey,ASSIGNED,HP,HPv18 - 18.5Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL8310SNC,8 GB,250 GB,,,,Ankit Lede,ASSIGNED,AOC,TFT17W80PS- 17 Inch,Keyboard Logitech K120 S\N -2305MR10ADD8 &Mouse HP 150,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-PRO-6300,HP HP Compaq Pro 6300 SFF,asset,1,NOS,2UA30501H3,16 GB,480 GB,,,,Ankit Lede(Table side),ASSIGNED,SAMSUNG,S19B150B - 18.5 Inch,Keyboard HP HQ-TRE71025 S\N-BEXLA0A5Y28077 &MouseLogitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-6200-PRO,HP HP Compaq 6200 Pro SFF PC,asset,1,NOS,2UA2090VRJ,8 GB,240 GB,,,,PC PTAX,ASSIGNED,SAMSUNG,S19B150B - 18.5 Inch,Keyboard HP K-45 S\N-794687-D61&Mouse HP150,Out of Warranty,Desktop detail
+DESK-HP-HP-PRO-3090-MICROT,HP HP Pro 3090 Microtower PC,asset,1,NOS,INA03002S0,8 GB,320 GB,,,,PHARMARETELL( Rahul Aboti,ASSIGNED,DELL,IN1720 -17.2 Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-ELITEDESK-800-G-2,HP HP EliteDesk 800 G1 SFF,asset,1,NOS,AUD60407YB,8 GB,256 GB,,,,Yogita Dhumale,ASSIGNED,DELL,IN1720 -17.2 Inch,Keyboard Logitech K120 S\N -2429MR03D9E8 &MouseLogitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-ELITE-83,HP HP Compaq Elite 8300 SFF,asset,1,NOS,GH249RRZR,16 GB,320 GB,,,,Anshul ghumatwar,ASSIGNED,Dell,1720C -17.2Inch,Keyboard HP KU-0316 S\N-537746-L31 & Mouse Logitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL8321M8R,16 GB,256 GB,,,,(Old Pharma )Nikita Bubey,ASSIGNED,HP,HPLV1911 - 18.5 Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL8321N6B,8 GB,256 GB,,,,Bhagvanti khandate,ASSIGNED,DELL,1720C -17.2Inch,Keyboard ASUS KB-7311 & Mouse HP M10,Out of Warranty,Desktop detail
+DESK-HP-HP-PRO-3090-MICROT,HP HP Pro 3090 Microtower PC,asset,1,NOS,INA03002R4,4 GB,500 GB,,,,Demo PC Near (Acount),ASSIGNED,Acer,V193HQ -18.5 Inch,Keyboard Logitech K120 S\N -2429MR05F5A4&Mouse Dell,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-PRO-6300,HP HP Compaq Pro 6300 SFF,asset,1,NOS,MXL2472390,16 GB,240 GB,,,,(Old Pharma )Nitin panpatte,ASSIGNED,DELL,1720C -17.2Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-600-G1-,HP HP ProDesk 600 G1 SFF,asset,1,NOS,MXL4220CPR,16 GB,240 GB,,,,Niranjan sir team,ASSIGNED,SAMSUNG,SMB1930N -19 Inch,Keyboard HP K45 S\N-691725-D61 & Mouse Dell,Out of Warranty,Desktop detail
+DESK-HP-HP-ELITEDESK-800-G-2,HP HP EliteDesk 800 G1 SFF,asset,1,NOS,AUD6020H1P,8 GB,240 GB,,,,Sohel khan,ASSIGNED,SAMSUNG,S19A300N -18.5 Inch,Keyboard HP KU-0316 S\N-434821-B32 & Mouse Logitech 90,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL8321MVY,8 GB,256 GB,,,,(Old Pharma )Priti Nevare,ASSIGNED,Dell,1720C -17.2Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-6200-PRO,HP HP Compaq 6200 Pro SFF PC,asset,1,NOS,MXL14719B8,8 GB,240 GB,,,,Swapnil Bante,ASSIGNED,SAMSUNG,SMB1930N -18.5 Inch,Keyboard Logitech K120 S\N -1939MR07BE28&MouseLogitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL8310SPZ,8 GB,240 GB,,,,Radheshyam Dahare,ASSIGNED,No,No,No,Out of Warranty,Desktop detail
+DESK-ACER-VERITON-SERIES,ACER Veriton Series,asset,1,NOS,UDVD9SI477C4256669,4 GB,320 GB,,,,Roshan Bharti,ASSIGNED,Aoc,TFT17W80PS,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL7441W4S,8 GB,250 GB,,,,Ankit Ninave,ASSIGNED,SAMSUNG,SMB1930N -18.5 Inch,Keyboard Logitech K120 S\N -2413MR199E18 &MouseLogitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-PRO-3335-MT,HP HP Pro 3335 MT,asset,1,NOS,INA334VLLN,10 GB,500 GB,,,,Ramesh Panicker,ASSIGNED,SAMSUNG,SMB1930N -18.5 Inch,Keyboard HP SK-2885 S\N-701429-D61 & Mouse HP 150,Out of Warranty,Desktop detail
+DESK-HP-PROLIANT-MICROSERV,HP ProLiant MicroServer,asset,1,NOS,5C7120P03K,8 GB,2.13 TB,,,,Ganesh Iwnate,ASSIGNED,SAMSUNG,SMB1930N -18.5 Inch,Keyboard Logitech K120 S\N -2413MR199E18 &MouseLogitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-PRO-6300,HP HP Compaq Pro 6300 SFF,asset,1,NOS,JPA314MYKF,16 GB,500 GB,,,,Niranjan Batte sir Desk,ASSIGNED,AOC,719Sw -17 Inch,Keyboard HP KU-0316 S\N-434821-001-D0M & Mouse Dell,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-600-G1-,HP HP ProDesk 600 G1 SFF,asset,1,NOS,2UA5232J3G,16 GB,240 GB,,,,Pharma office( Raj Sir)team,ASSIGNED,DELL,1720C -17.2Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-ELITEDESK-800-G-2,HP HP EliteDesk 800 G1 SFF,asset,1,NOS,GH441T0YD,8 GB,720 GB,,,,NItyanand Gawande,ASSIGNED,Compaq,R1916B Monitor,Keyboard HP KU-0316 S\N-5377HB31 & Mouse HP,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL8310SDC,8 GB,500 GB,,,,Radheshyam Dahare,ASSIGNED,SAMSUNG,S19A10N -18.5 Inch,Keyboard Logitech S\N - 8677710403 S\N -2305MR10ADD8 &Mouse HP 150,Out of Warranty,Desktop detail
+DESK-HP-HP-ELITEDESK-800-G-2,HP HP EliteDesk 800 G1 SFF,asset,1,NOS,AUD5470H1G,16 GB,720 GB,,,,Mrunali Dahiwale,ASSIGNED,DELL,IN1910NB,Keyboard HP KU-0316 S\N-434821-B32 &Mouse HP M10,Out of Warranty,Desktop detail
+DESK-HP-HP-PRODESK-600-G1-,HP HP ProDesk 600 G1 SFF,asset,1,NOS,2UA5291ZT1,8 GB,700 GB,,,,Gaurav Vighe,ASSIGNED,AOC,719Sw,Keybord Dell S\N -CN-OPIYDR-RRC00-10I-B2L6-A07&Mouse LogitechM90,Out of Warranty,Desktop detail
+DESK-ACER-VERITON-SERIES,ACER Veriton Series,asset,1,NOS,UXVD9SI155D3743723,4 GB,740 GB,,,,Admin PC\Saurbh Thakre,ASSIGNED,SAMSUNG,20335W Plus,Keyboard Logitech K120 S\N -2413MR199E18 &MouseLogitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-DC5750-S,HP HP Compaq DC5750 Small Form Factor,asset,1,NOS,INA83905YW,4 GB,240 GB,,,,(Old Pharma )Sanjay Badguye,ASSIGNED,Sanjay Badguye,SMB1930N -18.5 Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRO-3090-MT,HP HP Pro 3090 MT,asset,1,NOS,INA0150869,4 GB,150 GB,,,,(Old Pharma )Kalyani Selokar,ASSIGNED,DELL,1720C -17.2Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRO-3090-MT,HP HP Pro 3090 MT,asset,1,NOS,INA03002RP,4 GB,500 GB,,,,(Old Pharma )Vijay Gopnarayan,ASSIGNED,SAMSUNG,SMB1930N-18.5 Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-6300-PRO,HP HP Compaq 6300 Pro SFF PC,asset,1,NOS,JPA241ZZWL,8 GB,500 GB,,,,(Old Pharma )Mahesh Raut,ASSIGNED,HP,HSTND-2511-T,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRO-2110,HP HP Pro 2110,asset,1,NOS,SGH109RCY4,4 GB,320 GB,,,,(Old Pharma )Sawedna Kukwase,ASSIGNED,DELL,1720C -17.2Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-ELITE-800-G1-SF,HP HP Elite 800 G1 SFF,asset,1,NOS,AUD53301ST,5 GB,250 GB,,,,(Old Pharma )Sagar Bise,ASSIGNED,AOC,185LM00013 18.5Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRO-2110,HP HP Pro 2110,asset,1,NOS,SGH109RMOL,4 GB,500 GB,,,,(Old Pharma )Call forward PC,ASSIGNED,Acer,AL1716W,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-COMPAQ-DX2480,HP COMPAQ DX2480,asset,1,NOS,INA9460D94,5 GB,380GB,,,,(Old Pharma )Kalyani Bangare,ASSIGNED,DELL,1720C -17.2Inch,Keybord&Mouse,Out of Warranty,Desktop detail
+DESK-HP-HP-PRO-3005-3085,HP HP Pro 3005/3085,asset,1,NOS,INA02603MP,8 GB,500 GB,,,,SANKET Dambhe,ASSIGNED,Acer,V193HQ -18.5 Inch,Keyboard Logitech K120 S\N -2150MR045298 &Mouse Logitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-ELITEDESK-800-G,HP HP EliteDesk 800 G2 SFF,asset,1,NOS,SGH622PX58,16 GB,240 GB,,,,GIS (Team)\Sumant joshi,ASSIGNED,AOC,185LM00013-18.5 Inch,Keyboard Logitech K120 S\N -2237MR0EB3E8 &Mouse Logitech M90,Out of Warranty,Desktop detail
+DESK-HP-HP-ELITEDESK-800-G,HP HP EliteDesk 800 G2 SFF,asset,1,NOS,SGH629Q8ZW,8 GB,240 GB,,,,Nishant Tambewagh,ASSIGNED,No,No,No,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ-6200-PRO,HP HP Compaq 6200 Pro SFF PC,asset,1,NOS,2UA1421K8F,12GB,241 GB,,,,Surbhi Dube(Out side),ASSIGNED,DELL,1720C -17.2Inch,No,Out of Warranty,Desktop detail
+DESK-HP-HP-COMPAQ4000PRO,HP HP Compaq4000pro,asset,1,NOS,INA130RTKG,8 GB,380GB,,,,Sanjay Mokashi sir,ASSIGNED,Acer,AOCWHF,Keybord Dell S\N -CN-OPIYDR-RRW00-10I-C3H6-E36 &Mouse Dell,Out of Warranty,Desktop detail
+DESK-SR-NO-MONITOR-SCREEN,SR.NO Monitor - Screen,asset,1,NOS,,,,,,,,IN_STORE,,,,,Desktop detail
+DESK-1-DELL-MONITOR-27-IN,1 Dell Monitor 27 Inch TFT - S2721QS,asset,1,NOS,patelsircabin,,,,,,,IN_STORE,,,,,Desktop detail
+DESK-2-ACER-MONITOR27-INC,2 Acer Monitor27 Inch KA270,asset,1,NOS,ParimalSirDesk,,,,,,,IN_STORE,,,,,Desktop detail
+DESK-3-ACER-MONITOR27-INC,3 Acer Monitor27 Inch KA270,asset,1,NOS,NishantsirDesk,,,,,,,IN_STORE,,,,,Desktop detail
+DESK-4-AOC-MONITER27-INCH,4 AOC Moniter27 Inch 27B2H,asset,1,NOS,ManishsirCabin,,,,,,,IN_STORE,,,,,Desktop detail
+DESK-5-AOC-MONITER27-INCH,5 AOC Moniter27 Inch27B2H,asset,1,NOS,RahulsirDesk,,,,,,,IN_STORE,,,,,Desktop detail
+DESK-6-ACER-MONITER27-INC,6 Acer Moniter27 Inch27B2H,asset,1,NOS,Manglamoffice(2flourAcabin),,,,,,,IN_STORE,,,,,Desktop detail
+DESK-7-AOC-E2239FWT-215LM,7 AOC E2239FWT (215LM00005),asset,1,NOS,Manglamoffice(2flourBcabin),,,,,,,IN_STORE,,,,,Desktop detail
+DESK-HP-HP-ELITEDESK-800-G-2,HP HP EliteDesk 800 G1 SFF,asset,1,NOS,AUD53301R4,16 GB,,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRO-3335-MT,HP HP Pro 3335 MT,asset,1,NOS,INA334VLLS,3 GB,300GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRO-2110,HP HP Pro 2110,asset,1,NOS,,SCRAP,Nil,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRO-2110,HP HP Pro 2110,asset,1,NOS,,SCRAP,Nil,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRO-2110,HP HP Pro 2110,asset,1,NOS,,SCRAP,250GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRO-3090-MT,HP HP Pro 3090 MT,asset,1,NOS,,4 GB,Nil,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRO-3335-MT,HP HP Pro 3335 MT,asset,1,NOS,INA334VLMF,8 GB,240 GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-COMPAQ-8000-ELI,HP HP Compaq 8000 Elite SFF PC,asset,1,NOS,AUDA090B49,4 GB,150 GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRODESK-600-G1-,HP HP ProDesk 600 G1 SFF,asset,1,NOS,2UA5412BLM,8 GB,256 GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,1,NOS,MXL82518XT,16 GB,256 GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-COMPAQ-8200-ELI,HP HP Compaq 8200 Elite SFF PC,asset,1,NOS,2UA2160X20,8 GB,250 GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-ASUS-A-F-K31AN,ASUS A_F_K31AN,asset,1,NOS,FCPDCG0000AF,8 GB,240 GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-ACER-VERITON-SERIES,ACER Veriton Series,asset,1,NOS,UDVD9SI680D1046527,2 GB,250 GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+DESK-HP-HP-PRO-3090-MICROT,HP HP Pro 3090 Microtower PC,asset,1,NOS,INA03002TF,5 GB,251 GB,,,,,IN_STORE,,,,Available/Custody,Available Desktop
+LAP-HP-HP-ELITEBOOK-840-G-3,HP HP EliteBook 840 G1,asset,1,NOS,5CG5370RWH,8 GB,230 GB,Out of Warranty,,,,IN_STORE,,,,Battery Backup problem M Borad problem (Custdy), Available laptop 1
+LAP-LENOVO-80Q7,LENOVO 80Q7,asset,1,NOS,PF0F9GWV,8 GB,1 TB,Out of Warranty,,,,IN_STORE,,,,Battery Backup problem& Slownce (Custdy), Available laptop 1
+CAM-BAUMER-VCXU-2-241C,BAUMER VCXU.2-241C,asset,1,NOS,11708191,,,,,,AISL,ASSIGNED,,,,,Beagle Y-AI Device
+IT-TAMRON-LM25XC,TAMRON LM25xc,asset,1,NOS,87655011,,,,,,AISL,ASSIGNED,,,,,Beagle Y-AI Device
+IT-BAUMER-KSG-U2,BAUMER KSG U2,asset,1,NOS,KSGU6GC0300G,,,,,,AISL,ASSIGNED,,,,,Beagle Y-AI Device
+CAM-BAUMER-VCXU-123C,BAUMER VCXU-123c,asset,1,NOS,111165896,,,,,,AISL,ASSIGNED,,,,,Beagle Y-AI Device
+IT-TAMRON-12MEGAPIXEL,TAMRON 12Megapixel,asset,1,NOS,M111FM25,,,,,,AISL,ASSIGNED,,,,,Beagle Y-AI Device
+CAM-LAPCARE-LWC-009,LAPCARE LWC-009,asset,1,NOS,5Megapixel,,,,,,AISL,ASSIGNED,,,,,Beagle Y-AI Device
+CAM-LAPCARE-LWC-042,LAPCARE LWC-042,asset,1,NOS,"LB36418236,LB36418240,-1",,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+CAM-LAPCARE-LWC-042,LAPCARE LWC-042,asset,1,NOS,"LB36418236,LB36418240,-2",,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+CAM-UNKNOWN-,UNKNOWN,asset,1,NOS,"LB36418246,LB36418265,-1",,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+CAM-UNKNOWN-,UNKNOWN,asset,1,NOS,"LB36418246,LB36418265,-2",,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+CAM-UNKNOWN-,UNKNOWN,asset,1,NOS,"LB36418234,LB36418265,-1",,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+CAM-UNKNOWN-,UNKNOWN,asset,1,NOS,"LB36418234,LB36418265,-2",,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+CAM-HIKVISIS-DS-UD,HIKVISISION DS-UD,asset,1,NOS,,,,,,,,IN_STORE,,,,Faulty,Beagle Y-AI Device
+CAM-UNKNOWN-IMX179,UNKNOWN IMX179,asset,1,NOS,SBC2075,,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+IT-RASPBERR-16MM,RASPBERRY PI 16mm,asset,1,NOS,10Megapixel,,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+IT-RASPBERR-3MP-HD,RASPBERRY PI 3MP-HD,asset,1,NOS,,,,,,,,IN_STORE,,,,,Beagle Y-AI Device
+IT-RASPBERR-,RASPBERRY PI,asset,1,NOS,"FCCID-2ABCB-RPI3BP,",,,,,,Abhijeet sir,ASSIGNED,,,,,Beagle Y-AI Device
+IT-RASPBERR-MODEL-B,RASPBERRY PI Model B,asset,1,NOS,,,,,,,Buldhana Bank,ASSIGNED,,,,,Beagle Y-AI Device
+IT-UNKNOWN-,UNKNOWN,asset,1,NOS,BYAI202406000940-1,,,,,,Deshpande Sir,ASSIGNED,,,,"(1Working ,1 HDMI prot problem)",Beagle Y-AI Device
+IT-UNKNOWN-,UNKNOWN,asset,1,NOS,BYAI202406000940-2,,,,,,Deshpande Sir,ASSIGNED,,,,"(1Working ,1 HDMI prot problem)",Beagle Y-AI Device
+IT-UNKNOWN-,UNKNOWN,asset,1,NOS,"BYAI202406001171,-1",,,,,,Dubai Office,ASSIGNED,,,,"(1 vishwas sir ,1 mokashi sir Traval)",Beagle Y-AI Device
+IT-UNKNOWN-,UNKNOWN,asset,1,NOS,"BYAI202406001171,-2",,,,,,Dubai Office,ASSIGNED,,,,"(1 vishwas sir ,1 mokashi sir Traval)",Beagle Y-AI Device
+CAM-ARDUCAM-UC-733,ARDUCAM UC -733,asset,1,NOS,Rev.c1usb2.0cable,,,,,,,IN_STORE,,,,,Beagle Y-AI Device

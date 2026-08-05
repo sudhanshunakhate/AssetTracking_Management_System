@@ -59,7 +59,7 @@ body {
 .brand-cta {
   background-image: var(--brand-gradient-hot);
   background-size: 100% 100%;
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--accent-deep);
   box-shadow: var(--brand-glow);
   text-shadow: 0 1px 0 rgba(3, 105, 161, 0.18);
   transition:
