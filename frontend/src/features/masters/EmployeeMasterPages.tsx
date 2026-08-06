@@ -24,6 +24,7 @@ import {
 import { http } from '@/api/client'
 import type { Employee } from '@/types/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { confirmClearForm, scrollToFirstInvalid } from '@/lib/csvExport'
 import { MSG, PATTERNS, RULES, notBefore, validateFields } from './validation'
 
 const LOGIN_ID = /^[a-z0-9][a-z0-9._-]*$/
@@ -324,6 +325,7 @@ function EmployeeForm() {
           ? errors[failed[0]]
           : `Please correct ${failed.length} highlighted field(s) before saving.`,
       )
+      scrollToFirstInvalid()
       return
     }
     setSaving(true)
@@ -408,6 +410,7 @@ function EmployeeForm() {
                 maxLength={20}
                 invalid={Boolean(err('code'))}
                 placeholder="EMP-001"
+                disabled={readOnly}
               />
             </Field>
             <Field label="First Name" required error={err('firstName')} className="md:col-span-2">
@@ -418,6 +421,7 @@ function EmployeeForm() {
                 maxLength={50}
                 invalid={Boolean(err('firstName'))}
                 placeholder="Aditya"
+                disabled={readOnly}
               />
             </Field>
             <Field label="Last Name" error={err('lastName')}>
@@ -428,10 +432,11 @@ function EmployeeForm() {
                 maxLength={50}
                 invalid={Boolean(err('lastName'))}
                 placeholder="Kulkarni"
+                disabled={readOnly}
               />
             </Field>
             <Field label="Gender">
-              <Select value={values.gender} onChange={(e) => set('gender', e.target.value)}>
+              <Select value={values.gender} onChange={(e) => set('gender', e.target.value)} disabled={readOnly}>
                 <option value="">— Select —</option>
                 {genderOpts.map((o) => (
                   <option key={o.code} value={o.value}>
@@ -447,6 +452,7 @@ function EmployeeForm() {
                 onChange={(e) => set('dob', e.target.value)}
                 onBlur={() => touch('dob')}
                 invalid={Boolean(err('dob'))}
+                disabled={readOnly}
               />
             </Field>
             <Field label="Joining Date" error={err('joiningDate')}>
@@ -456,12 +462,14 @@ function EmployeeForm() {
                 onChange={(e) => set('joiningDate', e.target.value)}
                 onBlur={() => touch('joiningDate')}
                 invalid={Boolean(err('joiningDate'))}
+                disabled={readOnly}
               />
             </Field>
             <Field label="Employment Type">
               <Select
                 value={values.employmentType}
                 onChange={(e) => set('employmentType', e.target.value)}
+                disabled={readOnly}
               >
                 {employmentOpts.map((o) => (
                   <option key={o.code} value={o.value}>
@@ -486,6 +494,7 @@ function EmployeeForm() {
                 maxLength={80}
                 invalid={Boolean(err('designation'))}
                 placeholder="Store Manager"
+                disabled={readOnly}
               />
             </Field>
             <Field label="Department" error={err('department')} className="md:col-span-2">
@@ -496,6 +505,7 @@ function EmployeeForm() {
                 maxLength={80}
                 invalid={Boolean(err('department'))}
                 placeholder="Stores / IT / Operations / Finance"
+                disabled={readOnly}
               />
             </Field>
             <Field label="Email" required error={err('email')} className="md:col-span-2">
@@ -507,6 +517,7 @@ function EmployeeForm() {
                 maxLength={120}
                 invalid={Boolean(err('email'))}
                 placeholder="employee@company.in"
+                disabled={readOnly}
               />
             </Field>
             <Field label="Phone" error={err('phone')}>
@@ -517,6 +528,7 @@ function EmployeeForm() {
                 maxLength={15}
                 invalid={Boolean(err('phone'))}
                 placeholder="99XXXXXXXX"
+                disabled={readOnly}
               />
             </Field>
             <Field label="Alt. Phone" error={err('altPhone')}>
@@ -527,6 +539,7 @@ function EmployeeForm() {
                 maxLength={15}
                 invalid={Boolean(err('altPhone'))}
                 placeholder="99XXXXXXXX"
+                disabled={readOnly}
               />
             </Field>
             <Field label="Role" required error={err('role')} className="md:col-span-2">
@@ -537,6 +550,7 @@ function EmployeeForm() {
                   set('role', e.target.value)
                 }}
                 invalid={Boolean(err('role'))}
+                disabled={readOnly}
               >
                 <option value="">— Assign Role —</option>
                 {roles.map((r) => (
@@ -547,7 +561,7 @@ function EmployeeForm() {
               </Select>
             </Field>
             <Field label="Base Store" className="md:col-span-2">
-              <Select value={values.baseStore} onChange={(e) => set('baseStore', e.target.value)}>
+              <Select value={values.baseStore} onChange={(e) => set('baseStore', e.target.value)} disabled={readOnly}>
                 <option value="">— Assign Store —</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -557,7 +571,7 @@ function EmployeeForm() {
               </Select>
             </Field>
             <Field label="Reporting To" className="md:col-span-2">
-              <Select value={values.reportingTo} onChange={(e) => set('reportingTo', e.target.value)}>
+              <Select value={values.reportingTo} onChange={(e) => set('reportingTo', e.target.value)} disabled={readOnly}>
                 <option value="">— Select Manager —</option>
                 {managerOptions.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -571,6 +585,7 @@ function EmployeeForm() {
                 label="Active Employee"
                 checked={values.status}
                 onChange={(v) => set('status', v)}
+                disabled={readOnly}
               />
             </div>
           </div>
@@ -593,6 +608,7 @@ function EmployeeForm() {
                 label="Create User Login Automatically on Save"
                 checked={values.createLogin}
                 onChange={(v) => set('createLogin', v)}
+                disabled={readOnly}
               />
             </div>
           )}
@@ -615,6 +631,7 @@ function EmployeeForm() {
                   maxLength={60}
                   invalid={Boolean(err('loginId'))}
                   placeholder="firstname.lastname"
+                  disabled={readOnly}
                 />
               </Field>
               <Field
@@ -631,6 +648,7 @@ function EmployeeForm() {
                   maxLength={72}
                   invalid={Boolean(err('password'))}
                   placeholder="••••••••"
+                  disabled={readOnly}
                 />
               </Field>
               <Field label="Confirm Password" required error={err('confirmPassword')}>
@@ -642,6 +660,7 @@ function EmployeeForm() {
                   maxLength={72}
                   invalid={Boolean(err('confirmPassword'))}
                   placeholder="••••••••"
+                  disabled={readOnly}
                 />
               </Field>
               <Field label="Role for Login" hint="Taken from Role above">
@@ -655,6 +674,7 @@ function EmployeeForm() {
                     set('entityId', e.target.value)
                   }}
                   invalid={Boolean(err('entityId'))}
+                  disabled={readOnly}
                 >
                   <option value="">— Select Organization —</option>
                   {entities.map((o) => (
@@ -676,6 +696,7 @@ function EmployeeForm() {
           readOnly
             ? undefined
             : () => {
+                if (!confirmClearForm()) return
                 setValues(emptyForm())
                 setTouched({})
                 setSubmitted(false)

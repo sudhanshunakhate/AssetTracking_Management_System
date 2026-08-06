@@ -8,6 +8,7 @@ import { fetchStockRegister } from '@/api/transactions'
 import { mapCategory, mapLocation, mapUnit, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { StockRegisterRow } from '@/types/transactions'
+import { downloadCsv } from '@/lib/csvExport'
 
 export function StockRegisterPage() {
   const { seesAllLocations } = useAuth()
@@ -97,7 +98,47 @@ export function StockRegisterPage() {
       <PageHeader
         title="Stock Register"
         description="Opening, inward, outward and closing stock position for every item, item-wise and location-wise."
-        actions={<Button variant="ghost">Export</Button>}
+        actions={
+          <Button
+            variant="ghost"
+            disabled={filtered.length === 0}
+            onClick={() =>
+              downloadCsv(
+                `stock-register-${new Date().toISOString().slice(0, 10)}.csv`,
+                [
+                  'Item Code',
+                  'Item Name',
+                  'Category',
+                  'UOM',
+                  'Store',
+                  'Opening',
+                  'Inward',
+                  'Outward',
+                  'Closing',
+                  'Reorder Lvl',
+                  'Value',
+                  'Status',
+                ],
+                filtered.map((r) => [
+                  r.itemCode,
+                  r.itemName,
+                  r.category,
+                  r.uom,
+                  r.store,
+                  r.opening,
+                  r.inward,
+                  r.outward,
+                  r.closing,
+                  r.reorderLevel,
+                  r.value,
+                  r.status,
+                ]),
+              )
+            }
+          >
+            Export
+          </Button>
+        }
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading stock register…</div>}

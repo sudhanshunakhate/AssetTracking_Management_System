@@ -160,19 +160,13 @@ public class ReportsController {
             if (!matchesItemSearch(item, search)) continue;
 
             OrgLocationMst store = locations.get(s.getStkLocationIdLoc());
-            Integer assignedEmpId = item.getItmAssignedToEmpIdEmp();
             IssueCustody issued = lastIssue.get(custodyKey(s.getStkItemIdItm(), s.getStkLocationIdLoc()));
 
-            Integer custodianEmpId = issued != null && issued.empId != null
-                    ? issued.empId
-                    : assignedEmpId;
-            String custodyMode = issued != null && issued.empId != null
-                    ? "ISSUED_TO"
-                    : (assignedEmpId != null ? "ASSIGNED" : "IN_STORE");
+            Integer custodianEmpId = issued != null ? issued.empId : null;
+            String custodyMode = issued != null && issued.empId != null ? "ISSUED_TO" : "IN_STORE";
 
             if (employeeId != null && !employeeId.equals(custodianEmpId)
-                    && !employeeId.equals(store == null ? null : store.getLocManagerEmpIdEmp())
-                    && !employeeId.equals(assignedEmpId)) {
+                    && !employeeId.equals(store == null ? null : store.getLocManagerEmpIdEmp())) {
                 continue;
             }
             if (custody != null && !custody.isBlank() && !custody.equalsIgnoreCase(custodyMode)) {
@@ -185,7 +179,6 @@ public class ReportsController {
             HrcEmployeeMst custodian = custodianEmpId == null ? null : employees.get(custodianEmpId);
             HrcEmployeeMst manager = store == null || store.getLocManagerEmpIdEmp() == null
                     ? null : employees.get(store.getLocManagerEmpIdEmp());
-            HrcEmployeeMst assigned = assignedEmpId == null ? null : employees.get(assignedEmpId);
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", s.getStkStockId());
@@ -213,8 +206,6 @@ public class ReportsController {
             row.put("custodian", empLabel(custodian));
             row.put("custodianDept", custodian == null ? null : custodian.getEmpDepartment());
             row.put("custodianDesignation", custodian == null ? null : custodian.getEmpDesignation());
-            row.put("assignedEmpId", assignedEmpId);
-            row.put("assignedTo", empLabel(assigned));
             row.put("lastIssueDocNo", issued == null ? null : issued.docNo);
             row.put("lastIssueDate", issued == null ? null : issued.docDate);
             row.put("lastTxnDate", s.getStkLastTransactionDate());
@@ -354,7 +345,6 @@ public class ReportsController {
         });
 
         Map<Integer, OrgLocationMst> locations = locationMap();
-        Map<Integer, HrcEmployeeMst> employees = employeeMap();
 
         // Aggregate stock across stores (access-scoped).
         List<Integer> locFilter = accessScope.resolveLocationFilter(null);
@@ -380,8 +370,6 @@ public class ReportsController {
             StockAgg agg = stockByItem.getOrDefault(item.getItmItemId(), StockAgg.ZERO);
             OrgLocationMst curLoc = item.getItmCurrentLocationIdLoc() == null
                     ? null : locations.get(item.getItmCurrentLocationIdLoc());
-            HrcEmployeeMst assigned = item.getItmAssignedToEmpIdEmp() == null
-                    ? null : employees.get(item.getItmAssignedToEmpIdEmp());
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", item.getItmItemId());
@@ -393,16 +381,11 @@ public class ReportsController {
             row.put("uomId", item.getItmUomIdUnt());
             row.put("makeBrand", item.getItmMakeBrand());
             row.put("model", item.getItmModel());
-            row.put("serialNo", item.getItmSerialNo());
             row.put("isSerialized", Boolean.TRUE.equals(item.getItmIsSerialized()));
             row.put("trackBatchLot", Boolean.TRUE.equals(item.getItmTrackBatchLot()));
             row.put("trackExpiry", Boolean.TRUE.equals(item.getItmTrackExpiry()));
             row.put("isConsumable", Boolean.TRUE.equals(item.getItmIsConsumable()));
             row.put("standardCost", item.getItmStandardCost());
-            row.put("purchaseCost", item.getItmPurchaseCost());
-            row.put("assetCondition", item.getItmAssetCondition());
-            row.put("assignedEmpId", item.getItmAssignedToEmpIdEmp());
-            row.put("assignedTo", empLabel(assigned));
             row.put("currentLocationId", item.getItmCurrentLocationIdLoc());
             row.put("currentStore", curLoc == null ? null : curLoc.getLocLocationCode());
             row.put("totalStockQty", agg.qty);

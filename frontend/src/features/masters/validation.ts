@@ -35,8 +35,8 @@ export const PATTERNS = {
   /** Letters and spaces only — city, state, person names. */
   alphaSpace: /^[A-Za-z][A-Za-z\s.'-]*$/,
   email: /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/,
-  /** Indian mobile / landline, 10-15 digits with optional +country prefix. */
-  phone: /^\+?[0-9][0-9\s-]{7,14}$/,
+  /** Digits-only Indian mobile (10 digits starting 6–9, optional 91 prefix). */
+  phone: /^\+?91[-\s]?[6-9]\d{9}$|^[6-9]\d{9}$/,
   gstin: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/,
   pan: /^[A-Z]{5}[0-9]{4}[A-Z]$/,
   pincode: /^[1-9][0-9]{5}$/,
@@ -52,7 +52,7 @@ export const MSG = {
   name: 'Only letters, digits, spaces and ( ) . , & - / are allowed',
   alphaSpace: 'Only letters and spaces are allowed',
   email: 'Enter a valid email address, e.g. name@company.com',
-  phone: 'Enter a valid phone number (8–15 digits)',
+  phone: 'Enter a valid 10-digit Indian mobile number',
   gstin: 'GSTIN must be 15 characters, e.g. 27ABCDE1234F1Z5',
   pan: 'PAN must be 10 characters, e.g. ABCDE1234F',
   pincode: 'PIN code must be 6 digits',
@@ -98,8 +98,12 @@ export const RULES = {
   phone: (required = false): ValidationRules => ({
     required,
     maxLength: 15,
-    pattern: PATTERNS.phone,
-    patternMessage: MSG.phone,
+    validate: (value) => {
+      if (!value.trim()) return ''
+      let digits = value.replace(/\D/g, '')
+      if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2)
+      return /^[6-9]\d{9}$/.test(digits) ? '' : MSG.phone
+    },
   }),
   gstin: (): ValidationRules => ({
     minLength: 15,

@@ -178,7 +178,7 @@ public class TxnDocumentService {
 
     @Transactional
     public DocumentResponse create(DocType docType, DocumentRequest req) {
-        validateLines(req.lines());
+        validateLines(docType, req.lines());
         accessScope.requireLocationAllowed(req.locationId());
         accessScope.requireLocationAllowed(req.fromLocationId());
         accessScope.requireLocationAllowed(req.toLocationId());
@@ -210,7 +210,7 @@ public class TxnDocumentService {
         if (!isEditable(header.getTxhStatus())) {
             throw ApiException.conflict("Only draft / pending documents can be updated");
         }
-        validateLines(req.lines());
+        validateLines(docType, req.lines());
         accessScope.requireLocationAllowed(req.locationId());
         accessScope.requireLocationAllowed(req.fromLocationId());
         accessScope.requireLocationAllowed(req.toLocationId());
@@ -322,9 +322,25 @@ public class TxnDocumentService {
         if (!ok) throw ApiException.forbidden("You do not have access to this document");
     }
 
-    private void validateLines(List<LineRequest> lines) {
+    private void validateLines(DocType docType, List<LineRequest> lines) {
         if (lines == null || lines.isEmpty()) {
             throw ApiException.badRequest("At least one line item is required");
+        }
+        if (!StockPostingRules.isInboundStock(docType)) {
+            return;
+        }
+        for (int i = 0; i < lines.size(); i++) {
+            LineRequest line = lines.get(i);
+            if (line.itemId() == null) continue;
+            InvItemMst item = itemRepo.findById(line.itemId()).orElse(null);
+            if (item == null) continue;
+            if (!Boolean.TRUE.equals(item.getItmIsSerialized())) continue;
+            String serial = line.serialNo() == null ? "" : line.serialNo().trim();
+            if (serial.isEmpty()) {
+                String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(line.itemId());
+                throw ApiException.badRequest(
+                        "Serial No. is required for serialized item " + code + " (line " + (i + 1) + ")");
+            }
         }
     }
 

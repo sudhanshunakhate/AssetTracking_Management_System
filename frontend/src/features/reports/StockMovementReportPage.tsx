@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockMovement } from '@/api/transactions'
 import { mapCategory, mapLocation, mapUnit, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { downloadCsv } from '@/lib/csvExport'
 
 type MovementRow = {
   id: string
@@ -153,7 +154,51 @@ export function StockMovementReportPage() {
             <Button variant="ghost" onClick={() => setF(emptyFilters)}>
               Clear
             </Button>
-            <Button variant="ghost">Export</Button>
+            <Button
+              variant="ghost"
+              disabled={rows.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  `stock-movement-${new Date().toISOString().slice(0, 10)}.csv`,
+                  [
+                    'Date',
+                    'Doc Type',
+                    'Doc No',
+                    'Direction',
+                    'Item Code',
+                    'Item Name',
+                    'Category',
+                    'Qty',
+                    'UOM',
+                    'From',
+                    'To',
+                    'Employee',
+                    'Status',
+                    'Value',
+                    'Serial',
+                  ],
+                  rows.map((r) => [
+                    r.date,
+                    r.docType,
+                    r.docNo,
+                    r.direction,
+                    r.itemCode,
+                    r.itemName,
+                    r.category,
+                    r.qty,
+                    r.uom,
+                    r.fromStore,
+                    r.toStore,
+                    r.employee,
+                    r.status,
+                    r.value,
+                    r.serialNo,
+                  ]),
+                )
+              }
+            >
+              Export
+            </Button>
             <Button onClick={() => void reload()}>Apply</Button>
           </>
         }

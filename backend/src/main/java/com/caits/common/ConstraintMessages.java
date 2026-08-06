@@ -17,7 +17,6 @@ public final class ConstraintMessages {
             Map.entry("gentype_mst_gtyp_type_code_key", "Type code already exists"),
             Map.entry("genmaster_mst_gmst_value_code_key", "Value code already exists — value codes must be unique across all types"),
             Map.entry("inv_item_mst_itm_item_code_key", "Item code already exists"),
-            Map.entry("uq_item_serial_no", "This serial number is already recorded against another item"),
             Map.entry("inv_vendor_mst_vnd_vendor_code_key", "Vendor code already exists"),
             Map.entry("org_entity_mst_ent_entity_code_key", "Organization code already exists"),
             Map.entry("org_businessunit_mst_bu_bu_code_key", "Operating Unit code already exists"),

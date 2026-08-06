@@ -181,7 +181,7 @@
                            "file":  "db_approach/seed_report_menus_owner_movement_item.sql",
                            "description":  "Adds Reports menus STKOWN / STKMOV / ITEMREG and ADMIN view+export permissions.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-08-05",
                                            "dev":  "2026-08-04"
                                        }
                        },
@@ -190,7 +190,7 @@
                            "file":  "db_approach/requisition_drop_pending_approval.sql",
                            "description":  "Convert MATERIAL_REQUISITION Pending Approval rows to Submitted; SR has no approval step.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-08-05",
                                            "dev":  "2026-08-04"
                                        }
                        },
@@ -199,7 +199,7 @@
                            "file":  "db_approach/remap_txn_status_labels.sql",
                            "description":  "Remap draft/submit statuses: In Pending/Completed (GRN/OST), Pending/Requested/Issued (SR), Pending/Issued (Issue), Pending/Transferred, Pending/Returned.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-08-05",
                                            "dev":  "2026-08-04"
                                        }
                        },
@@ -208,7 +208,7 @@
                            "file":  "db_approach/seed_unit_master.sql",
                            "description":  "Seed Unit Master UOMs (NOS, PCS, RM, BOX, SET, MTR, ROL, PAC, BTL, LIC, CORE, KG, LTR, PAIR, CAN).",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-08-05",
                                            "dev":  "2026-08-05"
                                        }
                        },
@@ -217,7 +217,16 @@
                            "file":  "db_approach/seed_office_item_master.sql",
                            "description":  "Seed Item Master catalog from office assets workbook (laptops, desktops, peripherals, consumables).",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-08-05",
+                                           "dev":  "2026-08-05"
+                                       }
+                       },
+                       {
+                           "id":  "022-drop-item-mst-instance-fields",
+                           "file":  "db_approach/drop_item_mst_instance_fields.sql",
+                           "description":  "Drop instance-level columns from inv_item_mst (serial/IP/MAC/hostname/condition/batch/expiry/purchase/assigned); keep home location.",
+                           "applied":  {
+                                           "local":  "2026-08-05",
                                            "dev":  "2026-08-05"
                                        }
                        }

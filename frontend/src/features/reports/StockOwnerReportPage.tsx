@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockOwner } from '@/api/transactions'
 import { mapCategory, mapEmployee, mapLocation, mapUnit, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { downloadCsv } from '@/lib/csvExport'
 
 type OwnerRow = {
   id: string
@@ -24,7 +25,6 @@ type OwnerRow = {
   custodyMode: string
   custodian: string
   custodianDept: string
-  assignedTo: string
   lastIssueDocNo: string
   lastIssueDate: string
   status: string
@@ -92,7 +92,6 @@ export function StockOwnerReportPage() {
             custodyMode: String(r.custodyMode ?? 'IN_STORE'),
             custodian: String(r.custodian ?? '—'),
             custodianDept: String(r.custodianDept ?? '—'),
-            assignedTo: String(r.assignedTo ?? '—'),
             lastIssueDocNo: String(r.lastIssueDocNo ?? '—'),
             lastIssueDate: String(r.lastIssueDate ?? '—'),
             status: String(r.status ?? ''),
@@ -126,7 +125,53 @@ export function StockOwnerReportPage() {
       <PageHeader
         title="Stock Owner Report"
         description="Store-wise ownership of current stock, with employee custody (assigned / last issued-to) detail."
-        actions={<Button variant="ghost">Export</Button>}
+        actions={
+          <Button
+            variant="ghost"
+            disabled={rows.length === 0}
+            onClick={() =>
+              downloadCsv(
+                `stock-owner-${new Date().toISOString().slice(0, 10)}.csv`,
+                [
+                  'Store',
+                  'Store Name',
+                  'Manager',
+                  'Item Code',
+                  'Item Name',
+                  'Category',
+                  'Qty',
+                  'Available',
+                  'Value',
+                  'Custody',
+                  'Custodian',
+                  'Dept',
+                  'Last Issue',
+                  'Last Issue Date',
+                  'Status',
+                ],
+                rows.map((r) => [
+                  r.store,
+                  r.storeName,
+                  r.storeManager,
+                  r.itemCode,
+                  r.itemName,
+                  r.category,
+                  r.currentQty,
+                  r.availableQty,
+                  r.value,
+                  CUSTODY_LABEL[r.custodyMode] ?? r.custodyMode,
+                  r.custodian,
+                  r.custodianDept,
+                  r.lastIssueDocNo,
+                  r.lastIssueDate,
+                  r.status,
+                ]),
+              )
+            }
+          >
+            Export
+          </Button>
+        }
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading stock owner report…</div>}
@@ -171,7 +216,7 @@ export function StockOwnerReportPage() {
               <option value="">All Employees</option>
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.firstName} {e.lastName}
+                  {String(e.firstName ?? '')} {String(e.lastName ?? '')}
                 </option>
               ))}
             </select>

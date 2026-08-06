@@ -7,6 +7,7 @@ import { DataTable, statusColumn, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import { useAuth } from '@/features/auth/AuthContext'
+import { confirmClearForm, scrollToFirstInvalid } from '@/lib/csvExport'
 import { validateFields, areRequiredFieldsFilled, HEADER_BEFORE_LINES_HINT, type ValidationRules } from './validation'
 
 export type FieldDef = ValidationRules & {
@@ -73,6 +74,11 @@ interface SimpleMasterProps<T extends Row> {
   /** Field names that should be read-only on the edit form. */
   readOnlyFields?: string[]
   /**
+   * When true, existing records open view-only (create-only APIs: Issue / Transfer / Return).
+   * List row click still works for viewing.
+   */
+  viewOnlyExisting?: boolean
+  /**
    * Cross-field validation run before save, on top of the per-field rules.
    * Return a map of field name → message; use the `_form` key for a form-level error.
    */
@@ -118,6 +124,7 @@ export function SimpleMasterModule<T extends Row>({
   onSave,
   onFieldChange,
   readOnlyFields = [],
+  viewOnlyExisting = false,
   validateForm,
   loadRecord,
 }: SimpleMasterProps<T>) {
@@ -129,7 +136,7 @@ export function SimpleMasterModule<T extends Row>({
   const isForm = id === 'new' || (id != null && id.length > 0 && id !== undefined)
   const editing = id && id !== 'new' ? rows.find((r) => String(r.id) === String(id)) : undefined
   const isNew = id === 'new'
-  const formReadOnly = isNew ? !canCreate : !canEdit
+  const formReadOnly = isNew ? !canCreate : viewOnlyExisting || !canEdit
   const [loadedRecord, setLoadedRecord] = useState<Record<string, unknown> | null>(null)
   const [recordLoading, setRecordLoading] = useState(false)
   const [recordError, setRecordError] = useState('')
@@ -234,6 +241,7 @@ export function SimpleMasterModule<T extends Row>({
         onFieldChange={onFieldChange}
         readOnly={formReadOnly}
         readOnlyFields={readOnlyFields}
+        viewOnlyExisting={viewOnlyExisting && !isNew}
         initial={initial}
         renderExtraForm={renderExtraForm}
         siblings={rows}
@@ -281,6 +289,7 @@ function MasterForm({
   renderExtraForm,
   readOnly = false,
   readOnlyFields = [],
+  viewOnlyExisting = false,
   siblings = [],
   validateForm,
 }: {
@@ -310,6 +319,7 @@ function MasterForm({
   ) => ReactNode
   readOnly?: boolean
   readOnlyFields?: string[]
+  viewOnlyExisting?: boolean
   siblings?: Row[]
   validateForm?: (values: Record<string, unknown>, recordId: string) => Record<string, string>
 }) {
@@ -380,6 +390,7 @@ function MasterForm({
       if (highlighted === 1 && offGrid.length === 0) parts.push(errors[names[0]])
       else if (highlighted > 0) parts.push(`Please correct ${highlighted} highlighted field(s).`)
       setError(parts.join(' '))
+      scrollToFirstInvalid()
       return
     }
     setSaving(true)
@@ -407,7 +418,9 @@ function MasterForm({
           <div className="mt-0.5 text-[12.5px] text-[var(--text2)]">{description}</div>
           {readOnly && (
             <div className="mt-1 text-[12px] text-[var(--danger)]">
-              You do not have Edit permission for this screen. Ask an admin to grant Edit on Role & Menu Mapping.
+              {viewOnlyExisting
+                ? 'Existing documents are view-only. Use Add New to create another.'
+                : 'You do not have Edit permission for this screen. Ask an admin to grant Edit on Role & Menu Mapping.'}
             </div>
           )}
         </div>
@@ -521,6 +534,7 @@ function MasterForm({
           readOnly
             ? undefined
             : () => {
+                if (!confirmClearForm()) return
                 setValues({
                   ...Object.fromEntries(fields.map((f) => [f.name, f.type === 'switch' ? true : ''])),
                   status: true,

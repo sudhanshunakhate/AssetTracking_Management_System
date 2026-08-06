@@ -171,7 +171,7 @@ export function GatepassPage() {
           },
         ],
       })
-      setMessage(action === 'SAVE_DRAFT' ? 'Inward gatepass saved as draft' : 'Inward gatepass submitted for approval')
+      setMessage(action === 'SAVE_DRAFT' ? 'Inward gatepass saved as draft' : 'Inward gatepass completed')
       await inward.reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -225,7 +225,7 @@ export function GatepassPage() {
     <FadeContent>
       <PageHeader
         title="Gatepass"
-        description="Single window for all store-gate movement — record material received (Inward) and issue Outward Forms from one place."
+        description="Single window for store-gate movement — create Inward or Outward forms. Submit completes stock posting immediately (no approval step). Recent documents below are read-only."
       />
 
       {(inward.error || outward.error) && (

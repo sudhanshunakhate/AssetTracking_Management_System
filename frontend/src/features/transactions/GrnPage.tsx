@@ -57,8 +57,6 @@ type FormState = {
   remarks: string
   preparedBy: string
   preparedDate: string
-  approvedBy: string
-  approvedDate: string
   status: string
 }
 
@@ -77,8 +75,6 @@ function blankForm(employeeId?: number | null): FormState {
     remarks: '',
     preparedBy: employeeId != null ? String(employeeId) : '',
     preparedDate: todayIso(),
-    approvedBy: '',
-    approvedDate: '',
     status: '',
   }
 }
@@ -223,8 +219,6 @@ function GrnForm() {
           remarks: doc.remarks ?? '',
           preparedBy: doc.preparedByEmpId != null ? String(doc.preparedByEmpId) : '',
           preparedDate: doc.preparedDate ?? '',
-          approvedBy: doc.approvedByEmpId != null ? String(doc.approvedByEmpId) : '',
-          approvedDate: doc.approvedDate ?? '',
           status: doc.status ?? '',
         })
         const mapped = (doc.lines ?? []).map((l) => ({
@@ -304,12 +298,6 @@ function GrnForm() {
         type: 'date',
         validate: notBefore('grnDate', 'GRN Date'),
       },
-      {
-        name: 'approvedDate',
-        label: 'Approved Date',
-        type: 'date',
-        validate: notBefore('grnDate', 'GRN Date'),
-      },
     ],
     [],
   )
@@ -337,7 +325,6 @@ function GrnForm() {
     if (form.inspectionDate && !form.inspectedBy) {
       found.inspectedBy = 'Select who inspected the goods.'
     }
-    if (form.approvedDate && !form.approvedBy) found.approvedBy = 'Select who approved the GRN.'
     if (form.preparedDate && !form.preparedBy) found.preparedBy = 'Select who prepared the GRN.'
     return found
   }, [readOnly, form, fieldDefs, lines, itemType])
@@ -364,8 +351,6 @@ function GrnForm() {
       inspectionDate: form.inspectionDate || undefined,
       preparedByEmpId: form.preparedBy ? Number(form.preparedBy) : undefined,
       preparedDate: form.preparedDate || undefined,
-      approvedByEmpId: form.approvedBy ? Number(form.approvedBy) : undefined,
-      approvedDate: form.approvedDate || undefined,
       remarks: form.remarks || undefined,
       totalReceivedQty: totals.received,
       totalAcceptedQty: totals.accepted,
@@ -662,30 +647,6 @@ function GrnForm() {
 
             <Field label="Prepared Date" hint="Auto-filled with today’s date">
               <Input type="date" value={form.preparedDate} readOnly disabled />
-            </Field>
-
-            <LookupSelect
-              label="Approved By"
-              value={form.approvedBy}
-              onChange={(v) => set('approvedBy', v)}
-              onBlur={() => touch('approvedBy')}
-              options={employeeOptions}
-              placeholder="— Select —"
-              error={err('approvedBy')}
-              disabled={readOnly}
-              quickAdd={addEmployee}
-            />
-
-            <Field label="Approved Date" error={err('approvedDate')}>
-              <Input
-                type="date"
-                value={form.approvedDate}
-                min={form.grnDate || undefined}
-                onChange={(e) => set('approvedDate', e.target.value)}
-                onBlur={() => touch('approvedDate')}
-                disabled={readOnly}
-                invalid={Boolean(err('approvedDate'))}
-              />
             </Field>
           </div>
         </CardBody>

@@ -66,7 +66,6 @@ public class ItemMastersService {
         if (itemRepo.existsByItmItemCodeIgnoreCase(req.itemCode())) {
             throw ApiException.conflict("Item code already exists");
         }
-        requireFreeSerialNo(req.serialNo(), null);
         InvItemMst e = new InvItemMst();
         applyItem(e, req);
         e.setItmCreatedBy(SecurityUtils.requireLoginId());
@@ -84,7 +83,6 @@ public class ItemMastersService {
         if (req.uomId() != null) {
             unitRepo.findById(req.uomId()).orElseThrow(() -> ApiException.badRequest("Invalid uomId"));
         }
-        requireFreeSerialNo(req.serialNo(), id);
         applyItem(e, req);
         e.setItmModifiedBy(SecurityUtils.requireLoginId());
         e.setItmModifiedOn(LocalDateTime.now());
@@ -119,14 +117,9 @@ public class ItemMastersService {
         e.setItmAssetType(req.assetType());
         e.setItmMakeBrand(req.makeBrand());
         e.setItmModel(req.model());
-        e.setItmSerialNo(req.serialNo());
-        e.setItmPurchaseDate(req.purchaseDate());
-        e.setItmPurchaseCost(req.purchaseCost());
         e.setItmUsefulLifeYears(req.usefulLifeYears());
-        e.setItmWarrantyExpiry(req.warrantyExpiry());
         e.setItmDepreciationMethod(req.depreciationMethod());
         e.setItmDepreciationRate(req.depreciationRate());
-        e.setItmAssignedToEmpIdEmp(req.assignedToEmpId());
         e.setItmCurrentLocationIdLoc(req.currentLocationId());
         e.setItmIsSerialized(Boolean.TRUE.equals(req.isSerialized()));
         e.setItmIsReturnable(Boolean.TRUE.equals(req.isReturnable()));
@@ -134,9 +127,6 @@ public class ItemMastersService {
         e.setItmIsInsuranceRequired(Boolean.TRUE.equals(req.isInsuranceRequired()));
         e.setItmInspectionNeeded(Boolean.TRUE.equals(req.inspectionNeeded()));
         e.setItmConsumableType(req.consumableType());
-        e.setItmShelfBin(req.shelfBin());
-        e.setItmExpiryDate(req.expiryDate());
-        e.setItmBatchLotNo(req.batchLotNo());
         e.setItmTrackBatchLot(Boolean.TRUE.equals(req.trackBatchLot()));
         e.setItmTrackExpiry(Boolean.TRUE.equals(req.trackExpiry()));
         e.setItmIsConsumable(Boolean.TRUE.equals(req.isConsumable()) || "consumable".equalsIgnoreCase(req.itemType()));
@@ -145,12 +135,6 @@ public class ItemMastersService {
         e.setItmStorage(req.storage());
         e.setItmProcessor(req.processor());
         e.setItmProductNo(req.productNo());
-        e.setItmIpAddress(req.ipAddress());
-        e.setItmMacAddress(req.macAddress());
-        e.setItmIpAssignMode(req.ipAssignMode());
-        e.setItmHostname(req.hostname());
-        e.setItmAssetCondition(req.assetCondition());
-        e.setItmFaultDesc(req.faultDesc());
         e.setItmParentItemIdItm(req.parentItemId());
         e.setItmIsactive(req.isActive() == null || req.isActive());
     }
@@ -159,15 +143,13 @@ public class ItemMastersService {
         return new ItemDto(e.getItmItemId(), e.getItmItemCode(), e.getItmItemName(), e.getItmItemType(),
                 e.getItmCategoryIdCat(), e.getItmSubcategoryIdScat(), e.getItmUomIdUnt(), e.getItmStandardCost(),
                 e.getItmImageUrl(), e.getItmDesc(), e.getItmRemarks(), e.getItmAssetType(), e.getItmMakeBrand(),
-                e.getItmModel(), e.getItmSerialNo(), e.getItmPurchaseDate(), e.getItmPurchaseCost(),
-                e.getItmUsefulLifeYears(), e.getItmWarrantyExpiry(), e.getItmDepreciationMethod(),
-                e.getItmDepreciationRate(), e.getItmAssignedToEmpIdEmp(), e.getItmCurrentLocationIdLoc(),
+                e.getItmModel(), e.getItmUsefulLifeYears(), e.getItmDepreciationMethod(),
+                e.getItmDepreciationRate(), e.getItmCurrentLocationIdLoc(),
                 e.getItmIsSerialized(), e.getItmIsReturnable(), e.getItmIsUnderAmc(), e.getItmIsInsuranceRequired(),
-                e.getItmInspectionNeeded(), e.getItmConsumableType(), e.getItmShelfBin(), e.getItmExpiryDate(),
-                e.getItmBatchLotNo(), e.getItmTrackBatchLot(), e.getItmTrackExpiry(), e.getItmIsConsumable(),
+                e.getItmInspectionNeeded(), e.getItmConsumableType(),
+                e.getItmTrackBatchLot(), e.getItmTrackExpiry(), e.getItmIsConsumable(),
                 e.getItmAllowNegativeStock(), e.getItmRam(), e.getItmStorage(), e.getItmProcessor(),
-                e.getItmProductNo(), e.getItmIpAddress(), e.getItmMacAddress(), e.getItmIpAssignMode(),
-                e.getItmHostname(), e.getItmAssetCondition(), e.getItmFaultDesc(), e.getItmParentItemIdItm(),
+                e.getItmProductNo(), e.getItmParentItemIdItm(),
                 e.getItmIsactive(), e.getItmCreatedBy(), e.getItmCreatedOn(),
                 e.getItmModifiedBy(), e.getItmModifiedOn(), message);
     }
@@ -289,18 +271,6 @@ public class ItemMastersService {
 
     private static void require(String v, String field) {
         if (v == null || v.isBlank()) throw ApiException.badRequest(field + " is required");
-    }
-
-    /** A serial number identifies one physical unit, so it cannot repeat. Blank is allowed. */
-    private void requireFreeSerialNo(String serialNo, Integer selfId) {
-        if (serialNo == null || serialNo.isBlank()) return;
-        String value = serialNo.trim();
-        boolean taken = selfId == null
-                ? itemRepo.existsByItmSerialNoIgnoreCase(value)
-                : itemRepo.existsByItmSerialNoIgnoreCaseAndItmItemIdNot(value, selfId);
-        if (taken) {
-            throw ApiException.conflict("Serial number \"" + value + "\" is already recorded against another item");
-        }
     }
 
     private static void validateVendorContact(VendorRequest req) {

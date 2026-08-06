@@ -9,6 +9,7 @@ import { fetchFullReport } from '@/api/transactions'
 import { mapEmployee, mapEntity, mapLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { FullReportRow } from '@/types/transactions'
+import { downloadCsv } from '@/lib/csvExport'
 
 const emptyFilters = {
   search: '',
@@ -116,7 +117,49 @@ export function FullReportPage() {
       <PageHeader
         title="Full Report"
         description="Every transaction across items, locations, organizations, operating units, employees, users and assets — one consolidated trail for management to track."
-        actions={<Button variant="ghost">Export</Button>}
+        actions={
+          <Button
+            variant="ghost"
+            disabled={filtered.length === 0}
+            onClick={() =>
+              downloadCsv(
+                `full-report-${new Date().toISOString().slice(0, 10)}.csv`,
+                [
+                  'Date',
+                  'Txn Type',
+                  'Txn No',
+                  'Item',
+                  'Category',
+                  'Qty',
+                  'UOM',
+                  'From',
+                  'To',
+                  'Organization',
+                  'Employee',
+                  'Status',
+                  'Value',
+                ],
+                filtered.map((r) => [
+                  r.date,
+                  r.txnType,
+                  r.txnNo,
+                  r.item,
+                  r.category,
+                  r.qty,
+                  r.uom,
+                  r.fromLocation,
+                  r.toLocation,
+                  r.organization,
+                  r.employee,
+                  r.status,
+                  r.value,
+                ]),
+              )
+            }
+          >
+            Export
+          </Button>
+        }
       />
 
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}

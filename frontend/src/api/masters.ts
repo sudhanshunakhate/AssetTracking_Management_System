@@ -334,14 +334,9 @@ export type ItemApi = {
   assetType?: string
   makeBrand?: string
   model?: string
-  serialNo?: string
-  purchaseDate?: string
-  purchaseCost?: number
   usefulLifeYears?: number
-  warrantyExpiry?: string
   depreciationMethod?: string
   depreciationRate?: number
-  assignedToEmpId?: number
   currentLocationId?: number
   isSerialized?: boolean
   isReturnable?: boolean
@@ -349,9 +344,6 @@ export type ItemApi = {
   isInsuranceRequired?: boolean
   inspectionNeeded?: boolean
   consumableType?: string
-  shelfBin?: string
-  expiryDate?: string
-  batchLotNo?: string
   trackBatchLot?: boolean
   trackExpiry?: boolean
   isConsumable?: boolean
@@ -360,12 +352,6 @@ export type ItemApi = {
   storage?: string
   processor?: string
   productNo?: string
-  ipAddress?: string
-  macAddress?: string
-  ipAssignMode?: string
-  hostname?: string
-  assetCondition?: string
-  faultDesc?: string
   parentItemId?: number
   isActive?: boolean
 }
@@ -380,10 +366,6 @@ export const mapItem = (i: ItemApi): ApiMasterRow => ({
   uom: i.uomId != null ? String(i.uomId) : '',
   standardCost: Number(i.standardCost ?? 0),
   store: i.currentLocationId != null ? String(i.currentLocationId) : '',
-  assignedTo: i.assignedToEmpId != null ? String(i.assignedToEmpId) : '',
-  serialNo: i.serialNo ?? '',
-  assetCondition: i.assetCondition ?? '',
-  ipAddress: i.ipAddress ?? '',
   status: activeStatus(i.isActive),
 })
 

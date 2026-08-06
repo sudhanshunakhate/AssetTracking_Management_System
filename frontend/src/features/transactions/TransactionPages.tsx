@@ -60,6 +60,7 @@ function TxnRoutes({
   listLoading = false,
   loadRecord,
   readOnlyFields,
+  viewOnlyExisting = false,
 }: {
   base: string
   title: string
@@ -87,6 +88,7 @@ function TxnRoutes({
   listLoading?: boolean
   loadRecord?: (id: string) => Promise<Record<string, unknown> | null>
   readOnlyFields?: string[]
+  viewOnlyExisting?: boolean
 }) {
   const shared = {
     title,
@@ -107,6 +109,7 @@ function TxnRoutes({
     listLoading,
     loadRecord,
     readOnlyFields,
+    viewOnlyExisting,
   }
   return (
     <Routes>
@@ -296,6 +299,7 @@ export function TransfersPages() {
         draftLabel="Save Draft"
         formTitle="Transfer Details"
         addLabel="New Transfer"
+        viewOnlyExisting
         getDefaults={() => ({ date: todayIso(), qty: 1 })}
         readOnlyFields={['itemName', 'availableStock']}
         onFieldChange={async (name, value, values) => {
@@ -421,6 +425,7 @@ export function ReturnsPages() {
         draftLabel="Save Draft"
         formTitle="Return Details"
         addLabel="New Return"
+        viewOnlyExisting
         getDefaults={() => ({ date: todayIso(), qty: 1 })}
         readOnlyFields={['itemName']}
         onFieldChange={(name, value, values) => {

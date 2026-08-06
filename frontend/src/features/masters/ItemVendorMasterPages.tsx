@@ -14,7 +14,6 @@ import {
   isActiveFromForm,
   itemTypeFromGenCode,
   mapCategory,
-  mapEmployee,
   mapItem,
   mapLocation,
   mapSubcategory,
@@ -109,14 +108,9 @@ type ItemForm = {
   assetType: string
   makeBrand: string
   model: string
-  serialNo: string
-  purchaseDate: string
-  purchaseCost: string
   usefulLifeYears: string
-  warrantyExpiry: string
   depreciationMethod: string
   depreciationRate: string
-  assignedTo: string
   currentStore: string
   isSerialized: boolean
   isReturnable: boolean
@@ -125,9 +119,6 @@ type ItemForm = {
   inspectionNeeded: boolean
   consumableType: string
   storageLocation: string
-  shelfBin: string
-  expiryDate: string
-  batchLotNo: string
   trackBatchLot: boolean
   trackExpiry: boolean
   isConsumable: boolean
@@ -136,13 +127,6 @@ type ItemForm = {
   storage: string
   processor: string
   productNo: string
-  ipAddress: string
-  macAddress: string
-  ipAssignMode: string
-  hostname: string
-  assetCondition: string
-  faultDesc: string
-  parentItemId: string
 }
 
 const emptyItem = (): ItemForm => ({
@@ -160,14 +144,9 @@ const emptyItem = (): ItemForm => ({
   assetType: '',
   makeBrand: '',
   model: '',
-  serialNo: '',
-  purchaseDate: '',
-  purchaseCost: '',
   usefulLifeYears: '',
-  warrantyExpiry: '',
   depreciationMethod: '',
   depreciationRate: '',
-  assignedTo: '',
   currentStore: '',
   isSerialized: false,
   isReturnable: false,
@@ -176,9 +155,6 @@ const emptyItem = (): ItemForm => ({
   inspectionNeeded: false,
   consumableType: '',
   storageLocation: '',
-  shelfBin: '',
-  expiryDate: '',
-  batchLotNo: '',
   trackBatchLot: false,
   trackExpiry: false,
   isConsumable: true,
@@ -187,13 +163,6 @@ const emptyItem = (): ItemForm => ({
   storage: '',
   processor: '',
   productNo: '',
-  ipAddress: '',
-  macAddress: '',
-  ipAssignMode: '',
-  hostname: '',
-  assetCondition: '',
-  faultDesc: '',
-  parentItemId: '',
 })
 
 function ItemFormPage() {
@@ -209,12 +178,10 @@ function ItemFormPage() {
   const mapSub = useCallback(mapSubcategory, [])
   const mapUnt = useCallback(mapUnit, [])
   const mapLoc = useCallback(mapLocation, [])
-  const mapEmp = useCallback(mapEmployee, [])
   const { rows: categories } = useMasterList('categories', mapCat)
   const { rows: subCategories } = useMasterList('subcategories', mapSub)
   const { rows: units } = useMasterList('units', mapUnt)
   const { rows: locations } = useMasterList('locations', mapLoc)
-  const { rows: employees } = useMasterList('employees', mapEmp)
   const { options: itemParamOpts } = useGenValues(GEN_TYPE.ITEM_PARAM, 'code')
   const { options: assetTypeOpts } = useGenValues(GEN_TYPE.ASSET_TYPE)
   const { options: consumableTypeOpts } = useGenValues(GEN_TYPE.CONSUMABLE_TYPE)
@@ -223,14 +190,6 @@ function ItemFormPage() {
   const { rows: allItems } = useMasterList('items', mapItm)
 
   const locationOptions = useMemo(() => opt(locations), [locations])
-  const employeeOptions = useMemo(
-    () =>
-      employees.map((e) => ({
-        value: e.id,
-        label: `${e.code} – ${String(e.firstName ?? '')} ${String(e.lastName ?? '')}`.trim(),
-      })),
-    [employees],
-  )
 
   const [values, setValues] = useState<ItemForm>(emptyItem)
   const [loading, setLoading] = useState(!isNew)
@@ -342,14 +301,9 @@ function ItemFormPage() {
           assetType: it.assetType ?? '',
           makeBrand: it.makeBrand ?? '',
           model: it.model ?? '',
-          serialNo: it.serialNo ?? '',
-          purchaseDate: it.purchaseDate ?? '',
-          purchaseCost: it.purchaseCost != null ? String(it.purchaseCost) : '',
           usefulLifeYears: it.usefulLifeYears != null ? String(it.usefulLifeYears) : '',
-          warrantyExpiry: it.warrantyExpiry ?? '',
           depreciationMethod: it.depreciationMethod ?? '',
           depreciationRate: it.depreciationRate != null ? String(it.depreciationRate) : '',
-          assignedTo: it.assignedToEmpId != null ? String(it.assignedToEmpId) : '',
           currentStore: it.currentLocationId != null ? String(it.currentLocationId) : '',
           isSerialized: Boolean(it.isSerialized),
           isReturnable: Boolean(it.isReturnable),
@@ -358,9 +312,6 @@ function ItemFormPage() {
           inspectionNeeded: Boolean(it.inspectionNeeded),
           consumableType: it.consumableType ?? '',
           storageLocation: it.currentLocationId != null ? String(it.currentLocationId) : '',
-          shelfBin: it.shelfBin ?? '',
-          expiryDate: it.expiryDate ?? '',
-          batchLotNo: it.batchLotNo ?? '',
           trackBatchLot: Boolean(it.trackBatchLot),
           trackExpiry: Boolean(it.trackExpiry),
           isConsumable: it.isConsumable !== false,
@@ -369,13 +320,6 @@ function ItemFormPage() {
           storage: it.storage ?? '',
           processor: it.processor ?? '',
           productNo: it.productNo ?? '',
-          ipAddress: it.ipAddress ?? '',
-          macAddress: it.macAddress ?? '',
-          ipAssignMode: it.ipAssignMode ?? '',
-          hostname: it.hostname ?? '',
-          assetCondition: it.assetCondition ?? '',
-          faultDesc: it.faultDesc ?? '',
-          parentItemId: it.parentItemId != null ? String(it.parentItemId) : '',
         })
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load item')
@@ -417,15 +361,9 @@ function ItemFormPage() {
         assetType: values.itemType === 'asset' ? str(values.assetType) || null : null,
         makeBrand: values.itemType === 'asset' ? str(values.makeBrand) || null : null,
         model: values.itemType === 'asset' ? str(values.model) || null : null,
-        // Instance-unique fields belong on stock / transactions, not the catalog item.
-        serialNo: null,
-        purchaseDate: null,
-        purchaseCost: null,
         usefulLifeYears: values.itemType === 'asset' ? numOrNull(values.usefulLifeYears) : null,
-        warrantyExpiry: null,
         depreciationMethod: values.itemType === 'asset' ? str(values.depreciationMethod) || null : null,
         depreciationRate: values.itemType === 'asset' ? numOrNull(values.depreciationRate) : null,
-        assignedToEmpId: numOrNull(values.assignedTo),
         currentLocationId: numOrNull(values.currentStore),
         isSerialized: values.itemType === 'asset' ? values.isSerialized : false,
         isReturnable: values.itemType === 'asset' ? values.isReturnable : false,
@@ -433,9 +371,6 @@ function ItemFormPage() {
         isInsuranceRequired: values.itemType === 'asset' ? values.isInsuranceRequired : false,
         inspectionNeeded: values.inspectionNeeded,
         consumableType: values.itemType === 'consumable' ? str(values.consumableType) || null : null,
-        shelfBin: null,
-        expiryDate: null,
-        batchLotNo: null,
         trackBatchLot: values.itemType === 'consumable' ? values.trackBatchLot : false,
         trackExpiry: values.itemType === 'consumable' ? values.trackExpiry : false,
         isConsumable: values.itemType === 'consumable' ? values.isConsumable : false,
@@ -444,12 +379,6 @@ function ItemFormPage() {
         storage: values.itemType === 'asset' ? str(values.storage) || null : null,
         processor: values.itemType === 'asset' ? str(values.processor) || null : null,
         productNo: values.itemType === 'asset' ? str(values.productNo) || null : null,
-        ipAddress: null,
-        macAddress: null,
-        ipAssignMode: null,
-        hostname: null,
-        assetCondition: null,
-        faultDesc: null,
         parentItemId: null,
         isActive: isActiveFromForm(values.status),
       }
@@ -669,7 +598,7 @@ function ItemFormPage() {
 
       <Card>
         <CardHeader
-          title="Location & Owner"
+          title="Location"
           subtitle="Home store for this item — transactions filter the item list by the selected location"
         />
         <CardBody>
@@ -687,19 +616,6 @@ function ItemFormPage() {
               options={locationOptions}
               placeholder="— Select Location —"
               error={err('currentStore')}
-              disabled={readOnly}
-            />
-            <LookupSelect
-              label="Location Owner (Assigned)"
-              value={values.assignedTo}
-              onChange={(v) => {
-                touch('assignedTo')
-                set('assignedTo', v)
-              }}
-              onBlur={() => touch('assignedTo')}
-              options={employeeOptions}
-              placeholder="— Select Employee —"
-              error={err('assignedTo')}
               disabled={readOnly}
             />
           </div>

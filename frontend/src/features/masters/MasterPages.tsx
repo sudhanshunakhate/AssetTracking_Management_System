@@ -62,6 +62,7 @@ function MastersRoutes({
   getDefaults,
   renderExtraForm,
   onSave,
+  onFieldChange,
   allowCreate = true,
   readOnlyFields,
   menuCode,
@@ -85,6 +86,11 @@ function MastersRoutes({
     recordId: string,
   ) => ReactNode
   onSave?: (id: string, values: Record<string, unknown>) => Promise<void>
+  onFieldChange?: (
+    name: string,
+    value: unknown,
+    values: Record<string, unknown>,
+  ) => Partial<Record<string, unknown>> | void | Promise<Partial<Record<string, unknown>> | void>
   allowCreate?: boolean
   readOnlyFields?: string[]
   menuCode?: string
@@ -92,58 +98,31 @@ function MastersRoutes({
   addLabel?: string
   validateForm?: (values: Record<string, unknown>, recordId: string) => Record<string, string>
 }) {
+  const shared = {
+    title,
+    description,
+    basePath: base,
+    rows: rows as never,
+    columns: columns as never,
+    fields,
+    searchPlaceholder,
+    saveLabel,
+    formTitle,
+    getDefaults,
+    renderExtraForm,
+    onSave,
+    onFieldChange,
+    allowCreate,
+    readOnlyFields,
+    menuCode,
+    listLoading,
+    addLabel,
+    validateForm,
+  }
   return (
     <Routes>
-      <Route
-        index
-        element={
-          <SimpleMasterModule
-            title={title}
-            description={description}
-            basePath={base}
-            rows={rows as never}
-            columns={columns as never}
-            fields={fields}
-            searchPlaceholder={searchPlaceholder}
-            saveLabel={saveLabel}
-            formTitle={formTitle}
-            getDefaults={getDefaults}
-            renderExtraForm={renderExtraForm}
-            onSave={onSave}
-            allowCreate={allowCreate}
-            readOnlyFields={readOnlyFields}
-            menuCode={menuCode}
-            listLoading={listLoading}
-            addLabel={addLabel}
-            validateForm={validateForm}
-          />
-        }
-      />
-      <Route
-        path=":id"
-        element={
-          <SimpleMasterModule
-            title={title}
-            description={description}
-            basePath={base}
-            rows={rows as never}
-            columns={columns as never}
-            fields={fields}
-            searchPlaceholder={searchPlaceholder}
-            saveLabel={saveLabel}
-            formTitle={formTitle}
-            getDefaults={getDefaults}
-            renderExtraForm={renderExtraForm}
-            onSave={onSave}
-            allowCreate={allowCreate}
-            readOnlyFields={readOnlyFields}
-            menuCode={menuCode}
-            listLoading={listLoading}
-            addLabel={addLabel}
-            validateForm={validateForm}
-          />
-        }
-      />
+      <Route index element={<SimpleMasterModule {...shared} />} />
+      <Route path=":id" element={<SimpleMasterModule {...shared} />} />
     </Routes>
   )
 }
@@ -355,7 +334,18 @@ export function StoresMaster() {
       ...RULES.select(),
     },
     { name: 'orgCode', label: 'Organization', type: 'select', options: opt(orgs), ...RULES.select() },
-    { name: 'ouCode', label: 'Operating Unit', type: 'select', options: opt(ous), ...RULES.select() },
+    {
+      name: 'ouCode',
+      label: 'Operating Unit',
+      type: 'select',
+      options: (values) => {
+        const org = String(values.orgCode ?? '')
+        const filtered = org ? ous.filter((o) => String(o.orgCode) === org) : ous
+        return opt(filtered)
+      },
+      placeholder: '— Select Organization first —',
+      ...RULES.select(),
+    },
     { name: 'city', label: 'City', ...RULES.city() },
     { name: 'status', label: 'Active Location', type: 'switch', span: 4 },
   ]
@@ -392,6 +382,15 @@ export function StoresMaster() {
         saveLabel="Save Location"
         formTitle="Location Details"
         validateForm={validateForm}
+        onFieldChange={(name, _value, values) => {
+          if (name === 'orgCode' && values.ouCode) {
+            const ou = ous.find((o) => String(o.id) === String(values.ouCode))
+            if (ou && String(ou.orgCode) !== String(values.orgCode)) {
+              return { ouCode: '' }
+            }
+          }
+          return {}
+        }}
         onSave={async (id, values) => {
           const body = {
             locationCode: String(values.code ?? ''),

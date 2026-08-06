@@ -199,6 +199,10 @@ export async function changePasswordApi(body: {
   return http.post<{ message: string }>('/auth/change-password', body)
 }
 
+export async function forgotPasswordApi(loginId: string) {
+  return http.post<{ message: string }>('/auth/forgot-password', { loginId })
+}
+
 export async function getFavouritesApi() {
   return http.get<{ menuCodes: string[] }>('/auth/favourites')
 }

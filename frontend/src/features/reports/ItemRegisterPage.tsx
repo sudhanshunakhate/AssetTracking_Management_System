@@ -6,6 +6,7 @@ import { Card, CardBody } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchItemRegister } from '@/api/transactions'
 import { mapCategory, mapSubcategory, mapUnit, useMasterList } from '@/api/masters'
+import { downloadCsv } from '@/lib/csvExport'
 
 type ItemRegRow = {
   id: string
@@ -17,13 +18,11 @@ type ItemRegRow = {
   uom: string
   makeBrand: string
   model: string
-  serialNo: string
   flags: string
   standardCost: number
   totalStockQty: number
   totalStockValue: number
   storeCount: number
-  assignedTo: string
   currentStore: string
   active: boolean
 }
@@ -90,13 +89,11 @@ export function ItemRegisterPage() {
             uom: uomById[uomId]?.code ?? (uomId || '—'),
             makeBrand: String(r.makeBrand ?? '—'),
             model: String(r.model ?? '—'),
-            serialNo: String(r.serialNo ?? '—'),
             flags: flags || '—',
             standardCost: Number(r.standardCost ?? 0),
             totalStockQty: Number(r.totalStockQty ?? 0),
             totalStockValue: Number(r.totalStockValue ?? 0),
             storeCount: Number(r.storeCount ?? 0),
-            assignedTo: String(r.assignedTo ?? '—'),
             currentStore: String(r.currentStore ?? '—'),
             active: Boolean(r.active),
           }
@@ -129,7 +126,53 @@ export function ItemRegisterPage() {
       <PageHeader
         title="Item Register"
         description="Master catalog of items with tracking flags and across-store stock totals."
-        actions={<Button variant="ghost">Export</Button>}
+        actions={
+          <Button
+            variant="ghost"
+            disabled={rows.length === 0}
+            onClick={() =>
+              downloadCsv(
+                `item-register-${new Date().toISOString().slice(0, 10)}.csv`,
+                [
+                  'Item Code',
+                  'Item Name',
+                  'Type',
+                  'Category',
+                  'Subcategory',
+                  'UOM',
+                  'Make',
+                  'Model',
+                  'Flags',
+                  'Standard Cost',
+                  'Stock Qty',
+                  'Stock Value',
+                  'Stores',
+                  'Current Store',
+                  'Active',
+                ],
+                rows.map((r) => [
+                  r.itemCode,
+                  r.itemName,
+                  r.itemType,
+                  r.category,
+                  r.subcategory,
+                  r.uom,
+                  r.makeBrand,
+                  r.model,
+                  r.flags,
+                  r.standardCost,
+                  r.totalStockQty,
+                  r.totalStockValue,
+                  r.storeCount,
+                  r.currentStore,
+                  r.active ? 'Yes' : 'No',
+                ]),
+              )
+            }
+          >
+            Export
+          </Button>
+        }
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading item register…</div>}
@@ -207,7 +250,6 @@ export function ItemRegisterPage() {
                     'Stock Qty',
                     'Stock Value',
                     'Stores',
-                    'Assigned To',
                     'Current Store',
                     'Status',
                   ].map((h) => (
@@ -242,7 +284,6 @@ export function ItemRegisterPage() {
                       {r.totalStockValue.toLocaleString('en-IN')}
                     </td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.storeCount}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.assignedTo}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.currentStore}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">
                       {r.active ? <StatusBadge status="Active" /> : <StatusPill status="Inactive" />}
@@ -251,7 +292,7 @@ export function ItemRegisterPage() {
                 ))}
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={16} className="px-[11px] py-8 text-center text-[var(--text3)]">
+                    <td colSpan={15} className="px-[11px] py-8 text-center text-[var(--text3)]">
                       No items for the selected filters.
                     </td>
                   </tr>

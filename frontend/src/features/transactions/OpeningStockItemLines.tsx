@@ -14,7 +14,6 @@ import {
   itemOptionLabel,
   toNum,
   useCodeIndex,
-  useItemIndex,
   useLocationStock,
   type BaseLine,
 } from './lineGrid'
@@ -90,7 +89,6 @@ export function OpeningStockItemLines({
     () => items.filter((i) => (i.itemType === 'consumable' ? 'consumable' : 'asset') === itemType),
     [items, itemType],
   )
-  const itemByCode = useItemIndex(filteredItems)
   const unitById = useCodeIndex(units)
   const { stockByItemId } = useLocationStock(locationId)
 

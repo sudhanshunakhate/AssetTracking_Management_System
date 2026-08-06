@@ -2,9 +2,12 @@ package com.caits.domain.entity;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * Item catalog. Physical unit / batch identity lives on {@link InvBlsMst}.
+ * {@code itm_current_location_id_loc} is the item's home store for filtering.
+ */
 @Entity
 @Table(name = "inv_item_mst", schema = "caits_local")
 public class InvItemMst {
@@ -53,29 +56,14 @@ public class InvItemMst {
     @Column(name = "itm_model")
     private String itmModel;
 
-    @Column(name = "itm_serial_no")
-    private String itmSerialNo;
-
-    @Column(name = "itm_purchase_date")
-    private LocalDate itmPurchaseDate;
-
-    @Column(name = "itm_purchase_cost")
-    private BigDecimal itmPurchaseCost;
-
     @Column(name = "itm_useful_life_years")
     private BigDecimal itmUsefulLifeYears;
-
-    @Column(name = "itm_warranty_expiry")
-    private LocalDate itmWarrantyExpiry;
 
     @Column(name = "itm_depreciation_method")
     private String itmDepreciationMethod;
 
     @Column(name = "itm_depreciation_rate")
     private BigDecimal itmDepreciationRate;
-
-    @Column(name = "itm_assigned_to_emp_id_emp")
-    private Integer itmAssignedToEmpIdEmp;
 
     @Column(name = "itm_current_location_id_loc")
     private Integer itmCurrentLocationIdLoc;
@@ -97,15 +85,6 @@ public class InvItemMst {
 
     @Column(name = "itm_consumable_type")
     private String itmConsumableType;
-
-    @Column(name = "itm_shelf_bin")
-    private String itmShelfBin;
-
-    @Column(name = "itm_expiry_date")
-    private LocalDate itmExpiryDate;
-
-    @Column(name = "itm_batch_lot_no")
-    private String itmBatchLotNo;
 
     @Column(name = "itm_track_batch_lot")
     private Boolean itmTrackBatchLot;
@@ -130,24 +109,6 @@ public class InvItemMst {
 
     @Column(name = "itm_product_no")
     private String itmProductNo;
-
-    @Column(name = "itm_ip_address")
-    private String itmIpAddress;
-
-    @Column(name = "itm_mac_address")
-    private String itmMacAddress;
-
-    @Column(name = "itm_ip_assign_mode")
-    private String itmIpAssignMode;
-
-    @Column(name = "itm_hostname")
-    private String itmHostname;
-
-    @Column(name = "itm_asset_condition")
-    private String itmAssetCondition;
-
-    @Column(name = "itm_fault_desc")
-    private String itmFaultDesc;
 
     @Column(name = "itm_parent_item_id_itm")
     private Integer itmParentItemIdItm;
@@ -209,29 +170,14 @@ public class InvItemMst {
     public String getItmModel() { return itmModel; }
     public void setItmModel(String itmModel) { this.itmModel = itmModel; }
 
-    public String getItmSerialNo() { return itmSerialNo; }
-    public void setItmSerialNo(String itmSerialNo) { this.itmSerialNo = itmSerialNo; }
-
-    public LocalDate getItmPurchaseDate() { return itmPurchaseDate; }
-    public void setItmPurchaseDate(LocalDate itmPurchaseDate) { this.itmPurchaseDate = itmPurchaseDate; }
-
-    public BigDecimal getItmPurchaseCost() { return itmPurchaseCost; }
-    public void setItmPurchaseCost(BigDecimal itmPurchaseCost) { this.itmPurchaseCost = itmPurchaseCost; }
-
     public BigDecimal getItmUsefulLifeYears() { return itmUsefulLifeYears; }
     public void setItmUsefulLifeYears(BigDecimal itmUsefulLifeYears) { this.itmUsefulLifeYears = itmUsefulLifeYears; }
-
-    public LocalDate getItmWarrantyExpiry() { return itmWarrantyExpiry; }
-    public void setItmWarrantyExpiry(LocalDate itmWarrantyExpiry) { this.itmWarrantyExpiry = itmWarrantyExpiry; }
 
     public String getItmDepreciationMethod() { return itmDepreciationMethod; }
     public void setItmDepreciationMethod(String itmDepreciationMethod) { this.itmDepreciationMethod = itmDepreciationMethod; }
 
     public BigDecimal getItmDepreciationRate() { return itmDepreciationRate; }
     public void setItmDepreciationRate(BigDecimal itmDepreciationRate) { this.itmDepreciationRate = itmDepreciationRate; }
-
-    public Integer getItmAssignedToEmpIdEmp() { return itmAssignedToEmpIdEmp; }
-    public void setItmAssignedToEmpIdEmp(Integer itmAssignedToEmpIdEmp) { this.itmAssignedToEmpIdEmp = itmAssignedToEmpIdEmp; }
 
     public Integer getItmCurrentLocationIdLoc() { return itmCurrentLocationIdLoc; }
     public void setItmCurrentLocationIdLoc(Integer itmCurrentLocationIdLoc) { this.itmCurrentLocationIdLoc = itmCurrentLocationIdLoc; }
@@ -253,15 +199,6 @@ public class InvItemMst {
 
     public String getItmConsumableType() { return itmConsumableType; }
     public void setItmConsumableType(String itmConsumableType) { this.itmConsumableType = itmConsumableType; }
-
-    public String getItmShelfBin() { return itmShelfBin; }
-    public void setItmShelfBin(String itmShelfBin) { this.itmShelfBin = itmShelfBin; }
-
-    public LocalDate getItmExpiryDate() { return itmExpiryDate; }
-    public void setItmExpiryDate(LocalDate itmExpiryDate) { this.itmExpiryDate = itmExpiryDate; }
-
-    public String getItmBatchLotNo() { return itmBatchLotNo; }
-    public void setItmBatchLotNo(String itmBatchLotNo) { this.itmBatchLotNo = itmBatchLotNo; }
 
     public Boolean getItmTrackBatchLot() { return itmTrackBatchLot; }
     public void setItmTrackBatchLot(Boolean itmTrackBatchLot) { this.itmTrackBatchLot = itmTrackBatchLot; }
@@ -287,24 +224,6 @@ public class InvItemMst {
     public String getItmProductNo() { return itmProductNo; }
     public void setItmProductNo(String itmProductNo) { this.itmProductNo = itmProductNo; }
 
-    public String getItmIpAddress() { return itmIpAddress; }
-    public void setItmIpAddress(String itmIpAddress) { this.itmIpAddress = itmIpAddress; }
-
-    public String getItmMacAddress() { return itmMacAddress; }
-    public void setItmMacAddress(String itmMacAddress) { this.itmMacAddress = itmMacAddress; }
-
-    public String getItmIpAssignMode() { return itmIpAssignMode; }
-    public void setItmIpAssignMode(String itmIpAssignMode) { this.itmIpAssignMode = itmIpAssignMode; }
-
-    public String getItmHostname() { return itmHostname; }
-    public void setItmHostname(String itmHostname) { this.itmHostname = itmHostname; }
-
-    public String getItmAssetCondition() { return itmAssetCondition; }
-    public void setItmAssetCondition(String itmAssetCondition) { this.itmAssetCondition = itmAssetCondition; }
-
-    public String getItmFaultDesc() { return itmFaultDesc; }
-    public void setItmFaultDesc(String itmFaultDesc) { this.itmFaultDesc = itmFaultDesc; }
-
     public Integer getItmParentItemIdItm() { return itmParentItemIdItm; }
     public void setItmParentItemIdItm(Integer itmParentItemIdItm) { this.itmParentItemIdItm = itmParentItemIdItm; }
 
@@ -322,5 +241,4 @@ public class InvItemMst {
 
     public LocalDateTime getItmModifiedOn() { return itmModifiedOn; }
     public void setItmModifiedOn(LocalDateTime itmModifiedOn) { this.itmModifiedOn = itmModifiedOn; }
-
 }

@@ -40,11 +40,23 @@ const invalid =
 type Invalidatable = { invalid?: boolean }
 
 export function Input({ invalid: bad, ...props }: InputHTMLAttributes<HTMLInputElement> & Invalidatable) {
-  return <input {...props} className={`${control} ${bad ? invalid : ''} ${props.className ?? ''}`} />
+  return (
+    <input
+      {...props}
+      aria-invalid={bad || undefined}
+      className={`${control} ${bad ? invalid : ''} ${props.className ?? ''}`}
+    />
+  )
 }
 
 export function Select({ invalid: bad, ...props }: SelectHTMLAttributes<HTMLSelectElement> & Invalidatable) {
-  return <select {...props} className={`${control} cursor-pointer ${bad ? invalid : ''} ${props.className ?? ''}`} />
+  return (
+    <select
+      {...props}
+      aria-invalid={bad || undefined}
+      className={`${control} cursor-pointer ${bad ? invalid : ''} ${props.className ?? ''}`}
+    />
+  )
 }
 
 export function Textarea({
@@ -54,6 +66,7 @@ export function Textarea({
   return (
     <textarea
       {...props}
+      aria-invalid={bad || undefined}
       className={`${control} min-h-[54px] resize-y leading-normal ${bad ? invalid : ''} ${props.className ?? ''}`}
     />
   )

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import {
   Aurora,
@@ -8,18 +8,26 @@ import {
   StarBorder,
   TextType,
 } from '@/components/react-bits'
+import { forgotPasswordApi } from '@/api/client'
 import { useAuth } from './AuthContext'
 
 const LOGO_SRC = '/logo/caits-login.png?v=2'
+const REMEMBER_KEY = 'caits.rememberLoginId'
 
 export function LoginPage() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
-  const [loginId, setLoginId] = useState('admin')
+  const [loginId, setLoginId] = useState(() => localStorage.getItem(REMEMBER_KEY) ?? '')
   const [password, setPassword] = useState('')
-  const [remember, setRemember] = useState(true)
+  const [remember, setRemember] = useState(() => Boolean(localStorage.getItem(REMEMBER_KEY)))
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [forgotBusy, setForgotBusy] = useState(false)
+
+  useEffect(() => {
+    if (!remember) localStorage.removeItem(REMEMBER_KEY)
+  }, [remember])
 
   if (user) return <Navigate to="/dashboard" replace />
 
@@ -27,15 +35,36 @@ export function LoginPage() {
     e.preventDefault()
     setSubmitting(true)
     setError('')
+    setInfo('')
     try {
       const result = await login(loginId, password)
       if (!result.ok) {
         setError(result.error ?? 'Invalid credentials')
         return
       }
+      if (remember) localStorage.setItem(REMEMBER_KEY, loginId.trim())
+      else localStorage.removeItem(REMEMBER_KEY)
       navigate('/dashboard', { replace: true })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const onForgot = async () => {
+    setError('')
+    setInfo('')
+    if (!loginId.trim()) {
+      setError('Enter your Login ID, then click Forgot password.')
+      return
+    }
+    setForgotBusy(true)
+    try {
+      const res = await forgotPasswordApi(loginId.trim())
+      setInfo(res.message || 'If an account exists, a reset link was sent to the registered email.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to request password reset')
+    } finally {
+      setForgotBusy(false)
     }
   }
 
@@ -51,7 +80,6 @@ export function LoginPage() {
         />
       </div>
 
-      {/* React Bits GhostCursor — trails pointer over the login canvas */}
       <GhostCursor
         color="#60a5fa"
         brightness={2}
@@ -90,7 +118,7 @@ export function LoginPage() {
                 text={[
                   'Masters, locations, and access — one system of record.',
                   'Built for IT operations and store governance.',
-                  'Phase 1 UI prototype — mock auth, no backend yet.',
+                  'Sign in with your CAITS Login ID to continue.',
                 ]}
                 typingSpeed={36}
                 className="text-white/75"
@@ -118,6 +146,11 @@ export function LoginPage() {
               {error && (
                 <div className="mb-3.5 rounded-lg border border-[#fecaca] bg-[var(--danger-lt)] px-3 py-2 text-xs text-[var(--danger)]">
                   {error}
+                </div>
+              )}
+              {info && (
+                <div className="mb-3.5 rounded-lg border border-[#bbf7d0] bg-[var(--success-lt)] px-3 py-2 text-xs text-[var(--success)]">
+                  {info}
                 </div>
               )}
 
@@ -155,14 +188,15 @@ export function LoginPage() {
                     onChange={(e) => setRemember(e.target.checked)}
                     className="accent-[var(--accent)]"
                   />
-                  Remember me
+                  Remember Login ID
                 </label>
                 <button
                   type="button"
-                  className="text-xs font-semibold text-[var(--accent)]"
-                  onClick={() => setError('Contact your administrator to reset your password.')}
+                  disabled={forgotBusy}
+                  className="text-xs font-semibold text-[var(--accent)] disabled:opacity-60"
+                  onClick={() => void onForgot()}
                 >
-                  Forgot password?
+                  {forgotBusy ? 'Sending…' : 'Forgot password?'}
                 </button>
               </div>
 
@@ -173,12 +207,6 @@ export function LoginPage() {
               >
                 {submitting ? 'Signing in…' : 'Sign In'}
               </button>
-
-              <div className="mt-5 rounded-lg border border-dashed border-[var(--accent-mid)] bg-[var(--accent-lt)] px-3 py-2.5 text-[11px] leading-relaxed text-[var(--text2)]">
-                <b className="text-[var(--accent)]">Admin login</b> — Login ID{' '}
-                <b className="text-[var(--accent)]">admin</b> / password{' '}
-                <b className="text-[var(--accent)]">Admin@123</b>.
-              </div>
             </form>
           </StarBorder>
         </div>
