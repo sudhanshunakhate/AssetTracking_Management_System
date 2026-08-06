@@ -116,6 +116,35 @@ public class AuthService {
         return new LoginResponse(token, userDto, jwtService.getExpirationSeconds(), mustChange);
     }
 
+    /**
+     * Issues a fresh JWT for the currently authenticated user (sliding session).
+     * Rejects disabled / locked accounts so a long-lived tab cannot keep extending access.
+     */
+    @Transactional(readOnly = true)
+    public LoginResponse refresh() {
+        CurrentUser cu = SecurityUtils.requireCurrentUser();
+        SysmUserloginMst user = userRepo.findById(cu.userId())
+                .orElseThrow(() -> ApiException.unauthorized("Session expired"));
+        if (Boolean.FALSE.equals(user.getUsrIsactive()) || "Disabled".equalsIgnoreCase(user.getUsrAccountStatus())) {
+            throw ApiException.forbidden("Account is disabled");
+        }
+        if ("Locked".equalsIgnoreCase(user.getUsrAccountStatus())) {
+            throw ApiException.locked("Account is locked");
+        }
+        SysmRolesMst role = roleRepo.findById(user.getUsrRoleIdRol())
+                .orElseThrow(() -> ApiException.unauthorized("Session expired"));
+        HrcEmployeeMst emp = employeeRepo.findById(user.getUsrEmployeeIdEmp()).orElse(null);
+        String employeeName = emp == null ? user.getUsrLoginId()
+                : (emp.getEmpFirstName() + (emp.getEmpLastName() == null ? "" : " " + emp.getEmpLastName())).trim();
+        String token = jwtService.createToken(user.getUsrLoginId(), user.getUsrUserId(), role.getRolRoleCode());
+        LoginUserDto userDto = new LoginUserDto(
+                user.getUsrUserId(), employeeName, role.getRolRoleCode(),
+                user.getUsrEntityIdEnt(), user.getUsrBuAccessScope(),
+                user.getUsrLocationAccessScope(), user.getUsrLocationIdLoc());
+        Boolean mustChange = Boolean.TRUE.equals(user.getUsrForcePasswordReset()) ? true : null;
+        return new LoginResponse(token, userDto, jwtService.getExpirationSeconds(), mustChange);
+    }
+
     public MessageResponse logout() {
         return MessageResponse.of("Logged out successfully");
     }

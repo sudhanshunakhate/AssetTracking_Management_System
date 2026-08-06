@@ -19,6 +19,12 @@ public class AuthController {
         return authService.login(request);
     }
 
+    /** Sliding session — call while the user is active to extend JWT expiry. */
+    @PostMapping("/refresh")
+    public LoginResponse refresh() {
+        return authService.refresh();
+    }
+
     @PostMapping("/logout")
     public MessageResponse logout() {
         return authService.logout();

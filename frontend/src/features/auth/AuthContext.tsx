@@ -7,11 +7,15 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   getToken,
   loginApi,
   logoutApi,
+  markUserActivity,
+  maybeRefreshSession,
   meApi,
+  setSessionExpiredHandler,
   setToken,
   type AccessScope,
   type MenuPermission,
@@ -118,6 +122,7 @@ function storeFavs(codes: string[]) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = readStored()
     if (stored && !getToken()) {
@@ -138,10 +143,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissionsReady, setPermissionsReady] = useState(() => !getToken() || readStoredPerms().length > 0)
   const [scope, setScope] = useState<DataScope>(() => (getToken() ? readStoredScope() : UNRESTRICTED))
 
+  const clearLocalSession = useCallback(() => {
+    sessionStorage.removeItem(STORAGE_KEY)
+    sessionStorage.removeItem(PERMS_KEY)
+    sessionStorage.removeItem(SCOPE_KEY)
+    sessionStorage.removeItem(FAVS_KEY)
+    setMenuPermissions([])
+    setFavouriteMenuCodesState([])
+    setScope(UNRESTRICTED)
+    setPermissionsReady(true)
+    setUser(null)
+  }, [])
+
   const setFavouriteMenuCodes = useCallback((codes: string[]) => {
     setFavouriteMenuCodesState(codes)
     storeFavs(codes)
   }, [])
+
+  // Expired JWT → clear session and go to login (no "Access Denied" page state).
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      clearLocalSession()
+      invalidateCache()
+      navigate('/login', { replace: true })
+    })
+    return () => setSessionExpiredHandler(null)
+  }, [clearLocalSession, navigate])
+
+  // While working: activity bumps the clock; near expiry we refresh the JWT instead of logging out.
+  useEffect(() => {
+    if (!user) return
+    markUserActivity()
+    const onActivity = () => {
+      markUserActivity()
+      void maybeRefreshSession()
+    }
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'scroll', 'focus']
+    for (const ev of events) window.addEventListener(ev, onActivity, { passive: true })
+    const tick = window.setInterval(() => {
+      void maybeRefreshSession()
+    }, 60_000)
+    return () => {
+      for (const ev of events) window.removeEventListener(ev, onActivity)
+      window.clearInterval(tick)
+    }
+  }, [user])
 
   const applyMe = useCallback(async () => {
     if (!getToken()) {
@@ -266,7 +312,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         try {
           const res = await loginApi(loginId.trim(), password)
-          setToken(res.token)
+          setToken(res.token, res.expiresIn)
+          markUserActivity()
           invalidateCache('auth:me')
           const next: AuthUser = {
             loginId: loginId.trim().toLowerCase(),
@@ -296,15 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       logout: async () => {
         await logoutApi()
-        sessionStorage.removeItem(STORAGE_KEY)
-        sessionStorage.removeItem(PERMS_KEY)
-        sessionStorage.removeItem(SCOPE_KEY)
-        sessionStorage.removeItem(FAVS_KEY)
-        setMenuPermissions([])
-        setFavouriteMenuCodesState([])
-        setScope(UNRESTRICTED)
-        setPermissionsReady(true)
-        setUser(null)
+        clearLocalSession()
       },
     }),
     [
@@ -322,6 +361,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canApproveMenu,
       canRejectMenu,
       applyMe,
+      clearLocalSession,
     ],
   )
 

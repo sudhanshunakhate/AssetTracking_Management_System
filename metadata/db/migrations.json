@@ -229,7 +229,16 @@
                                            "local":  "2026-08-05",
                                            "dev":  "2026-08-05"
                                        }
+                       },
+                       {
+                           "id":  "023-delete-mreq-miss-transactions",
+                           "file":  "db_approach/delete_mreq_miss_transactions.sql",
+                           "description":  "Delete MATERIAL_REQUISITION and MATERIAL_ISSUE headers/lines; restore stock for Issued issues.",
+                           "applied":  {
+                                           "local":  "2026-08-06",
+                                           "dev":  "2026-08-06"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-05"
+    "updated":  "2026-08-06"
 }

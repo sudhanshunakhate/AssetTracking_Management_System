@@ -5,6 +5,13 @@ import { cachedFetch, invalidateCache } from '@/api/requestCache'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8085/api/v1'
 const TOKEN_KEY = 'caits.token'
+const EXPIRES_AT_KEY = 'caits.tokenExpiresAt'
+const ACTIVITY_KEY = 'caits.lastActivityAt'
+
+/** Refresh when less than this many ms remain on the JWT. */
+const REFRESH_WHEN_REMAINING_MS = 15 * 60 * 1000
+/** Only slide the session if the user was active within this window. */
+const ACTIVITY_WINDOW_MS = 10 * 60 * 1000
 
 export type PageResponse<T> = {
   page: number
@@ -17,9 +24,63 @@ export function getToken(): string | null {
   return sessionStorage.getItem(TOKEN_KEY)
 }
 
-export function setToken(token: string | null) {
-  if (token) sessionStorage.setItem(TOKEN_KEY, token)
-  else sessionStorage.removeItem(TOKEN_KEY)
+export function getTokenExpiresAt(): number | null {
+  const raw = sessionStorage.getItem(EXPIRES_AT_KEY)
+  if (!raw) return null
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : null
+}
+
+export function setToken(token: string | null, expiresInSeconds?: number) {
+  if (token) {
+    sessionStorage.setItem(TOKEN_KEY, token)
+    const seconds = expiresInSeconds && expiresInSeconds > 0 ? expiresInSeconds : 3600
+    sessionStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + seconds * 1000))
+  } else {
+    sessionStorage.removeItem(TOKEN_KEY)
+    sessionStorage.removeItem(EXPIRES_AT_KEY)
+  }
+}
+
+export function markUserActivity() {
+  sessionStorage.setItem(ACTIVITY_KEY, String(Date.now()))
+}
+
+export function getLastActivityAt(): number {
+  const raw = sessionStorage.getItem(ACTIVITY_KEY)
+  const n = raw ? Number(raw) : 0
+  return Number.isFinite(n) ? n : 0
+}
+
+type SessionExpiredHandler = () => void
+let onSessionExpired: SessionExpiredHandler | null = null
+let sessionExpiredFired = false
+let refreshInFlight: Promise<boolean> | null = null
+
+/** AuthProvider registers this to clear state and send the user to /login. */
+export function setSessionExpiredHandler(handler: SessionExpiredHandler | null) {
+  onSessionExpired = handler
+  sessionExpiredFired = false
+}
+
+function fireSessionExpired() {
+  if (sessionExpiredFired) return
+  sessionExpiredFired = true
+  setToken(null)
+  onSessionExpired?.()
+}
+
+function isSessionExpiredError(status: number, message: string) {
+  if (status === 401) return true
+  if (status !== 403) return false
+  const m = message.trim().toLowerCase()
+  return (
+    !m ||
+    m === 'access denied' ||
+    m === 'forbidden' ||
+    m === 'session expired' ||
+    m.includes('full authentication is required')
+  )
 }
 
 /**
@@ -56,12 +117,80 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Extends the JWT when the user is still active and the token is near expiry.
+ * Returns true when a new token was stored.
+ */
+export async function maybeRefreshSession(): Promise<boolean> {
+  const token = getToken()
+  if (!token) return false
+
+  let expiresAt = getTokenExpiresAt()
+  // Older sessions (before sliding auth) have a token but no expiry stamp — refresh once.
+  if (!expiresAt) {
+    expiresAt = Date.now() + REFRESH_WHEN_REMAINING_MS - 1
+  }
+
+  const remaining = expiresAt - Date.now()
+  if (remaining > REFRESH_WHEN_REMAINING_MS) return false
+
+  const idleFor = Date.now() - getLastActivityAt()
+  if (idleFor > ACTIVITY_WINDOW_MS) return false
+
+  if (remaining <= 0) {
+    fireSessionExpired()
+    return false
+  }
+
+  if (refreshInFlight) return refreshInFlight
+
+  refreshInFlight = (async () => {
+    try {
+      const headers = new Headers({
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      })
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers,
+        cache: 'no-store',
+      })
+      const text = await res.text()
+      const body = text ? (JSON.parse(text) as { token?: string; expiresIn?: number; message?: string }) : null
+      if (!res.ok) {
+        if (isSessionExpiredError(res.status, String(body?.message ?? res.statusText ?? ''))) {
+          fireSessionExpired()
+        }
+        return false
+      }
+      if (body?.token) {
+        setToken(body.token, body.expiresIn)
+        sessionExpiredFired = false
+        return true
+      }
+      return false
+    } catch {
+      return false
+    } finally {
+      refreshInFlight = null
+    }
+  })()
+
+  return refreshInFlight
+}
+
 export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
   beginLoading()
   try {
+    // Proactively slide the session on real API traffic while the user is working.
+    if (!path.startsWith('/auth/login') && !path.startsWith('/auth/refresh')) {
+      markUserActivity()
+      await maybeRefreshSession()
+    }
+
     const headers = new Headers(options.headers)
     // FormData must keep the browser-generated multipart boundary.
     const isFormData = options.body instanceof FormData
@@ -80,6 +209,9 @@ export async function api<T>(
         body && typeof body === 'object' && 'message' in body
           ? String((body as { message: string }).message)
           : res.statusText || 'Request failed'
+      if (isSessionExpiredError(res.status, msg) && !path.startsWith('/auth/login')) {
+        fireSessionExpired()
+      }
       throw new ApiError(res.status, msg)
     }
     return body as T
