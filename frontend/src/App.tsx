@@ -30,10 +30,8 @@ import { GrnPages } from '@/features/transactions/GrnPage'
 import { OpeningStockPages } from '@/features/transactions/OpeningStockPage'
 import { IssuesPages } from '@/features/transactions/IssuePage'
 import { RequisitionsPages } from '@/features/transactions/RequisitionPage'
-import {
-  ReturnsPages,
-  TransfersPages,
-} from '@/features/transactions/TransactionPages'
+import { ReturnsPages } from '@/features/transactions/TransactionPages'
+import { TransfersPages } from '@/features/transactions/TransferPage'
 
 function RootRedirect() {
   const { user } = useAuth()

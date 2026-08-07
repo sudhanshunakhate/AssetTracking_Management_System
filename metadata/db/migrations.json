@@ -238,6 +238,15 @@
                                            "local":  "2026-08-06",
                                            "dev":  "2026-08-06"
                                        }
+                       },
+                       {
+                           "id":  "024-trim-items-seed-opening-stock",
+                           "file":  "db_approach/trim_items_seed_opening_stock.sql",
+                           "description":  "Replace Item Master with 10 DEMO scenario items and seed completed Opening Stock (assets + consumables) with full line fields.",
+                           "applied":  {
+                                           "local":  "2026-08-06",
+                                           "dev":  "2026-08-07"
+                                       }
                        }
                    ],
     "updated":  "2026-08-06"

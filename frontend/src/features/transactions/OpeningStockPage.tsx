@@ -255,12 +255,25 @@ function OpeningStockForm() {
 
   const err = (name: string) => (submitted || touched[name] ? (errors[name] ?? '') : '')
 
-  const locationOptions = toLocationOptions(locations.rows)
+  const locationOptions = useMemo(() => {
+    const filtered = form.org
+      ? locations.rows.filter((l) => String(l.orgCode ?? '') === form.org)
+      : []
+    return toLocationOptions(filtered)
+  }, [locations.rows, form.org])
   const orgOptions = entities.rows.map((e) => ({
     value: e.id,
     label: `${e.code} – ${e.name}`,
   }))
   const addLocation = quickAddLocation(locations.reload)
+
+  const onOrgChange = (orgId: string) => {
+    setForm((p) => {
+      const loc = locations.rows.find((l) => l.id === p.locationId)
+      const keepLoc = loc && String(loc.orgCode ?? '') === orgId
+      return { ...p, org: orgId, locationId: keepLoc ? p.locationId : '' }
+    })
+  }
 
   const buildBody = (action: 'SAVE_DRAFT' | 'SUBMIT'): DocumentRequest => {
     const filled = lines.filter((l) => l.itemId !== '')
@@ -382,7 +395,7 @@ function OpeningStockForm() {
               label="Entity (Organization)"
               required
               value={form.org}
-              onChange={(v) => set('org', v)}
+              onChange={onOrgChange}
               onBlur={() => touch('org')}
               options={orgOptions}
               placeholder="— Select Organization —"
@@ -397,10 +410,10 @@ function OpeningStockForm() {
               onChange={(v) => set('locationId', v)}
               onBlur={() => touch('locationId')}
               options={locationOptions}
-              placeholder="— Select Location —"
+              placeholder={form.org ? '— Select Location —' : '— Select Organization first —'}
               error={err('locationId')}
-              disabled={readOnly}
-              quickAdd={addLocation}
+              disabled={readOnly || !form.org}
+              quickAdd={form.org ? addLocation : undefined}
             />
 
             <Field label="Remarks" className="md:col-span-2 xl:col-span-4">

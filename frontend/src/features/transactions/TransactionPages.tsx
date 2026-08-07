@@ -21,10 +21,7 @@ import {
   useMasterList,
   type ApiMasterRow,
 } from '@/api/masters'
-import type {
-  MaterialReturn,
-  MaterialTransfer,
-} from '@/types/transactions'
+import type { MaterialReturn } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
 import { itemOptionLabel, useLocationStock } from './lineGrid'
 
@@ -222,133 +219,6 @@ function mapDocToFlatForm(doc: TxnDocument, extras: Record<string, unknown> = {}
     itemCondition: line?.itemCondition ?? '',
     ...extras,
   }
-}
-
-export function TransfersPages() {
-  const { rows, loading, error, reload } = useTxnList('transfers')
-  const { locations, items, units } = useTxnLookups()
-  const patchItem = itemFieldPatch(items.rows)
-  const [stockLoc, setStockLoc] = useState('')
-  const { stockByItemId } = useLocationStock(stockLoc)
-
-  const columns: Column<MaterialTransfer>[] = [
-    { key: 'no', header: 'Transfer No.', searchText: (r) => r.transferNo, render: (r) => <b className="font-mono">{r.transferNo}</b> },
-    { key: 'date', header: 'Date', searchText: (r) => r.date, render: (r) => r.date },
-    {
-      key: 'from',
-      header: 'From Store',
-      searchText: (r) => locLabel(locations.rows, String((r as { fromLocationId?: string }).fromLocationId ?? '')),
-      render: (r) => locLabel(locations.rows, String((r as { fromLocationId?: string }).fromLocationId ?? '')),
-    },
-    {
-      key: 'to',
-      header: 'To Store',
-      searchText: (r) => locLabel(locations.rows, String((r as { toLocationId?: string }).toLocationId ?? '')),
-      render: (r) => locLabel(locations.rows, String((r as { toLocationId?: string }).toLocationId ?? '')),
-    },
-    { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status} /> },
-  ]
-  const fields: FieldDef[] = [
-    { name: 'date', label: 'Transfer Date', required: true },
-    { name: 'fromStore', label: 'From Store', type: 'select', required: true, options: opt(locations.rows) },
-    { name: 'toStore', label: 'To Store', type: 'select', required: true, options: opt(locations.rows) },
-    {
-      name: 'item',
-      label: 'Item',
-      type: 'select',
-      required: true,
-      span: 2,
-      lockedUntilHeader: true,
-      options: (values) =>
-        itemsForLocation(items.rows, String(values.fromStore ?? '')).map((i) => ({
-          value: i.id,
-          label: itemOptionLabel(i, String(values.fromStore ?? '') === stockLoc ? stockByItemId : undefined),
-        })),
-      placeholder: '— Select From Store first —',
-      hint: 'Only items assigned to the From Store — stock shown for that store',
-    },
-    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master', lockedUntilHeader: true },
-    { name: 'qty', label: 'Transfer Qty', type: 'number', required: true, lockedUntilHeader: true },
-    {
-      name: 'uom',
-      label: 'Unit',
-      type: 'select',
-      required: true,
-      options: opt(units.rows, (u) => String(u.code)),
-      lockedUntilHeader: true,
-    },
-    { name: 'availableStock', label: 'Available at From Store', lockedUntilHeader: true },
-    { name: 'batch', label: 'Batch / Lot (optional)', hint: 'Leave blank to move FIFO', lockedUntilHeader: true },
-    { name: 'remarks', label: 'Remarks', span: 3 },
-  ]
-
-  return (
-    <>
-      <ListStatus loading={loading} error={error} label="transfers" />
-      <TxnRoutes
-        listLoading={loading}
-        base="/transactions/transfers"
-        menuCode="TRF"
-        title="Material Transfer"
-        description="Move stock from one store to another within the organization — independent of the requisition flow."
-        rows={rows as never}
-        columns={columns as never}
-        fields={fields}
-        searchPlaceholder="Search transfers…"
-        saveLabel="Submit Transfer"
-        draftLabel="Save Draft"
-        formTitle="Transfer Details"
-        addLabel="New Transfer"
-        viewOnlyExisting
-        getDefaults={() => ({ date: todayIso(), qty: 1 })}
-        readOnlyFields={['itemName', 'availableStock']}
-        onFieldChange={async (name, value, values) => {
-          const next = { ...values, [name]: value }
-          let base = patchItem(name, value) ?? {}
-          if (name === 'fromStore') {
-            setStockLoc(String(value ?? ''))
-            const allowed = itemsForLocation(items.rows, String(value ?? ''))
-            if (next.item && !allowed.some((i) => i.id === String(next.item))) {
-              base = { ...base, item: '', itemName: '', uom: '', availableStock: '' }
-            }
-          }
-          if ((name === 'item' || name === 'fromStore') && next.item && next.fromStore) {
-            try {
-              const qty = await fetchAvailableStock(Number(next.item), Number(next.fromStore))
-              return { ...base, availableStock: String(qty) }
-            } catch {
-              return { ...base, availableStock: '0' }
-            }
-          }
-          return base
-        }}
-        loadRecord={async (id) => {
-          const doc = await fetchTxn('transfers', id)
-          const fromStore = doc.fromLocationId != null ? String(doc.fromLocationId) : ''
-          setStockLoc(fromStore)
-          return mapDocToFlatForm(doc, {
-            fromStore,
-            toStore: doc.toLocationId != null ? String(doc.toLocationId) : '',
-            store: fromStore,
-          })
-        }}
-        onSave={async (id, values, action = 'SUBMIT') => {
-          const body: DocumentRequest = {
-            docDate: String(values.date || todayIso()),
-            fromLocationId: numOrUndef(values.fromStore),
-            toLocationId: numOrUndef(values.toStore),
-            locationId: numOrUndef(values.fromStore),
-            remarks: String(values.remarks ?? ''),
-            docSubmitAction: action,
-            lines: lineFromForm({ ...values, store: values.fromStore }, items.rows),
-          }
-          if (id === 'new') await createTxn('transfers', body)
-          else throw new Error('Transfer update is not supported by API')
-          await reload()
-        }}
-      />
-    </>
-  )
 }
 
 export function ReturnsPages() {

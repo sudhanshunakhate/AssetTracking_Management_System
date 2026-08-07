@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Field'
@@ -76,6 +76,18 @@ export function IssueItemLines({
   )
   const { loading: stockLoading, lookup } = useStockLookup(onStock)
 
+  /** Re-fetch available qty whenever store or line items change (e.g. after requisition load). */
+  const itemIdsKey = useMemo(() => lines.map((l) => `${l.key}:${l.itemId}`).join('|'), [lines])
+  useEffect(() => {
+    if (linesLocked || !storeLocationId) return
+    for (const line of lines) {
+      if (!line.itemId) continue
+      void lookup(line.key, Number(line.itemId), storeLocationId)
+    }
+    // lines intentionally omitted — itemIdsKey covers item identity without looping on stock patches
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeLocationId, itemIdsKey, linesLocked, lookup])
+
   const selectItem = (line: IssueLine, rawCode: string) => {
     if (linesLocked) return
     const code = rawCode.toUpperCase()
@@ -85,9 +97,10 @@ export function IssueItemLines({
       return
     }
     const stockLocation = storeLocationId || String(item.store ?? '')
+    const cached = stockByItemId[item.id]
     patch(line.key, {
       ...applyItemMaster(item, stockLocation),
-      availableStock: '',
+      availableStock: cached != null ? String(cached) : '',
     })
     void lookup(line.key, Number(item.id), stockLocation)
   }
@@ -98,6 +111,12 @@ export function IssueItemLines({
       const next = prev.filter((l) => l.key !== key)
       return next.length ? next : [emptyLine()]
     })
+
+  const displayStock = (line: IssueLine) => {
+    if (stockLoading[line.key]) return '…'
+    if (line.itemId && stockByItemId[line.itemId] != null) return String(stockByItemId[line.itemId])
+    return line.availableStock
+  }
 
   return (
     <Card>
@@ -130,11 +149,13 @@ export function IssueItemLines({
             <tbody>
               {lines.map((line, idx) => {
                 const unit = unitById.get(line.uomId)
-                const location = locationById.get(line.locationId)
+                const location = locationById.get(line.locationId || storeLocationId)
+                const shownStock = displayStock(line)
                 const shortfall =
                   line.itemId !== '' &&
-                  line.availableStock !== '' &&
-                  toNum(line.issueQty) > toNum(line.availableStock)
+                  shownStock !== '' &&
+                  shownStock !== '…' &&
+                  toNum(line.issueQty) > toNum(shownStock)
                 return (
                   <tr key={line.key} className="border-b border-[var(--border)] align-middle">
                     <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
@@ -150,13 +171,13 @@ export function IssueItemLines({
                       />
                     </td>
                     <td className={gridCell}>
-                      <Input value={line.itemName} readOnly placeholder="Auto" className={gridInput} />
+                      <Input value={line.itemName} readOnly placeholder="—" className={gridInput} />
                     </td>
                     <td className={gridCell}>
                       <Input
                         value={unit ? String(unit.code ?? '') : ''}
                         readOnly
-                        placeholder="Auto"
+                        placeholder="—"
                         className={gridInput}
                       />
                     </td>
@@ -183,10 +204,16 @@ export function IssueItemLines({
                     </td>
                     <td className={gridCell}>
                       <Input
-                        value={stockLoading[line.key] ? '…' : line.availableStock}
+                        value={shownStock}
                         readOnly
-                        placeholder="Auto"
-                        title={shortfall ? 'Issue quantity exceeds available stock' : undefined}
+                        placeholder="—"
+                        title={
+                          shortfall
+                            ? 'Issue quantity exceeds available stock'
+                            : line.itemId
+                              ? 'Live stock at selected store'
+                              : undefined
+                        }
                         className={gridInputRight}
                         style={shortfall ? { color: 'var(--danger)' } : undefined}
                       />
@@ -204,7 +231,7 @@ export function IssueItemLines({
                       <Input
                         value={location ? String(location.code ?? '') : ''}
                         readOnly
-                        placeholder="Auto"
+                        placeholder="—"
                         className={gridInput}
                       />
                     </td>
