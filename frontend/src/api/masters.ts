@@ -466,6 +466,9 @@ export type LocationApi = {
   buId?: number
   city?: string
   isActive?: boolean
+  isSystemLocation?: boolean
+  systemRole?: string
+  printLocationName?: string
 }
 
 export const mapLocation = (l: LocationApi): ApiMasterRow => ({
@@ -476,6 +479,9 @@ export const mapLocation = (l: LocationApi): ApiMasterRow => ({
   orgCode: l.entityId != null ? String(l.entityId) : '',
   ouCode: l.buId != null ? String(l.buId) : '',
   city: l.city ?? '',
+  isSystemLocation: Boolean(l.isSystemLocation),
+  systemRole: l.systemRole ?? '',
+  printLocationName: l.printLocationName ?? '',
   status: activeStatus(l.isActive),
 })
 
@@ -485,7 +491,6 @@ export type RoleApi = {
   roleId: number
   roleCode: string
   roleName: string
-  roleLevel?: number
   desc?: string
   isSystemRole?: boolean
   isActive?: boolean
@@ -495,10 +500,31 @@ export const mapRole = (r: RoleApi): ApiMasterRow => ({
   id: String(r.roleId),
   code: r.roleCode,
   name: r.roleName,
-  level: String(r.roleLevel ?? 1),
   description: r.desc ?? '',
   systemRole: Boolean(r.isSystemRole),
   status: activeStatus(r.isActive),
+})
+
+export type DepartmentApi = {
+  departmentId: number
+  departmentCode: string
+  departmentName: string
+  entityId?: number
+  headEmpId?: number
+  headEmpName?: string
+  desc?: string
+  isActive?: boolean
+}
+
+export const mapDepartment = (d: DepartmentApi): ApiMasterRow => ({
+  id: String(d.departmentId),
+  code: d.departmentCode,
+  name: d.departmentName,
+  orgCode: d.entityId != null ? String(d.entityId) : '',
+  headEmpId: d.headEmpId != null ? String(d.headEmpId) : '',
+  headEmpName: d.headEmpName ?? '',
+  description: d.desc ?? '',
+  status: activeStatus(d.isActive),
 })
 
 export type EmployeeApi = {
@@ -514,7 +540,8 @@ export type EmployeeApi = {
   phone?: string
   altPhone?: string
   designation?: string
-  department?: string
+  departmentId?: number
+  departmentName?: string
   roleId?: number
   baseLocationId?: number
   reportingToEmpId?: number
@@ -535,7 +562,8 @@ export const mapEmployee = (e: EmployeeApi): ApiMasterRow => ({
   phone: e.phone ?? '',
   altPhone: e.altPhone ?? '',
   designation: e.designation ?? '',
-  department: e.department ?? '',
+  department: e.departmentName ?? '',
+  departmentId: e.departmentId != null ? String(e.departmentId) : '',
   role: e.roleId != null ? String(e.roleId) : '',
   baseStore: e.baseLocationId != null ? String(e.baseLocationId) : '',
   reportingTo: e.reportingToEmpId != null ? String(e.reportingToEmpId) : '',

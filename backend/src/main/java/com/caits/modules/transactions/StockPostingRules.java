@@ -12,7 +12,7 @@ public final class StockPostingRules {
     public static String draftStatus(DocType docType) {
         return switch (docType) {
             case GRN, OPENING_STOCK -> "In Pending";
-            case MATERIAL_REQUISITION, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN -> "Pending";
+            case MATERIAL_REQUISITION, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN, INSPECTION_APPROVAL -> "Pending";
             default -> "Draft";
         };
     }
@@ -24,6 +24,7 @@ public final class StockPostingRules {
             case MATERIAL_ISSUE -> "Issued";
             case MATERIAL_TRANSFER -> "Transferred";
             case MATERIAL_RETURN -> "Returned";
+            case INSPECTION_APPROVAL -> "Approved";
             case GRN, OPENING_STOCK, GATEPASS_INWARD, GATEPASS_OUTWARD -> "Completed";
             default -> "Completed";
         };
@@ -43,7 +44,7 @@ public final class StockPostingRules {
     public static boolean postsStockOnSubmit(DocType docType) {
         return switch (docType) {
             case GRN, OPENING_STOCK, MATERIAL_ISSUE, MATERIAL_TRANSFER, MATERIAL_RETURN,
-                    GATEPASS_INWARD, GATEPASS_OUTWARD -> true;
+                    GATEPASS_INWARD, GATEPASS_OUTWARD, INSPECTION_APPROVAL -> true;
             default -> false;
         };
     }
@@ -55,7 +56,7 @@ public final class StockPostingRules {
     public static int stockSign(DocType docType) {
         return switch (docType) {
             case GRN, GATEPASS_INWARD, OPENING_STOCK, MATERIAL_RETURN -> 1;
-            case MATERIAL_ISSUE, GATEPASS_OUTWARD, MATERIAL_TRANSFER -> -1;
+            case MATERIAL_ISSUE, GATEPASS_OUTWARD, MATERIAL_TRANSFER, INSPECTION_APPROVAL -> -1;
             case MATERIAL_REQUISITION -> 0;
         };
     }

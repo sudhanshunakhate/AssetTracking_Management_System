@@ -7,7 +7,7 @@ spring:
   application:
     name: caits-backend
   datasource:
-    # Local Postgres — re-enable this block to point back at it.
+    # Local Postgres.
     # url: jdbc:postgresql://localhost:5432/postgres
     # username: postgres
     # password: pass121word

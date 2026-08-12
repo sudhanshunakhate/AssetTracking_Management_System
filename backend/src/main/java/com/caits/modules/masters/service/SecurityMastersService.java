@@ -37,6 +37,7 @@ public class SecurityMastersService {
     private final SysmUserLocationMappingDtlRepository locationMappingRepo;
     private final SysmUseraccessExceptionDtlRepository exceptionRepo;
     private final OrgEntityMstRepository entityRepo;
+    private final HrcDepartmentMstRepository departmentRepo;
     private final PasswordEncoder passwordEncoder;
     private final AccessScopeService accessScope;
 
@@ -45,6 +46,7 @@ public class SecurityMastersService {
                                   SysmUserloginMstRepository userRepo, SysmUserBuMappingDtlRepository buMappingRepo,
                                   SysmUserLocationMappingDtlRepository locationMappingRepo,
                                   SysmUseraccessExceptionDtlRepository exceptionRepo, OrgEntityMstRepository entityRepo,
+                                  HrcDepartmentMstRepository departmentRepo,
                                   PasswordEncoder passwordEncoder, AccessScopeService accessScope) {
         this.menuRepo = menuRepo;
         this.roleRepo = roleRepo;
@@ -55,6 +57,7 @@ public class SecurityMastersService {
         this.locationMappingRepo = locationMappingRepo;
         this.exceptionRepo = exceptionRepo;
         this.entityRepo = entityRepo;
+        this.departmentRepo = departmentRepo;
         this.passwordEncoder = passwordEncoder;
         this.accessScope = accessScope;
     }
@@ -90,7 +93,6 @@ public class SecurityMastersService {
     @Transactional
     public RoleDto createRole(RoleRequest req) {
         require(req.roleCode(), "roleCode");
-        if (req.roleLevel() == null) throw ApiException.badRequest("roleLevel is required");
         if (roleRepo.existsByRolRoleCodeIgnoreCase(req.roleCode())) {
             throw ApiException.conflict("Role code already exists");
         }
@@ -235,14 +237,13 @@ public class SecurityMastersService {
     private void applyRole(SysmRolesMst e, RoleRequest req) {
         e.setRolRoleCode(req.roleCode());
         e.setRolRoleName(req.roleName());
-        if (req.roleLevel() != null) e.setRolRoleLevel(req.roleLevel());
         e.setRolDesc(req.desc());
         e.setRolIsSystemRole(req.isSystemRole() != null && req.isSystemRole());
         e.setRolIsactive(req.isActive() == null || req.isActive());
     }
 
     private RoleDto toRoleDto(SysmRolesMst e, String message) {
-        return new RoleDto(e.getRolRoleId(), e.getRolRoleCode(), e.getRolRoleName(), e.getRolRoleLevel(), e.getRolDesc(),
+        return new RoleDto(e.getRolRoleId(), e.getRolRoleCode(), e.getRolRoleName(), e.getRolDesc(),
                 e.getRolIsSystemRole(), e.getRolIsactive(), e.getRolCreatedBy(), e.getRolCreatedOn(),
                 e.getRolModifiedBy(), e.getRolModifiedOn(), message);
     }
@@ -349,7 +350,7 @@ public class SecurityMastersService {
         e.setEmpPhone(blankToNull(req.phone()));
         e.setEmpAltPhone(blankToNull(req.altPhone()));
         e.setEmpDesignation(blankToNull(req.designation()));
-        e.setEmpDepartment(blankToNull(req.department()));
+        e.setEmpDepartmentIdDept(req.departmentId());
         if (req.roleId() != null) e.setEmpRoleIdRol(req.roleId());
         e.setEmpBaseLocationIdLoc(req.baseLocationId());
         e.setEmpReportingToEmpIdEmp(req.reportingToEmpId());
@@ -406,10 +407,17 @@ public class SecurityMastersService {
 
     private EmployeeDto toEmpDto(HrcEmployeeMst e, String message) {
         boolean hasLogin = userRepo.existsByUsrEmployeeIdEmp(e.getEmpEmployeeId());
+        String departmentName = null;
+        if (e.getEmpDepartmentIdDept() != null) {
+            departmentName = departmentRepo.findById(e.getEmpDepartmentIdDept())
+                    .map(HrcDepartmentMst::getDeptDepartmentName)
+                    .orElse(null);
+        }
         return new EmployeeDto(
                 e.getEmpEmployeeId(), e.getEmpEmployeeCode(), e.getEmpFirstName(), e.getEmpLastName(),
                 e.getEmpGender(), e.getEmpDob(), e.getEmpJoiningDate(), e.getEmpEmploymentType(),
-                e.getEmpEmail(), e.getEmpPhone(), e.getEmpAltPhone(), e.getEmpDesignation(), e.getEmpDepartment(),
+                e.getEmpEmail(), e.getEmpPhone(), e.getEmpAltPhone(), e.getEmpDesignation(),
+                e.getEmpDepartmentIdDept(), departmentName,
                 e.getEmpRoleIdRol(), e.getEmpBaseLocationIdLoc(), e.getEmpReportingToEmpIdEmp(), e.getEmpIsactive(),
                 hasLogin, e.getEmpCreatedBy(), e.getEmpCreatedOn(), e.getEmpModifiedBy(), e.getEmpModifiedOn(), message);
     }

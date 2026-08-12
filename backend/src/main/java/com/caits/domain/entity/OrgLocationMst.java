@@ -45,6 +45,15 @@ public class OrgLocationMst {
     @Column(name = "loc_isactive", nullable = false)
     private Boolean locIsactive;
 
+    @Column(name = "loc_is_system_location", nullable = false)
+    private Boolean locIsSystemLocation = false;
+
+    @Column(name = "loc_system_role")
+    private String locSystemRole;
+
+    @Column(name = "loc_print_location_name")
+    private String locPrintLocationName;
+
     @Column(name = "loc_created_by")
     private String locCreatedBy;
 
@@ -92,6 +101,15 @@ public class OrgLocationMst {
 
     public Boolean getLocIsactive() { return locIsactive; }
     public void setLocIsactive(Boolean locIsactive) { this.locIsactive = locIsactive; }
+
+    public Boolean getLocIsSystemLocation() { return locIsSystemLocation; }
+    public void setLocIsSystemLocation(Boolean locIsSystemLocation) { this.locIsSystemLocation = locIsSystemLocation; }
+
+    public String getLocSystemRole() { return locSystemRole; }
+    public void setLocSystemRole(String locSystemRole) { this.locSystemRole = locSystemRole; }
+
+    public String getLocPrintLocationName() { return locPrintLocationName; }
+    public void setLocPrintLocationName(String locPrintLocationName) { this.locPrintLocationName = locPrintLocationName; }
 
     public String getLocCreatedBy() { return locCreatedBy; }
     public void setLocCreatedBy(String locCreatedBy) { this.locCreatedBy = locCreatedBy; }

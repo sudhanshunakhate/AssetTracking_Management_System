@@ -18,9 +18,6 @@ public class SysmRolesMst {
     @Column(name = "rol_role_name", nullable = false)
     private String rolRoleName;
 
-    @Column(name = "rol_role_level", nullable = false)
-    private Integer rolRoleLevel;
-
     @Column(name = "rol_desc")
     private String rolDesc;
 
@@ -50,9 +47,6 @@ public class SysmRolesMst {
 
     public String getRolRoleName() { return rolRoleName; }
     public void setRolRoleName(String rolRoleName) { this.rolRoleName = rolRoleName; }
-
-    public Integer getRolRoleLevel() { return rolRoleLevel; }
-    public void setRolRoleLevel(Integer rolRoleLevel) { this.rolRoleLevel = rolRoleLevel; }
 
     public String getRolDesc() { return rolDesc; }
     public void setRolDesc(String rolDesc) { this.rolDesc = rolDesc; }

@@ -15,6 +15,7 @@ import {
   mapEntity,
   mapLocation,
   mapRole,
+  mapDepartment,
   numOrUndef,
   updateMaster,
   useGenValues,
@@ -26,6 +27,13 @@ import type { Employee } from '@/types/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { confirmClearForm, scrollToFirstInvalid } from '@/lib/csvExport'
 import { MSG, PATTERNS, RULES, notBefore, validateFields } from './validation'
+import { CsvImportButton } from '@/components/ui/CsvImportButton'
+import {
+  EMPLOYEE_IMPORT_HEADERS,
+  EMPLOYEE_IMPORT_SAMPLE,
+  importEmployeesFromCsv,
+  type EmployeeImportResult,
+} from './employeeCsvImport'
 
 const LOGIN_ID = /^[a-z0-9][a-z0-9._-]*$/
 
@@ -66,7 +74,7 @@ type EmpFormState = {
   joiningDate: string
   employmentType: string
   designation: string
-  department: string
+  departmentId: string
   email: string
   phone: string
   altPhone: string
@@ -91,7 +99,7 @@ const emptyForm = (): EmpFormState => ({
   joiningDate: '',
   employmentType: 'permanent',
   designation: '',
-  department: '',
+  departmentId: '',
   email: '',
   phone: '',
   altPhone: '',
@@ -123,6 +131,8 @@ function EmployeeForm() {
   const { rows: stores } = useMasterList('locations', mapLocStable)
   const { rows: employees } = useMasterList('employees', mapEmpStable)
   const { rows: entities } = useMasterList('entities', mapEntityStable)
+  const mapDeptStable = useCallback(mapDepartment, [])
+  const { rows: departments } = useMasterList('departments', mapDeptStable)
   const { options: genderOpts } = useGenValues(GEN_TYPE.GENDER, 'code')
   const { options: employmentOpts } = useGenValues(GEN_TYPE.EMPLOYMENT_TYPE, 'code')
 
@@ -164,7 +174,7 @@ function EmployeeForm() {
           joiningDate: emp.joiningDate ?? '',
           employmentType: emp.employmentType ?? 'permanent',
           designation: emp.designation ?? '',
-          department: emp.department ?? '',
+          departmentId: emp.departmentId != null ? String(emp.departmentId) : '',
           email: emp.email ?? '',
           phone: emp.phone ?? '',
           altPhone: emp.altPhone ?? '',
@@ -240,7 +250,6 @@ function EmployeeForm() {
           validate: notBefore('dob', 'Date of Birth'),
         },
         { name: 'designation', label: 'Designation', maxLength: 80 },
-        { name: 'department', label: 'Department', maxLength: 80 },
         {
           name: 'email',
           label: 'Email',
@@ -344,7 +353,7 @@ function EmployeeForm() {
         phone: values.phone.trim() || null,
         altPhone: values.altPhone.trim() || null,
         designation: values.designation.trim() || null,
-        department: values.department.trim() || null,
+        departmentId: numOrUndef(values.departmentId),
         roleId: numOrUndef(values.role),
         baseLocationId: numOrUndef(values.baseStore),
         reportingToEmpId: numOrUndef(values.reportingTo),
@@ -497,16 +506,18 @@ function EmployeeForm() {
                 disabled={readOnly}
               />
             </Field>
-            <Field label="Department" error={err('department')} className="md:col-span-2">
-              <Input
-                value={values.department}
-                onChange={(e) => set('department', e.target.value)}
-                onBlur={() => touch('department')}
-                maxLength={80}
-                invalid={Boolean(err('department'))}
-                placeholder="Stores / IT / Operations / Finance"
+            <Field label="Department" error={err('departmentId')} className="md:col-span-2">
+              <Select
+                value={values.departmentId}
+                onChange={(e) => set('departmentId', e.target.value)}
+                onBlur={() => touch('departmentId')}
                 disabled={readOnly}
-              />
+              >
+                <option value="">— Select Department —</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
+                ))}
+              </Select>
             </Field>
             <Field label="Email" required error={err('email')} className="md:col-span-2">
               <Input
@@ -716,9 +727,31 @@ function EmployeeList() {
   const { canCreateMenu } = useAuth()
   const mapEmpStable = useCallback(mapEmployee, [])
   const mapRoleStable = useCallback(mapRole, [])
-  const { rows, loading, error } = useMasterList('employees', mapEmpStable)
+  const mapDeptStable = useCallback(mapDepartment, [])
+  const mapLocStable = useCallback(mapLocation, [])
+  const { rows, loading, error, reload } = useMasterList('employees', mapEmpStable)
   const { rows: roles } = useMasterList('roles', mapRoleStable)
+  const { rows: departments } = useMasterList('departments', mapDeptStable)
+  const { rows: locations } = useMasterList('locations', mapLocStable)
   const roleById = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, r])), [roles])
+  const [importResult, setImportResult] = useState<EmployeeImportResult | null>(null)
+  const [importing, setImporting] = useState(false)
+
+  const onImportEmployees = async (csvRows: Record<string, string>[]) => {
+    setImporting(true)
+    try {
+      const result = await importEmployeesFromCsv(csvRows, {
+        roles,
+        departments,
+        locations,
+        employees: rows,
+      })
+      setImportResult(result)
+      if (result.created > 0) await reload()
+    } finally {
+      setImporting(false)
+    }
+  }
 
   const columns: Column<Employee>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
@@ -752,10 +785,41 @@ function EmployeeList() {
         description="Onboard system users with role assignment, base location and reporting hierarchy."
         actions={
           canCreateMenu('EMP') ? (
-            <Button onClick={() => navigate('/masters/employees/new')}>Add Employee</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <CsvImportButton
+                label={importing ? 'Importing…' : 'Import CSV'}
+                templateFilename="employee_import_template.csv"
+                templateHeaders={EMPLOYEE_IMPORT_HEADERS}
+                sampleRow={EMPLOYEE_IMPORT_SAMPLE}
+                disabled={importing}
+                onRows={onImportEmployees}
+              />
+              <Button onClick={() => navigate('/masters/employees/new')}>Add Employee</Button>
+            </div>
           ) : undefined
         }
       />
+      {importResult && (
+        <div className="mb-3 rounded-md border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-[12px]">
+          <div className="font-semibold text-[var(--text)]">
+            Import complete: {importResult.created} created, {importResult.failed.length} failed
+          </div>
+          {importResult.failed.length > 0 && (
+            <ul className="mt-1 max-h-40 overflow-y-auto text-[var(--danger)]">
+              {importResult.failed.map((f) => (
+                <li key={f.row}>Row {f.row}: {f.message}</li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            className="mt-1 text-[11px] font-semibold text-[var(--accent)] underline"
+            onClick={() => setImportResult(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading employees…</div>}
       <Card>

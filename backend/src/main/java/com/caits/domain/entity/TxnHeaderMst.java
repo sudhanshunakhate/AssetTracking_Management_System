@@ -59,8 +59,8 @@ public class TxnHeaderMst {
     @Column(name = "txh_ship_to")
     private String txhShipTo;
 
-    @Column(name = "txh_department_id_gmst")
-    private Integer txhDepartmentIdGmst;
+    @Column(name = "txh_department_id_dept")
+    private Integer txhDepartmentIdDept;
 
     @Column(name = "txh_initiated_by_emp_id_emp")
     private Integer txhInitiatedByEmpIdEmp;
@@ -230,8 +230,8 @@ public class TxnHeaderMst {
     public String getTxhShipTo() { return txhShipTo; }
     public void setTxhShipTo(String txhShipTo) { this.txhShipTo = txhShipTo; }
 
-    public Integer getTxhDepartmentIdGmst() { return txhDepartmentIdGmst; }
-    public void setTxhDepartmentIdGmst(Integer txhDepartmentIdGmst) { this.txhDepartmentIdGmst = txhDepartmentIdGmst; }
+    public Integer getTxhDepartmentIdDept() { return txhDepartmentIdDept; }
+    public void setTxhDepartmentIdDept(Integer txhDepartmentIdDept) { this.txhDepartmentIdDept = txhDepartmentIdDept; }
 
     public Integer getTxhInitiatedByEmpIdEmp() { return txhInitiatedByEmpIdEmp; }
     public void setTxhInitiatedByEmpIdEmp(Integer txhInitiatedByEmpIdEmp) { this.txhInitiatedByEmpIdEmp = txhInitiatedByEmpIdEmp; }

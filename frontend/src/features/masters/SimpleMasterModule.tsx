@@ -72,7 +72,7 @@ interface SimpleMasterProps<T extends Row> {
     values: Record<string, unknown>,
   ) => Partial<Record<string, unknown>> | void | Promise<Partial<Record<string, unknown>> | void>
   /** Field names that should be read-only on the edit form. */
-  readOnlyFields?: string[]
+  readOnlyFields?: string[] | ((values: Record<string, unknown>, recordId: string) => string[])
   /**
    * When true, existing records open view-only (create-only APIs: Issue / Transfer / Return).
    * List row click still works for viewing.
@@ -318,7 +318,7 @@ function MasterForm({
     recordId: string,
   ) => ReactNode
   readOnly?: boolean
-  readOnlyFields?: string[]
+  readOnlyFields?: string[] | ((values: Record<string, unknown>, recordId: string) => string[])
   viewOnlyExisting?: boolean
   siblings?: Row[]
   validateForm?: (values: Record<string, unknown>, recordId: string) => Record<string, string>
@@ -356,6 +356,11 @@ function MasterForm({
   const markTouched = (k: string) => setTouched((prev) => (prev[k] ? prev : { ...prev, [k]: true }))
 
   const gridClass = useMemo(() => 'grid gap-2.5 grid-cols-1 md:grid-cols-2 xl:grid-cols-4', [])
+
+  const resolvedReadOnlyFields = useMemo(
+    () => (typeof readOnlyFields === 'function' ? readOnlyFields(values, recordId) : readOnlyFields),
+    [readOnlyFields, values, recordId],
+  )
 
   const errors = useMemo(() => {
     if (readOnly) return {}
@@ -447,7 +452,7 @@ function MasterForm({
               const fieldReadOnly =
                 readOnly ||
                 lockedByHeader ||
-                (readOnlyFields.includes(f.name) && (!isNew || f.name === 'loginId'))
+                (resolvedReadOnlyFields.includes(f.name) && (!isNew || f.name === 'loginId'))
               if (f.type === 'switch') {
                 return (
                   <div key={f.name} className={`pt-1 ${span}`}>

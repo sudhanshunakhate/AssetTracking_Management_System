@@ -23,6 +23,7 @@ import { GEN_TYPE, useGenValues } from '@/api/masters'
 import { GrnItemLines, emptyGrnLine, type GrnLine } from './GrnItemLines'
 import type { ItemKind } from './OpeningStockItemLines'
 import { enrichLinesFromItems, money, toNum } from './lineGrid'
+import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   employeeOptions as toEmployeeOptions,
   itemsForLocation,
@@ -62,7 +63,7 @@ type FormState = {
 
 function blankForm(employeeId?: number | null): FormState {
   return {
-    grnNo: '(auto)',
+    grnNo: AUTO_DOC_NO_LABEL,
     grnDate: todayIso(),
     supplier: '',
     invoiceNo: '',
@@ -319,6 +320,8 @@ function GrnForm() {
       found.lines = 'On every line, Accepted Qty plus Rejected Qty must equal Received Qty.'
     } else if (itemType === 'asset' && filled.some((l) => !l.serialNo.trim())) {
       found.lines = 'Serial No. is required on every asset unit line.'
+    } else if (filled.some((l) => !l.locationId)) {
+      found.lines = 'Location is required on every item line.'
     } else if (lines.some((l) => l.itemCode !== '' && l.itemId === '')) {
       found.lines = 'One or more item codes do not match an item in the Item Master.'
     }
@@ -427,6 +430,13 @@ function GrnForm() {
   const employeeOptions = toEmployeeOptions(employees.rows)
   const locationOptions = toLocationOptions(locations.rows)
   const supplierOptions = toVendorOptions(vendors.rows)
+  const allItemsForType = useMemo(
+    () =>
+      items.rows.filter(
+        (i) => (i.itemType === 'consumable' ? 'consumable' : 'asset') === itemType,
+      ),
+    [items.rows, itemType],
+  )
 
   if (isNew && !canCreateMenu(MENU)) return <Navigate to={BASE} replace />
   if (loading) return <div className="text-sm text-[var(--text3)]">Loading GRN…</div>
@@ -620,12 +630,15 @@ function GrnForm() {
         itemType={itemType}
         onItemTypeChange={setItemType}
         items={itemsForLocation(items.rows, form.store)}
+        allItems={allItemsForType}
         units={units.rows}
         locations={locations.rows}
         conditionOptions={conditionOpts}
         storeLocationId={form.store}
+        locationOptions={locationOptions}
         readOnly={readOnly}
         headerReady={headerReady}
+        showLineErrors={submitted}
         error={submitted ? errors.lines : undefined}
       />
 

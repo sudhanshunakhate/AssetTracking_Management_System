@@ -21,6 +21,7 @@ import {
 import { mapEntity, useGenValues, useMasterList, GEN_TYPE } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
+import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import { enrichLinesFromItems, toNum } from './lineGrid'
 import {
   emptyOpeningStockLine,
@@ -51,7 +52,7 @@ type FormState = {
 
 function blankForm(): FormState {
   return {
-    entryNo: '(auto)',
+    entryNo: AUTO_DOC_NO_LABEL,
     openingDate: todayIso(),
     org: '',
     locationId: '',
@@ -244,6 +245,8 @@ function OpeningStockForm() {
     else if (filled.some((l) => toNum(l.qty) <= 0)) next.lines = 'Quantity must be greater than 0 on every line'
     else if (itemType === 'asset' && filled.some((l) => !l.serialNo.trim())) {
       next.lines = 'Serial No. is required on every asset unit line'
+    } else if (filled.some((l) => !l.locationId)) {
+      next.lines = 'Location is required on every item line'
     }
     return next
   }, [form, headerFields, lines, readOnly, itemType])
@@ -261,6 +264,13 @@ function OpeningStockForm() {
       : []
     return toLocationOptions(filtered)
   }, [locations.rows, form.org])
+  const allItemsForType = useMemo(
+    () =>
+      items.rows.filter(
+        (i) => (i.itemType === 'consumable' ? 'consumable' : 'asset') === itemType,
+      ),
+    [items.rows, itemType],
+  )
   const orgOptions = entities.rows.map((e) => ({
     value: e.id,
     label: `${e.code} – ${e.name}`,
@@ -301,7 +311,7 @@ function OpeningStockForm() {
           batchLotNo: l.batch || undefined,
           mfgDate: l.mfgDate || undefined,
           expiryDate: l.expiryDate || undefined,
-          locationId: numOrUndef(form.locationId),
+          locationId: numOrUndef(l.locationId) ?? numOrUndef(form.locationId),
           serialNo: l.serialNo || undefined,
           ipAddress: l.ipAddress || undefined,
           macAddress: l.macAddress || undefined,
@@ -436,12 +446,16 @@ function OpeningStockForm() {
         itemType={itemType}
         onItemTypeChange={setItemType}
         items={itemsForLocation(items.rows, form.locationId)}
+        allItems={allItemsForType}
         units={units.rows}
         vendors={vendors.rows}
+        locations={locations.rows}
+        locationOptions={locationOptions}
         conditionOptions={conditionOpts}
         locationId={form.locationId}
         readOnly={readOnly}
         headerReady={headerReady}
+        showLineErrors={submitted}
         error={submitted ? errors.lines : undefined}
       />
 

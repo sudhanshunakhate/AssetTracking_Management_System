@@ -260,7 +260,12 @@ export function mapOpeningStockForm(doc: TxnDocument): Record<string, unknown> {
   }
 }
 
-export function useTxnList(resource: string, enabled = true) {
+export function useTxnList(
+  resource: string,
+  options?: { enabled?: boolean; status?: string },
+) {
+  const enabled = options?.enabled ?? true
+  const status = options?.status
   const [rows, setRows] = useState<TxnRow[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
@@ -270,7 +275,11 @@ export function useTxnList(resource: string, enabled = true) {
     setLoading(true)
     setError(null)
     try {
-      const page = await listMaster<TxnListItem>(resource, { page: 1, pageSize: 200 })
+      const page = await listMaster<TxnListItem>(resource, {
+        page: 1,
+        pageSize: 200,
+        status: status || undefined,
+      })
       setRows(sortTxnListRows((page.data ?? []).map(mapTxnListItem)))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
@@ -278,7 +287,7 @@ export function useTxnList(resource: string, enabled = true) {
     } finally {
       setLoading(false)
     }
-  }, [enabled, resource])
+  }, [enabled, resource, status])
 
   useEffect(() => {
     void reload()
@@ -288,7 +297,7 @@ export function useTxnList(resource: string, enabled = true) {
 }
 
 export async function createTxn(resource: string, body: DocumentRequest) {
-  const res = await http.post(`/${resource}`, body)
+  const res = await http.post<TxnDocument>(`/${resource}`, body)
   invalidateDashboardSummary()
   return res
 }

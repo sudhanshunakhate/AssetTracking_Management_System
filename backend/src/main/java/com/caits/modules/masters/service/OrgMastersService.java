@@ -6,6 +6,7 @@ import com.caits.common.PageResponse;
 import com.caits.common.spec.SpecUtils;
 import com.caits.domain.entity.*;
 import com.caits.domain.repository.*;
+import com.caits.modules.masters.SystemLocationService;
 import com.caits.modules.masters.dto.MasterDtos.*;
 import com.caits.security.AccessScopeService;
 import com.caits.security.SecurityUtils;
@@ -25,13 +26,16 @@ public class OrgMastersService {
     private final OrgBusinessunitMstRepository buRepo;
     private final OrgLocationMstRepository locationRepo;
     private final AccessScopeService accessScope;
+    private final SystemLocationService systemLocations;
 
     public OrgMastersService(OrgEntityMstRepository entityRepo, OrgBusinessunitMstRepository buRepo,
-                             OrgLocationMstRepository locationRepo, AccessScopeService accessScope) {
+                             OrgLocationMstRepository locationRepo, AccessScopeService accessScope,
+                             SystemLocationService systemLocations) {
         this.entityRepo = entityRepo;
         this.buRepo = buRepo;
         this.locationRepo = locationRepo;
         this.accessScope = accessScope;
+        this.systemLocations = systemLocations;
     }
 
     // ---- Entities ----
@@ -145,7 +149,9 @@ public class OrgMastersService {
         applyBu(e, req);
         e.setBuCreatedBy(SecurityUtils.requireLoginId());
         e.setBuCreatedOn(LocalDateTime.now());
-        return toBuDto(buRepo.save(e), "Business Unit created successfully");
+        OrgBusinessunitMst saved = buRepo.save(e);
+        systemLocations.ensureForBu(saved.getBuBuId());
+        return toBuDto(saved, "Business Unit created successfully");
     }
 
     @Transactional
@@ -229,6 +235,8 @@ public class OrgMastersService {
         }
         OrgLocationMst e = new OrgLocationMst();
         applyLoc(e, req);
+        e.setLocIsSystemLocation(false);
+        e.setLocIsactive(req.isActive() == null || req.isActive());
         e.setLocCreatedBy(SecurityUtils.requireLoginId());
         e.setLocCreatedOn(LocalDateTime.now());
         return toLocDto(locationRepo.save(e), "Location created successfully");
@@ -254,6 +262,9 @@ public class OrgMastersService {
     @Transactional
     public MessageResponse deleteLocation(Integer id) {
         OrgLocationMst e = findLocation(id);
+        if (Boolean.TRUE.equals(e.getLocIsSystemLocation())) {
+            throw ApiException.badRequest("System locations cannot be deleted");
+        }
         e.setLocIsactive(false);
         e.setLocModifiedBy(SecurityUtils.requireLoginId());
         e.setLocModifiedOn(LocalDateTime.now());
@@ -266,19 +277,26 @@ public class OrgMastersService {
     }
 
     private void applyLoc(OrgLocationMst e, LocationRequest req) {
-        e.setLocLocationCode(req.locationCode());
-        e.setLocLocationName(req.locationName());
-        e.setLocLocationType(req.locationType());
-        if (req.entityId() != null) e.setLocEntityIdEnt(req.entityId());
-        if (req.buId() != null) e.setLocBuIdBu(req.buId());
-        e.setLocManagerEmpIdEmp(req.managerEmpId());
-        e.setLocCity(req.city());
-        e.setLocIsactive(req.isActive() == null || req.isActive());
+        if (!Boolean.TRUE.equals(e.getLocIsSystemLocation())) {
+            e.setLocLocationCode(req.locationCode());
+            e.setLocLocationName(req.locationName());
+            e.setLocLocationType(req.locationType());
+            if (req.entityId() != null) e.setLocEntityIdEnt(req.entityId());
+            if (req.buId() != null) e.setLocBuIdBu(req.buId());
+            e.setLocManagerEmpIdEmp(req.managerEmpId());
+            e.setLocCity(req.city());
+            if (req.isActive() != null) e.setLocIsactive(req.isActive());
+        } else {
+            if (req.locationName() != null) e.setLocLocationName(req.locationName());
+            if (req.printLocationName() != null) e.setLocPrintLocationName(req.printLocationName());
+            if (req.city() != null) e.setLocCity(req.city());
+        }
     }
 
     private LocationDto toLocDto(OrgLocationMst e, String message) {
         return new LocationDto(e.getLocLocationId(), e.getLocLocationCode(), e.getLocLocationName(), e.getLocLocationType(),
                 e.getLocEntityIdEnt(), e.getLocBuIdBu(), e.getLocManagerEmpIdEmp(), e.getLocCity(), e.getLocIsactive(),
+                e.getLocIsSystemLocation(), e.getLocSystemRole(), e.getLocPrintLocationName(),
                 e.getLocCreatedBy(), e.getLocCreatedOn(), e.getLocModifiedBy(), e.getLocModifiedOn(), message);
     }
 

@@ -33,6 +33,13 @@ public final class MasterDtos {
                                    Integer sortOrder, String desc, Boolean isActive) {}
     public record GenmasterValueDto(Integer genmasterId, String valueCode, String valueName, Integer sortOrder) {}
 
+    public record DepartmentDto(Integer departmentId, String departmentCode, String departmentName, Integer entityId,
+                                Integer headEmpId, String headEmpName, String desc, Boolean isActive,
+                                String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn,
+                                String message) {}
+    public record DepartmentRequest(Integer departmentId, String departmentCode, String departmentName, Integer entityId,
+                                    Integer headEmpId, String desc, Boolean isActive) {}
+
     public record EntityDto(Integer entityId, String entityCode, String entityName, String shortName, String gstin, String panNo,
                             String city, String state, Boolean isActive, String createdBy, LocalDateTime createdOn,
                             String modifiedBy, LocalDateTime modifiedOn, String message) {}
@@ -47,9 +54,11 @@ public final class MasterDtos {
 
     public record LocationDto(Integer locationId, String locationCode, String locationName, String locationType,
                               Integer entityId, Integer buId, Integer managerEmpId, String city, Boolean isActive,
+                              Boolean isSystemLocation, String systemRole, String printLocationName,
                               String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record LocationRequest(Integer locationId, String locationCode, String locationName, String locationType,
-                                  Integer entityId, Integer buId, Integer managerEmpId, String city, Boolean isActive) {}
+                                  Integer entityId, Integer buId, Integer managerEmpId, String city, Boolean isActive,
+                                  String printLocationName) {}
 
     public record ItemDto(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
                           Integer subcategoryId, Integer uomId, BigDecimal standardCost, String imageUrl, String desc,
@@ -93,10 +102,10 @@ public final class MasterDtos {
                           Boolean supportsDelete, Boolean supportsApprove, Boolean supportsReject,
                           Boolean supportsPrint, Boolean supportsExport) {}
 
-    public record RoleDto(Integer roleId, String roleCode, String roleName, Integer roleLevel, String desc,
+    public record RoleDto(Integer roleId, String roleCode, String roleName, String desc,
                           Boolean isSystemRole, Boolean isActive, String createdBy, LocalDateTime createdOn,
                           String modifiedBy, LocalDateTime modifiedOn, String message) {}
-    public record RoleRequest(Integer roleId, String roleCode, String roleName, Integer roleLevel, String desc,
+    public record RoleRequest(Integer roleId, String roleCode, String roleName, String desc,
                               Boolean isSystemRole, Boolean isActive) {}
     public record PermissionDto(Integer menuId, String module, Boolean canView, Boolean canCreate, Boolean canEdit,
                                 Boolean canDelete, Boolean canApprove, Boolean canReject, Boolean canPrint,
@@ -104,14 +113,14 @@ public final class MasterDtos {
 
     public record EmployeeDto(Integer employeeId, String employeeCode, String firstName, String lastName,
                               String gender, java.time.LocalDate dob, java.time.LocalDate joiningDate, String employmentType,
-                              String email, String phone, String altPhone, String designation, String department,
-                              Integer roleId, Integer baseLocationId, Integer reportingToEmpId, Boolean isActive,
+                              String email, String phone, String altPhone, String designation, Integer departmentId,
+                              String departmentName, Integer roleId, Integer baseLocationId, Integer reportingToEmpId, Boolean isActive,
                               Boolean hasLogin, String createdBy, LocalDateTime createdOn,
                               String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record EmployeeRequest(Integer employeeId, String employeeCode, String firstName, String lastName,
                                   String gender, java.time.LocalDate dob, java.time.LocalDate joiningDate,
                                   String employmentType, String email, String phone, String altPhone,
-                                  String designation, String department, Integer roleId, Integer baseLocationId,
+                                  String designation, Integer departmentId, Integer roleId, Integer baseLocationId,
                                   Integer reportingToEmpId, Boolean isActive,
                                   Boolean createLogin, String loginId, String password, String confirmPassword,
                                   Integer entityId) {}

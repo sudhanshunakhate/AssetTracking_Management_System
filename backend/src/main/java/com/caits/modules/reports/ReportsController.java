@@ -1,12 +1,14 @@
 package com.caits.modules.reports;
 
 import com.caits.common.PageResponse;
+import com.caits.domain.entity.HrcDepartmentMst;
 import com.caits.domain.entity.HrcEmployeeMst;
 import com.caits.domain.entity.InvItemMst;
 import com.caits.domain.entity.InvStockMst;
 import com.caits.domain.entity.OrgLocationMst;
 import com.caits.domain.entity.TxnDetailDtl;
 import com.caits.domain.entity.TxnHeaderMst;
+import com.caits.domain.repository.HrcDepartmentMstRepository;
 import com.caits.domain.repository.HrcEmployeeMstRepository;
 import com.caits.domain.repository.InvItemMstRepository;
 import com.caits.domain.repository.InvStockMstRepository;
@@ -53,6 +55,7 @@ public class ReportsController {
     private final AccessScopeService accessScope;
     private final OrgLocationMstRepository locationRepo;
     private final HrcEmployeeMstRepository employeeRepo;
+    private final HrcDepartmentMstRepository departmentRepo;
 
     public ReportsController(
             InvStockMstRepository stockRepo,
@@ -61,7 +64,8 @@ public class ReportsController {
             TxnDetailDtlRepository detailRepo,
             AccessScopeService accessScope,
             OrgLocationMstRepository locationRepo,
-            HrcEmployeeMstRepository employeeRepo
+            HrcEmployeeMstRepository employeeRepo,
+            HrcDepartmentMstRepository departmentRepo
     ) {
         this.stockRepo = stockRepo;
         this.itemRepo = itemRepo;
@@ -70,6 +74,7 @@ public class ReportsController {
         this.accessScope = accessScope;
         this.locationRepo = locationRepo;
         this.employeeRepo = employeeRepo;
+        this.departmentRepo = departmentRepo;
     }
 
     @GetMapping("/stock-register")
@@ -204,7 +209,7 @@ public class ReportsController {
             row.put("custodyMode", custodyMode);
             row.put("custodianEmpId", custodianEmpId);
             row.put("custodian", empLabel(custodian));
-            row.put("custodianDept", custodian == null ? null : custodian.getEmpDepartment());
+            row.put("custodianDept", custodian == null ? null : departmentName(custodian.getEmpDepartmentIdDept()));
             row.put("custodianDesignation", custodian == null ? null : custodian.getEmpDesignation());
             row.put("lastIssueDocNo", issued == null ? null : issued.docNo);
             row.put("lastIssueDate", issued == null ? null : issued.docDate);
@@ -308,7 +313,7 @@ public class ReportsController {
                 row.put("fromStore", from == null ? null : from.getLocLocationCode());
                 row.put("toLocationId", toLoc);
                 row.put("toStore", to == null ? null : to.getLocLocationCode());
-                row.put("departmentId", h.getTxhDepartmentIdGmst());
+                row.put("departmentId", h.getTxhDepartmentIdDept());
                 row.put("employeeId", empId);
                 row.put("employee", empLabel(emp));
                 row.put("partyId", h.getTxhPartyIdVnd());
@@ -536,6 +541,13 @@ public class ReportsController {
         if (current.compareTo(BigDecimal.ZERO) <= 0) return "Out of Stock";
         if (reorder.compareTo(BigDecimal.ZERO) > 0 && current.compareTo(reorder) <= 0) return "Low Stock";
         return "In Stock";
+    }
+
+    private String departmentName(Integer departmentId) {
+        if (departmentId == null) return null;
+        return departmentRepo.findById(departmentId)
+                .map(HrcDepartmentMst::getDeptDepartmentName)
+                .orElse(null);
     }
 
     private static String empLabel(HrcEmployeeMst e) {

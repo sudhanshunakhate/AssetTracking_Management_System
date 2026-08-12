@@ -30,6 +30,7 @@ public class DataSeeder implements ApplicationRunner {
     private final SysmRolepermissionDtlRepository rolePermRepo;
     private final GentypeMstRepository gentypeRepo;
     private final GenmasterMstRepository genmasterRepo;
+    private final HrcDepartmentMstRepository departmentRepo;
     private final PasswordEncoder passwordEncoder;
 
     public DataSeeder(
@@ -41,6 +42,7 @@ public class DataSeeder implements ApplicationRunner {
             SysmRolepermissionDtlRepository rolePermRepo,
             GentypeMstRepository gentypeRepo,
             GenmasterMstRepository genmasterRepo,
+            HrcDepartmentMstRepository departmentRepo,
             PasswordEncoder passwordEncoder
     ) {
         this.userRepo = userRepo;
@@ -51,6 +53,7 @@ public class DataSeeder implements ApplicationRunner {
         this.rolePermRepo = rolePermRepo;
         this.gentypeRepo = gentypeRepo;
         this.genmasterRepo = genmasterRepo;
+        this.departmentRepo = departmentRepo;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -60,12 +63,32 @@ public class DataSeeder implements ApplicationRunner {
         seedAdminGraphIfEmpty();
         seedMenusIfEmpty();
         seedAdminMenuPermissionsIfEmpty();
-        seedLookupIfMissing("GTY-DEPT", "Department", "Departments raising requisitions", DEPARTMENTS);
+        seedDepartmentsIfEmpty();
         seedLookupIfMissing("GTY-DESIG", "Designation", "Employee designations", DESIGNATIONS);
     }
 
-    /** Department / designation lookups backing the Store Requisition dropdowns. */
-    private static final List<String[]> DEPARTMENTS = List.of(
+    private void seedDepartmentsIfEmpty() {
+        if (departmentRepo.count() > 0) return;
+        Integer entityId = entityRepo.findAll().stream()
+                .filter(e -> Boolean.TRUE.equals(e.getEntIsactive()))
+                .map(OrgEntityMst::getEntEntityId)
+                .findFirst()
+                .orElse(null);
+        if (entityId == null) return;
+        LocalDateTime now = LocalDateTime.now();
+        for (String[] row : DEPARTMENT_SEED) {
+            HrcDepartmentMst d = new HrcDepartmentMst();
+            d.setDeptDepartmentCode(row[0]);
+            d.setDeptDepartmentName(row[1]);
+            d.setDeptEntityIdEnt(entityId);
+            d.setDeptIsactive(true);
+            d.setDeptCreatedBy("system");
+            d.setDeptCreatedOn(now);
+            departmentRepo.save(d);
+        }
+    }
+
+    private static final List<String[]> DEPARTMENT_SEED = List.of(
             new String[]{"DEPT-IT", "IT"},
             new String[]{"DEPT-STORES", "Stores"},
             new String[]{"DEPT-OPS", "Operations"},
@@ -131,7 +154,6 @@ public class DataSeeder implements ApplicationRunner {
             SysmRolesMst r = new SysmRolesMst();
             r.setRolRoleCode("ADMIN");
             r.setRolRoleName("Administrator");
-            r.setRolRoleLevel(1);
             r.setRolDesc("System administrator");
             r.setRolIsSystemRole(true);
             r.setRolIsactive(true);
@@ -149,13 +171,18 @@ public class DataSeeder implements ApplicationRunner {
         entity.setEntCreatedOn(now);
         entity = entityRepo.save(entity);
 
+        seedDepartmentsIfEmpty();
+        Integer itDeptId = departmentRepo.findByDeptDepartmentCodeIgnoreCase("DEPT-IT")
+                .map(HrcDepartmentMst::getDeptDepartmentId)
+                .orElse(null);
+
         HrcEmployeeMst emp = new HrcEmployeeMst();
         emp.setEmpEmployeeCode("ADMIN");
         emp.setEmpFirstName("System");
         emp.setEmpLastName("Admin");
         emp.setEmpEmail("admin@caits.local");
         emp.setEmpDesignation("Administrator");
-        emp.setEmpDepartment("IT");
+        emp.setEmpDepartmentIdDept(itDeptId);
         emp.setEmpRoleIdRol(role.getRolRoleId());
         emp.setEmpIsactive(true);
         emp.setEmpCreatedBy("system");

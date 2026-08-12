@@ -9,4 +9,6 @@ import java.util.Optional;
 public interface OrgLocationMstRepository extends JpaRepository<OrgLocationMst, Integer>, JpaSpecificationExecutor<OrgLocationMst> {
     Optional<OrgLocationMst> findByLocLocationCodeIgnoreCase(String code);
     boolean existsByLocLocationCodeIgnoreCase(String code);
+    boolean existsByLocBuIdBuAndLocSystemRole(Integer buId, String systemRole);
+    Optional<OrgLocationMst> findByLocBuIdBuAndLocSystemRoleAndLocIsactiveTrue(Integer buId, String systemRole);
 }

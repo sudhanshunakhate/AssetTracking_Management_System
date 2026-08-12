@@ -37,8 +37,8 @@ public class HrcEmployeeMst {
     @Column(name = "emp_designation")
     private String empDesignation;
 
-    @Column(name = "emp_department")
-    private String empDepartment;
+    @Column(name = "emp_department_id_dept")
+    private Integer empDepartmentIdDept;
 
     @Column(name = "emp_email", nullable = false)
     private String empEmail;
@@ -100,8 +100,8 @@ public class HrcEmployeeMst {
     public String getEmpDesignation() { return empDesignation; }
     public void setEmpDesignation(String empDesignation) { this.empDesignation = empDesignation; }
 
-    public String getEmpDepartment() { return empDepartment; }
-    public void setEmpDepartment(String empDepartment) { this.empDepartment = empDepartment; }
+    public Integer getEmpDepartmentIdDept() { return empDepartmentIdDept; }
+    public void setEmpDepartmentIdDept(Integer empDepartmentIdDept) { this.empDepartmentIdDept = empDepartmentIdDept; }
 
     public String getEmpEmail() { return empEmail; }
     public void setEmpEmail(String empEmail) { this.empEmail = empEmail; }

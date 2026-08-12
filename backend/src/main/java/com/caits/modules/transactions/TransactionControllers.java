@@ -318,4 +318,33 @@ public class TransactionControllers {
     public DocumentResponse printReturn(@PathVariable Integer docId) {
         return service.printView(DocType.MATERIAL_RETURN, docId);
     }
+
+    // ---------- Inspection Approval ----------
+    @GetMapping("/inspection-approvals")
+    public PageResponse<ListItem> listInspectionApproval(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) Integer locationId,
+            @RequestParam(required = false) Integer entityId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize
+    ) {
+        return service.list(DocType.INSPECTION_APPROVAL, status, fromDate, toDate, locationId, null, null, null, null, entityId, null, null, page, pageSize);
+    }
+
+    @GetMapping("/inspection-approvals/{docId}")
+    public DocumentResponse getInspectionApproval(@PathVariable Integer docId) {
+        return service.get(DocType.INSPECTION_APPROVAL, docId);
+    }
+
+    @PostMapping("/inspection-approvals")
+    public ResponseEntity<DocumentResponse> createInspectionApproval(@RequestBody DocumentRequest body) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(DocType.INSPECTION_APPROVAL, body));
+    }
+
+    @GetMapping("/inspection-approvals/{docId}/print")
+    public DocumentResponse printInspectionApproval(@PathVariable Integer docId) {
+        return service.printView(DocType.INSPECTION_APPROVAL, docId);
+    }
 }

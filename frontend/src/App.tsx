@@ -7,6 +7,7 @@ import { GlobalLoader } from '@/loading/GlobalLoader'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import {
   ExceptionsMaster,
+  DepartmentsMaster,
   GeneralMastersMaster,
   GeneralTypesMaster,
   InventoryCategoriesMaster,
@@ -32,6 +33,7 @@ import { IssuesPages } from '@/features/transactions/IssuePage'
 import { RequisitionsPages } from '@/features/transactions/RequisitionPage'
 import { ReturnsPages } from '@/features/transactions/TransactionPages'
 import { TransfersPages } from '@/features/transactions/TransferPage'
+import { InspectionApprovalPages } from '@/features/transactions/InspectionApprovalPage'
 
 function RootRedirect() {
   const { user } = useAuth()
@@ -60,6 +62,7 @@ export default function App() {
           <Route path="/masters/stores/*" element={<StoresMaster />} />
           <Route path="/masters/roles/*" element={<RolesMaster />} />
           <Route path="/masters/employees/*" element={<EmployeesMaster />} />
+          <Route path="/masters/departments/*" element={<DepartmentsMaster />} />
           <Route path="/masters/users/*" element={<UsersMaster />} />
           <Route path="/masters/menu-access" element={<Navigate to="/masters/roles" replace />} />
           <Route path="/masters/exceptions/*" element={<ExceptionsMaster />} />
@@ -71,6 +74,7 @@ export default function App() {
           <Route path="/transactions/issues/*" element={<IssuesPages />} />
           <Route path="/transactions/transfers/*" element={<TransfersPages />} />
           <Route path="/transactions/returns/*" element={<ReturnsPages />} />
+          <Route path="/transactions/inspection-approvals/*" element={<InspectionApprovalPages />} />
 
           <Route path="/reports/stock-register" element={<StockRegisterPage />} />
           <Route path="/reports/full-report" element={<FullReportPage />} />

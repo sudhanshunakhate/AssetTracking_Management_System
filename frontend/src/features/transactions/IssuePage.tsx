@@ -23,6 +23,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { IssueItemLines, emptyLine, type IssueLine } from './IssueItemLines'
 import { enrichLinesFromItems } from './lineGrid'
+import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   empLabel,
   employeeOptions as toEmployeeOptions,
@@ -33,6 +34,7 @@ import {
   quickAddLocation,
   useTxnFormLookups,
 } from './txnLookups'
+import { RequisitionPickerModal } from './IssueRequisitionPicker'
 
 const BASE = '/transactions/issues'
 const MENU = 'ISS'
@@ -45,6 +47,7 @@ type FormState = {
   issueNo: string
   issueDate: string
   requisitionId: string
+  requisitionDisplay: string
   storeId: string
   issuedTo: string
   remark: string
@@ -53,9 +56,10 @@ type FormState = {
 
 function blankForm(): FormState {
   return {
-    issueNo: '(auto)',
+    issueNo: AUTO_DOC_NO_LABEL,
     issueDate: todayIso(),
     requisitionId: '',
+    requisitionDisplay: '',
     storeId: '',
     issuedTo: '',
     remark: '',
@@ -67,14 +71,29 @@ export function IssuesPages() {
   return (
     <Routes>
       <Route index element={<IssueList />} />
+      <Route path="pick-requisition" element={<PickRequisitionRoute />} />
+      <Route path="new/:requisitionId" element={<IssueForm />} />
+      <Route path="new" element={<Navigate to="../pick-requisition" replace />} />
       <Route path=":id" element={<IssueForm />} />
     </Routes>
   )
 }
 
-/* -------------------------------------------------------------- list ---- */
+function PickRequisitionRoute() {
+  const navigate = useNavigate()
+  return (
+    <>
+      <IssueList />
+      <RequisitionPickerModal
+        open
+        onClose={() => navigate(BASE)}
+        onSelect={(reqId) => navigate(`${BASE}/new/${reqId}`)}
+      />
+    </>
+  )
+}
 
-function IssueList() {
+export function IssueList() {
   const navigate = useNavigate()
   const { canCreateMenu } = useAuth()
   const { rows, loading, error } = useTxnList(RESOURCE)
@@ -133,7 +152,7 @@ function IssueList() {
         rows={rows}
         searchPlaceholder="Search issues…"
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
-        onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/new`) : undefined}
+        onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/pick-requisition`) : undefined}
         addLabel="New Issue"
         emptyMessage="No issues yet. Use New Issue to post one."
       />
@@ -144,17 +163,18 @@ function IssueList() {
 /* -------------------------------------------------------------- form ---- */
 
 function IssueForm() {
-  const { id = 'new' } = useParams()
+  const { id, requisitionId: requisitionIdParam } = useParams()
   const navigate = useNavigate()
   const { canCreateMenu, canEditMenu } = useAuth()
-  const isNew = id === 'new'
+  const isNew = Boolean(requisitionIdParam)
+  const issueId = id && !requisitionIdParam ? id : undefined
 
   const { locations, employees, items, units } = useTxnFormLookups()
 
   const [form, setForm] = useState<FormState>(blankForm)
   const [lines, setLines] = useState<IssueLine[]>(() => [emptyLine()])
   const [pendingReqs, setPendingReqs] = useState<TxnRow[]>([])
-  const [loading, setLoading] = useState(!isNew)
+  const [loading, setLoading] = useState(isNew || Boolean(issueId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -170,22 +190,20 @@ function IssueForm() {
   // Material issue API is create-only; existing docs are view-only.
   const readOnly = !isNew || !canEdit || !statusEditable
 
+  const requisitionLabel = form.requisitionDisplay || (() => {
+    if (!form.requisitionId) return ''
+    const hit = pendingReqs.find((r) => r.id === form.requisitionId)
+    return hit ? `${hit.docNo} · ${hit.docDate || ''}` : `Req #${form.requisitionId}`
+  })()
+
   const locationOptions = useMemo(() => toLocationOptions(locations.rows), [locations.rows])
   const employeeOptions = useMemo(() => toEmployeeOptions(employees.rows), [employees.rows])
-  const reqOptions = useMemo(
-    () =>
-      pendingReqs
-        .filter((r) => String(r.status ?? '').toLowerCase() === 'requested')
-        .map((r) => ({ value: r.id, label: `${r.docNo} · ${r.docDate || ''}` })),
-    [pendingReqs],
-  )
 
   const addLocation = quickAddLocation(locations.reload)
   const addEmployee = quickAddEmployee(employees.reload)
 
-  /* ---- requested requisitions for Against Requisition ---- */
+  /* ---- pending requisitions for display labels on existing issues ---- */
   useEffect(() => {
-    if (!isNew) return
     let cancelled = false
     ;(async () => {
       try {
@@ -198,21 +216,39 @@ function IssueForm() {
     return () => {
       cancelled = true
     }
-  }, [isNew])
+  }, [])
 
-  /* ---- load existing document ---- */
+  /* ---- load requisition for new issue from route ---- */
   useEffect(() => {
-    if (isNew) return
+    if (!isNew || !requisitionIdParam) return
     let cancelled = false
     setLoading(true)
     ;(async () => {
       try {
-        const doc = await fetchTxn(RESOURCE, id)
+        await onRequisitionChange(requisitionIdParam)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isNew, requisitionIdParam])
+
+  /* ---- load existing document ---- */
+  useEffect(() => {
+    if (!issueId) return
+    let cancelled = false
+    setLoading(true)
+    ;(async () => {
+      try {
+        const doc = await fetchTxn(RESOURCE, issueId)
         if (cancelled) return
         setForm({
           issueNo: doc.docNo ?? '',
           issueDate: doc.docDate ?? '',
           requisitionId: doc.refTxnHeaderId != null ? String(doc.refTxnHeaderId) : '',
+          requisitionDisplay: '',
           storeId: doc.locationId != null ? String(doc.locationId) : '',
           issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : '',
           remark: doc.remarks ?? '',
@@ -241,24 +277,7 @@ function IssueForm() {
     return () => {
       cancelled = true
     }
-  }, [id, isNew])
-
-  /* ---- enrich lines once item master arrives ---- */
-  useEffect(() => {
-    if (!items.rows.length) return
-    setLines((prev) => enrichLinesFromItems(prev, items.rows))
-  }, [items.rows])
-
-  /* ---- refresh stock when store changes ---- */
-  useEffect(() => {
-    if (readOnly || !form.storeId) return
-    setLines((prev) =>
-      prev.map((l) => ({
-        ...l,
-        locationId: l.itemId ? form.storeId : l.locationId,
-      })),
-    )
-  }, [form.storeId, readOnly])
+  }, [issueId])
 
   const onRequisitionChange = async (reqId: string) => {
     set('requisitionId', reqId)
@@ -268,6 +287,7 @@ function IssueForm() {
       setForm((p) => ({
         ...p,
         requisitionId: reqId,
+        requisitionDisplay: `${doc.docNo ?? ''} · ${doc.docDate || ''}`.trim(),
         storeId: doc.locationId != null ? String(doc.locationId) : p.storeId,
         issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : p.issuedTo,
       }))
@@ -294,8 +314,26 @@ function IssueForm() {
     }
   }
 
+  /* ---- enrich lines once item master arrives ---- */
+  useEffect(() => {
+    if (!items.rows.length) return
+    setLines((prev) => enrichLinesFromItems(prev, items.rows))
+  }, [items.rows])
+
+  /* ---- refresh stock when store changes ---- */
+  useEffect(() => {
+    if (readOnly || !form.storeId) return
+    setLines((prev) =>
+      prev.map((l) => ({
+        ...l,
+        locationId: l.itemId ? form.storeId : l.locationId,
+      })),
+    )
+  }, [form.storeId, readOnly])
+
   const fieldDefs: ValidatableField[] = [
     { name: 'issueDate', label: 'Issue Date', required: true },
+    { name: 'requisitionId', label: 'Against Requisition', required: true },
     { name: 'storeId', label: 'Store', required: true },
     { name: 'issuedTo', label: 'Issued To', required: true },
   ]
@@ -371,7 +409,9 @@ function IssueForm() {
     }
   }
 
-  if (id !== 'new' && !/^\d+$/.test(id)) return <Navigate to={BASE} replace />
+  if (isNew && !requisitionIdParam) return <Navigate to={`${BASE}/pick-requisition`} replace />
+  if (issueId && !/^\d+$/.test(issueId)) return <Navigate to={BASE} replace />
+  if (isNew && !canCreateMenu(MENU)) return <Navigate to={BASE} replace />
 
   if (loading) {
     return (
@@ -424,18 +464,9 @@ function IssueForm() {
               />
             </Field>
 
-            <LookupSelect
-              label="Against Requisition"
-              value={form.requisitionId}
-              onChange={(v) => void onRequisitionChange(v)}
-              options={
-                !isNew && form.requisitionId && !reqOptions.some((o) => o.value === form.requisitionId)
-                  ? [{ value: form.requisitionId, label: `Req #${form.requisitionId}` }, ...reqOptions]
-                  : reqOptions
-              }
-              placeholder="— Select Requested Requisition —"
-              disabled={readOnly}
-            />
+            <Field label="Against Requisition" required error={err('requisitionId')}>
+              <Input value={requisitionLabel} readOnly placeholder="—" />
+            </Field>
 
             <LookupSelect
               label="Store"

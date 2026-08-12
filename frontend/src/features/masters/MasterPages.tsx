@@ -12,6 +12,7 @@ import {
   mapCategory,
   mapEmployee,
   mapEntity,
+  mapDepartment,
   mapGenmaster,
   mapGentype,
   mapLocation,
@@ -34,6 +35,7 @@ import { Field, Select, Switch } from '@/components/ui/Field'
 import type {
   AccessException,
   AccessRole,
+  Department,
   GeneralMaster,
   GeneralType,
   InventoryCategory,
@@ -92,7 +94,7 @@ function MastersRoutes({
     values: Record<string, unknown>,
   ) => Partial<Record<string, unknown>> | void | Promise<Partial<Record<string, unknown>> | void>
   allowCreate?: boolean
-  readOnlyFields?: string[]
+  readOnlyFields?: string[] | ((values: Record<string, unknown>, recordId: string) => string[])
   menuCode?: string
   listLoading?: boolean
   addLabel?: string
@@ -313,6 +315,19 @@ export function StoresMaster() {
   const columns: Column<Store>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
+    {
+      key: 'system',
+      header: 'System',
+      searchText: (r) => String(r.isSystemLocation ?? ''),
+      render: (r) =>
+        r.isSystemLocation ? (
+          <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--text3)]">
+            {String(r.systemRole ?? 'System').replace(/_/g, ' ')}
+          </span>
+        ) : (
+          '—'
+        ),
+    },
     { key: 'type', header: 'Type', searchText: (r) => r.storeType, render: (r) => r.storeType },
     {
       key: 'ou',
@@ -326,6 +341,13 @@ export function StoresMaster() {
   const fields: FieldDef[] = [
     { name: 'code', label: 'Location Code', uppercase: true, ...RULES.code(20) },
     { name: 'name', label: 'Location Name', span: 2, ...RULES.name(150, 3) },
+    {
+      name: 'printLocationName',
+      label: 'Print Location Name',
+      span: 2,
+      hint: 'Label used on printouts (system locations only)',
+      ...RULES.name(150, 1),
+    },
     {
       name: 'storeType',
       label: 'Location Type',
@@ -382,6 +404,11 @@ export function StoresMaster() {
         saveLabel="Save Location"
         formTitle="Location Details"
         validateForm={validateForm}
+        readOnlyFields={(values) =>
+          values.isSystemLocation
+            ? ['code', 'orgCode', 'ouCode', 'storeType', 'status']
+            : ['printLocationName']
+        }
         onFieldChange={(name, _value, values) => {
           if (name === 'orgCode' && values.ouCode) {
             const ou = ous.find((o) => String(o.id) === String(values.ouCode))
@@ -392,7 +419,7 @@ export function StoresMaster() {
           return {}
         }}
         onSave={async (id, values) => {
-          const body = {
+          const body: Record<string, unknown> = {
             locationCode: String(values.code ?? ''),
             locationName: String(values.name ?? ''),
             locationType: String(values.storeType ?? ''),
@@ -400,6 +427,9 @@ export function StoresMaster() {
             buId: numOrUndef(values.ouCode),
             city: String(values.city ?? ''),
             isActive: isActiveFromForm(values.status),
+          }
+          if (values.isSystemLocation) {
+            body.printLocationName = String(values.printLocationName ?? '')
           }
           if (id === 'new') await createMaster('locations', body)
           else await updateMaster('locations', id, body)
@@ -622,28 +652,94 @@ export function GeneralMastersMaster() {
   )
 }
 
+export function DepartmentsMaster() {
+  const mapDeptStable = useCallback(mapDepartment, [])
+  const mapEntityStable = useCallback(mapEntity, [])
+  const mapEmpStable = useCallback(mapEmployee, [])
+  const { rows, loading, error, reload } = useMasterList('departments', mapDeptStable)
+  const { rows: orgs } = useMasterList('entities', mapEntityStable)
+  const { rows: employees } = useMasterList('employees', mapEmpStable)
+
+  const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
+
+  const columns: Column<Department>[] = [
+    { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
+    { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
+    {
+      key: 'org',
+      header: 'Organization',
+      searchText: (r) => orgById[r.orgCode]?.name ?? r.orgCode,
+      render: (r) => orgById[r.orgCode]?.name ?? r.orgCode,
+    },
+    { key: 'head', header: 'Head of Department', searchText: (r) => r.headEmpName, render: (r) => r.headEmpName || '—' },
+    { key: 'description', header: 'Description', searchText: (r) => r.description, render: (r) => r.description },
+    statusColumn(),
+  ]
+
+  const fields: FieldDef[] = [
+    { name: 'code', label: 'Department Code', uppercase: true, ...RULES.code(20) },
+    { name: 'name', label: 'Department Name', span: 2, ...RULES.name(100, 2) },
+    { name: 'orgCode', label: 'Organization', type: 'select', options: opt(orgs), ...RULES.select() },
+    {
+      name: 'headEmpId',
+      label: 'Head of Department',
+      type: 'select',
+      options: () =>
+        employees.map((e) => ({
+          value: e.id,
+          label: `${e.code} · ${e.firstName ?? e.name}${e.lastName ? ` ${e.lastName}` : ''}`,
+        })),
+      placeholder: '— Optional —',
+    },
+    { name: 'description', label: 'Description', type: 'textarea', span: 3, ...RULES.text(250) },
+    { name: 'status', label: 'Active', type: 'switch', span: 4 },
+  ]
+
+  return (
+    <>
+      <ListStatus loading={loading} error={error} label="departments" />
+      <MastersRoutes
+        listLoading={loading}
+        base="/masters/departments"
+        menuCode="DEPM"
+        title="Department Master"
+        description="Departments with an optional Head of Department for approvals and HR linkage."
+        rows={rows as never}
+        columns={columns as never}
+        fields={fields}
+        saveLabel="Save Department"
+        formTitle="Department Details"
+        onSave={async (id, values) => {
+          const body = {
+            departmentCode: String(values.code ?? ''),
+            departmentName: String(values.name ?? ''),
+            entityId: numOrUndef(values.orgCode),
+            headEmpId: numOrUndef(values.headEmpId),
+            desc: String(values.description ?? ''),
+            isActive: isActiveFromForm(values.status),
+          }
+          if (id === 'new') await createMaster('departments', body)
+          else await updateMaster('departments', id, body)
+          await reload()
+        }}
+      />
+    </>
+  )
+}
+
 export function RolesMaster() {
   const { refreshPermissions } = useAuth()
   const mapRoleStable = useCallback(mapRole, [])
   const { rows, loading, error, reload } = useMasterList('roles', mapRoleStable)
-  const { options: roleLevelOpts } = useGenValues(GEN_TYPE.ROLE_LEVEL)
   const columns: Column<AccessRole>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
-    { key: 'level', header: 'Level', searchText: (r) => String(r.level), render: (r) => <Pill>{`L${r.level}`}</Pill> },
     { key: 'description', header: 'Description', searchText: (r) => r.description, render: (r) => r.description },
     statusColumn(),
   ]
   const fields: FieldDef[] = [
     { name: 'code', label: 'Role Code', uppercase: true, hint: 'e.g. ADMIN, STORE-MGR', ...RULES.code(20) },
     { name: 'name', label: 'Role Name', span: 2, ...RULES.name(80) },
-    {
-      name: 'level',
-      label: 'Role Level',
-      type: 'select',
-      options: roleLevelOpts.map((o) => ({ value: o.value, label: o.label })),
-      ...RULES.select(),
-    },
     { name: 'description', label: 'Description', span: 3, ...RULES.text(250) },
     { name: 'systemRole', label: 'System Role', type: 'switch' },
     { name: 'status', label: 'Active', type: 'switch' },
@@ -666,7 +762,6 @@ export function RolesMaster() {
           const body = {
             roleCode: String(values.code ?? ''),
             roleName: String(values.name ?? ''),
-            roleLevel: numOrUndef(values.level) ?? 1,
             desc: String(values.description ?? ''),
             isSystemRole: Boolean(values.systemRole),
             isActive: isActiveFromForm(values.status),

@@ -15,6 +15,7 @@ class StockPostingRulesTest {
         assertEquals("Pending", StockPostingRules.draftStatus(DocType.MATERIAL_REQUISITION));
         assertEquals("Pending", StockPostingRules.draftStatus(DocType.MATERIAL_ISSUE));
         assertEquals("Pending", StockPostingRules.draftStatus(DocType.MATERIAL_TRANSFER));
+        assertEquals("Pending", StockPostingRules.draftStatus(DocType.INSPECTION_APPROVAL));
         assertEquals("Pending", StockPostingRules.draftStatus(DocType.MATERIAL_RETURN));
         assertEquals("Draft", StockPostingRules.draftStatus(DocType.GATEPASS_INWARD));
     }
@@ -27,6 +28,7 @@ class StockPostingRulesTest {
         assertEquals("Completed", StockPostingRules.initialSubmitStatus(DocType.OPENING_STOCK));
         assertEquals("Issued", StockPostingRules.initialSubmitStatus(DocType.MATERIAL_ISSUE));
         assertEquals("Transferred", StockPostingRules.initialSubmitStatus(DocType.MATERIAL_TRANSFER));
+        assertEquals("Approved", StockPostingRules.initialSubmitStatus(DocType.INSPECTION_APPROVAL));
         assertEquals("Returned", StockPostingRules.initialSubmitStatus(DocType.MATERIAL_RETURN));
         assertEquals("Completed", StockPostingRules.initialSubmitStatus(DocType.GATEPASS_OUTWARD));
     }
@@ -47,6 +49,7 @@ class StockPostingRulesTest {
         assertTrue(StockPostingRules.postsStockOnSubmit(DocType.GRN));
         assertFalse(StockPostingRules.postsStockOnSubmit(DocType.MATERIAL_REQUISITION));
         assertTrue(StockPostingRules.postsStockOnSubmit(DocType.GATEPASS_INWARD));
+        assertTrue(StockPostingRules.postsStockOnSubmit(DocType.INSPECTION_APPROVAL));
         assertTrue(StockPostingRules.postsStockOnSubmit(DocType.MATERIAL_ISSUE));
     }
 
@@ -55,6 +58,7 @@ class StockPostingRulesTest {
         assertEquals(1, StockPostingRules.stockSign(DocType.GRN));
         assertEquals(-1, StockPostingRules.stockSign(DocType.MATERIAL_ISSUE));
         assertEquals(-1, StockPostingRules.stockSign(DocType.MATERIAL_TRANSFER));
+        assertEquals(-1, StockPostingRules.stockSign(DocType.INSPECTION_APPROVAL));
         assertEquals(0, StockPostingRules.stockSign(DocType.MATERIAL_REQUISITION));
     }
 }

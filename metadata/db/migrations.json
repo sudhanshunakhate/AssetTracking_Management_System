@@ -247,7 +247,52 @@
                                            "local":  "2026-08-06",
                                            "dev":  "2026-08-07"
                                        }
+                       },
+                       {
+                           "id":  "025-sync-local-dev-baseline",
+                           "file":  "db_approach/025_sync_local_dev_baseline.sql",
+                           "description":  "Force identical demo baseline on local and dev: wipe txn/stock, remove demo-only stores, re-seed 10 items + OST-DEMO.",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-11"
+                                       }
+                       },
+                       {
+                           "id":  "026-system-locations-inspection",
+                           "file":  "db_approach/026_system_locations_inspection.sql",
+                           "description":  "System locations per org (Main Store, Rejected, Quarantine, Damaged, Scrap), print location name, Inspection Approval menu.",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-11"
+                                       }
+                       },
+                       {
+                           "id":  "027-system-locations-per-ou",
+                           "file":  "db_approach/027_system_locations_per_ou.sql",
+                           "description":  "Seed system locations per Operating Unit (five stores per OU).",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-12"
+                                       }
+                       },
+                       {
+                           "id":  "028-drop-role-level",
+                           "file":  "db_approach/028_drop_role_level.sql",
+                           "description":  "Drop rol_role_level from sysm_roles_mst; role level removed from Role \u0026 Menu Mapping.",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-12"
+                                       }
+                       },
+                       {
+                           "id":  "029-department-master",
+                           "file":  "db_approach/029_department_master.sql",
+                           "description":  "Dedicated hrc_department_mst with Head of Department; migrate txn/employee FKs off genmaster.",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-12"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-06"
+    "updated":  "2026-08-12"
 }

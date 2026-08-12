@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/Button'
+import { CsvImportButton } from '@/components/ui/CsvImportButton'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Field'
 import type { ApiMasterRow } from '@/api/masters'
@@ -15,8 +16,14 @@ import {
   toNum,
   useCodeIndex,
   useLocationStock,
+  gridHeadLabel,
   type BaseLine,
 } from './lineGrid'
+import {
+  LINE_IMPORT_HEADERS,
+  LINE_IMPORT_SAMPLE,
+  importOpeningStockLines,
+} from './lineCsvImport'
 
 export type ItemKind = 'asset' | 'consumable'
 
@@ -64,10 +71,14 @@ export function OpeningStockItemLines({
   items,
   units,
   vendors,
+  locations = [],
+  locationOptions = [],
+  allItems,
   conditionOptions = [],
   locationId,
   readOnly = false,
   headerReady = true,
+  showLineErrors = false,
   error,
 }: {
   lines: OpeningStockLine[]
@@ -75,12 +86,16 @@ export function OpeningStockItemLines({
   itemType: ItemKind
   onItemTypeChange: (next: ItemKind) => void
   items: ApiMasterRow[]
+  allItems?: ApiMasterRow[]
   units: ApiMasterRow[]
   vendors: ApiMasterRow[]
+  locations?: ApiMasterRow[]
+  locationOptions?: { value: string; label: string }[]
   conditionOptions?: { value: string; label: string; code?: string }[]
   locationId: string
   readOnly?: boolean
   headerReady?: boolean
+  showLineErrors?: boolean
   error?: string
 }) {
   const isAsset = itemType === 'asset'
@@ -90,6 +105,7 @@ export function OpeningStockItemLines({
     [items, itemType],
   )
   const unitById = useCodeIndex(units)
+  const importPool = allItems ?? items
   const { stockByItemId } = useLocationStock(locationId)
 
   const [pickItemId, setPickItemId] = useState('')
@@ -150,6 +166,21 @@ export function OpeningStockItemLines({
     setPickItemId('')
     setPickQty('1')
     setAddError('')
+  }
+
+  const onImport = (rows: Record<string, string>[]) => {
+    const imported = importOpeningStockLines(rows, {
+      items: importPool,
+      locations,
+      vendors,
+      defaultLocationId: locationId,
+      activeItemType: itemType,
+      docKind: 'opening',
+    })
+    onChange((prev) => {
+      const keep = prev.filter((l) => l.itemId !== '')
+      return [...keep, ...imported]
+    })
   }
 
   const removeLine = (key: string) =>
@@ -220,6 +251,15 @@ export function OpeningStockItemLines({
             <Button onClick={addUnits} disabled={linesLocked}>
               {isAsset ? '+ Add Units' : '+ Add Line'}
             </Button>
+            {!readOnly && (
+              <CsvImportButton
+                templateFilename="opening_stock_item_lines_template.csv"
+                templateHeaders={LINE_IMPORT_HEADERS}
+                sampleRow={LINE_IMPORT_SAMPLE}
+                disabled={linesLocked}
+                onRows={onImport}
+              />
+            )}
             {(addError || error) && (
               <span className="text-[11px] font-medium text-[var(--danger)]">{addError || error}</span>
             )}
@@ -231,12 +271,12 @@ export function OpeningStockItemLines({
             <thead>
               <tr className="bg-[var(--surface2)]">
                 <th className={`${gridHeadCell} w-[48px]`}>Sr No.</th>
-                <th className={`${gridHeadCell} w-[130px]`}>Item Code</th>
-                <th className={gridHeadCell}>Item Name</th>
+                <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Item Code', true)}</th>
+                <th className={gridHeadCell}>{gridHeadLabel('Item Name', true)}</th>
                 <th className={`${gridHeadCell} w-[70px]`}>UOM</th>
                 {isAsset ? (
                   <>
-                    <th className={`${gridHeadCell} w-[130px]`}>Serial No.</th>
+                    <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Serial No.', true)}</th>
                     <th className={`${gridHeadCell} w-[120px]`}>IP Address</th>
                     <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
                     <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
@@ -245,11 +285,12 @@ export function OpeningStockItemLines({
                 ) : (
                   <>
                     <th className={`${gridHeadCell} w-[120px]`}>Batch / Lot</th>
-                    <th className={`${gridHeadCell} w-[100px]`}>Opening Qty</th>
+                    <th className={`${gridHeadCell} w-[100px]`}>{gridHeadLabel('Opening Qty', true)}</th>
                     <th className={`${gridHeadCell} w-[120px]`}>Mfg Date</th>
                     <th className={`${gridHeadCell} w-[120px]`}>Expiry Date</th>
                   </>
                 )}
+                <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Location', true)}</th>
                 <th className={`${gridHeadCell} w-[150px]`}>Supplier</th>
                 <th className={`${gridHeadCell} w-[130px]`}>Remark</th>
                 <th className={`${gridHeadCell} w-[54px] text-center`}>Action</th>
@@ -259,7 +300,7 @@ export function OpeningStockItemLines({
               {lines.filter((l) => l.itemId !== '').length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isAsset ? 12 : 11}
+                    colSpan={isAsset ? 13 : 12}
                     className="px-3 py-6 text-center text-[12px] text-[var(--text3)]"
                   >
                     {isAsset
@@ -272,6 +313,9 @@ export function OpeningStockItemLines({
                   .filter((l) => l.itemId !== '')
                   .map((line, idx) => {
                     const unit = unitById.get(line.uomId)
+                    const serialMissing = isAsset && !line.serialNo.trim()
+                    const locationMissing = !line.locationId
+                    const qtyMissing = !isAsset && toNum(line.qty) <= 0
                     return (
                       <tr key={line.key} className="border-b border-[var(--border)] align-middle">
                         <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
@@ -296,9 +340,10 @@ export function OpeningStockItemLines({
                                 onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
                                 disabled={linesLocked}
                                 maxLength={100}
-                                placeholder="SN-…"
-                                className={gridInput}
-                              />
+                              placeholder="SN-…"
+                              invalid={showLineErrors && serialMissing}
+                              className={gridInput}
+                            />
                             </td>
                             <td className={gridCell}>
                               <Input
@@ -368,6 +413,7 @@ export function OpeningStockItemLines({
                                 value={line.qty}
                                 onChange={(e) => patch(line.key, { qty: e.target.value })}
                                 disabled={linesLocked}
+                                invalid={showLineErrors && qtyMissing}
                                 className={gridInputRight}
                               />
                             </td>
@@ -391,6 +437,22 @@ export function OpeningStockItemLines({
                             </td>
                           </>
                         )}
+                        <td className={gridCell}>
+                          <Select
+                            value={line.locationId}
+                            onChange={(e) => patch(line.key, { locationId: e.target.value })}
+                            disabled={linesLocked}
+                            invalid={showLineErrors && locationMissing}
+                            className={gridInput}
+                          >
+                            <option value="">— Select —</option>
+                            {locationOptions.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </Select>
+                        </td>
                         <td className={gridCell}>
                           <Select
                             value={line.supplierId}

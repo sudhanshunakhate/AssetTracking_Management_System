@@ -62,6 +62,9 @@ export interface Store {
   orgCode: string
   ouCode: string
   city: string
+  isSystemLocation?: boolean
+  systemRole?: string
+  printLocationName?: string
   status: Status
 }
 
@@ -104,9 +107,19 @@ export interface AccessRole {
   id: string
   code: string
   name: string
-  level: number
   description: string
   systemRole: boolean
+  status: Status
+}
+
+export interface Department {
+  id: string
+  code: string
+  name: string
+  orgCode: string
+  headEmpId: string
+  headEmpName: string
+  description: string
   status: Status
 }
 

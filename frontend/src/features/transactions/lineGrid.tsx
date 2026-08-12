@@ -37,6 +37,18 @@ export function baseLine(): BaseLine {
 export const gridCell = 'px-1.5 py-1 text-[12px]'
 export const gridHeadCell =
   'border-b-2 border-[var(--border)] px-2 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase'
+
+/** Table header label with optional required asterisk (item line grids). */
+export function gridHeadLabel(label: string, required = false) {
+  return required ? (
+    <>
+      {label}
+      <span className="text-[var(--danger)]"> *</span>
+    </>
+  ) : (
+    label
+  )
+}
 export const gridInput = 'px-2 py-1 text-[12px]'
 export const gridInputRight = 'px-2 py-1 text-right text-[12px]'
 

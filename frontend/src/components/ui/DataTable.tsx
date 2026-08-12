@@ -15,6 +15,7 @@ interface DataTableProps<T> {
   searchPlaceholder?: string
   filters?: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }[]
   onRowClick?: (row: T) => void
+  selectedRowId?: string
   onAdd?: () => void
   addLabel?: string
   emptyMessage?: string
@@ -26,6 +27,7 @@ export function DataTable<T extends { id: string }>({
   searchPlaceholder = 'Search…',
   filters = [],
   onRowClick,
+  selectedRowId,
   onAdd,
   addLabel = 'Add New',
   emptyMessage = 'No records found.',
@@ -102,11 +104,17 @@ export function DataTable<T extends { id: string }>({
                 </td>
               </tr>
             ) : (
-              filtered.map((row) => (
+              filtered.map((row) => {
+                const selected = selectedRowId != null && row.id === selectedRowId
+                return (
                 <tr
                   key={row.id}
                   onClick={() => onRowClick?.(row)}
-                  className="cursor-pointer transition hover:bg-[#f0f5ff]"
+                  className={`cursor-pointer transition ${
+                    selected
+                      ? 'bg-[#e8f0fe] ring-1 ring-inset ring-[var(--accent)]/40'
+                      : 'hover:bg-[#f0f5ff]'
+                  }`}
                 >
                   {columns.map((c) => (
                     <td
@@ -117,7 +125,8 @@ export function DataTable<T extends { id: string }>({
                     </td>
                   ))}
                 </tr>
-              ))
+                )
+              })
             )}
           </tbody>
         </table>

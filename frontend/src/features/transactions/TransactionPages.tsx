@@ -4,7 +4,6 @@ import { StatusPill } from '@/components/ui/Badge'
 import { type Column } from '@/components/ui/DataTable'
 import {
   createTxn,
-  fetchAvailableStock,
   fetchTxn,
   numOrUndef,
   todayIso,

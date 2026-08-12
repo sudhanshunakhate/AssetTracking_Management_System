@@ -1,6 +1,7 @@
+import { createPortal } from 'react-dom'
 import { useEffect, type ReactNode } from 'react'
 
-/** Centred overlay dialog. Closes on Escape and on backdrop click. */
+/** Centred overlay dialog. Portaled to document.body so fixed positioning works inside animated layouts. */
 export function Modal({
   open,
   title,
@@ -34,11 +35,20 @@ export function Modal({
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
+
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
-      className="fixed top-0 right-0 bottom-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+      className="fixed top-0 right-0 bottom-0 z-[200] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
       style={{ left: offsetSidebar ? 'var(--sidebar-current, 256px)' : 0 }}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
@@ -71,6 +81,7 @@ export function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

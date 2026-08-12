@@ -32,6 +32,7 @@ public class AuthService {
     private final SysmUseraccessExceptionDtlRepository exceptionRepo;
     private final SysmUserFavouriteMenuDtlRepository favouriteRepo;
     private final OrgLocationMstRepository locationRepo;
+    private final HrcDepartmentMstRepository departmentRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AccessScopeService accessScope;
@@ -45,6 +46,7 @@ public class AuthService {
             SysmUseraccessExceptionDtlRepository exceptionRepo,
             SysmUserFavouriteMenuDtlRepository favouriteRepo,
             OrgLocationMstRepository locationRepo,
+            HrcDepartmentMstRepository departmentRepo,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             AccessScopeService accessScope) {
@@ -56,6 +58,7 @@ public class AuthService {
         this.exceptionRepo = exceptionRepo;
         this.favouriteRepo = favouriteRepo;
         this.locationRepo = locationRepo;
+        this.departmentRepo = departmentRepo;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.accessScope = accessScope;
@@ -212,6 +215,13 @@ public class AuthService {
                     .orElse(null);
         }
 
+        String departmentName = null;
+        if (emp.getEmpDepartmentIdDept() != null) {
+            departmentName = departmentRepo.findById(emp.getEmpDepartmentIdDept())
+                    .map(HrcDepartmentMst::getDeptDepartmentName)
+                    .orElse(null);
+        }
+
         return new ProfileResponse(
                 user.getUsrUserId(),
                 user.getUsrLoginId(),
@@ -226,7 +236,7 @@ public class AuthService {
                 emp.getEmpJoiningDate(),
                 emp.getEmpEmploymentType(),
                 emp.getEmpDesignation(),
-                emp.getEmpDepartment(),
+                departmentName,
                 emp.getEmpEmail(),
                 emp.getEmpPhone(),
                 emp.getEmpAltPhone(),

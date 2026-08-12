@@ -3,6 +3,7 @@ package com.caits.modules.masters.controller;
 import com.caits.common.MessageResponse;
 import com.caits.common.PageResponse;
 import com.caits.modules.masters.dto.MasterDtos.*;
+import com.caits.modules.masters.service.DepartmentMastersService;
 import com.caits.modules.masters.service.SecurityMastersService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,9 +16,11 @@ import java.util.List;
 public class SecurityMastersController {
 
     private final SecurityMastersService service;
+    private final DepartmentMastersService departmentService;
 
-    public SecurityMastersController(SecurityMastersService service) {
+    public SecurityMastersController(SecurityMastersService service, DepartmentMastersService departmentService) {
         this.service = service;
+        this.departmentService = departmentService;
     }
 
     @GetMapping("/menus")
@@ -175,5 +178,35 @@ public class SecurityMastersController {
     @DeleteMapping("/access-exceptions/{id}")
     public MessageResponse deleteException(@PathVariable Integer id) {
         return service.deleteException(id);
+    }
+
+    @GetMapping("/departments")
+    public PageResponse<DepartmentDto> listDepartments(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) Integer entityId) {
+        return departmentService.list(page, pageSize, search, isActive, entityId);
+    }
+
+    @GetMapping("/departments/{id}")
+    public DepartmentDto getDepartment(@PathVariable Integer id) {
+        return departmentService.get(id);
+    }
+
+    @PostMapping("/departments")
+    public ResponseEntity<DepartmentDto> createDepartment(@RequestBody DepartmentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(departmentService.create(request));
+    }
+
+    @PutMapping("/departments/{id}")
+    public DepartmentDto updateDepartment(@PathVariable Integer id, @RequestBody DepartmentRequest request) {
+        return departmentService.update(id, request);
+    }
+
+    @DeleteMapping("/departments/{id}")
+    public MessageResponse deleteDepartment(@PathVariable Integer id) {
+        return departmentService.delete(id);
     }
 }

@@ -23,6 +23,17 @@ import { TransferItemLines, emptyTransferLine, type TransferLine } from './Trans
 import { enrichLinesFromItems } from './lineGrid'
 import { locLabel, locationOptions as toLocationOptions, useTxnFormLookups } from './txnLookups'
 
+import { AUTO_DOC_NO_LABEL } from './txnConstants'
+import {
+  buildGatepassPrefillFromTransfer,
+  buildGatepassPrefillFromTxnDoc,
+  gatepassOutwardHint,
+  needsGatepassOutward,
+  PENDING_FOR_OUTWARD_STATUS,
+} from './transferGatepassBridge'
+import { GATEPASS_OUTWARD_PREFILL_KEY } from './gatepassNavigation'
+
+const GATEPASS_BASE = '/transactions/gatepass'
 const BASE = '/transactions/transfers'
 const MENU = 'TRF'
 const RESOURCE = 'transfers'
@@ -49,7 +60,7 @@ type FormState = {
 
 function blankForm(): FormState {
   return {
-    transferNo: '(auto)',
+    transferNo: AUTO_DOC_NO_LABEL,
     transferDate: todayIso(),
     transferType: 'INTERNAL',
     operatingUnitId: '',
@@ -111,7 +122,11 @@ export function TransfersPages() {
 function TransferList() {
   const navigate = useNavigate()
   const { canCreateMenu } = useAuth()
-  const { rows, loading, error } = useTxnList(RESOURCE)
+  const [view, setView] = useState<'all' | 'pending-outward'>('all')
+  const { rows, loading, error } = useTxnList(
+    RESOURCE,
+    view === 'pending-outward' ? { status: PENDING_FOR_OUTWARD_STATUS } : undefined,
+  )
   const { locations } = useTxnFormLookups()
   const locById = useMemo(() => new Map(locations.rows.map((l) => [l.id, l])), [locations.rows])
 
@@ -128,6 +143,17 @@ function TransferList() {
     if (t === 'OU' || t === 'OPR') return 'OU Transfer'
     if (t === 'INTERNAL' || t === '') return 'Internal Transfer'
     return t
+  }
+
+  const openOutwardForRow = async (r: TxnRow) => {
+    try {
+      const doc = await fetchTxn(RESOURCE, r.id)
+      const prefill = buildGatepassPrefillFromTxnDoc(doc, locations.rows)
+      if (!prefill) return
+      navigate(GATEPASS_BASE, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const columns: Column<TxnRow>[] = [
@@ -153,14 +179,32 @@ function TransferList() {
       searchText: (r) => r.status,
       render: (r) => <StatusPill status={r.status || '—'} />,
     },
+    {
+      key: 'action',
+      header: '',
+      render: (r) =>
+        r.status === PENDING_FOR_OUTWARD_STATUS ? (
+          <Button variant="ghost" className="text-xs" onClick={() => void openOutwardForRow(r)}>
+            Prepare Outward
+          </Button>
+        ) : null,
+    },
   ]
 
   return (
     <FadeContent>
       <PageHeader
         title="Material Transfer"
-        description="Store-to-store stock movement. Independent transaction — no approval required."
+        description="Store-to-store stock movement. Transfers needing a gatepass stay Pending for Outward until outward is submitted."
       />
+      <div className="mb-3 flex gap-2">
+        <Button variant={view === 'all' ? 'primary' : 'ghost'} onClick={() => setView('all')}>
+          All Transfers
+        </Button>
+        <Button variant={view === 'pending-outward' ? 'primary' : 'ghost'} onClick={() => setView('pending-outward')}>
+          Pending for Outward
+        </Button>
+      </div>
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading transfers…</div>}
       <DataTable
@@ -170,7 +214,11 @@ function TransferList() {
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
         onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/new`) : undefined}
         addLabel="New Transfer"
-        emptyMessage="No transfers yet. Use New Transfer to post one."
+        emptyMessage={
+          view === 'pending-outward'
+            ? 'No transfers pending outward gatepass.'
+            : 'No transfers yet. Use New Transfer to post one.'
+        }
       />
     </FadeContent>
   )
@@ -182,6 +230,7 @@ function TransferForm() {
   const { id = 'new' } = useParams()
   const navigate = useNavigate()
   const { canCreateMenu, canEditMenu } = useAuth()
+  const canCreateGatepass = canCreateMenu('GP')
   const isNew = id === 'new'
 
   const { locations, items, units } = useTxnFormLookups()
@@ -424,6 +473,41 @@ function TransferForm() {
 
   const err = (name: string) => (submitted || touched[name] ? errors[name] : undefined)
 
+  const gatepassNeeded = useMemo(
+    () => needsGatepassOutward(form.transferType, form.fromStoreId, form.toStoreId, locations.rows),
+    [form.transferType, form.fromStoreId, form.toStoreId, locations.rows],
+  )
+
+  const gatepassHint = useMemo(
+    () => gatepassOutwardHint(form.transferType, form.fromStoreId, form.toStoreId, locations.rows),
+    [form.transferType, form.fromStoreId, form.toStoreId, locations.rows],
+  )
+
+  const canOpenGatepass =
+    canCreateGatepass &&
+    gatepassNeeded &&
+    (!isNew || headerReady) &&
+    lines.some((l) => l.itemId) &&
+    !lines.some((l) => l.itemId && (!l.transferQty || Number(l.transferQty) <= 0))
+
+  const openGatepassOutward = (transferDocId: string) => {
+    const prefill = buildGatepassPrefillFromTransfer(
+      transferDocId,
+      form.transferType,
+      form.transferDate,
+      form.fromStoreId,
+      form.toStoreId,
+      form.remarks,
+      form.transferNo,
+      lines,
+      locations.rows,
+    )
+    if (!prefill) return
+    navigate(GATEPASS_BASE, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
+  }
+
+  const isPendingOutward = form.status === PENDING_FOR_OUTWARD_STATUS
+
   const buildBody = (): DocumentRequest => {
     const fromId = Number(form.fromStoreId)
     return {
@@ -462,8 +546,26 @@ function TransferForm() {
     setSaving(true)
     setError(null)
     try {
-      await createTxn(RESOURCE, buildBody())
-      setMessage('Transfer saved — stock moved.')
+      const doc = await createTxn(RESOURCE, buildBody())
+      const needsGp = needsGatepassOutward(
+        form.transferType,
+        form.fromStoreId,
+        form.toStoreId,
+        locations.rows,
+      )
+      if (needsGp && canCreateGatepass) {
+        const prefill = buildGatepassPrefillFromTxnDoc(doc, locations.rows)
+        if (prefill) {
+          setMessage('Transfer saved — complete outward gatepass at the gate.')
+          navigate(GATEPASS_BASE, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
+          return
+        }
+      }
+      if (needsGp) {
+        setMessage('Transfer saved — Pending for Outward. Complete gatepass from the transfer list.')
+      } else {
+        setMessage('Transfer saved — stock moved.')
+      }
       navigate(BASE)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
@@ -660,6 +762,32 @@ function TransferForm() {
 
       {error && <div className="mt-2 text-[12.5px] font-medium text-[var(--danger)]">{error}</div>}
       {message && <div className="mt-2 text-[12.5px] font-medium text-[var(--accent)]">{message}</div>}
+
+      {!readOnly && gatepassNeeded && isNew && (
+        <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface2)] px-3 py-2.5">
+          <div className="text-[12px] font-semibold text-[var(--text)]">Outward gatepass</div>
+          <p className="mt-0.5 text-[11.5px] text-[var(--text2)]">{gatepassHint}</p>
+          <p className="mt-1 text-[11px] text-[var(--text3)]">
+            Save the transfer first — you will be taken to the outward gatepass form automatically.
+          </p>
+        </div>
+      )}
+
+      {isPendingOutward && gatepassNeeded && (
+        <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2.5">
+          <div className="text-[12px] font-semibold text-[var(--text)]">Pending for Outward</div>
+          <p className="mt-0.5 text-[11.5px] text-[var(--text2)]">
+            Stock has moved but outward gatepass is still required at the source store gate.
+          </p>
+          {canCreateGatepass && (
+            <div className="mt-2">
+              <Button variant="ghost" onClick={() => openGatepassOutward(id)} disabled={!canOpenGatepass}>
+                Prepare Outward Gatepass
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <div className="flex-1" />

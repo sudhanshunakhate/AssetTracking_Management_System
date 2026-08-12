@@ -41,6 +41,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { id: 'role', label: 'Role & Menu Mapping', badge: 'ARM', path: '/masters/roles', menuCode: 'ARM', icon: 'accessRole' },
       { id: 'employee', label: 'Employee', badge: 'EMP', path: '/masters/employees', menuCode: 'EMP', icon: 'employee' },
+      { id: 'department', label: 'Department', badge: 'DEPM', path: '/masters/departments', menuCode: 'DEPM', icon: 'employee' },
       { id: 'user', label: 'User Access Mapping', badge: 'USR', path: '/masters/users', menuCode: 'USR', icon: 'userLogin' },
       { id: 'exception', label: 'User Access Exception', badge: 'UAE', path: '/masters/exceptions', menuCode: 'UAE', icon: 'accessException' },
     ],
@@ -53,9 +54,10 @@ export const navGroups: NavGroup[] = [
       { id: 'matreq', label: 'Store Requisitions', badge: 'SR', path: '/transactions/requisitions', menuCode: 'SR', icon: 'storeRequisitions' },
       { id: 'grn', label: 'Goods Receipt Note', badge: 'GRN', path: '/transactions/grn', menuCode: 'GRN', icon: 'grn' },
       { id: 'getpass', label: 'Gatepass', badge: 'GP', path: '/transactions/gatepass', menuCode: 'GP', icon: 'gatepass' },
-      { id: 'issue', label: 'Store Issue', badge: 'ISS', path: '/transactions/issues', menuCode: 'ISS', icon: 'storeIssue' },
+      { id: 'issue', label: 'Store Issue', badge: 'ISS', path: '/transactions/issues/pick-requisition', menuCode: 'ISS', icon: 'storeIssue' },
       { id: 'transfer', label: 'Material Transfer', badge: 'TRF', path: '/transactions/transfers', menuCode: 'TRF', icon: 'materialTransfer' },
       { id: 'return', label: 'Material Return', badge: 'RTN', path: '/transactions/returns', menuCode: 'RTN', icon: 'materialReturn' },
+      { id: 'inspection', label: 'Inspection Approval', badge: 'IAPR', path: '/transactions/inspection-approvals', menuCode: 'IAPR', icon: 'storeIssue' },
     ],
   },
   {

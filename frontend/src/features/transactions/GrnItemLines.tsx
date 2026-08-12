@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/Button'
+import { CsvImportButton } from '@/components/ui/CsvImportButton'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Field'
 import type { ApiMasterRow } from '@/api/masters'
@@ -17,8 +18,14 @@ import {
   useCodeIndex,
   useLocationStock,
   useStockLookup,
+  gridHeadLabel,
   type BaseLine,
 } from './lineGrid'
+import {
+  LINE_IMPORT_HEADERS,
+  LINE_IMPORT_SAMPLE,
+  importGrnLines,
+} from './lineCsvImport'
 import type { ItemKind } from './OpeningStockItemLines'
 
 export type GrnLine = BaseLine & {
@@ -69,8 +76,11 @@ export function GrnItemLines({
   vendors: _vendors,
   conditionOptions = [],
   storeLocationId,
+  locationOptions = [],
+  allItems,
   readOnly = false,
   headerReady = true,
+  showLineErrors = false,
   error,
 }: {
   lines: GrnLine[]
@@ -78,13 +88,16 @@ export function GrnItemLines({
   itemType: ItemKind
   onItemTypeChange: (next: ItemKind) => void
   items: ApiMasterRow[]
+  allItems?: ApiMasterRow[]
   units: ApiMasterRow[]
   locations: ApiMasterRow[]
   vendors?: ApiMasterRow[]
   conditionOptions?: { value: string; label: string; code?: string }[]
   storeLocationId: string
+  locationOptions?: { value: string; label: string }[]
   readOnly?: boolean
   headerReady?: boolean
+  showLineErrors?: boolean
   error?: string
 }) {
   void _vendors
@@ -95,7 +108,7 @@ export function GrnItemLines({
     [items, itemType],
   )
   const unitById = useCodeIndex(units)
-  const locationById = useCodeIndex(locations)
+  const importPool = allItems ?? items
   const { stockByItemId } = useLocationStock(storeLocationId)
 
   const [pickItemId, setPickItemId] = useState('')
@@ -172,6 +185,29 @@ export function GrnItemLines({
     setPickItemId('')
     setPickQty('1')
     setAddError('')
+  }
+
+  const onLocationChange = (line: GrnLine, locationId: string) => {
+    patch(line.key, { locationId })
+    if (line.itemId) void lookup(line.key, Number(line.itemId), locationId)
+  }
+
+  const onImport = (rows: Record<string, string>[]) => {
+    const imported = importGrnLines(rows, {
+      items: importPool,
+      locations,
+      vendors: [],
+      defaultLocationId: storeLocationId,
+      activeItemType: itemType,
+      docKind: 'grn',
+    })
+    imported.forEach((l) => {
+      if (l.itemId && l.locationId) void lookup(l.key, Number(l.itemId), l.locationId)
+    })
+    onChange((prev) => {
+      const keep = prev.filter((l) => l.itemId !== '')
+      return [...keep, ...imported]
+    })
   }
 
   const setReceived = (line: GrnLine, value: string) => {
@@ -269,6 +305,15 @@ export function GrnItemLines({
             <Button onClick={addUnits} disabled={linesLocked}>
               {isAsset ? '+ Add Units' : '+ Add Line'}
             </Button>
+            {!readOnly && (
+              <CsvImportButton
+                templateFilename="grn_item_lines_template.csv"
+                templateHeaders={LINE_IMPORT_HEADERS}
+                sampleRow={LINE_IMPORT_SAMPLE}
+                disabled={linesLocked}
+                onRows={onImport}
+              />
+            )}
             {(addError || error) && (
               <span className="text-[11px] font-medium text-[var(--danger)]">{addError || error}</span>
             )}
@@ -280,12 +325,12 @@ export function GrnItemLines({
             <thead>
               <tr className="bg-[var(--surface2)]">
                 <th className={`${gridHeadCell} w-[48px]`}>Sr No.</th>
-                <th className={`${gridHeadCell} w-[130px]`}>Item Code</th>
-                <th className={gridHeadCell}>Item Name</th>
+                <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Item Code', true)}</th>
+                <th className={gridHeadCell}>{gridHeadLabel('Item Name', true)}</th>
                 <th className={`${gridHeadCell} w-[70px]`}>UOM</th>
                 {isAsset ? (
                   <>
-                    <th className={`${gridHeadCell} w-[130px]`}>Serial No.</th>
+                    <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Serial No.', true)}</th>
                     <th className={`${gridHeadCell} w-[120px]`}>IP Address</th>
                     <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
                     <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
@@ -294,12 +339,12 @@ export function GrnItemLines({
                 ) : (
                   <th className={`${gridHeadCell} w-[110px]`}>Batch / Lot</th>
                 )}
-                <th className={`${gridHeadCell} w-[100px]`}>Received Qty</th>
+                <th className={`${gridHeadCell} w-[100px]`}>{gridHeadLabel('Received Qty', !isAsset)}</th>
                 <th className={`${gridHeadCell} w-[100px]`}>Accepted Qty</th>
                 <th className={`${gridHeadCell} w-[100px]`}>Rejected Qty</th>
                 <th className={`${gridHeadCell} w-[115px]`}>Available Stock</th>
                 <th className={`${gridHeadCell} w-[110px]`}>Amount (₹)</th>
-                <th className={`${gridHeadCell} w-[110px]`}>Location</th>
+                <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Location', true)}</th>
                 <th className={`${gridHeadCell} w-[130px]`}>Remark</th>
                 <th className={`${gridHeadCell} w-[54px] text-center`}>Action</th>
               </tr>
@@ -316,7 +361,8 @@ export function GrnItemLines({
               ) : (
                 filled.map((line, idx) => {
                   const unit = unitById.get(line.uomId)
-                  const location = locationById.get(line.locationId)
+                  const serialMissing = isAsset && !line.serialNo.trim()
+                  const locationMissing = !line.locationId
                   const received = toNum(line.receivedQty)
                   const split = toNum(line.acceptedQty) + toNum(line.rejectedQty)
                   const splitMismatch =
@@ -342,6 +388,7 @@ export function GrnItemLines({
                               disabled={linesLocked}
                               maxLength={100}
                               placeholder="SN-…"
+                              invalid={showLineErrors && serialMissing}
                               className={gridInput}
                             />
                           </td>
@@ -458,12 +505,20 @@ export function GrnItemLines({
                         />
                       </td>
                       <td className={gridCell}>
-                        <Input
-                          value={location ? String(location.code ?? '') : ''}
-                          readOnly
-                          placeholder="Auto"
+                        <Select
+                          value={line.locationId}
+                          onChange={(e) => onLocationChange(line, e.target.value)}
+                          disabled={linesLocked}
+                          invalid={showLineErrors && locationMissing}
                           className={gridInput}
-                        />
+                        >
+                          <option value="">— Select —</option>
+                          {locationOptions.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </Select>
                       </td>
                       <td className={gridCell}>
                         <Input

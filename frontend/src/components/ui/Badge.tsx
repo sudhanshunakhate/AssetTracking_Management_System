@@ -105,6 +105,7 @@ const STATUS_TONE: Record<string, PillTone> = {
   draft: 'slate',
   pending: 'amber',
   'in pending': 'amber',
+  'pending for outward': 'amber',
   requested: 'sky',
   submitted: 'sky',
   'pending approval': 'amber',

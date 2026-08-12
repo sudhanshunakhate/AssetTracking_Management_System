@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { StatusPill } from '@/components/ui/Badge'
@@ -9,7 +9,7 @@ import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LookupSelect } from '@/components/form/LookupSelect'
 import { resolveApiUrl } from '@/api/client'
-import { GEN_TYPE } from '@/api/masters'
+import { GEN_TYPE, mapDepartment, useMasterList } from '@/api/masters'
 import {
   createTxn,
   fetchTxn,
@@ -24,6 +24,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { notBefore, validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { RequisitionItemLines, emptyLine, type RequisitionLine } from './RequisitionItemLines'
 import { enrichLinesFromItems } from './lineGrid'
+import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   empLabel,
   employeeOptions as toEmployeeOptions,
@@ -74,7 +75,7 @@ type FormState = {
 function blankForm(): FormState {
   return {
     reqType: 'DEPARTMENT',
-    reqNo: '(auto)',
+    reqNo: AUTO_DOC_NO_LABEL,
     reqDate: todayIso(),
     requiredDate: '',
     departmentId: '',
@@ -108,12 +109,20 @@ function RequisitionList() {
   const { canCreateMenu } = useAuth()
   const { rows, loading, error } = useTxnList(RESOURCE)
   const { locations, employees } = useTxnFormLookups()
-  const departments = useGenLookup(GEN_TYPE.DEPARTMENT)
+  const mapDeptStable = useCallback(mapDepartment, [])
+  const { rows: deptRows } = useMasterList('departments', mapDeptStable)
+  const departments = useMemo(
+    () => ({
+      rows: deptRows,
+      options: deptRows.map((d) => ({ value: d.id, label: `${d.code} · ${d.name}` })),
+    }),
+    [deptRows],
+  )
 
   const empById = useMemo(() => new Map(employees.rows.map((e) => [e.id, e])), [employees.rows])
   const locById = useMemo(() => new Map(locations.rows.map((l) => [l.id, l])), [locations.rows])
   const deptById = useMemo(
-    () => new Map(departments.rows.map((d) => [String(d.genmasterId), d.valueName])),
+    () => new Map(departments.rows.map((d) => [d.id, d.name])),
     [departments.rows],
   )
 
@@ -153,9 +162,9 @@ function RequisitionList() {
       searchText: (r) => String(r.requiredByDate ?? ''),
       render: (r) => String(r.requiredByDate ?? '') || '—',
     },
-    { key: 'dept', header: 'Department', searchText: text.department, render: text.department },
+    { key: 'dept', header: 'Request from Department', searchText: text.department, render: text.department },
     { key: 'by', header: 'Requested By', searchText: text.requestedBy, render: text.requestedBy },
-    { key: 'deliver', header: 'Deliver To', searchText: text.deliverTo, render: text.deliverTo },
+    { key: 'deliver', header: 'Request from Location', searchText: text.deliverTo, render: text.deliverTo },
     {
       key: 'items',
       header: 'Items',
@@ -195,7 +204,15 @@ function RequisitionForm() {
   const isNew = id === 'new'
 
   const { locations, employees, items, units } = useTxnFormLookups()
-  const departments = useGenLookup(GEN_TYPE.DEPARTMENT)
+  const mapDeptStable = useCallback(mapDepartment, [])
+  const { rows: deptRows } = useMasterList('departments', mapDeptStable)
+  const departments = useMemo(
+    () => ({
+      rows: deptRows,
+      options: deptRows.map((d) => ({ value: d.id, label: `${d.code} · ${d.name}` })),
+    }),
+    [deptRows],
+  )
   const designations = useGenLookup(GEN_TYPE.DESIGNATION)
 
   const [form, setForm] = useState<FormState>(blankForm)
@@ -284,12 +301,10 @@ function RequisitionForm() {
       if (emp) {
         next.employeeCode = String(emp.code ?? '')
         if (p.reqType === 'EMPLOYEE') {
-          const deptName = String(emp.department ?? '')
-          const match = departments.rows.find(
-            (d) => d.valueName.toLowerCase() === deptName.toLowerCase(),
-          )
-          next.departmentName = deptName
-          next.departmentId = match ? String(match.genmasterId) : ''
+          const deptId = String((emp as { departmentId?: string }).departmentId ?? '')
+          const dept = departments.rows.find((d) => d.id === deptId)
+          next.departmentName = dept?.name ?? String(emp.department ?? '')
+          next.departmentId = deptId
           if (!p.designation) next.designation = String(emp.designation ?? '')
         }
       }
@@ -305,6 +320,8 @@ function RequisitionForm() {
       departmentId: reqType === 'EMPLOYEE' ? '' : p.departmentId,
       departmentName: '',
       designation: reqType === 'DEPARTMENT' ? '' : p.designation,
+      requestedBy: reqType === 'DEPARTMENT' ? '' : p.requestedBy,
+      employeeCode: reqType === 'DEPARTMENT' ? '' : p.employeeCode,
     }))
   }
 
@@ -319,11 +336,12 @@ function RequisitionForm() {
         required: true,
         validate: notBefore('reqDate', 'Requisition Date'),
       },
-      { name: 'requestedBy', label: 'Requested By', required: true },
-      { name: 'deliverTo', label: 'Deliver to Location', required: true },
+      { name: 'deliverTo', label: 'Request from Location', required: true },
     ]
     if (form.reqType === 'DEPARTMENT') {
-      base.push({ name: 'departmentId', label: 'Department', required: true })
+      base.push({ name: 'departmentId', label: 'Request from Department', required: true })
+    } else {
+      base.push({ name: 'requestedBy', label: 'Requested By', required: true })
     }
     return base
   }, [form.reqType])
@@ -427,7 +445,6 @@ function RequisitionForm() {
   /* ---- quick-add configs ---- */
   const addEmployee = quickAddEmployee(employees.reload)
   const addLocation = quickAddLocation(locations.reload)
-  const addDepartment = quickAddGenValue('Add Department', GEN_TYPE.DEPARTMENT, departments)
   const addDesignation = quickAddGenValue('Add Designation', GEN_TYPE.DESIGNATION, designations)
 
   const employeeOptions = toEmployeeOptions(employees.rows)
@@ -526,7 +543,7 @@ function RequisitionForm() {
 
             {form.reqType === 'DEPARTMENT' ? (
               <LookupSelect
-                label="Department"
+                label="Request from Department"
                 required
                 value={form.departmentId}
                 onChange={(v) => set('departmentId', v)}
@@ -535,7 +552,6 @@ function RequisitionForm() {
                 placeholder="— Select Department —"
                 error={err('departmentId')}
                 disabled={readOnly}
-                quickAdd={addDepartment}
               />
             ) : (
               <LookupSelect
@@ -552,20 +568,7 @@ function RequisitionForm() {
               />
             )}
 
-            {form.reqType === 'DEPARTMENT' ? (
-              <LookupSelect
-                label="Requested By"
-                required
-                value={form.requestedBy}
-                onChange={onRequestedByChange}
-                onBlur={() => touch('requestedBy')}
-                options={employeeOptions}
-                placeholder="— Select Employee —"
-                error={err('requestedBy')}
-                disabled={readOnly}
-                quickAdd={addEmployee}
-              />
-            ) : (
+            {form.reqType === 'EMPLOYEE' && (
               <>
                 <Field label="Employee Id">
                   <Input value={form.employeeCode} readOnly placeholder="Auto" />
@@ -596,7 +599,7 @@ function RequisitionForm() {
             )}
 
             <LookupSelect
-              label="Deliver to Location"
+              label="Request from Location"
               required
               value={form.deliverTo}
               onChange={(v) => set('deliverTo', v)}

@@ -9,6 +9,7 @@ D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\config\
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\CategoryMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\GenmasterMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\GentypeMst.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\HrcDepartmentMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\HrcEmployeeMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\InvBlsMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\InvItemMst.java
@@ -32,6 +33,7 @@ D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\CategoryMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\GenmasterMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\GentypeMstRepository.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\HrcDepartmentMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\HrcEmployeeMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\InvBlsMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\InvItemMstRepository.java
@@ -63,14 +65,18 @@ D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\controller\SecurityMastersController.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\controller\SetupMastersController.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\dto\MasterDtos.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\service\DepartmentMastersService.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\service\ItemMastersService.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\service\OrgMastersService.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\service\SecurityMastersService.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\service\SetupMastersService.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\SystemLocationRole.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\masters\SystemLocationService.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\reports\ReportsController.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\transactions\DocType.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\transactions\StockPostingRules.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\transactions\TransactionControllers.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\transactions\TransferGatepassRules.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\transactions\TxnDocumentService.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\modules\transactions\TxnDtos.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\security\AccessScopeService.java

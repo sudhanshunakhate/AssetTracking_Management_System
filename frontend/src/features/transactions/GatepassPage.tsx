@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Pill, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -9,8 +10,11 @@ import { createTxn, fetchTxn, numOrUndef, todayIso, useTxnList } from '@/api/tra
 import { mapEmployee, mapItem, mapLocation, mapUnit, itemsForLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { itemOptionLabel, useLocationStock } from './lineGrid'
+import { GATEPASS_OUTWARD_PREFILL_KEY, type GatepassOutwardNavState } from './gatepassNavigation'
+import { AUTO_DOC_NO_LABEL } from './txnConstants'
 
 export function GatepassPage() {
+  const location = useLocation()
   const { user, canCreateMenu, canEditMenu } = useAuth()
   const canSaveGp = canCreateMenu('GP') || canEditMenu('GP')
   const [tab, setTab] = useState<'inward' | 'outward'>('inward')
@@ -53,6 +57,7 @@ export function GatepassPage() {
     date: todayIso(),
     store: '',
     preparedBy: sessionEmpId,
+    transferType: 'INTERNAL',
     returnFlag: 'N',
     party: '',
     item: '',
@@ -61,6 +66,7 @@ export function GatepassPage() {
     batch: '',
     remarks: '',
   })
+  const [linkedTransferId, setLinkedTransferId] = useState('')
 
   /* When /auth/me fills employeeId after mount */
   useEffect(() => {
@@ -68,6 +74,36 @@ export function GatepassPage() {
     setInwardForm((p) => (p.preparedBy ? p : { ...p, preparedBy: sessionEmpId, date: p.date || todayIso() }))
     setOutwardForm((p) => (p.preparedBy ? p : { ...p, preparedBy: sessionEmpId, date: p.date || todayIso() }))
   }, [sessionEmpId])
+
+  /* Prefill outward from Material Transfer navigation */
+  useEffect(() => {
+    const state = location.state as GatepassOutwardNavState | null
+    const prefill = state?.[GATEPASS_OUTWARD_PREFILL_KEY]
+    if (!prefill) return
+    setTab('outward')
+    setOutwardForm((p) => ({
+      ...p,
+      date: prefill.date || p.date || todayIso(),
+      store: prefill.storeId || p.store,
+      transferType: prefill.transferType || 'INTERNAL',
+      returnFlag: prefill.returnFlag || p.returnFlag,
+      party: prefill.party || p.party,
+      item: prefill.itemId || p.item,
+      qty: prefill.qty || p.qty,
+      uom: prefill.uomId || p.uom,
+      remarks: prefill.remarks || p.remarks,
+    }))
+    setLinkedTransferId(prefill.transferDocId || '')
+    setMessage('Outward form prefilled from saved Material Transfer — review and submit.')
+    window.history.replaceState({}, document.title)
+  }, [location.state])
+
+  const transferTypeLabel = (value: string) => {
+    const t = value.toUpperCase()
+    if (t === 'OU' || t === 'OPR') return 'OU Transfer'
+    if (t === 'INTERNAL') return 'Internal Transfer'
+    return value || '—'
+  }
 
   const preparedByLabel = useMemo(() => {
     const emp = employees.find((e) => e.id === sessionEmpId)
@@ -81,7 +117,7 @@ export function GatepassPage() {
   const { stockByItemId: outwardStock } = useLocationStock(outwardForm.store)
 
   const inwardHeaderReady = Boolean(inwardForm.store) && (inwardType === 'new' || Boolean(inwardForm.returnableOutwardId))
-  const outwardHeaderReady = Boolean(outwardForm.store && outwardForm.returnFlag)
+  const outwardHeaderReady = Boolean(outwardForm.store && outwardForm.returnFlag && outwardForm.transferType)
 
   const setIn = (k: keyof typeof inwardForm, v: string) => {
     setInwardForm((p) => {
@@ -199,6 +235,8 @@ export function GatepassPage() {
         fromLocationId: numOrUndef(outwardForm.store),
         initiatedByEmpId: numOrUndef(outwardForm.preparedBy),
         returnFlag: outwardForm.returnFlag,
+        docSubtype: outwardForm.transferType,
+        refTxnHeaderId: numOrUndef(linkedTransferId),
         remarks: outwardForm.remarks || outwardForm.party,
         docSubmitAction: action,
         lines: [
@@ -213,6 +251,9 @@ export function GatepassPage() {
         ],
       })
       setMessage(action === 'SAVE_DRAFT' ? 'Outward gatepass saved as draft' : 'Outward gatepass completed')
+      if (action === 'SUBMIT' && linkedTransferId) {
+        setLinkedTransferId('')
+      }
       await outward.reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
@@ -406,7 +447,7 @@ export function GatepassPage() {
                 <CardBody>
                   <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
                     <Field label="Inward No." required>
-                      <Input value="Auto-generated" disabled />
+                      <Input value={AUTO_DOC_NO_LABEL} disabled />
                     </Field>
                     <Field label="Inward Date" required hint="Today">
                       <Input type="date" value={inwardForm.date} readOnly disabled />
@@ -509,7 +550,7 @@ export function GatepassPage() {
               <table className="w-full border-collapse text-xs">
                 <thead>
                   <tr className="bg-[var(--surface2)]">
-                    {['Doc No', 'Date', 'Returnable', 'Status'].map((h) => (
+                    {['Doc No', 'Date', 'Transfer Type', 'Returnable', 'Status'].map((h) => (
                       <th key={h} className="border-b border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold uppercase text-[var(--text3)]">
                         {h}
                       </th>
@@ -519,7 +560,7 @@ export function GatepassPage() {
                 <tbody>
                   {outward.rows.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-3 py-3 text-[var(--text3)]">
+                      <td colSpan={5} className="px-3 py-3 text-[var(--text3)]">
                         No outward documents yet
                       </td>
                     </tr>
@@ -528,6 +569,9 @@ export function GatepassPage() {
                       <tr key={r.id}>
                         <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.docNo}</td>
                         <td className="border-b border-[var(--border)] px-3 py-2">{r.docDate}</td>
+                        <td className="border-b border-[var(--border)] px-3 py-2">
+                          {transferTypeLabel(String(r.docSubtype ?? ''))}
+                        </td>
                         <td className="border-b border-[var(--border)] px-3 py-2">
                           {r.returnFlag ? <Pill>{String(r.returnFlag)}</Pill> : '—'}
                         </td>
@@ -547,10 +591,23 @@ export function GatepassPage() {
             <CardBody>
               <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Outward No." required>
-                  <Input value="Auto-generated" disabled />
+                  <Input value={AUTO_DOC_NO_LABEL} disabled />
                 </Field>
-                <Field label="Outward Date" required hint="Today">
-                  <Input type="date" value={outwardForm.date} readOnly disabled />
+                <Field label="Outward Date" required>
+                  <Input
+                    type="date"
+                    value={outwardForm.date}
+                    onChange={(e) => setOut('date', e.target.value)}
+                  />
+                </Field>
+                <Field label="Transfer Type" required>
+                  <Select
+                    value={outwardForm.transferType}
+                    onChange={(e) => setOut('transferType', e.target.value)}
+                  >
+                    <option value="INTERNAL">Internal Transfer</option>
+                    <option value="OU">OU Transfer</option>
+                  </Select>
                 </Field>
                 <Field label="Returnable / Non Returnable" required>
                   <Select value={outwardForm.returnFlag} onChange={(e) => setOut('returnFlag', e.target.value)}>
@@ -649,6 +706,7 @@ export function GatepassPage() {
                 date: todayIso(),
                 store: '',
                 preparedBy: sessionEmpId,
+                transferType: 'INTERNAL',
                 returnFlag: 'N',
                 party: '',
                 item: '',
