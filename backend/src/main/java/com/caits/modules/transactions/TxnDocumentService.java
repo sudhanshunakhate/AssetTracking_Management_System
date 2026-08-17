@@ -820,6 +820,7 @@ public class TxnDocumentService {
             d.setTxdIpAddress(line.ipAddress());
             d.setTxdMacAddress(line.macAddress());
             d.setTxdHostname(line.hostname());
+            d.setTxdIssuedToEmpIdEmp(line.issuedToEmpId());
             d.setTxdRemark(line.remark());
             // Standing register: create / reuse BLS and point the line at it.
             InvBlsMst bls = blsService.resolveForLine(
@@ -1440,6 +1441,7 @@ public class TxnDocumentService {
                 d.getTxdIpAddress(),
                 d.getTxdMacAddress(),
                 d.getTxdHostname(),
+                d.getTxdIssuedToEmpIdEmp(),
                 d.getTxdRemark(),
                 d.getTxdBlsIdIbm()
         );

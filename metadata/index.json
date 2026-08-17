@@ -20,10 +20,6 @@
   },
   "api": {},
   "db_tables": ["caits_local.*"],
-<<<<<<< Updated upstream
   "db_migrations": "db/migrations.json",
   "last_updated": "2026-08-01T13:00:00Z"
-=======
-  "last_updated": "2026-08-03T05:15:00Z"
->>>>>>> Stashed changes
 }

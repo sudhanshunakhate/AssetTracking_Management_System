@@ -73,6 +73,7 @@ export type LineRequest = {
   ipAddress?: string
   macAddress?: string
   hostname?: string
+  issuedToEmpId?: number
   remark?: string
 }
 
@@ -189,6 +190,7 @@ export type TxnLine = {
   ipAddress?: string
   macAddress?: string
   hostname?: string
+  issuedToEmpId?: number
   remark?: string
   blsId?: number
 }
@@ -465,6 +467,16 @@ export async function fetchItemRegister(params: Record<string, string | number |
   if (!qs.has('page')) qs.set('page', '1')
   if (!qs.has('pageSize')) qs.set('pageSize', '200')
   return http.get<PageResponse<Record<string, unknown>>>(`/reports/item-register?${qs}`)
+}
+
+export async function fetchItemLedger(params: Record<string, string | number | boolean | undefined> = {}) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
+  })
+  if (!qs.has('page')) qs.set('page', '1')
+  if (!qs.has('pageSize')) qs.set('pageSize', '200')
+  return http.get<PageResponse<Record<string, unknown>>>(`/reports/item-ledger?${qs}`)
 }
 
 export type DashboardSummary = {

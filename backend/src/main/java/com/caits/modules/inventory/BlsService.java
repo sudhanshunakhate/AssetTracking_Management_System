@@ -133,6 +133,7 @@ public class BlsService {
         if (blankToNull(line.macAddress()) != null) bls.setIbmMacAddress(line.macAddress().trim());
         if (blankToNull(line.hostname()) != null) bls.setIbmHostname(line.hostname().trim());
         if (blankToNull(line.itemCondition()) != null) bls.setIbmItemCondition(line.itemCondition().trim());
+        bls.setIbmIssuedToEmpIdEmp(line.issuedToEmpId());
     }
 
     private static String blankToNull(String v) {

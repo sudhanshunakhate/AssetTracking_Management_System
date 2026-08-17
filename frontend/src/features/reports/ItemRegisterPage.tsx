@@ -1,261 +1,187 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
-import { Pill, StatusBadge, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
+import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { fetchItemRegister } from '@/api/transactions'
-import { mapCategory, mapSubcategory, mapUnit, useMasterList } from '@/api/masters'
+import { fetchItemLedger } from '@/api/transactions'
+import { mapItem, mapLocation, useMasterList } from '@/api/masters'
+import { useAuth } from '@/features/auth/AuthContext'
 import { downloadCsv } from '@/lib/csvExport'
 
-type ItemRegRow = {
+type LedgerRow = {
   id: string
+  date: string
   itemCode: string
   itemName: string
-  itemType: string
-  category: string
-  subcategory: string
+  docType: string
+  docNo: string
+  batch: string
   uom: string
-  makeBrand: string
-  model: string
-  flags: string
-  standardCost: number
-  totalStockQty: number
-  totalStockValue: number
-  storeCount: number
-  currentStore: string
-  active: boolean
+  receipt: string
+  issue: string
+  balance: number
+}
+
+const emptyFilters = {
+  itemId: '',
+  loc: '',
+  from: '',
+  to: '',
+}
+
+const qtyCell = (v: string | number | null | undefined) => {
+  if (v === null || v === undefined || v === '') return '—'
+  const n = Number(v)
+  return Number.isFinite(n) ? String(n) : '—'
 }
 
 export function ItemRegisterPage() {
-  const [q, setQ] = useState('')
-  const [cat, setCat] = useState('')
-  const [subcat, setSubcat] = useState('')
-  const [itemType, setItemType] = useState('')
-  const [active, setActive] = useState('true')
-  const [rows, setRows] = useState<ItemRegRow[]>([])
+  const { seesAllLocations } = useAuth()
+  const [f, setF] = useState(emptyFilters)
+  const set = (k: keyof typeof emptyFilters, v: string) => setF((prev) => ({ ...prev, [k]: v }))
+  const [rows, setRows] = useState<LedgerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const mapCat = useCallback(mapCategory, [])
-  const mapSub = useCallback(mapSubcategory, [])
-  const mapUnt = useCallback(mapUnit, [])
-  const { rows: categories } = useMasterList('categories', mapCat)
-  const { rows: subcategories } = useMasterList('subcategories', mapSub)
-  const { rows: units } = useMasterList('units', mapUnt)
+  const mapItm = useCallback(mapItem, [])
+  const mapLoc = useCallback(mapLocation, [])
+  const { rows: items } = useMasterList('items', mapItm)
+  const { rows: stores } = useMasterList('locations', mapLoc)
 
-  const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
-  const subById = useMemo(() => Object.fromEntries(subcategories.map((s) => [s.id, s])), [subcategories])
-  const uomById = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
-
-  const filteredSubs = useMemo(
-    () => (cat ? subcategories.filter((s) => s.parentCode === cat) : subcategories),
-    [subcategories, cat],
-  )
+  const showItemCols = !f.itemId
 
   const reload = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const page = await fetchItemRegister({
+      const page = await fetchItemLedger({
         page: 1,
         pageSize: 200,
-        search: q || undefined,
-        categoryId: cat || undefined,
-        subcategoryId: subcat || undefined,
-        itemType: itemType || undefined,
-        active: active === '' ? undefined : active === 'true',
+        itemId: f.itemId || undefined,
+        locationId: f.loc || undefined,
+        fromDate: f.from || undefined,
+        toDate: f.to || undefined,
       })
       setRows(
-        (page.data ?? []).map((r) => {
-          const categoryId = String(r.categoryId ?? '')
-          const subcategoryId = String(r.subcategoryId ?? '')
-          const uomId = String(r.uomId ?? '')
-          const flags = [
-            r.isSerialized ? 'Serial' : null,
-            r.trackBatchLot ? 'Batch' : null,
-            r.trackExpiry ? 'Expiry' : null,
-            r.isConsumable ? 'Consumable' : null,
-          ]
-            .filter(Boolean)
-            .join(', ')
-          return {
-            id: String(r.id ?? r.itemCode),
-            itemCode: String(r.itemCode ?? ''),
-            itemName: String(r.itemName ?? ''),
-            itemType: String(r.itemType ?? '—'),
-            category: catById[categoryId]?.name ?? (categoryId || '—'),
-            subcategory: subById[subcategoryId]?.name ?? (subcategoryId || '—'),
-            uom: uomById[uomId]?.code ?? (uomId || '—'),
-            makeBrand: String(r.makeBrand ?? '—'),
-            model: String(r.model ?? '—'),
-            flags: flags || '—',
-            standardCost: Number(r.standardCost ?? 0),
-            totalStockQty: Number(r.totalStockQty ?? 0),
-            totalStockValue: Number(r.totalStockValue ?? 0),
-            storeCount: Number(r.storeCount ?? 0),
-            currentStore: String(r.currentStore ?? '—'),
-            active: Boolean(r.active),
-          }
-        }),
+        (page.data ?? []).map((r, idx) => ({
+          id: String(r.id ?? `${r.docNo}-${r.itemId}-${idx}`),
+          date: String(r.date ?? ''),
+          itemCode: String(r.itemCode ?? ''),
+          itemName: String(r.itemName ?? ''),
+          docType: String(r.docType ?? ''),
+          docNo: String(r.docNo ?? ''),
+          batch: String(r.batch ?? '').trim() || '—',
+          uom: String(r.uomCode ?? '—'),
+          receipt: qtyCell(r.receipt as string | number | null),
+          issue: qtyCell(r.issue as string | number | null),
+          balance: Number(r.balance ?? 0),
+        })),
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load item register')
+      setError(err instanceof Error ? err.message : 'Failed to load item ledger')
       setRows([])
     } finally {
       setLoading(false)
     }
-  }, [q, cat, subcat, itemType, active, catById, subById, uomById])
+  }, [f])
 
   useEffect(() => {
     void reload()
   }, [reload])
 
-  const totals = useMemo(
-    () => ({
-      items: rows.length,
-      active: rows.filter((r) => r.active).length,
-      qty: rows.reduce((s, r) => s + r.totalStockQty, 0),
-      value: rows.reduce((s, r) => s + r.totalStockValue, 0),
-    }),
-    [rows],
-  )
+  const headers = showItemCols
+    ? ['Date', 'Item Code', 'Item Name', 'Doc. Type', 'Doc. No.', 'Batch', 'UOM', 'Receipt', 'Issue', 'Balance']
+    : ['Date', 'Doc. Type', 'Doc. No.', 'Batch', 'UOM', 'Receipt', 'Issue', 'Balance']
 
   return (
     <FadeContent>
       <PageHeader
-        title="Item Register"
-        description="Master catalog of items with tracking flags and across-store stock totals."
+        title="Item Ledger"
+        description="Running stock balance by document. Leave Item as All Items to see every item, or pick one to focus."
         actions={
-          <Button
-            variant="ghost"
-            disabled={rows.length === 0}
-            onClick={() =>
-              downloadCsv(
-                `item-register-${new Date().toISOString().slice(0, 10)}.csv`,
-                [
-                  'Item Code',
-                  'Item Name',
-                  'Type',
-                  'Category',
-                  'Subcategory',
-                  'UOM',
-                  'Make',
-                  'Model',
-                  'Flags',
-                  'Standard Cost',
-                  'Stock Qty',
-                  'Stock Value',
-                  'Stores',
-                  'Current Store',
-                  'Active',
-                ],
-                rows.map((r) => [
-                  r.itemCode,
-                  r.itemName,
-                  r.itemType,
-                  r.category,
-                  r.subcategory,
-                  r.uom,
-                  r.makeBrand,
-                  r.model,
-                  r.flags,
-                  r.standardCost,
-                  r.totalStockQty,
-                  r.totalStockValue,
-                  r.storeCount,
-                  r.currentStore,
-                  r.active ? 'Yes' : 'No',
-                ]),
-              )
-            }
-          >
-            Export
-          </Button>
+          <>
+            <Button variant="ghost" onClick={() => setF(emptyFilters)}>
+              Clear
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={rows.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  `item-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+                  headers,
+                  rows.map((r) =>
+                    showItemCols
+                      ? [
+                          r.date,
+                          r.itemCode,
+                          r.itemName,
+                          r.docType,
+                          r.docNo,
+                          r.batch,
+                          r.uom,
+                          r.receipt,
+                          r.issue,
+                          r.balance,
+                        ]
+                      : [r.date, r.docType, r.docNo, r.batch, r.uom, r.receipt, r.issue, r.balance],
+                  ),
+                )
+              }
+            >
+              Export
+            </Button>
+            <Button onClick={() => void reload()}>Apply</Button>
+          </>
         }
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
-      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading item register…</div>}
+      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading item ledger…</div>}
+
+      <Card className="mb-3">
+        <CardBody>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2.5">
+            <Field label="Item">
+              <Select value={f.itemId} onChange={(e) => set('itemId', e.target.value)}>
+                <option value="">All Items</option>
+                {items.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.code} – {i.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="From Date">
+              <Input type="date" value={f.from} onChange={(e) => set('from', e.target.value)} />
+            </Field>
+            <Field label="To Date">
+              <Input type="date" value={f.to} onChange={(e) => set('to', e.target.value)} />
+            </Field>
+            <Field label="Location">
+              <Select value={f.loc} onChange={(e) => set('loc', e.target.value)}>
+                <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.code} – {s.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        </CardBody>
+      </Card>
+
       <Card>
         <CardBody>
-          <div className="mb-2.5 flex flex-wrap items-center gap-2">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search item code / name…"
-              className="min-w-[180px] flex-1 rounded-[7px] border border-[var(--border2)] bg-[var(--surface)] px-2.5 py-1.5 text-[12.5px] outline-none focus:border-[var(--accent)]"
-            />
-            <select
-              value={cat}
-              onChange={(e) => {
-                setCat(e.target.value)
-                setSubcat('')
-              }}
-              className="rounded-[7px] border border-[var(--border2)] px-2.5 py-1.5 text-xs text-[var(--text2)]"
-            >
-              <option value="">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={subcat}
-              onChange={(e) => setSubcat(e.target.value)}
-              className="rounded-[7px] border border-[var(--border2)] px-2.5 py-1.5 text-xs text-[var(--text2)]"
-            >
-              <option value="">All Sub-Categories</option>
-              {filteredSubs.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={itemType}
-              onChange={(e) => setItemType(e.target.value)}
-              className="rounded-[7px] border border-[var(--border2)] px-2.5 py-1.5 text-xs text-[var(--text2)]"
-            >
-              <option value="">All Types</option>
-              <option value="asset">Asset</option>
-              <option value="consumable">Consumable</option>
-            </select>
-            <select
-              value={active}
-              onChange={(e) => setActive(e.target.value)}
-              className="rounded-[7px] border border-[var(--border2)] px-2.5 py-1.5 text-xs text-[var(--text2)]"
-            >
-              <option value="true">Active only</option>
-              <option value="false">Inactive only</option>
-              <option value="">All</option>
-            </select>
-          </div>
-
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="bg-[var(--surface2)]">
-                  {[
-                    'Item Code',
-                    'Item Name',
-                    'Type',
-                    'Category',
-                    'Sub-Category',
-                    'UOM',
-                    'Brand',
-                    'Model',
-                    'Tracking',
-                    'Std Cost',
-                    'Stock Qty',
-                    'Stock Value',
-                    'Stores',
-                    'Current Store',
-                    'Status',
-                  ].map((h) => (
+                  {headers.map((h) => (
                     <th
                       key={h}
-                      className="border-b-2 border-[var(--border)] px-[11px] py-[7px] text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
+                      className="border-b-2 border-[var(--border)] px-[11px] py-[7px] text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase whitespace-nowrap"
                     >
                       {h}
                     </th>
@@ -265,35 +191,29 @@ export function ItemRegisterPage() {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id} className="hover:bg-[#f0f5ff]">
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.itemCode}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemName}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemType}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.category}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.subcategory}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 whitespace-nowrap">{r.date}</td>
+                    {showItemCols && (
+                      <>
+                        <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.itemCode}</td>
+                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemName}</td>
+                      </>
+                    )}
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.docType}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.docNo}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.batch}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.makeBrand}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.model}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">
-                      {r.flags === '—' ? '—' : <Pill>{r.flags}</Pill>}
-                    </td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">
-                      {r.standardCost.toLocaleString('en-IN')}
-                    </td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{r.totalStockQty}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">
-                      {r.totalStockValue.toLocaleString('en-IN')}
-                    </td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.storeCount}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.currentStore}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">
-                      {r.active ? <StatusBadge status="Active" /> : <StatusPill status="Inactive" />}
-                    </td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.receipt}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.issue}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{r.balance}</td>
                   </tr>
                 ))}
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={15} className="px-[11px] py-8 text-center text-[var(--text3)]">
-                      No items for the selected filters.
+                    <td
+                      colSpan={headers.length}
+                      className="px-[11px] py-8 text-center text-[var(--text3)]"
+                    >
+                      No ledger movements for the selected filters.
                     </td>
                   </tr>
                 )}
@@ -301,23 +221,13 @@ export function ItemRegisterPage() {
             </table>
           </div>
 
-          <div className="mt-3.5 flex flex-wrap gap-7 border-t border-[var(--border)] pt-3 text-[12.5px] text-[var(--text2)]">
-            <div>
-              Items: <strong>{totals.items}</strong>
+          {rows.length > 0 && (
+            <div className="mt-3.5 flex flex-wrap gap-7 border-t border-[var(--border)] pt-3 text-[12.5px] text-[var(--text2)]">
+              <div>
+                Lines: <strong>{rows.length}</strong>
+              </div>
             </div>
-            <div>
-              Active: <strong>{totals.active}</strong>
-            </div>
-            <div>
-              Total Stock Qty: <strong>{totals.qty}</strong>
-            </div>
-            <div className="font-bold text-[var(--text)]">
-              Total Stock Value:{' '}
-              <span className="text-[var(--accent)]">
-                ₹ {totals.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-          </div>
+          )}
         </CardBody>
       </Card>
     </FadeContent>

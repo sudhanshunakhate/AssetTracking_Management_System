@@ -301,7 +301,16 @@
                                            "local":  null,
                                            "dev":  null
                                        }
+                       },
+                       {
+                           "id":  "031-migrate-txn-line-issued-to",
+                           "file":  "db_approach/migrate_txn_line_issued_to.sql",
+                           "description":  "Adds issued-to employee FK on txn_detail_dtl and inv_bls_mst for Opening Stock when Condition is Issued.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-05"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-12"
+    "updated":  "2026-08-17"
 }

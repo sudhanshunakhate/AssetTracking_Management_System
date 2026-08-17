@@ -31,6 +31,7 @@ public final class TxnDtos {
             String ipAddress,
             String macAddress,
             String hostname,
+            Integer issuedToEmpId,
             String remark
     ) {}
 
@@ -118,6 +119,7 @@ public final class TxnDtos {
             String ipAddress,
             String macAddress,
             String hostname,
+            Integer issuedToEmpId,
             String remark,
             Integer blsId
     ) {}

@@ -96,18 +96,14 @@ export interface MaterialReturn {
 
 export interface StockRegisterRow {
   id: string
-  itemCode: string
+  srNo: number
   itemName: string
-  category: string
   uom: string
-  store: string
-  opening: number
-  inward: number
-  outward: number
-  closing: number
-  reorderLevel: number
-  value: number
-  status: 'In Stock' | 'Low Stock' | 'Out of Stock'
+  openingBalance: number
+  receiptDuringPeriod: number
+  issueDuringPeriod: number
+  closingBalance: number
+  ownerName: string
 }
 
 export interface FullReportRow {

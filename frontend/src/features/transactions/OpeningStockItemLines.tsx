@@ -38,6 +38,7 @@ export type OpeningStockLine = BaseLine & {
   macAddress: string
   hostname: string
   itemCondition: string
+  issuedToEmpId: string
 }
 
 export function emptyOpeningStockLine(): OpeningStockLine {
@@ -53,7 +54,24 @@ export function emptyOpeningStockLine(): OpeningStockLine {
     macAddress: '',
     hostname: '',
     itemCondition: '',
+    issuedToEmpId: '',
   }
+}
+
+/** True when the condition value/label/code means the unit is Issued. */
+export function isIssuedCondition(
+  value: string,
+  options: { value: string; label: string; code?: string }[] = [],
+) {
+  const raw = value.trim()
+  if (!raw) return false
+  const lower = raw.toLowerCase()
+  if (lower === 'issued' || lower.startsWith('issued')) return true
+  const opt = options.find((o) => o.value === value || o.label === value || o.code === value)
+  if (!opt) return false
+  const code = (opt.code ?? '').toUpperCase()
+  const label = (opt.label ?? '').toLowerCase()
+  return code === 'AC-ISSUED' || label === 'issued' || label.startsWith('issued')
 }
 
 const DATALIST_ID = 'opening-stock-item-options'
@@ -62,6 +80,7 @@ const DATALIST_ID = 'opening-stock-item-options'
  * Opening Stock Item Details — pick Item Type, then Add Units.
  * Asset + qty N expands into N unit lines (qty 1) with instance fields
  * (serial / IP / MAC / hostname). Consumable stays one line with quantity.
+ * When any asset line has Condition = Issued, an Issued To employee column appears.
  */
 export function OpeningStockItemLines({
   lines,
@@ -71,6 +90,7 @@ export function OpeningStockItemLines({
   items,
   units,
   vendors,
+  employees = [],
   locations = [],
   locationOptions = [],
   allItems,
@@ -89,6 +109,7 @@ export function OpeningStockItemLines({
   allItems?: ApiMasterRow[]
   units: ApiMasterRow[]
   vendors: ApiMasterRow[]
+  employees?: ApiMasterRow[]
   locations?: ApiMasterRow[]
   locationOptions?: { value: string; label: string }[]
   conditionOptions?: { value: string; label: string; code?: string }[]
@@ -108,6 +129,15 @@ export function OpeningStockItemLines({
   const importPool = allItems ?? items
   const { stockByItemId } = useLocationStock(locationId)
 
+  const showIssuedTo = useMemo(
+    () =>
+      isAsset &&
+      lines.some((l) => l.itemId !== '' && isIssuedCondition(l.itemCondition, conditionOptions)),
+    [isAsset, lines, conditionOptions],
+  )
+
+  const colCount = isAsset ? (showIssuedTo ? 14 : 13) : 12
+
   const [pickItemId, setPickItemId] = useState('')
   const [pickQty, setPickQty] = useState('1')
   const [addError, setAddError] = useState('')
@@ -118,6 +148,14 @@ export function OpeningStockItemLines({
     },
     [onChange],
   )
+
+  const setCondition = (key: string, itemCondition: string) => {
+    const issued = isIssuedCondition(itemCondition, conditionOptions)
+    patch(key, {
+      itemCondition,
+      ...(issued ? {} : { issuedToEmpId: '' }),
+    })
+  }
 
   const buildLineFromItem = (item: ApiMasterRow, qty: number): OpeningStockLine => ({
     ...emptyOpeningStockLine(),
@@ -281,6 +319,9 @@ export function OpeningStockItemLines({
                     <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
                     <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
                     <th className={`${gridHeadCell} w-[120px]`}>Condition</th>
+                    {showIssuedTo && (
+                      <th className={`${gridHeadCell} w-[160px]`}>{gridHeadLabel('Issued To', true)}</th>
+                    )}
                   </>
                 ) : (
                   <>
@@ -300,7 +341,7 @@ export function OpeningStockItemLines({
               {lines.filter((l) => l.itemId !== '').length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isAsset ? 13 : 12}
+                    colSpan={colCount}
                     className="px-3 py-6 text-center text-[12px] text-[var(--text3)]"
                   >
                     {isAsset
@@ -316,6 +357,8 @@ export function OpeningStockItemLines({
                     const serialMissing = isAsset && !line.serialNo.trim()
                     const locationMissing = !line.locationId
                     const qtyMissing = !isAsset && toNum(line.qty) <= 0
+                    const lineIssued = isIssuedCondition(line.itemCondition, conditionOptions)
+                    const issuedToMissing = lineIssued && !line.issuedToEmpId
                     return (
                       <tr key={line.key} className="border-b border-[var(--border)] align-middle">
                         <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
@@ -380,7 +423,7 @@ export function OpeningStockItemLines({
                             <td className={gridCell}>
                               <Select
                                 value={line.itemCondition}
-                                onChange={(e) => patch(line.key, { itemCondition: e.target.value })}
+                                onChange={(e) => setCondition(line.key, e.target.value)}
                                 disabled={linesLocked}
                                 className={gridInput}
                               >
@@ -392,6 +435,28 @@ export function OpeningStockItemLines({
                                 ))}
                               </Select>
                             </td>
+                            {showIssuedTo && (
+                              <td className={gridCell}>
+                                {lineIssued ? (
+                                  <Select
+                                    value={line.issuedToEmpId}
+                                    onChange={(e) => patch(line.key, { issuedToEmpId: e.target.value })}
+                                    disabled={linesLocked}
+                                    invalid={showLineErrors && issuedToMissing}
+                                    className={gridInput}
+                                  >
+                                    <option value="">— Select Employee —</option>
+                                    {employees.map((e) => (
+                                      <option key={e.id} value={e.id}>
+                                        {e.code} – {e.firstName} {e.lastName}
+                                      </option>
+                                    ))}
+                                  </Select>
+                                ) : (
+                                  <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                                )}
+                              </td>
+                            )}
                           </>
                         ) : (
                           <>

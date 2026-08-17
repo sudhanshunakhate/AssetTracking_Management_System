@@ -24,6 +24,7 @@ import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import { enrichLinesFromItems, toNum } from './lineGrid'
 import {
   emptyOpeningStockLine,
+  isIssuedCondition,
   OpeningStockItemLines,
   type ItemKind,
   type OpeningStockLine,
@@ -134,7 +135,7 @@ function OpeningStockForm() {
   const isNew = id === 'new'
   const navigate = useNavigate()
   const { canCreateMenu, canEditMenu } = useAuth()
-  const { locations, items, units, vendors } = useTxnFormLookups()
+  const { locations, items, units, vendors, employees } = useTxnFormLookups()
   const { options: conditionOpts } = useGenValues(GEN_TYPE.ASSET_CONDITION)
 
   const [form, setForm] = useState<FormState>(blankForm)
@@ -187,6 +188,7 @@ function OpeningStockForm() {
           macAddress: l.macAddress ?? '',
           hostname: l.hostname ?? '',
           itemCondition: l.itemCondition ?? '',
+          issuedToEmpId: l.issuedToEmpId != null ? String(l.issuedToEmpId) : '',
           remark: l.remark ?? '',
         }))
         setLines(mapped.length ? mapped : [emptyOpeningStockLine()])
@@ -232,11 +234,16 @@ function OpeningStockForm() {
     else if (filled.some((l) => toNum(l.qty) <= 0)) next.lines = 'Quantity must be greater than 0 on every line'
     else if (itemType === 'asset' && filled.some((l) => !l.serialNo.trim())) {
       next.lines = 'Serial No. is required on every asset unit line'
+    } else if (
+      itemType === 'asset' &&
+      filled.some((l) => isIssuedCondition(l.itemCondition, conditionOpts) && !l.issuedToEmpId)
+    ) {
+      next.lines = 'Issued To is required when Condition is Issued'
     } else if (filled.some((l) => !l.locationId)) {
       next.lines = 'Location is required on every item line'
     }
     return next
-  }, [form, headerFields, lines, readOnly, itemType])
+  }, [form, headerFields, lines, readOnly, itemType, conditionOpts])
 
   const headerReady = useMemo(
     () => areRequiredFieldsFilled(headerFields, form as unknown as Record<string, unknown>),
@@ -291,6 +298,7 @@ function OpeningStockForm() {
           macAddress: l.macAddress || undefined,
           hostname: l.hostname || undefined,
           itemCondition: l.itemCondition || undefined,
+          issuedToEmpId: numOrUndef(l.issuedToEmpId),
           remark: l.remark || undefined,
         }
       }),
@@ -398,6 +406,7 @@ function OpeningStockForm() {
         allItems={allItemsForType}
         units={units.rows}
         vendors={vendors.rows}
+        employees={employees.rows}
         locations={lineLocations}
         locationOptions={locationOptions}
         conditionOptions={conditionOpts}

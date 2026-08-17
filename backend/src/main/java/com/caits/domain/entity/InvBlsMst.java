@@ -54,6 +54,9 @@ public class InvBlsMst {
     @Column(name = "ibm_item_condition")
     private String ibmItemCondition;
 
+    @Column(name = "ibm_issued_to_emp_id_emp")
+    private Integer ibmIssuedToEmpIdEmp;
+
     @Column(name = "ibm_current_location_id_loc")
     private Integer ibmCurrentLocationIdLoc;
 
@@ -122,6 +125,9 @@ public class InvBlsMst {
 
     public String getIbmItemCondition() { return ibmItemCondition; }
     public void setIbmItemCondition(String ibmItemCondition) { this.ibmItemCondition = ibmItemCondition; }
+
+    public Integer getIbmIssuedToEmpIdEmp() { return ibmIssuedToEmpIdEmp; }
+    public void setIbmIssuedToEmpIdEmp(Integer ibmIssuedToEmpIdEmp) { this.ibmIssuedToEmpIdEmp = ibmIssuedToEmpIdEmp; }
 
     public Integer getIbmCurrentLocationIdLoc() { return ibmCurrentLocationIdLoc; }
     public void setIbmCurrentLocationIdLoc(Integer ibmCurrentLocationIdLoc) { this.ibmCurrentLocationIdLoc = ibmCurrentLocationIdLoc; }

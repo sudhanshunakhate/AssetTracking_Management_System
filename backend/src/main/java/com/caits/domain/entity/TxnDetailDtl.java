@@ -92,6 +92,9 @@ public class TxnDetailDtl {
     @Column(name = "txd_hostname")
     private String txdHostname;
 
+    @Column(name = "txd_issued_to_emp_id_emp")
+    private Integer txdIssuedToEmpIdEmp;
+
     @Column(name = "txd_bls_id_ibm")
     private Integer txdBlsIdIbm;
 
@@ -178,6 +181,9 @@ public class TxnDetailDtl {
 
     public String getTxdHostname() { return txdHostname; }
     public void setTxdHostname(String txdHostname) { this.txdHostname = txdHostname; }
+
+    public Integer getTxdIssuedToEmpIdEmp() { return txdIssuedToEmpIdEmp; }
+    public void setTxdIssuedToEmpIdEmp(Integer txdIssuedToEmpIdEmp) { this.txdIssuedToEmpIdEmp = txdIssuedToEmpIdEmp; }
 
     public Integer getTxdBlsIdIbm() { return txdBlsIdIbm; }
     public void setTxdBlsIdIbm(Integer txdBlsIdIbm) { this.txdBlsIdIbm = txdBlsIdIbm; }
