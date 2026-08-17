@@ -62,6 +62,7 @@ export function IssueItemLines({
   const locationById = useCodeIndex(locations)
   const { stockByItemId } = useLocationStock(storeLocationId)
   const linesLocked = readOnly || !headerReady
+  const lineFieldsLocked = readOnly
 
   const patch = useCallback(
     (key: string, changes: Partial<IssueLine>) => {
@@ -196,7 +197,7 @@ export function IssueItemLines({
                         step="0.01"
                         value={line.issueQty}
                         onChange={(e) => patch(line.key, { issueQty: e.target.value })}
-                        disabled={linesLocked}
+                        disabled={lineFieldsLocked}
                         placeholder="0.00"
                         invalid={shortfall}
                         className={gridInputRight}
@@ -222,7 +223,7 @@ export function IssueItemLines({
                       <Input
                         value={line.batchLotNo}
                         onChange={(e) => patch(line.key, { batchLotNo: e.target.value })}
-                        disabled={linesLocked}
+                        disabled={lineFieldsLocked}
                         placeholder="Optional"
                         className={gridInput}
                       />
@@ -239,7 +240,7 @@ export function IssueItemLines({
                       <Input
                         value={line.remark}
                         onChange={(e) => patch(line.key, { remark: e.target.value })}
-                        disabled={linesLocked}
+                        disabled={lineFieldsLocked}
                         maxLength={200}
                         placeholder="Remark…"
                         className={gridInput}

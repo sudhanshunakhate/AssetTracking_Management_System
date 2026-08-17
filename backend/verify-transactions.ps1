@@ -380,4 +380,15 @@ if ($gaps.Count -gt 0) {
     Write-Host "`nGaps / follow-ups:" -ForegroundColor Yellow
     $gaps | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
 }
+
+$iapScript = Join-Path $PSScriptRoot 'verify-inspection-approval.ps1'
+if (Test-Path $iapScript) {
+    Write-Host "`nRunning inspection approval E2E (verify-inspection-approval.ps1)..." -ForegroundColor Cyan
+    try {
+        & $iapScript
+    } catch {
+        Gap "Inspection approval E2E failed: $($_.Exception.Message)"
+    }
+}
+
 if ($fail -gt 0) { exit 1 } else { exit 0 }

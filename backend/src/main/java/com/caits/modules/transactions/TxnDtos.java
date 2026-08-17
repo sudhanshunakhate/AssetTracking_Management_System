@@ -197,6 +197,7 @@ public final class TxnDtos {
             Integer departmentId,
             Integer initiatedByEmpId,
             Integer refTxnHeaderId,
+            String referenceNo,
             String invoiceNo,
             Integer totalItems,
             BigDecimal totalAmount,

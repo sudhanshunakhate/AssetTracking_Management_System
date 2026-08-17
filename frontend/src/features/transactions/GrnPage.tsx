@@ -26,12 +26,12 @@ import { enrichLinesFromItems, money, toNum } from './lineGrid'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   employeeOptions as toEmployeeOptions,
-  itemsForLocation,
   locLabel,
   locationOptions as toLocationOptions,
+  operationalLocations,
   quickAddEmployee,
-  quickAddLocation,
   quickAddVendor,
+  resolveTxnHeaderFromLines,
   useTxnFormLookups,
   vendorLabel,
   vendorOptions as toVendorOptions,
@@ -52,7 +52,6 @@ type FormState = {
   invoiceDate: string
   referenceDoc: string
   referenceDocDate: string
-  store: string
   inspectedBy: string
   inspectionDate: string
   remarks: string
@@ -70,7 +69,6 @@ function blankForm(employeeId?: number | null): FormState {
     invoiceDate: '',
     referenceDoc: '',
     referenceDocDate: '',
-    store: '',
     inspectedBy: '',
     inspectionDate: '',
     remarks: '',
@@ -214,7 +212,6 @@ function GrnForm() {
           invoiceDate: doc.invoiceDate ?? '',
           referenceDoc: doc.poNo ?? '',
           referenceDocDate: doc.poDate ?? '',
-          store: doc.locationId != null ? String(doc.locationId) : '',
           inspectedBy: doc.inspectedByEmpId != null ? String(doc.inspectedByEmpId) : '',
           inspectionDate: doc.inspectionDate ?? '',
           remarks: doc.remarks ?? '',
@@ -292,7 +289,6 @@ function GrnForm() {
     () => [
       { name: 'grnDate', label: 'GRN Date', type: 'date', required: true },
       { name: 'supplier', label: 'Supplier', required: true },
-      { name: 'store', label: 'Store / Location', required: true },
       {
         name: 'inspectionDate',
         label: 'Inspection Date',
@@ -312,7 +308,6 @@ function GrnForm() {
     } else if (filled.some((l) => !(toNum(l.receivedQty) > 0))) {
       found.lines = 'Every item line needs a received quantity greater than 0.'
     } else if (
-      itemType === 'consumable' &&
       filled.some(
         (l) => Math.abs(toNum(l.acceptedQty) + toNum(l.rejectedQty) - toNum(l.receivedQty)) > 0.0001,
       )
@@ -328,9 +323,16 @@ function GrnForm() {
     if (form.inspectionDate && !form.inspectedBy) {
       found.inspectedBy = 'Select who inspected the goods.'
     }
+    const needsInspection = filled.some((l) => {
+      const item = items.rows.find((i) => i.id === l.itemId)
+      return Boolean(item?.inspectionNeeded) && toNum(l.acceptedQty) > 0
+    })
+    if (needsInspection && !form.inspectedBy) {
+      found.inspectedBy = 'Inspected By is required when any item needs inspection.'
+    }
     if (form.preparedDate && !form.preparedBy) found.preparedBy = 'Select who prepared the GRN.'
     return found
-  }, [readOnly, form, fieldDefs, lines, itemType])
+  }, [readOnly, form, fieldDefs, lines, itemType, items.rows])
 
   const headerReady = useMemo(
     () => areRequiredFieldsFilled(fieldDefs, form as unknown as Record<string, unknown>),
@@ -341,10 +343,13 @@ function GrnForm() {
 
   /* ---- actions ---- */
   const buildBody = (action: 'SAVE_DRAFT' | 'SUBMIT'): DocumentRequest => {
-    const locationId = Number(form.store)
+    const filled = lines.filter((l) => l.itemId !== '')
+    const header = resolveTxnHeaderFromLines(filled, locations.rows)
+    const locationId = header.locationId ?? 0
     return {
       docDate: form.grnDate,
       partyId: Number(form.supplier),
+      entityId: header.entityId,
       locationId,
       invoiceNo: form.invoiceNo || undefined,
       invoiceDate: form.invoiceDate || undefined,
@@ -364,8 +369,8 @@ function GrnForm() {
         .filter((l) => l.itemId !== '')
         .map((l, i) => {
           const received = itemType === 'asset' ? 1 : toNum(l.receivedQty)
-          const accepted = itemType === 'asset' ? 1 : toNum(l.acceptedQty)
-          const rejected = itemType === 'asset' ? 0 : toNum(l.rejectedQty)
+          const accepted = toNum(l.acceptedQty)
+          const rejected = toNum(l.rejectedQty)
           return {
             srNo: i + 1,
             itemId: Number(l.itemId),
@@ -424,11 +429,11 @@ function GrnForm() {
 
   /* ---- quick-add configs ---- */
   const addEmployee = quickAddEmployee(employees.reload)
-  const addLocation = quickAddLocation(locations.reload)
   const addSupplier = quickAddVendor(vendors.reload)
 
   const employeeOptions = toEmployeeOptions(employees.rows)
-  const locationOptions = toLocationOptions(locations.rows)
+  const locationOptions = toLocationOptions(operationalLocations(locations.rows))
+  const lineLocations = operationalLocations(locations.rows)
   const supplierOptions = toVendorOptions(vendors.rows)
   const allItemsForType = useMemo(
     () =>
@@ -546,20 +551,6 @@ function GrnForm() {
             </Field>
 
             <LookupSelect
-              label="Store / Location"
-              required
-              value={form.store}
-              onChange={(v) => set('store', v)}
-              onBlur={() => touch('store')}
-              options={locationOptions}
-              placeholder="— Select Store / Location —"
-              error={err('store')}
-              hint="Where the accepted quantity is received"
-              disabled={readOnly}
-              quickAdd={addLocation}
-            />
-
-            <LookupSelect
               label="Inspected By"
               value={form.inspectedBy}
               onChange={(v) => set('inspectedBy', v)}
@@ -629,12 +620,12 @@ function GrnForm() {
         onChange={setLines}
         itemType={itemType}
         onItemTypeChange={setItemType}
-        items={itemsForLocation(items.rows, form.store)}
+        items={allItemsForType}
         allItems={allItemsForType}
         units={units.rows}
-        locations={locations.rows}
+        locations={lineLocations}
         conditionOptions={conditionOpts}
-        storeLocationId={form.store}
+        storeLocationId=""
         locationOptions={locationOptions}
         readOnly={readOnly}
         headerReady={headerReady}

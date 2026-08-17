@@ -34,7 +34,7 @@ public class TransactionControllers {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.GRN, status, fromDate, toDate, locationId, null, null, null, null, null, null, null, page, pageSize);
+        return service.list(DocType.GRN, status, fromDate, toDate, locationId, null, null, null, null, null, null, null, null, page, pageSize);
     }
 
     @GetMapping("/grn/{docId}")
@@ -75,7 +75,7 @@ public class TransactionControllers {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.GATEPASS_INWARD, status, fromDate, toDate, locationId, null, null, null, null, null, docSubtype, null, page, pageSize);
+        return service.list(DocType.GATEPASS_INWARD, status, fromDate, toDate, locationId, null, null, null, null, null, docSubtype, null, null, page, pageSize);
     }
 
     @GetMapping("/gatepass/inward/{docId}")
@@ -115,7 +115,7 @@ public class TransactionControllers {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.GATEPASS_OUTWARD, status, fromDate, toDate, locationId, null, null, null, null, null, null, returnFlag, page, pageSize);
+        return service.list(DocType.GATEPASS_OUTWARD, status, fromDate, toDate, locationId, null, null, null, null, null, null, returnFlag, null, page, pageSize);
     }
 
     @GetMapping("/gatepass/outward/{docId}")
@@ -154,7 +154,7 @@ public class TransactionControllers {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.MATERIAL_REQUISITION, status, fromDate, toDate, locationId, null, null, departmentId, null, null, null, null, page, pageSize);
+        return service.list(DocType.MATERIAL_REQUISITION, status, fromDate, toDate, locationId, null, null, departmentId, null, null, null, null, null, page, pageSize);
     }
 
     @GetMapping("/requisitions/{docId}")
@@ -203,7 +203,7 @@ public class TransactionControllers {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.MATERIAL_ISSUE, status, fromDate, toDate, locationId, null, null, null, refTxnHeaderId, null, null, null, page, pageSize);
+        return service.list(DocType.MATERIAL_ISSUE, status, fromDate, toDate, locationId, null, null, null, refTxnHeaderId, null, null, null, null, page, pageSize);
     }
 
     @GetMapping("/material-issues/{docId}")
@@ -242,7 +242,7 @@ public class TransactionControllers {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.OPENING_STOCK, status, fromDate, toDate, locationId, null, null, null, null, entityId, null, null, page, pageSize);
+        return service.list(DocType.OPENING_STOCK, status, fromDate, toDate, locationId, null, null, null, null, entityId, null, null, null, page, pageSize);
     }
 
     @GetMapping("/opening-stock/{docId}")
@@ -272,7 +272,7 @@ public class TransactionControllers {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.MATERIAL_TRANSFER, status, fromDate, toDate, locationId, fromLocationId, toLocationId, null, null, null, null, null, page, pageSize);
+        return service.list(DocType.MATERIAL_TRANSFER, status, fromDate, toDate, locationId, fromLocationId, toLocationId, null, null, null, null, null, null, page, pageSize);
     }
 
     @GetMapping("/transfers/{docId}")
@@ -301,7 +301,7 @@ public class TransactionControllers {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.MATERIAL_RETURN, status, fromDate, toDate, locationId, null, null, null, refTxnHeaderId, null, null, null, page, pageSize);
+        return service.list(DocType.MATERIAL_RETURN, status, fromDate, toDate, locationId, null, null, null, refTxnHeaderId, null, null, null, null, page, pageSize);
     }
 
     @GetMapping("/returns/{docId}")
@@ -327,10 +327,31 @@ public class TransactionControllers {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(required = false) Integer locationId,
             @RequestParam(required = false) Integer entityId,
+            @RequestParam(required = false) Integer initiatedByEmpId,
+            @RequestParam(defaultValue = "false") boolean syncGrn,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int pageSize
     ) {
-        return service.list(DocType.INSPECTION_APPROVAL, status, fromDate, toDate, locationId, null, null, null, null, entityId, null, null, page, pageSize);
+        if (syncGrn) {
+            service.syncPendingInspectionsFromGrn();
+        }
+        return service.list(
+                DocType.INSPECTION_APPROVAL,
+                status,
+                fromDate,
+                toDate,
+                locationId,
+                null,
+                null,
+                null,
+                null,
+                entityId,
+                null,
+                null,
+                initiatedByEmpId,
+                page,
+                pageSize
+        );
     }
 
     @GetMapping("/inspection-approvals/{docId}")
@@ -341,6 +362,22 @@ public class TransactionControllers {
     @PostMapping("/inspection-approvals")
     public ResponseEntity<DocumentResponse> createInspectionApproval(@RequestBody DocumentRequest body) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(DocType.INSPECTION_APPROVAL, body));
+    }
+
+    @PutMapping("/inspection-approvals/{docId}")
+    public DocumentResponse updateInspectionApproval(@PathVariable Integer docId, @RequestBody DocumentRequest body) {
+        return service.update(DocType.INSPECTION_APPROVAL, docId, body);
+    }
+
+    @DeleteMapping("/inspection-approvals/{docId}")
+    public MessageResponse deleteInspectionApproval(@PathVariable Integer docId) {
+        return service.delete(DocType.INSPECTION_APPROVAL, docId);
+    }
+
+    @PostMapping("/inspection-approvals/sync-from-grn")
+    public MessageResponse syncInspectionApprovalsFromGrn() {
+        service.syncPendingInspectionsFromGrn();
+        return MessageResponse.of("Inspection approvals synced from GRN");
     }
 
     @GetMapping("/inspection-approvals/{docId}/print")

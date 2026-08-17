@@ -292,6 +292,15 @@
                                            "local":  "2026-08-11",
                                            "dev":  "2026-08-12"
                                        }
+                       },
+                       {
+                           "id":  "030-grant-iapr-to-grn-roles",
+                           "file":  "db_approach/030_grant_iapr_to_grn_roles.sql",
+                           "description":  "Grant Inspection Approval menu to roles that can view GRN (not only ADMIN).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  null
+                                       }
                        }
                    ],
     "updated":  "2026-08-12"

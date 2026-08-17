@@ -61,7 +61,7 @@ const DATALIST_ID = 'grn-item-options'
 
 /**
  * GRN Item Details — Item Type drives extra columns:
- * Asset → serial / network fields (qty columns stay visible, locked to 1).
+ * Asset → serial / network fields; each unit line has received 1 with editable accepted / rejected.
  * Consumable → batch + editable received / accepted / rejected.
  * Shared on every line: Received, Accepted, Rejected, Available Stock, Amount, Location, Remark.
  */
@@ -225,11 +225,28 @@ export function GrnItemLines({
   }
 
   const setAccepted = (line: GrnLine, value: string) => {
-    if (isAsset) return
+    if (isAsset) {
+      patch(line.key, {
+        acceptedQty: value,
+        rejectedQty: String(Math.max(toNum(line.receivedQty) - toNum(value), 0)),
+      })
+      return
+    }
     patch(line.key, {
       acceptedQty: value,
       rejectedQty: String(Math.max(toNum(line.receivedQty) - toNum(value), 0)),
     })
+  }
+
+  const setRejected = (line: GrnLine, value: string) => {
+    if (isAsset) {
+      patch(line.key, {
+        rejectedQty: value,
+        acceptedQty: String(Math.max(toNum(line.receivedQty) - toNum(value), 0)),
+      })
+      return
+    }
+    patch(line.key, { rejectedQty: value })
   }
 
   const removeLine = (key: string) =>
@@ -249,9 +266,9 @@ export function GrnItemLines({
         title="Item Details"
         subtitle={
           !headerReady
-            ? 'Complete all required header fields before selecting items.'
+            ? 'Complete GRN date and supplier before selecting items.'
             : isAsset
-              ? 'Asset qty expands into unit lines — fill serial / network details; qty columns stay on each unit'
+              ? 'Asset qty expands into unit lines — mark each unit accepted or rejected (received stays 1 per unit)'
               : 'Received, accepted and rejected quantities per line'
         }
       />
@@ -366,7 +383,9 @@ export function GrnItemLines({
                   const received = toNum(line.receivedQty)
                   const split = toNum(line.acceptedQty) + toNum(line.rejectedQty)
                   const splitMismatch =
-                    !isAsset && line.itemId !== '' && received > 0 && Math.abs(split - received) > 0.0001
+                    line.itemId !== '' &&
+                    received > 0 &&
+                    Math.abs(split - received) > 0.0001
                   return (
                     <tr key={line.key} className="border-b border-[var(--border)] align-middle">
                       <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
@@ -469,7 +488,7 @@ export function GrnItemLines({
                           step="0.01"
                           value={line.acceptedQty}
                           onChange={(e) => setAccepted(line, e.target.value)}
-                          disabled={linesLocked || isAsset}
+                          disabled={linesLocked}
                           invalid={splitMismatch}
                           className={gridInputRight}
                         />
@@ -480,8 +499,8 @@ export function GrnItemLines({
                           min={0}
                           step="0.01"
                           value={line.rejectedQty}
-                          onChange={(e) => patch(line.key, { rejectedQty: e.target.value })}
-                          disabled={linesLocked || isAsset}
+                          onChange={(e) => setRejected(line, e.target.value)}
+                          disabled={linesLocked}
                           invalid={splitMismatch}
                           className={gridInputRight}
                         />

@@ -16,15 +16,16 @@ import {
   useStockLookup,
   type BaseLine,
 } from './lineGrid'
+import { locLabel } from './txnLookups'
 
 export type InspectionLine = BaseLine & {
   approveQty: string
   batchLotNo: string
-  homeStore: string
+  serialNo: string
 }
 
 export function emptyInspectionLine(): InspectionLine {
-  return { ...baseLine(), approveQty: '', batchLotNo: '', homeStore: '' }
+  return { ...baseLine(), approveQty: '', batchLotNo: '', serialNo: '' }
 }
 
 const DATALIST_ID = 'inspection-item-options'
@@ -35,7 +36,8 @@ export function InspectionItemLines({
   items,
   units,
   locations,
-  quarantineLocationId,
+  sourceQuarantineId,
+  quarantineLabel,
   readOnly = false,
   headerReady = true,
   error,
@@ -45,7 +47,9 @@ export function InspectionItemLines({
   items: ApiMasterRow[]
   units: ApiMasterRow[]
   locations: ApiMasterRow[]
-  quarantineLocationId: string
+  /** Header quarantine from GRN-linked approval; fallback when OU quarantine is resolved per line. */
+  sourceQuarantineId: string
+  quarantineLabel?: string
   readOnly?: boolean
   headerReady?: boolean
   error?: string
@@ -68,33 +72,44 @@ export function InspectionItemLines({
   )
   const { loading: stockLoading, lookup } = useStockLookup(onStock)
 
-  const itemIdsKey = useMemo(() => lines.map((l) => `${l.key}:${l.itemId}`).join('|'), [lines])
+  const stockKey = useMemo(
+    () =>
+      lines
+        .map(
+          (l) =>
+            `${l.key}:${l.itemId}:${l.batchLotNo}:${l.locationId}:${sourceQuarantineId}`,
+        )
+        .join('|'),
+    [lines, sourceQuarantineId],
+  )
 
   useEffect(() => {
-    if (!quarantineLocationId || linesLocked) return
+    if (linesLocked) return
     for (const line of lines) {
       if (!line.itemId) continue
-      void lookup(line.key, Number(line.itemId), quarantineLocationId)
+      if (!sourceQuarantineId) continue
+      void lookup(line.key, Number(line.itemId), sourceQuarantineId, line.batchLotNo)
     }
-  }, [quarantineLocationId, itemIdsKey, linesLocked, lookup, lines])
+    // lines intentionally omitted — stockKey covers item/batch/location without looping on stock patches
+  }, [stockKey, linesLocked, lookup, sourceQuarantineId])
 
   const addLine = () => onChange((prev) => [...prev, emptyInspectionLine()])
-  const removeLine = (key: string) => onChange((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)))
+  const removeLine = (key: string) =>
+    onChange((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)))
 
   const onItemCode = (key: string, code: string) => {
     const item = itemByCode.get(code.trim().toUpperCase())
     if (!item) {
-      patch(key, { itemCode: code, itemId: '', itemName: '', uomId: '', homeStore: '' })
+      patch(key, { itemCode: code, itemId: '', itemName: '', uomId: '', locationId: '' })
       return
     }
     const homeId = String(item.store ?? '')
-    const home = homeId ? locationById.get(homeId) : undefined
     patch(key, {
-      ...applyItemMaster(item),
+      ...applyItemMaster(item, homeId),
       itemCode: code,
-      homeStore: home ? `${home.code} · ${home.name}` : homeId || '—',
     })
-    if (quarantineLocationId && item.id) void lookup(key, Number(item.id), quarantineLocationId)
+    const quar = sourceQuarantineId
+    if (quar && item.id) void lookup(key, Number(item.id), quar)
   }
 
   const uomLabel = (uomId: string) => {
@@ -102,13 +117,29 @@ export function InspectionItemLines({
     return u?.code ?? u?.name ?? '—'
   }
 
+  const storeLabel = (locationId: string) => {
+    const loc = locationById.get(locationId)
+    return loc ? locLabel(loc) : locationId || '—'
+  }
+
+  const showSerial = lines.some((l) => l.serialNo.trim() !== '')
+
   return (
     <Card className="mt-3">
-      <CardHeader title="Items in Quarantine" />
+      <CardHeader
+        title="Items in Quarantine"
+        subtitle={
+          quarantineLabel
+            ? `Stock is read from quarantine: ${quarantineLabel}`
+            : sourceQuarantineId
+              ? 'Loading quarantine store…'
+              : 'Quarantine store not resolved — sync from GRN or reopen the approval.'
+        }
+      />
       <CardBody>
         {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-[13px]">
+          <table className="w-full min-w-[880px] border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-[var(--border)] text-left text-[11px] uppercase tracking-wide text-[var(--text3)]">
                 <th className={gridHeadCell}>#</th>
@@ -118,6 +149,7 @@ export function InspectionItemLines({
                 <th className={gridHeadCell}>Available</th>
                 <th className={gridHeadCell}>Approve Qty</th>
                 <th className={gridHeadCell}>Batch / Lot</th>
+                {showSerial && <th className={gridHeadCell}>Serial No.</th>}
                 <th className={gridHeadCell}>Home Store</th>
                 <th className={gridHeadCell} />
               </tr>
@@ -158,7 +190,12 @@ export function InspectionItemLines({
                       onChange={(e) => patch(line.key, { batchLotNo: e.target.value })}
                     />
                   </td>
-                  <td className={gridCell}>{line.homeStore || '—'}</td>
+                  {showSerial && (
+                    <td className={gridCell}>
+                      <Input className={gridInput} value={line.serialNo} readOnly disabled />
+                    </td>
+                  )}
+                  <td className={gridCell}>{storeLabel(line.locationId)}</td>
                   <td className={gridCell}>
                     {!linesLocked && (
                       <Button variant="ghost" className="text-xs" onClick={() => removeLine(line.key)}>

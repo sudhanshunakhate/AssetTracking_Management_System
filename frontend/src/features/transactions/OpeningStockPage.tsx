@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { StatusPill } from '@/components/ui/Badge'
@@ -7,7 +7,6 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { LookupSelect } from '@/components/form/LookupSelect'
 import {
   createTxn,
   fetchTxn,
@@ -18,7 +17,7 @@ import {
   type DocumentRequest,
   type TxnRow,
 } from '@/api/transactions'
-import { mapEntity, useGenValues, useMasterList, GEN_TYPE } from '@/api/masters'
+import { useGenValues, GEN_TYPE } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
@@ -30,9 +29,9 @@ import {
   type OpeningStockLine,
 } from './OpeningStockItemLines'
 import {
-  itemsForLocation,
   locationOptions as toLocationOptions,
-  quickAddLocation,
+  operationalLocations,
+  resolveTxnHeaderFromLines,
   useTxnFormLookups,
 } from './txnLookups'
 
@@ -44,8 +43,6 @@ const EDITABLE_STATUSES = ['', 'In Pending', 'Draft', 'Rejected']
 type FormState = {
   entryNo: string
   openingDate: string
-  org: string
-  locationId: string
   remarks: string
   status: string
 }
@@ -54,8 +51,6 @@ function blankForm(): FormState {
   return {
     entryNo: AUTO_DOC_NO_LABEL,
     openingDate: todayIso(),
-    org: '',
-    locationId: '',
     remarks: '',
     status: '',
   }
@@ -140,8 +135,6 @@ function OpeningStockForm() {
   const navigate = useNavigate()
   const { canCreateMenu, canEditMenu } = useAuth()
   const { locations, items, units, vendors } = useTxnFormLookups()
-  const mapEnt = useCallback(mapEntity, [])
-  const entities = useMasterList('entities', mapEnt)
   const { options: conditionOpts } = useGenValues(GEN_TYPE.ASSET_CONDITION)
 
   const [form, setForm] = useState<FormState>(blankForm)
@@ -174,8 +167,6 @@ function OpeningStockForm() {
         setForm({
           entryNo: doc.docNo ?? '',
           openingDate: doc.docDate ?? '',
-          org: doc.entityId != null ? String(doc.entityId) : '',
-          locationId: doc.locationId != null ? String(doc.locationId) : '',
           remarks: doc.remarks ?? '',
           status: doc.status ?? '',
         })
@@ -229,11 +220,7 @@ function OpeningStockForm() {
   }, [items.rows, lineItemKey, isNew])
 
   const headerFields: ValidatableField[] = useMemo(
-    () => [
-      { name: 'openingDate', label: 'Opening Date', required: true },
-      { name: 'org', label: 'Entity (Organization)', required: true },
-      { name: 'locationId', label: 'Location', required: true },
-    ],
+    () => [{ name: 'openingDate', label: 'Opening Date', required: true }],
     [],
   )
 
@@ -258,12 +245,11 @@ function OpeningStockForm() {
 
   const err = (name: string) => (submitted || touched[name] ? (errors[name] ?? '') : '')
 
-  const locationOptions = useMemo(() => {
-    const filtered = form.org
-      ? locations.rows.filter((l) => String(l.orgCode ?? '') === form.org)
-      : []
-    return toLocationOptions(filtered)
-  }, [locations.rows, form.org])
+  const locationOptions = useMemo(
+    () => toLocationOptions(operationalLocations(locations.rows)),
+    [locations.rows],
+  )
+  const lineLocations = useMemo(() => operationalLocations(locations.rows), [locations.rows])
   const allItemsForType = useMemo(
     () =>
       items.rows.filter(
@@ -271,28 +257,16 @@ function OpeningStockForm() {
       ),
     [items.rows, itemType],
   )
-  const orgOptions = entities.rows.map((e) => ({
-    value: e.id,
-    label: `${e.code} – ${e.name}`,
-  }))
-  const addLocation = quickAddLocation(locations.reload)
-
-  const onOrgChange = (orgId: string) => {
-    setForm((p) => {
-      const loc = locations.rows.find((l) => l.id === p.locationId)
-      const keepLoc = loc && String(loc.orgCode ?? '') === orgId
-      return { ...p, org: orgId, locationId: keepLoc ? p.locationId : '' }
-    })
-  }
 
   const buildBody = (action: 'SAVE_DRAFT' | 'SUBMIT'): DocumentRequest => {
     const filled = lines.filter((l) => l.itemId !== '')
     const firstSupplier = filled.find((l) => l.supplierId)?.supplierId
+    const header = resolveTxnHeaderFromLines(filled, locations.rows)
     return {
       docDate: form.openingDate || todayIso(),
       postingDate: form.openingDate || todayIso(),
-      entityId: numOrUndef(form.org),
-      locationId: numOrUndef(form.locationId),
+      entityId: header.entityId,
+      locationId: header.locationId,
       partyId: numOrUndef(firstSupplier),
       remarks: form.remarks,
       totalAmount: 0,
@@ -311,7 +285,7 @@ function OpeningStockForm() {
           batchLotNo: l.batch || undefined,
           mfgDate: l.mfgDate || undefined,
           expiryDate: l.expiryDate || undefined,
-          locationId: numOrUndef(l.locationId) ?? numOrUndef(form.locationId),
+          locationId: numOrUndef(l.locationId),
           serialNo: l.serialNo || undefined,
           ipAddress: l.ipAddress || undefined,
           macAddress: l.macAddress || undefined,
@@ -383,7 +357,7 @@ function OpeningStockForm() {
       </div>
 
       <Card>
-        <CardHeader title="Header" subtitle="Entry reference, organization and location" />
+        <CardHeader title="Header" subtitle="Entry reference and opening date" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Entry No." hint={isNew ? 'Auto-generated on save (OST-2026-0001)' : undefined}>
@@ -400,31 +374,6 @@ function OpeningStockForm() {
                 invalid={Boolean(err('openingDate'))}
               />
             </Field>
-
-            <LookupSelect
-              label="Entity (Organization)"
-              required
-              value={form.org}
-              onChange={onOrgChange}
-              onBlur={() => touch('org')}
-              options={orgOptions}
-              placeholder="— Select Organization —"
-              error={err('org')}
-              disabled={readOnly}
-            />
-
-            <LookupSelect
-              label="Location"
-              required
-              value={form.locationId}
-              onChange={(v) => set('locationId', v)}
-              onBlur={() => touch('locationId')}
-              options={locationOptions}
-              placeholder={form.org ? '— Select Location —' : '— Select Organization first —'}
-              error={err('locationId')}
-              disabled={readOnly || !form.org}
-              quickAdd={form.org ? addLocation : undefined}
-            />
 
             <Field label="Remarks" className="md:col-span-2 xl:col-span-4">
               <Textarea
@@ -445,14 +394,14 @@ function OpeningStockForm() {
         onChange={setLines}
         itemType={itemType}
         onItemTypeChange={setItemType}
-        items={itemsForLocation(items.rows, form.locationId)}
+        items={allItemsForType}
         allItems={allItemsForType}
         units={units.rows}
         vendors={vendors.rows}
-        locations={locations.rows}
+        locations={lineLocations}
         locationOptions={locationOptions}
         conditionOptions={conditionOpts}
-        locationId={form.locationId}
+        locationId=""
         readOnly={readOnly}
         headerReady={headerReady}
         showLineErrors={submitted}

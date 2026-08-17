@@ -79,12 +79,16 @@ export function useStockLookup(onResolved: (key: string, qty: number) => void) {
   const tokens = useRef<Record<string, number>>({})
 
   const lookup = useCallback(
-    async (key: string, itemId: number, locationId: string) => {
+    async (key: string, itemId: number, locationId: string, batchLotNo?: string) => {
       const token = (tokens.current[key] ?? 0) + 1
       tokens.current[key] = token
       setLoading((p) => ({ ...p, [key]: true }))
       try {
-        const qty = await fetchAvailableStock(itemId, locationId ? Number(locationId) : undefined)
+        const qty = await fetchAvailableStock(
+          itemId,
+          locationId ? Number(locationId) : undefined,
+          batchLotNo,
+        )
         if (tokens.current[key] === token) onResolved(key, qty)
       } catch {
         if (tokens.current[key] === token) onResolved(key, 0)
@@ -117,7 +121,7 @@ export function enrichLinesFromItems<T extends BaseLine>(lines: T[], items: ApiM
   let changed = false
   const next = lines.map((l) => {
     if (!l.itemId) return l
-    const item = items.find((i) => i.id === l.itemId)
+    const item = items.find((i) => String(i.id) === String(l.itemId))
     if (!item) return l
     const patch = {
       itemCode: l.itemCode || String(item.code ?? ''),

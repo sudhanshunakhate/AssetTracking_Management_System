@@ -18,6 +18,7 @@ export type TxnListItem = {
   departmentId?: number
   initiatedByEmpId?: number
   refTxnHeaderId?: number
+  referenceNo?: string
   invoiceNo?: string
   totalItems?: number
   totalAmount?: number
@@ -114,7 +115,7 @@ export type DocumentRequest = {
   totalAcceptedQty?: number
   totalRejectedQty?: number
   totalAmount?: number
-  docSubmitAction?: 'SAVE_DRAFT' | 'SUBMIT'
+  docSubmitAction?: 'SAVE_DRAFT' | 'SUBMIT' | 'REJECT'
   lines: LineRequest[]
 }
 
@@ -132,6 +133,7 @@ export function mapTxnListItem(item: TxnListItem): TxnRow {
     partyId: item.partyId != null ? String(item.partyId) : '',
     initiatedByEmpId: item.initiatedByEmpId != null ? String(item.initiatedByEmpId) : '',
     refTxnHeaderId: item.refTxnHeaderId != null ? String(item.refTxnHeaderId) : '',
+    referenceNo: item.referenceNo ?? '',
     departmentId: item.departmentId != null ? String(item.departmentId) : '',
     requiredByDate: item.requiredByDate ?? '',
     invoiceNo: item.invoiceNo ?? '',
@@ -262,10 +264,12 @@ export function mapOpeningStockForm(doc: TxnDocument): Record<string, unknown> {
 
 export function useTxnList(
   resource: string,
-  options?: { enabled?: boolean; status?: string },
+  options?: { enabled?: boolean; status?: string; initiatedByEmpId?: number; syncGrn?: boolean },
 ) {
   const enabled = options?.enabled ?? true
   const status = options?.status
+  const initiatedByEmpId = options?.initiatedByEmpId
+  const syncGrn = options?.syncGrn
   const [rows, setRows] = useState<TxnRow[]>([])
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
@@ -279,6 +283,8 @@ export function useTxnList(
         page: 1,
         pageSize: 200,
         status: status || undefined,
+        initiatedByEmpId: initiatedByEmpId ?? undefined,
+        syncGrn: syncGrn ? true : undefined,
       })
       setRows(sortTxnListRows((page.data ?? []).map(mapTxnListItem)))
     } catch (err) {
@@ -287,7 +293,7 @@ export function useTxnList(
     } finally {
       setLoading(false)
     }
-  }, [enabled, resource, status])
+  }, [enabled, resource, status, initiatedByEmpId, syncGrn])
 
   useEffect(() => {
     void reload()
@@ -310,6 +316,16 @@ export async function updateTxn(resource: string, id: string, body: DocumentRequ
 
 export async function fetchTxn(resource: string, id: string) {
   return http.get<TxnDocument>(`/${resource}/${id}`)
+}
+
+export async function syncInspectionApprovalsFromGrn() {
+  const res = await http.post<{ message: string }>('/inspection-approvals/sync-from-grn', {})
+  invalidateDashboardSummary()
+  return res
+}
+
+export async function fetchTxnPrint(resource: string, id: string) {
+  return http.get<TxnDocument>(`/${resource}/${id}/print`)
 }
 
 export async function deleteTxn(resource: string, id: string) {
@@ -344,11 +360,19 @@ export type StockRow = {
  * Available quantity for an item, optionally narrowed to one location.
  * Sums every batch row and returns 0 when the item has never been stocked.
  */
-export async function fetchAvailableStock(itemId: number, locationId?: number): Promise<number> {
+export async function fetchAvailableStock(
+  itemId: number,
+  locationId?: number,
+  batchLotNo?: string,
+): Promise<number> {
   const qs = new URLSearchParams({ itemId: String(itemId), page: '1', pageSize: '200' })
   if (locationId != null) qs.set('locationId', String(locationId))
   const page = await http.get<PageResponse<StockRow>>(`/stock?${qs}`)
-  return (page.data ?? []).reduce((sum, r) => sum + Number(r.availableQty ?? 0), 0)
+  const batch = batchLotNo?.trim()
+  const rows = (page.data ?? []).filter((r) =>
+    !batch ? true : String(r.batchLotNo ?? '') === batch,
+  )
+  return rows.reduce((sum, r) => sum + Number(r.availableQty ?? r.currentQty ?? 0), 0)
 }
 
 /** All available qty by itemId for one store (sums batches). */

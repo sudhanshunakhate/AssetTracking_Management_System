@@ -30,6 +30,7 @@ import {
   itemsForLocation,
   locLabel,
   locationOptions as toLocationOptions,
+  operationalLocations,
   quickAddEmployee,
   quickAddLocation,
   useTxnFormLookups,
@@ -196,7 +197,11 @@ function IssueForm() {
     return hit ? `${hit.docNo} · ${hit.docDate || ''}` : `Req #${form.requisitionId}`
   })()
 
-  const locationOptions = useMemo(() => toLocationOptions(locations.rows), [locations.rows])
+  const locationOptions = useMemo(
+    () => toLocationOptions(operationalLocations(locations.rows)),
+    [locations.rows],
+  )
+  const lineLocations = useMemo(() => operationalLocations(locations.rows), [locations.rows])
   const employeeOptions = useMemo(() => toEmployeeOptions(employees.rows), [employees.rows])
 
   const addLocation = quickAddLocation(locations.reload)
@@ -514,7 +519,7 @@ function IssueForm() {
           onChange={setLines}
           items={itemsForLocation(items.rows, form.storeId)}
           units={units.rows}
-          locations={locations.rows}
+          locations={lineLocations}
           storeLocationId={form.storeId}
           readOnly={readOnly}
           headerReady={headerReady}

@@ -59,6 +59,26 @@ export const empLabel = (e: ApiMasterRow) => `${e.code} – ${e.firstName} ${e.l
 export const locLabel = (l: ApiMasterRow) => `${l.code} – ${l.name}`
 export const vendorLabel = (v: ApiMasterRow) => `${v.code} – ${v.name}`
 
+/** System stores used for quarantine / damaged / scrap / rejected stock — not operational pick lists. */
+export const SPECIAL_SYSTEM_LOCATION_ROLES = new Set(['QUARANTINE', 'DAMAGED', 'SCRAP', 'REJECTED'])
+
+export function isSpecialSystemLocation(loc: ApiMasterRow): boolean {
+  const role = String(loc.systemRole ?? '').toUpperCase()
+  if (SPECIAL_SYSTEM_LOCATION_ROLES.has(role)) return true
+  const blob = `${loc.code ?? ''} ${loc.name ?? ''}`.toLowerCase()
+  return (
+    blob.includes('quarantine') ||
+    blob.includes('damaged') ||
+    blob.includes('scrap') ||
+    blob.includes('reject')
+  )
+}
+
+/** Operational stores only — excludes quarantine, damaged, scrap, and rejected system locations. */
+export function operationalLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return rows.filter((l) => !isSpecialSystemLocation(l))
+}
+
 /** Items assigned to the selected store in Item Master. */
 export { itemsForLocation } from '@/api/masters'
 
@@ -66,6 +86,8 @@ export const employeeOptions = (rows: ApiMasterRow[]) =>
   rows.map((e) => ({ value: e.id, label: empLabel(e) }))
 export const locationOptions = (rows: ApiMasterRow[]) =>
   rows.map((l) => ({ value: l.id, label: locLabel(l) }))
+export const operationalLocationOptions = (rows: ApiMasterRow[]) =>
+  locationOptions(operationalLocations(rows))
 export const vendorOptions = (rows: ApiMasterRow[]) =>
   rows.map((v) => ({ value: v.id, label: vendorLabel(v) }))
 
@@ -147,5 +169,40 @@ export function quickAddVendor(reload: () => Promise<void>): QuickAddConfig {
       await reload()
       return { value: String(created.vendorId), label: `${v.vendorCode} – ${v.vendorName}` }
     },
+  }
+}
+
+/** Derive the system quarantine store for an operating unit. */
+export function quarantineForOperatingUnit(ouId: string, locations: ApiMasterRow[]): string {
+  if (!ouId) return ''
+  const q = locations.find(
+    (l) =>
+      String(l.ouCode) === String(ouId) &&
+      String(l.systemRole ?? '').toUpperCase() === 'QUARANTINE',
+  )
+  return q?.id ?? ''
+}
+
+/** Quarantine store for the OU of a given operational location. */
+export function quarantineForLocation(locationId: string, locations: ApiMasterRow[]): string {
+  if (!locationId) return ''
+  const loc = locations.find((l) => String(l.id) === String(locationId))
+  if (!loc?.ouCode) return ''
+  return quarantineForOperatingUnit(loc.ouCode, locations)
+}
+
+/** Derive document header entity/location from the first line with a location set. */
+export function resolveTxnHeaderFromLines(
+  lines: Array<{ locationId?: string }>,
+  locations: ApiMasterRow[],
+): { entityId?: number; locationId?: number } {
+  const firstLineLoc = lines.find((l) => l.locationId)?.locationId
+  if (!firstLineLoc) return {}
+  const loc = locations.find((l) => l.id === firstLineLoc)
+  const locationId = Number(firstLineLoc)
+  const entityId = loc?.orgCode ? Number(loc.orgCode) : undefined
+  return {
+    locationId: Number.isFinite(locationId) ? locationId : undefined,
+    entityId: entityId != null && Number.isFinite(entityId) ? entityId : undefined,
   }
 }

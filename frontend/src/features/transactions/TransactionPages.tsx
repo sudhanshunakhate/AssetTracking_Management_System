@@ -23,6 +23,7 @@ import {
 import type { MaterialReturn } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
 import { itemOptionLabel, useLocationStock } from './lineGrid'
+import { operationalLocations } from './txnLookups'
 
 function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} – ${r.name}`) {
   return rows.map((r) => ({ value: r.id, label: label(r) }))
@@ -247,7 +248,7 @@ export function ReturnsPages() {
   const fields: FieldDef[] = [
     { name: 'date', label: 'Return Date', required: true },
     { name: 'returnedBy', label: 'Returned By', type: 'select', required: true, span: 2, options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`) },
-    { name: 'store', label: 'Return to Store', type: 'select', required: true, options: opt(locations.rows) },
+    { name: 'store', label: 'Return to Store', type: 'select', required: true, options: opt(operationalLocations(locations.rows)) },
     {
       name: 'item',
       label: 'Item',

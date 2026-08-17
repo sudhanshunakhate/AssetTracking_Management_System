@@ -195,7 +195,7 @@ export function OpeningStockItemLines({
         title="Item Details"
         subtitle={
           !headerReady
-            ? 'Complete all required header fields before selecting items.'
+            ? 'Complete opening date before selecting items.'
             : isAsset
               ? 'Select Asset, enter qty, then Add Units — each unit becomes its own line for serial / network details'
               : 'Select Consumable and quantity, then Add Line'

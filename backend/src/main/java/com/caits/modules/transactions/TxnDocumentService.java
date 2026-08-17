@@ -87,6 +87,7 @@ public class TxnDocumentService {
             Integer entityId,
             String docSubtype,
             String returnFlag,
+            Integer initiatedByEmpId,
             int page,
             int pageSize
     ) {
@@ -117,13 +118,21 @@ public class TxnDocumentService {
                 if (locFilter.isEmpty()) {
                     preds.add(cb.disjunction());
                 } else {
-                    // A document is visible if ANY of its location columns is in the allow-list
-                    // (covers transfers that only fill from/to).
-                    preds.add(cb.or(
+                    Predicate locMatch = cb.or(
                             root.get("txhLocationIdLoc").in(locFilter),
                             root.get("txhFromLocationIdLoc").in(locFilter),
                             root.get("txhToLocationIdLoc").in(locFilter)
-                    ));
+                    );
+                    if (docType == DocType.INSPECTION_APPROVAL) {
+                        Integer assignee = accessScope.currentEmployeeId();
+                        if (assignee != null) {
+                            preds.add(cb.or(locMatch, cb.equal(root.get("txhInitiatedByEmpIdEmp"), assignee)));
+                        } else {
+                            preds.add(locMatch);
+                        }
+                    } else {
+                        preds.add(locMatch);
+                    }
                 }
             }
             if (fromLocationId != null) {
@@ -146,6 +155,9 @@ public class TxnDocumentService {
             }
             if (returnFlag != null && !returnFlag.isBlank()) {
                 preds.add(cb.equal(root.get("txhReturnFlag"), returnFlag));
+            }
+            if (initiatedByEmpId != null) {
+                preds.add(cb.equal(root.get("txhInitiatedByEmpIdEmp"), initiatedByEmpId));
             }
             return cb.and(preds.toArray(Predicate[]::new));
         };
@@ -188,15 +200,16 @@ public class TxnDocumentService {
 
     @Transactional
     public DocumentResponse create(DocType docType, DocumentRequest req) {
+        if (docType == DocType.INSPECTION_APPROVAL && req.refTxnHeaderId() == null) {
+            throw ApiException.badRequest("Inspection approval must be linked to a GRN");
+        }
         validateLines(docType, req.lines());
-        accessScope.requireLocationAllowed(req.locationId());
-        accessScope.requireLocationAllowed(req.fromLocationId());
-        accessScope.requireLocationAllowed(req.toLocationId());
+        requireWriteLocations(docType, req);
         String action = normalizeAction(req.docSubmitAction());
-        String status = "SAVE_DRAFT".equals(action) ? draftStatus(docType) : initialSubmitStatus(docType);
+        String status = resolveStatusOnSave(docType, action);
 
         TxnHeaderMst header = new TxnHeaderMst();
-        applyHeader(header, docType, req);
+        applyHeader(header, docType, req, false);
         header.setTxhDocNo(nextDocNo(docType));
         header.setTxhStatus(status);
         header.setTxhCreatedBy(SecurityUtils.loginIdOrSystem());
@@ -204,13 +217,37 @@ public class TxnDocumentService {
         header = headerRepo.save(header);
 
         List<TxnDetailDtl> savedLines = saveLines(header, docType, req.lines());
-        if ("SUBMIT".equals(action) && postsStockOnSubmit(docType)) {
-            postStock(header, savedLines, true);
-            header.setTxhStatus(resolveSubmitStatusAfterPosting(docType, header));
-            header.setTxhPostingDate(header.getTxhPostingDate() != null ? header.getTxhPostingDate() : LocalDate.now());
+        if (docType == DocType.INSPECTION_APPROVAL) {
+            ensureInspectionQuarantineOnHeader(header, savedLines);
             header = headerRepo.save(header);
-            markLinkedRequisitionIssued(docType, header);
-            markLinkedTransferCompleted(docType, header);
+        }
+        if ("SUBMIT".equals(action) || "REJECT".equals(action)) {
+            if (docType == DocType.INSPECTION_APPROVAL) {
+                requireInspectionApprovalActor(header);
+            }
+            if (docType == DocType.GRN && "SUBMIT".equals(action)) {
+                validateGrnInspectionRequirements(header, savedLines);
+            }
+            if ("SUBMIT".equals(action) && postsStockOnSubmit(docType)) {
+                if (docType == DocType.INSPECTION_APPROVAL) {
+                    stampInspectionApproved(header);
+                }
+                postStock(header, savedLines, true);
+                header.setTxhStatus(resolveSubmitStatusAfterPosting(docType, header));
+                header.setTxhPostingDate(header.getTxhPostingDate() != null ? header.getTxhPostingDate() : LocalDate.now());
+                header = headerRepo.save(header);
+                markLinkedRequisitionIssued(docType, header);
+                markLinkedTransferCompleted(docType, header);
+                if (docType == DocType.GRN) {
+                    createPendingInspectionApproval(header, savedLines);
+                }
+            } else if ("REJECT".equals(action) && docType == DocType.INSPECTION_APPROVAL) {
+                stampInspectionApproved(header);
+                postInspectionRejectStock(header, savedLines, true);
+                header.setTxhStatus("Rejected");
+                header.setTxhPostingDate(LocalDate.now());
+                header = headerRepo.save(header);
+            }
         }
         return toDocument(header, savedLines, docType.name().replace('_', ' ') + " created successfully");
     }
@@ -218,18 +255,18 @@ public class TxnDocumentService {
     @Transactional
     public DocumentResponse update(DocType docType, Integer docId, DocumentRequest req) {
         TxnHeaderMst header = requireHeader(docType, docId);
-        if (!isEditable(header.getTxhStatus())) {
+        if (!isEditable(header)) {
             throw ApiException.conflict("Only draft / pending documents can be updated");
         }
         validateLines(docType, req.lines());
-        accessScope.requireLocationAllowed(req.locationId());
-        accessScope.requireLocationAllowed(req.fromLocationId());
-        accessScope.requireLocationAllowed(req.toLocationId());
+        requireWriteLocations(docType, req);
 
-        applyHeader(header, docType, req);
+        applyHeader(header, docType, req, true);
         String action = normalizeAction(req.docSubmitAction());
         if ("SAVE_DRAFT".equals(action)) {
             header.setTxhStatus(draftStatus(docType));
+        } else if ("REJECT".equals(action) && docType == DocType.INSPECTION_APPROVAL) {
+            header.setTxhStatus("Rejected");
         } else if ("SUBMIT".equals(action)) {
             header.setTxhStatus(initialSubmitStatus(docType));
         }
@@ -240,13 +277,38 @@ public class TxnDocumentService {
         detailRepo.deleteByTxdTxnHeaderIdTxh(header.getTxhTxnHeaderId());
         List<TxnDetailDtl> savedLines = saveLines(header, docType, req.lines());
 
-        if ("SUBMIT".equals(action) && postsStockOnSubmit(docType)) {
-            postStock(header, savedLines, true);
-            header.setTxhStatus(resolveSubmitStatusAfterPosting(docType, header));
-            header.setTxhPostingDate(LocalDate.now());
+        if (docType == DocType.INSPECTION_APPROVAL) {
+            ensureInspectionQuarantineOnHeader(header, savedLines);
             header = headerRepo.save(header);
-            markLinkedRequisitionIssued(docType, header);
-            markLinkedTransferCompleted(docType, header);
+        }
+
+        if ("SUBMIT".equals(action) || "REJECT".equals(action)) {
+            if (docType == DocType.INSPECTION_APPROVAL) {
+                requireInspectionApprovalActor(header);
+            }
+            if (docType == DocType.GRN && "SUBMIT".equals(action)) {
+                validateGrnInspectionRequirements(header, savedLines);
+            }
+            if ("SUBMIT".equals(action) && postsStockOnSubmit(docType)) {
+                if (docType == DocType.INSPECTION_APPROVAL) {
+                    stampInspectionApproved(header);
+                }
+                postStock(header, savedLines, true);
+                header.setTxhStatus(resolveSubmitStatusAfterPosting(docType, header));
+                header.setTxhPostingDate(LocalDate.now());
+                header = headerRepo.save(header);
+                markLinkedRequisitionIssued(docType, header);
+                markLinkedTransferCompleted(docType, header);
+                if (docType == DocType.GRN) {
+                    createPendingInspectionApproval(header, savedLines);
+                }
+            } else if ("REJECT".equals(action) && docType == DocType.INSPECTION_APPROVAL) {
+                stampInspectionApproved(header);
+                postInspectionRejectStock(header, savedLines, true);
+                header.setTxhStatus("Rejected");
+                header.setTxhPostingDate(LocalDate.now());
+                header = headerRepo.save(header);
+            }
         }
         return toDocument(header, savedLines, "Document updated successfully");
     }
@@ -254,7 +316,7 @@ public class TxnDocumentService {
     @Transactional
     public MessageResponse delete(DocType docType, Integer docId) {
         TxnHeaderMst header = requireHeader(docType, docId);
-        if (!isEditable(header.getTxhStatus())) {
+        if (!isEditable(header)) {
             throw ApiException.conflict("Only draft / pending documents can be deleted");
         }
         detailRepo.deleteByTxdTxnHeaderIdTxh(header.getTxhTxnHeaderId());
@@ -304,11 +366,43 @@ public class TxnDocumentService {
         return get(docType, docId);
     }
 
+    /**
+     * Creates missing Pending inspection approvals for completed GRNs that have
+     * inspection-needed lines but no linked approval yet (e.g. submitted before auto-create existed).
+     */
+    @Transactional
+    public void syncPendingInspectionsFromGrn() {
+        Specification<TxnHeaderMst> grnSpec = (root, query, cb) -> cb.and(
+                cb.equal(root.get("txhDocType"), DocType.GRN.code()),
+                cb.equal(root.get("txhStatus"), initialSubmitStatus(DocType.GRN))
+        );
+        List<TxnHeaderMst> grns = headerRepo.findAll(grnSpec);
+        for (TxnHeaderMst grn : grns) {
+            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(grn.getTxhTxnHeaderId());
+            createPendingInspectionApproval(grn, lines);
+        }
+        repairPendingInspectionHeaders();
+    }
+
+    /** Backfill quarantine location on pending inspections from their linked GRN. */
+    @Transactional
+    public void repairPendingInspectionHeaders() {
+        Specification<TxnHeaderMst> spec = (root, query, cb) -> cb.and(
+                cb.equal(root.get("txhDocType"), DocType.INSPECTION_APPROVAL.code()),
+                cb.equal(root.get("txhStatus"), draftStatus(DocType.INSPECTION_APPROVAL))
+        );
+        for (TxnHeaderMst header : headerRepo.findAll(spec)) {
+            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(header.getTxhTxnHeaderId());
+            ensureInspectionQuarantineOnHeader(header, lines);
+            headerRepo.save(header);
+        }
+    }
+
     public PageResponse<ListItem> pendingRequisitions(Integer locationId) {
         return list(
                 DocType.MATERIAL_REQUISITION,
                 "Requested",
-                null, null, locationId, null, null, null, null, null, null, null,
+                null, null, locationId, null, null, null, null, null, null, null, null,
                 1, 100
         );
     }
@@ -323,15 +417,36 @@ public class TxnDocumentService {
         return header;
     }
 
-    /** A document is visible when at least one of its location columns is in the allow-list. */
     private void requireDocumentVisible(TxnHeaderMst header) {
+        if (DocType.INSPECTION_APPROVAL.code().equals(header.getTxhDocType())) {
+            Integer assignee = accessScope.currentEmployeeId();
+            if (assignee != null && assignee.equals(header.getTxhInitiatedByEmpIdEmp())) {
+                return;
+            }
+        }
         AccessScopeService.Scope scope = accessScope.current();
         if (!scope.locationRestricted()) return;
         List<Integer> allowed = scope.allowedLocationIds();
         boolean ok = (header.getTxhLocationIdLoc() != null && allowed.contains(header.getTxhLocationIdLoc()))
                 || (header.getTxhFromLocationIdLoc() != null && allowed.contains(header.getTxhFromLocationIdLoc()))
                 || (header.getTxhToLocationIdLoc() != null && allowed.contains(header.getTxhToLocationIdLoc()));
+        if (!ok && header.getTxhLocationIdLoc() != null && accessScope.canAccessLocation(header.getTxhLocationIdLoc())) {
+            ok = true;
+        }
         if (!ok) throw ApiException.forbidden("You do not have access to this document");
+    }
+
+    /**
+     * Inspection approval moves stock from quarantine to each item's home store (line location).
+     * Assigned inspectors are not limited to their location mapping for those targets.
+     */
+    private void requireWriteLocations(DocType docType, DocumentRequest req) {
+        if (docType == DocType.INSPECTION_APPROVAL) {
+            return;
+        }
+        accessScope.requireLocationAllowed(req.locationId());
+        accessScope.requireLocationAllowed(req.fromLocationId());
+        accessScope.requireLocationAllowed(req.toLocationId());
     }
 
     private void validateLines(DocType docType, List<LineRequest> lines) {
@@ -364,7 +479,71 @@ public class TxnDocumentService {
         if (a.contains("DRAFT")) {
             return "SAVE_DRAFT";
         }
+        if (a.contains("REJECT")) {
+            return "REJECT";
+        }
         return "SUBMIT";
+    }
+
+    private String resolveStatusOnSave(DocType docType, String action) {
+        if ("SAVE_DRAFT".equals(action)) {
+            return draftStatus(docType);
+        }
+        if ("REJECT".equals(action) && docType == DocType.INSPECTION_APPROVAL) {
+            return "Rejected";
+        }
+        return initialSubmitStatus(docType);
+    }
+
+    private boolean isEditable(TxnHeaderMst header) {
+        if (DocType.INSPECTION_APPROVAL.code().equals(header.getTxhDocType())) {
+            String s = header.getTxhStatus();
+            if (s == null || s.isBlank()) {
+                return true;
+            }
+            return "Pending".equalsIgnoreCase(s)
+                    || "Draft".equalsIgnoreCase(s)
+                    || "In Pending".equalsIgnoreCase(s);
+        }
+        return StockPostingRules.isEditableStatus(header.getTxhStatus());
+    }
+
+    /** GRN with inspection-needed accepted qty requires inspector and item home stores. */
+    private void validateGrnInspectionRequirements(TxnHeaderMst header, List<TxnDetailDtl> lines) {
+        boolean needsInspector = false;
+        for (TxnDetailDtl line : lines) {
+            InvItemMst item = itemRepo.findById(line.getTxdItemIdItm()).orElse(null);
+            if (item == null || !Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
+                continue;
+            }
+            BigDecimal accepted = firstNonNull(line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
+            if (accepted.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            needsInspector = true;
+            if (item.getItmCurrentLocationIdLoc() == null) {
+                String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(item.getItmItemId());
+                throw ApiException.badRequest("Item " + code + " needs a home store in Item Master for inspection workflow");
+            }
+        }
+        if (needsInspector && header.getTxhInspectedByEmpIdEmp() == null) {
+            throw ApiException.badRequest("Inspected By is required when receiving items that need inspection");
+        }
+    }
+
+    /** Only the GRN-assigned inspector (or ADMIN) may approve / reject a pending inspection. */
+    private void requireInspectionApprovalActor(TxnHeaderMst header) {
+        if (accessScope.isRoleExempt()) {
+            return;
+        }
+        Integer assignee = header.getTxhInitiatedByEmpIdEmp();
+        Integer actor = accessScope.currentEmployeeId();
+        if (assignee == null) {
+            throw ApiException.conflict("Inspection approval has no assigned inspector");
+        }
+        if (actor == null || !assignee.equals(actor)) {
+            throw ApiException.forbidden("Only the assigned inspector can approve or reject this inspection");
+        }
     }
 
     private String draftStatus(DocType docType) {
@@ -438,10 +617,6 @@ public class TxnDocumentService {
         return StockPostingRules.postsStockOnSubmit(docType);
     }
 
-    private boolean isEditable(String status) {
-        return StockPostingRules.isEditableStatus(status);
-    }
-
     private String nextDocNo(DocType docType) {
         String year = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy"));
         String prefix = docType.seriesPrefix() + "-" + year + "-";
@@ -452,29 +627,45 @@ public class TxnDocumentService {
         return prefix + String.format("%04d", count + 1);
     }
 
-    private void applyHeader(TxnHeaderMst h, DocType docType, DocumentRequest req) {
+    private void applyHeader(TxnHeaderMst h, DocType docType, DocumentRequest req, boolean merge) {
         h.setTxhDocType(docType.code());
         h.setTxhDocDate(req.docDate() != null ? req.docDate() : LocalDate.now());
         h.setTxhPostingDate(req.postingDate());
         h.setTxhRequiredByDate(req.requiredByDate());
-        h.setTxhEntityIdEnt(req.entityId());
-        h.setTxhLocationIdLoc(req.locationId());
-        h.setTxhFromLocationIdLoc(req.fromLocationId());
-        h.setTxhToLocationIdLoc(req.toLocationId());
+        if (!merge || req.entityId() != null) {
+            h.setTxhEntityIdEnt(req.entityId());
+        }
+        if (!merge || req.locationId() != null) {
+            h.setTxhLocationIdLoc(req.locationId());
+        }
+        if (!merge || req.fromLocationId() != null) {
+            h.setTxhFromLocationIdLoc(req.fromLocationId());
+        }
+        if (!merge || req.toLocationId() != null) {
+            h.setTxhToLocationIdLoc(req.toLocationId());
+        }
         h.setTxhPartyIdVnd(req.partyId());
         h.setTxhPartyAdd(req.partyAdd());
         h.setTxhPartyContactPerson(req.partyContactPerson());
         h.setTxhPartyPhone(req.partyPhone());
         h.setTxhPartyGstin(req.partyGstin());
         h.setTxhShipTo(req.shipTo());
-        h.setTxhDepartmentIdDept(req.departmentId());
-        h.setTxhInitiatedByEmpIdEmp(req.initiatedByEmpId());
+        if (!merge || req.departmentId() != null) {
+            h.setTxhDepartmentIdDept(req.departmentId());
+        }
+        if (!merge || req.initiatedByEmpId() != null) {
+            h.setTxhInitiatedByEmpIdEmp(req.initiatedByEmpId());
+        }
         h.setTxhEmployeeRefCode(req.employeeRefCode());
         h.setTxhDesignation(req.designation());
         h.setTxhDocSubtype(req.docSubtype());
         h.setTxhReturnFlag(req.returnFlag());
-        h.setTxhRefTxnHeaderIdTxh(req.refTxnHeaderId());
-        h.setTxhReferenceNo(req.referenceNo());
+        if (!merge || req.refTxnHeaderId() != null) {
+            h.setTxhRefTxnHeaderIdTxh(req.refTxnHeaderId());
+        }
+        if (!merge || req.referenceNo() != null) {
+            h.setTxhReferenceNo(req.referenceNo());
+        }
         h.setTxhInvoiceNo(req.invoiceNo());
         h.setTxhInvoiceDate(req.invoiceDate());
         h.setTxhPoNo(req.poNo());
@@ -493,8 +684,12 @@ public class TxnDocumentService {
         h.setTxhConditionOnReturn(req.conditionOnReturn());
         h.setTxhPreparedByEmpIdEmp(req.preparedByEmpId());
         h.setTxhPreparedDate(req.preparedDate());
-        h.setTxhApprovedByEmpIdEmp(req.approvedByEmpId());
-        h.setTxhApprovedDate(req.approvedDate());
+        if (!merge || req.approvedByEmpId() != null) {
+            h.setTxhApprovedByEmpIdEmp(req.approvedByEmpId());
+        }
+        if (!merge || req.approvedDate() != null) {
+            h.setTxhApprovedDate(req.approvedDate());
+        }
         h.setTxhTotalOrderedQty(req.totalOrderedQty());
         h.setTxhTotalReceivedQty(req.totalReceivedQty());
         h.setTxhTotalAcceptedQty(req.totalAcceptedQty());
@@ -502,7 +697,88 @@ public class TxnDocumentService {
         h.setTxhTotalPendingQty(req.totalPendingQty());
         h.setTxhTotalAmount(req.totalAmount());
         h.setTxhFooterRemark(req.footerRemark());
-        h.setTxhRemarks(req.remarks());
+        if (req.remarks() != null) {
+            h.setTxhRemarks(req.remarks());
+        }
+    }
+
+    private void stampInspectionApproved(TxnHeaderMst header) {
+        Integer emp = accessScope.currentEmployeeId();
+        if (emp != null) {
+            header.setTxhApprovedByEmpIdEmp(emp);
+        }
+        header.setTxhApprovedDate(LocalDate.now());
+    }
+
+    /** Restore quarantine on header — stock was posted to the linked GRN's OU quarantine. */
+    private void ensureInspectionQuarantineOnHeader(TxnHeaderMst header, List<TxnDetailDtl> lines) {
+        Integer fromGrn = quarantineForGrnHeader(header.getTxhRefTxnHeaderIdTxh());
+        if (fromGrn != null) {
+            header.setTxhLocationIdLoc(fromGrn);
+            return;
+        }
+        if (header.getTxhLocationIdLoc() != null) {
+            return;
+        }
+        for (TxnDetailDtl line : lines) {
+            Integer home = line.getTxdLocationIdLoc();
+            if (home == null) {
+                continue;
+            }
+            Integer buId = systemLocations.resolveBuId(home);
+            if (buId == null) {
+                continue;
+            }
+            header.setTxhLocationIdLoc(
+                    systemLocations.requireSystemLocation(buId, SystemLocationRole.QUARANTINE).getLocLocationId());
+            return;
+        }
+        throw ApiException.badRequest("Quarantine location could not be resolved for this inspection approval");
+    }
+
+    private Integer quarantineForGrnHeader(Integer grnHeaderId) {
+        if (grnHeaderId == null) {
+            return null;
+        }
+        return headerRepo.findById(grnHeaderId).map(grn -> {
+            Integer store = grn.getTxhLocationIdLoc();
+            if (store == null) {
+                return null;
+            }
+            Integer buId = systemLocations.resolveBuId(store);
+            if (buId == null) {
+                return null;
+            }
+            return systemLocations.requireSystemLocation(buId, SystemLocationRole.QUARANTINE).getLocLocationId();
+        }).orElse(null);
+    }
+
+    private Integer rejectedForGrnHeader(Integer grnHeaderId) {
+        if (grnHeaderId == null) {
+            return null;
+        }
+        return headerRepo.findById(grnHeaderId).map(grn -> {
+            Integer store = grn.getTxhLocationIdLoc();
+            if (store == null) {
+                return null;
+            }
+            Integer buId = systemLocations.resolveBuId(store);
+            if (buId == null) {
+                return null;
+            }
+            return systemLocations.requireSystemLocation(buId, SystemLocationRole.REJECTED).getLocLocationId();
+        }).orElse(null);
+    }
+
+    private Integer inspectionQuarantineDisplayLocation(TxnHeaderMst header) {
+        if (!DocType.INSPECTION_APPROVAL.code().equals(header.getTxhDocType())) {
+            return header.getTxhLocationIdLoc();
+        }
+        Integer fromGrn = quarantineForGrnHeader(header.getTxhRefTxnHeaderIdTxh());
+        if (fromGrn != null) {
+            return fromGrn;
+        }
+        return header.getTxhLocationIdLoc();
     }
 
     private List<TxnDetailDtl> saveLines(TxnHeaderMst header, DocType docType, List<LineRequest> lines) {
@@ -661,6 +937,109 @@ public class TxnDocumentService {
     }
 
     /**
+     * When a GRN is submitted, inspection-needed items are posted to Quarantine.
+     * Create a Pending inspection approval assigned to the GRN inspector so they can
+     * approve and move stock to each item's home store.
+     */
+    private void createPendingInspectionApproval(TxnHeaderMst grnHeader, List<TxnDetailDtl> grnLines) {
+        Specification<TxnHeaderMst> dup = (root, query, cb) -> cb.and(
+                cb.equal(root.get("txhDocType"), DocType.INSPECTION_APPROVAL.code()),
+                cb.equal(root.get("txhRefTxnHeaderIdTxh"), grnHeader.getTxhTxnHeaderId())
+        );
+        if (headerRepo.count(dup) > 0) {
+            return;
+        }
+
+        Integer headerStore = grnHeader.getTxhLocationIdLoc();
+        if (headerStore == null) {
+            return;
+        }
+        Integer buId = systemLocations.resolveBuId(headerStore);
+        if (buId == null) {
+            return;
+        }
+
+        List<LineRequest> inspectionLines = new ArrayList<>();
+        int sr = 1;
+        for (TxnDetailDtl line : grnLines) {
+            InvItemMst item = itemRepo.findById(line.getTxdItemIdItm()).orElse(null);
+            if (item == null || !Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
+                continue;
+            }
+            BigDecimal accepted = firstNonNull(line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
+            if (accepted.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            if (item.getItmCurrentLocationIdLoc() == null) {
+                String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(item.getItmItemId());
+                throw ApiException.badRequest("Item " + code + " needs a home store in Item Master for inspection workflow");
+            }
+            String batch = line.getTxdBatchLotNo();
+            if (batch == null || batch.isBlank()) {
+                batch = line.getTxdSerialNo();
+            }
+            inspectionLines.add(new LineRequest(
+                    sr++,
+                    line.getTxdItemIdItm(),
+                    line.getTxdUomIdUnt(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    accepted,
+                    null,
+                    null,
+                    null,
+                    null,
+                    batch,
+                    line.getTxdMfgDate(),
+                    line.getTxdExpiryDate(),
+                    item.getItmCurrentLocationIdLoc(),
+                    line.getTxdLocationBin(),
+                    line.getTxdItemCondition(),
+                    line.getTxdSerialNo(),
+                    line.getTxdIpAddress(),
+                    line.getTxdMacAddress(),
+                    line.getTxdHostname(),
+                    line.getTxdRemark()
+            ));
+        }
+        if (inspectionLines.isEmpty()) {
+            return;
+        }
+
+        Integer quarantineLoc = systemLocations.requireSystemLocation(buId, SystemLocationRole.QUARANTINE).getLocLocationId();
+        Integer entityId = grnHeader.getTxhEntityIdEnt();
+        if (entityId == null) {
+            entityId = systemLocations.resolveEntityId(null, headerStore);
+        }
+        Integer inspector = grnHeader.getTxhInspectedByEmpIdEmp();
+        if (inspector == null) {
+            inspector = grnHeader.getTxhPreparedByEmpIdEmp();
+        }
+        if (inspector == null) {
+            throw ApiException.badRequest("GRN Inspected By is required when items need inspection approval");
+        }
+
+        TxnHeaderMst inspection = new TxnHeaderMst();
+        inspection.setTxhDocType(DocType.INSPECTION_APPROVAL.code());
+        inspection.setTxhDocDate(grnHeader.getTxhDocDate() != null ? grnHeader.getTxhDocDate() : LocalDate.now());
+        inspection.setTxhEntityIdEnt(entityId);
+        inspection.setTxhLocationIdLoc(quarantineLoc);
+        inspection.setTxhInitiatedByEmpIdEmp(inspector);
+        inspection.setTxhRefTxnHeaderIdTxh(grnHeader.getTxhTxnHeaderId());
+        inspection.setTxhReferenceNo(grnHeader.getTxhDocNo());
+        inspection.setTxhRemarks("Pending inspection for GRN " + grnHeader.getTxhDocNo());
+        inspection.setTxhDocNo(nextDocNo(DocType.INSPECTION_APPROVAL));
+        inspection.setTxhStatus(draftStatus(DocType.INSPECTION_APPROVAL));
+        inspection.setTxhCreatedBy(SecurityUtils.loginIdOrSystem());
+        inspection.setTxhCreatedOn(LocalDateTime.now());
+        inspection = headerRepo.save(inspection);
+        saveLines(inspection, DocType.INSPECTION_APPROVAL, inspectionLines);
+    }
+
+    /**
      * Inspection approval: move stock from quarantine (header location) to each item's home store.
      */
     private void postInspectionApprovalStock(TxnHeaderMst header, List<TxnDetailDtl> lines, boolean apply) {
@@ -680,7 +1059,9 @@ public class TxnDocumentService {
             String batch = resolveStockBatch(line);
             InvItemMst item = itemRepo.findById(itemId)
                     .orElseThrow(() -> ApiException.badRequest("Item not found: " + itemId));
-            Integer homeLoc = item.getItmCurrentLocationIdLoc();
+            Integer homeLoc = line.getTxdLocationIdLoc() != null
+                    ? line.getTxdLocationIdLoc()
+                    : item.getItmCurrentLocationIdLoc();
             if (homeLoc == null) {
                 throw ApiException.badRequest("Item " + item.getItmItemCode() + " has no home store configured");
             }
@@ -701,6 +1082,51 @@ public class TxnDocumentService {
                     }
                 } else {
                     upsertStock(itemId, homeLoc, uomId, batch, qty.negate(), headerId);
+                    upsertStock(itemId, quarantineLoc, uomId, batch, qty, headerId);
+                }
+            }
+        }
+    }
+
+    /**
+     * Failed inspection: move stock from quarantine to the linked GRN OU Rejected store.
+     */
+    private void postInspectionRejectStock(TxnHeaderMst header, List<TxnDetailDtl> lines, boolean apply) {
+        Integer quarantineLoc = header.getTxhLocationIdLoc();
+        if (quarantineLoc == null) {
+            throw ApiException.badRequest("Quarantine location is required for inspection rejection");
+        }
+        Integer rejectedLoc = rejectedForGrnHeader(header.getTxhRefTxnHeaderIdTxh());
+        if (rejectedLoc == null) {
+            throw ApiException.badRequest("Rejected store could not be resolved for this inspection");
+        }
+        Integer headerId = header.getTxhTxnHeaderId();
+
+        for (TxnDetailDtl line : lines) {
+            BigDecimal qty = resolveQty(DocType.INSPECTION_APPROVAL, line);
+            if (qty == null || qty.compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
+            Integer itemId = line.getTxdItemIdItm();
+            Integer uomId = line.getTxdUomIdUnt();
+            String batch = resolveStockBatch(line);
+
+            if (apply) {
+                if (batch == null || batch.isBlank()) {
+                    for (var taken : consumeFifo(itemId, quarantineLoc, uomId, qty, headerId)) {
+                        upsertStock(itemId, rejectedLoc, uomId, taken.batch(), taken.qty(), headerId);
+                    }
+                } else {
+                    upsertStock(itemId, quarantineLoc, uomId, batch, qty.negate(), headerId);
+                    upsertStock(itemId, rejectedLoc, uomId, batch, qty, headerId);
+                }
+            } else {
+                if (batch == null || batch.isBlank()) {
+                    for (var taken : consumeFifo(itemId, rejectedLoc, uomId, qty, headerId)) {
+                        upsertStock(itemId, quarantineLoc, uomId, taken.batch(), taken.qty(), headerId);
+                    }
+                } else {
+                    upsertStock(itemId, rejectedLoc, uomId, batch, qty.negate(), headerId);
                     upsertStock(itemId, quarantineLoc, uomId, batch, qty, headerId);
                 }
             }
@@ -895,13 +1321,14 @@ public class TxnDocumentService {
                 h.getTxhPostingDate(),
                 h.getTxhRequiredByDate(),
                 h.getTxhEntityIdEnt(),
-                h.getTxhLocationIdLoc(),
+                inspectionQuarantineDisplayLocation(h),
                 h.getTxhFromLocationIdLoc(),
                 h.getTxhToLocationIdLoc(),
                 h.getTxhPartyIdVnd(),
                 h.getTxhDepartmentIdDept(),
                 h.getTxhInitiatedByEmpIdEmp(),
                 h.getTxhRefTxnHeaderIdTxh(),
+                h.getTxhReferenceNo(),
                 h.getTxhInvoiceNo(),
                 totalItems,
                 h.getTxhTotalAmount(),
@@ -923,7 +1350,7 @@ public class TxnDocumentService {
                 h.getTxhPostingDate(),
                 h.getTxhRequiredByDate(),
                 h.getTxhEntityIdEnt(),
-                h.getTxhLocationIdLoc(),
+                inspectionQuarantineDisplayLocation(h),
                 h.getTxhFromLocationIdLoc(),
                 h.getTxhToLocationIdLoc(),
                 h.getTxhPartyIdVnd(),

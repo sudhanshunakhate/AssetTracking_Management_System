@@ -18,7 +18,12 @@ export type GatepassOutwardPrefill = {
   remarks: string
 }
 
-const SPECIAL_TO_ROLES = new Set(['DAMAGED', 'REJECTED', 'QUARANTINE', 'SCRAP'])
+import {
+  SPECIAL_SYSTEM_LOCATION_ROLES,
+  isSpecialSystemLocation,
+} from './txnLookups'
+
+const SPECIAL_TO_ROLES = SPECIAL_SYSTEM_LOCATION_ROLES
 
 export const PENDING_FOR_OUTWARD_STATUS = 'Pending for Outward'
 
@@ -39,10 +44,7 @@ export function needsGatepassOutward(
   const role = String(toLoc.systemRole ?? '').toUpperCase()
   if (SPECIAL_TO_ROLES.has(role)) return true
 
-  const blob = `${toLoc.code ?? ''} ${toLoc.name ?? ''}`.toLowerCase()
-  if (blob.includes('damaged') || blob.includes('reject') || blob.includes('quarantine') || blob.includes('scrap')) {
-    return true
-  }
+  if (isSpecialSystemLocation(toLoc)) return true
 
   return false
 }

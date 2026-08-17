@@ -2,9 +2,11 @@ package com.caits.security;
 
 import com.caits.common.ApiException;
 import com.caits.common.spec.SpecUtils;
+import com.caits.domain.entity.OrgLocationMst;
 import com.caits.domain.entity.SysmUserBuMappingDtl;
 import com.caits.domain.entity.SysmUserLocationMappingDtl;
 import com.caits.domain.entity.SysmUserloginMst;
+import com.caits.domain.repository.OrgLocationMstRepository;
 import com.caits.domain.repository.SysmUserBuMappingDtlRepository;
 import com.caits.domain.repository.SysmUserLocationMappingDtlRepository;
 import com.caits.domain.repository.SysmUserloginMstRepository;
@@ -50,16 +52,19 @@ public class AccessScopeService {
     private final SysmUserloginMstRepository userRepo;
     private final SysmUserBuMappingDtlRepository buMappingRepo;
     private final SysmUserLocationMappingDtlRepository locationMappingRepo;
+    private final OrgLocationMstRepository locationMasterRepo;
     private final JwtProperties properties;
 
     public AccessScopeService(
             SysmUserloginMstRepository userRepo,
             SysmUserBuMappingDtlRepository buMappingRepo,
             SysmUserLocationMappingDtlRepository locationMappingRepo,
+            OrgLocationMstRepository locationMasterRepo,
             JwtProperties properties) {
         this.userRepo = userRepo;
         this.buMappingRepo = buMappingRepo;
         this.locationMappingRepo = locationMappingRepo;
+        this.locationMasterRepo = locationMasterRepo;
         this.properties = properties;
     }
 
@@ -121,19 +126,62 @@ public class AccessScopeService {
         if (!s.locationRestricted()) {
             return requested == null ? null : List.of(requested);
         }
-        List<Integer> allowed = s.allowedLocationIds();
-        if (requested == null) return allowed;
-        return allowed.contains(requested) ? List.of(requested) : List.of();
+        if (requested != null) {
+            return canAccessLocation(requested) ? List.of(requested) : List.of();
+        }
+        return s.allowedLocationIds();
+    }
+
+    /** True when the caller's role bypasses OU / location restrictions (default: ADMIN). */
+    public boolean isRoleExempt() {
+        return isExempt(SecurityUtils.requireCurrentUser().roleCode());
+    }
+
+    /** Employee id linked to the logged-in user (for inspection assignment, etc.). */
+    @Transactional(readOnly = true)
+    public Integer currentEmployeeId() {
+        CurrentUser cu = SecurityUtils.requireCurrentUser();
+        return userRepo.findById(cu.userId())
+                .map(SysmUserloginMst::getUsrEmployeeIdEmp)
+                .orElse(null);
     }
 
     /** Rejects a write that targets a location outside the caller's allow-list. */
     public void requireLocationAllowed(Integer locationId) {
-        if (locationId == null) return;
-        Scope s = current();
-        if (!s.locationRestricted()) return;
-        if (!s.allowedLocationIds().contains(locationId)) {
+        if (!canAccessLocation(locationId)) {
             throw ApiException.forbidden("You do not have access to this location");
         }
+    }
+
+    /** True when the location is in the allow-list or a quarantine store in an allowed OU. */
+    public boolean canAccessLocation(Integer locationId) {
+        if (locationId == null) {
+            return true;
+        }
+        Scope s = current();
+        if (!s.locationRestricted()) {
+            return true;
+        }
+        if (s.allowedLocationIds().contains(locationId)) {
+            return true;
+        }
+        OrgLocationMst loc = locationMasterRepo.findById(locationId).orElse(null);
+        if (loc == null) {
+            return false;
+        }
+        if ("QUARANTINE".equalsIgnoreCase(loc.getLocSystemRole())) {
+            if (!s.buRestricted()) {
+                return true;
+            }
+            Integer buId = loc.getLocBuIdBu();
+            if (buId != null && s.allowedBuIds().contains(buId)) {
+                return true;
+            }
+            if (s.entityRestricted() && Objects.equals(loc.getLocEntityIdEnt(), s.entityId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void requireBuAllowed(Integer buId) {

@@ -1,3 +1,4 @@
 com\caits\modules\transactions\DocTypeTest.class
+com\caits\modules\transactions\InspectionApprovalStatusTest.class
 com\caits\modules\transactions\TransferGatepassRulesTest.class
 com\caits\modules\transactions\StockPostingRulesTest.class
