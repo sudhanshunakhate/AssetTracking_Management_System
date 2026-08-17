@@ -1,6 +1,5 @@
 com\caits\modules\masters\SystemLocationService.class
 com\caits\config\DataSeeder$MenuDef.class
-com\caits\modules\transactions\TxnDocumentService$1.class
 com\caits\modules\masters\service\DepartmentMastersService.class
 com\caits\modules\reports\ReportsController$IssueCustody.class
 com\caits\modules\masters\SystemLocationService$1.class
@@ -9,7 +8,6 @@ com\caits\modules\transactions\TxnDocumentService$BatchQty.class
 com\caits\modules\masters\dto\MasterDtos$DepartmentDto.class
 com\caits\domain\repository\InvBlsMstRepository.class
 com\caits\modules\reports\ReportsController$StockAgg.class
-com\caits\modules\transactions\StockPostingRules$1.class
 com\caits\modules\masters\dto\MasterDtos$DepartmentRequest.class
 com\caits\security\AccessScopeService.class
 com\caits\domain\repository\SysmUserLocationMappingDtlRepository.class
