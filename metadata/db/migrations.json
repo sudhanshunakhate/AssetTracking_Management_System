@@ -310,6 +310,15 @@
                                            "local":  null,
                                            "dev":  "2026-08-05"
                                        }
+                       },
+                       {
+                           "id":  "032-delete-demo-data",
+                           "file":  "db_approach/031_delete_demo_data.sql",
+                           "description":  "Remove DEMO-* items, masters, stock/BLS, and all transactions tied to demo data.",
+                           "applied":  {
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-17"
+                                       }
                        }
                    ],
     "updated":  "2026-08-17"
