@@ -20,8 +20,10 @@ import {
   type BaseLine,
 } from './lineGrid'
 import {
-  LINE_IMPORT_HEADERS,
-  LINE_IMPORT_SAMPLE,
+  OST_ASSET_IMPORT_HEADERS,
+  OST_ASSET_IMPORT_SAMPLE,
+  OST_CONSUMABLE_IMPORT_HEADERS,
+  OST_CONSUMABLE_IMPORT_SAMPLE,
   importOpeningStockLines,
 } from './lineCsvImport'
 
@@ -207,6 +209,7 @@ export function OpeningStockItemLines({
   }
 
   const onImport = (rows: Record<string, string>[]) => {
+    setAddError('')
     const imported = importOpeningStockLines(rows, {
       items: importPool,
       locations,
@@ -215,9 +218,21 @@ export function OpeningStockItemLines({
       activeItemType: itemType,
       docKind: 'opening',
     })
+    if (imported.itemType !== itemType) {
+      const filled = lines.filter((l) => l.itemId !== '')
+      if (filled.length > 0) {
+        const ok = window.confirm(
+          `This file is ${imported.itemType}. The form currently has ${itemType} lines, which will be replaced. Continue?`,
+        )
+        if (!ok) return
+      }
+      onItemTypeChange(imported.itemType)
+      onChange(imported.lines.length ? imported.lines : [emptyOpeningStockLine()])
+      return
+    }
     onChange((prev) => {
       const keep = prev.filter((l) => l.itemId !== '')
-      return [...keep, ...imported]
+      return [...keep, ...imported.lines]
     })
   }
 
@@ -291,15 +306,33 @@ export function OpeningStockItemLines({
             </Button>
             {!readOnly && (
               <CsvImportButton
-                templateFilename="opening_stock_item_lines_template.csv"
-                templateHeaders={LINE_IMPORT_HEADERS}
-                sampleRow={LINE_IMPORT_SAMPLE}
+                templateFilename="opening_stock_asset_lines.csv"
+                templateHeaders={OST_ASSET_IMPORT_HEADERS}
+                extraTemplates={[
+                  {
+                    label: 'Asset template',
+                    filename: 'opening_stock_asset_lines.csv',
+                    headers: OST_ASSET_IMPORT_HEADERS,
+                    sampleRow: OST_ASSET_IMPORT_SAMPLE,
+                  },
+                  {
+                    label: 'Consumable template',
+                    filename: 'opening_stock_consumable_lines.csv',
+                    headers: OST_CONSUMABLE_IMPORT_HEADERS,
+                    sampleRow: OST_CONSUMABLE_IMPORT_SAMPLE,
+                  },
+                ]}
                 disabled={linesLocked}
                 onRows={onImport}
               />
             )}
+            <span className="basis-full text-[10px] text-[var(--text3)]">
+              Import detects Asset vs Consumable from the CSV (itemType or Item Master). One file = one type.
+            </span>
             {(addError || error) && (
-              <span className="text-[11px] font-medium text-[var(--danger)]">{addError || error}</span>
+              <span className="whitespace-pre-wrap text-[11px] font-medium text-[var(--danger)]">
+                {addError || error}
+              </span>
             )}
           </div>
         )}

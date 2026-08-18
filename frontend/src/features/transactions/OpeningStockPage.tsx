@@ -403,7 +403,7 @@ function OpeningStockForm() {
         itemType={itemType}
         onItemTypeChange={setItemType}
         items={allItemsForType}
-        allItems={allItemsForType}
+        allItems={items.rows}
         units={units.rows}
         vendors={vendors.rows}
         employees={employees.rows}
