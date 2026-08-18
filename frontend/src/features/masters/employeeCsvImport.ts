@@ -9,7 +9,7 @@ export const EMPLOYEE_IMPORT_HEADERS = [
   'phone',
   'designation',
   'departmentCode',
-  'roleCode*',
+  'roleCode',
   'baseLocationCode',
   'reportingToCode',
   'employmentType',
@@ -26,7 +26,7 @@ export const EMPLOYEE_IMPORT_SAMPLE = [
   '9876543210',
   'Executive',
   'DEPT-IT',
-  'ADMIN',
+  '',
   'STR-MAIN',
   '',
   'permanent',
@@ -65,15 +65,14 @@ export async function importEmployeesFromCsv(
       const employeeCode = (row.employeecode ?? '').trim()
       const firstName = (row.firstname ?? '').trim()
       const email = (row.email ?? '').trim()
-      const roleCode = (row.rolecode ?? '').trim()
 
       if (!employeeCode) throw new Error('employeeCode is required')
       if (!firstName) throw new Error('firstName is required')
       if (!email) throw new Error('email is required')
-      if (!roleCode) throw new Error('roleCode is required')
 
-      const role = byCode(ctx.roles, roleCode)
-      if (!role) throw new Error(`roleCode not found: ${roleCode}`)
+      const roleCode = (row.rolecode ?? '').trim()
+      const role = roleCode ? byCode(ctx.roles, roleCode) : undefined
+      if (roleCode && !role) throw new Error(`roleCode not found: ${roleCode}`)
 
       const deptCode = (row.departmentcode ?? '').trim()
       const dept = deptCode ? byCode(ctx.departments, deptCode) : undefined
@@ -95,7 +94,7 @@ export async function importEmployeesFromCsv(
         phone: (row.phone ?? '').trim() || undefined,
         designation: (row.designation ?? '').trim() || undefined,
         departmentId: dept ? Number(dept.id) : undefined,
-        roleId: Number(role.id),
+        roleId: role ? Number(role.id) : undefined,
         baseLocationId: loc ? Number(loc.id) : undefined,
         reportingToEmpId: rep ? Number(rep.id) : undefined,
         employmentType: (row.employmenttype ?? '').trim() || undefined,

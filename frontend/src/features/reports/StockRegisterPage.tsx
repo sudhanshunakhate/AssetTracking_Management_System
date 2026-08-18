@@ -110,7 +110,7 @@ export function StockRegisterPage() {
     <FadeContent>
       <PageHeader
         title="Stock Ledger"
-        description="Opening, receipt, issue and closing balances by item for the selected period. Pick filters below and click Apply — changes are not loaded until you apply them."
+        description="Opening, receipt, issue and closing by item. Receipt and issue come from posted documents (GRN, opening stock, gatepass, material issue/return) — not stock-bucket lifetime counters. Use dates to limit the period; without dates, all history is included."
         actions={
           <Button
             variant="ghost"

@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -143,9 +144,9 @@ public class ReportsController {
         Map<Integer, HrcEmployeeMst> employees = employeeMap();
         Map<String, IssueCustody> lastIssue = latestIssueCustodyByItemLocation();
         Map<Integer, Integer> blsOwnerByItem = blsOwnerByItem();
-        Map<String, PeriodQty> period = (fromDate != null || toDate != null)
-                ? periodReceiptIssue(fromDate, toDate, locFilter)
-                : Map.of();
+        // Receipt / issue always come from posted transactions — not stk_inward_qty / stk_issued_qty on buckets
+        // (those lifetime counters double-count across serial/batch rows and mix in non-movement postings).
+        Map<String, PeriodQty> period = periodReceiptIssue(fromDate, toDate, locFilter);
 
         // Aggregate stock by item (sum across matching locations) for ledger rows.
         Map<Integer, StockLedgerAgg> byItem = new LinkedHashMap<>();
@@ -164,38 +165,35 @@ public class ReportsController {
             if (agg.uomId == null) {
                 agg.uomId = s.getStkUomIdUnt() != null ? s.getStkUomIdUnt() : item.getItmUomIdUnt();
             }
-            agg.opening = agg.opening.add(nz(s.getStkOpeningQty()));
-            agg.inward = agg.inward.add(nz(s.getStkInwardQty()));
-            agg.issued = agg.issued.add(nz(s.getStkIssuedQty()));
             agg.closing = agg.closing.add(nz(s.getStkCurrentQty()));
-            agg.locationIds.add(s.getStkLocationIdLoc());
+            if (s.getStkLocationIdLoc() != null) {
+                agg.locationIds.add(s.getStkLocationIdLoc());
+            }
         }
 
         List<Map<String, Object>> rows = new ArrayList<>();
         int sr = 1;
         for (StockLedgerAgg agg : byItem.values()) {
             Integer itemId = agg.item.getItmItemId();
-            BigDecimal receipt;
-            BigDecimal issue;
-            BigDecimal opening;
             BigDecimal closing = agg.closing;
 
-            if (fromDate != null || toDate != null) {
-                PeriodQty pq = PeriodQty.ZERO;
-                for (Integer locId : agg.locationIds) {
-                    PeriodQty part = period.getOrDefault(periodKey(itemId, locId), PeriodQty.ZERO);
-                    pq = pq.add(part);
-                }
-                // Also try item-only key when location was null on lines
-                pq = pq.add(period.getOrDefault(periodKey(itemId, null), PeriodQty.ZERO));
-                receipt = pq.receipt;
-                issue = pq.issue;
-                opening = closing.subtract(receipt).add(issue);
-                if (opening.compareTo(BigDecimal.ZERO) < 0) opening = BigDecimal.ZERO;
-            } else {
-                opening = agg.opening;
-                receipt = agg.inward;
-                issue = agg.issued;
+            PeriodQty pq = PeriodQty.ZERO;
+            for (Integer locId : agg.locationIds) {
+                pq = pq.add(period.getOrDefault(periodKey(itemId, locId), PeriodQty.ZERO));
+            }
+            pq = pq.add(period.getOrDefault(periodKey(itemId, null), PeriodQty.ZERO));
+
+            BigDecimal receipt = pq.receipt;
+            BigDecimal issue = pq.issue;
+            BigDecimal opening = closing.subtract(receipt).add(issue);
+            if (opening.compareTo(BigDecimal.ZERO) < 0) {
+                opening = BigDecimal.ZERO;
+            }
+
+            if (closing.compareTo(BigDecimal.ZERO) == 0
+                    && receipt.compareTo(BigDecimal.ZERO) == 0
+                    && issue.compareTo(BigDecimal.ZERO) == 0) {
+                continue;
             }
 
             String ownerName = null;
@@ -1507,11 +1505,8 @@ public class ReportsController {
     private static final class StockLedgerAgg {
         InvItemMst item;
         Integer uomId;
-        BigDecimal opening = BigDecimal.ZERO;
-        BigDecimal inward = BigDecimal.ZERO;
-        BigDecimal issued = BigDecimal.ZERO;
         BigDecimal closing = BigDecimal.ZERO;
-        final List<Integer> locationIds = new ArrayList<>();
+        final Set<Integer> locationIds = new LinkedHashSet<>();
     }
 
     private static final class StockAgg {
