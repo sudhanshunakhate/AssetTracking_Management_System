@@ -278,6 +278,7 @@ export function useTxnList(
 
   const reload = useCallback(async () => {
     if (!enabled) return
+    invalidateTxnList(resource)
     setLoading(true)
     setError(null)
     try {
@@ -304,7 +305,12 @@ export function useTxnList(
   return { rows, loading, error, reload }
 }
 
+export function invalidateTxnList(resource?: string) {
+  invalidateCache(resource ? `txnlist:${resource}` : 'txnlist:')
+}
+
 export async function createTxn(resource: string, body: DocumentRequest) {
+  invalidateTxnList(resource)
   const res = await http.post<TxnDocument>(`/${resource}`, body)
   invalidateDashboardSummary()
   return res

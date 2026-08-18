@@ -18,6 +18,8 @@ import com.caits.domain.repository.OrgLocationMstRepository;
 import com.caits.domain.repository.TxnDetailDtlRepository;
 import com.caits.domain.repository.TxnHeaderMstRepository;
 import com.caits.domain.repository.UnitMstRepository;
+import com.caits.modules.masters.SystemLocationRole;
+import com.caits.modules.masters.SystemLocationService;
 import com.caits.security.AccessScopeService;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.PageRequest;
@@ -64,6 +66,17 @@ public class ReportsController {
             "MATERIAL_ISSUE", "GATEPASS_OUTWARD"
     );
 
+    private static final Set<String> LEDGER_DOC_TYPES = Set.of(
+            "OPENING_STOCK",
+            "GRN",
+            "GATEPASS_INWARD",
+            "GATEPASS_OUTWARD",
+            "MATERIAL_ISSUE",
+            "MATERIAL_TRANSFER",
+            "MATERIAL_RETURN",
+            "INSPECTION_APPROVAL"
+    );
+
     private final InvStockMstRepository stockRepo;
     private final InvItemMstRepository itemRepo;
     private final TxnHeaderMstRepository headerRepo;
@@ -74,6 +87,7 @@ public class ReportsController {
     private final UnitMstRepository unitRepo;
     private final HrcDepartmentMstRepository departmentRepo;
     private final InvBlsMstRepository blsRepo;
+    private final SystemLocationService systemLocations;
 
     public ReportsController(
             InvStockMstRepository stockRepo,
@@ -85,7 +99,8 @@ public class ReportsController {
             HrcEmployeeMstRepository employeeRepo,
             UnitMstRepository unitRepo,
             HrcDepartmentMstRepository departmentRepo,
-            InvBlsMstRepository blsRepo
+            InvBlsMstRepository blsRepo,
+            SystemLocationService systemLocations
     ) {
         this.stockRepo = stockRepo;
         this.itemRepo = itemRepo;
@@ -97,6 +112,7 @@ public class ReportsController {
         this.unitRepo = unitRepo;
         this.departmentRepo = departmentRepo;
         this.blsRepo = blsRepo;
+        this.systemLocations = systemLocations;
     }
 
     /**
@@ -125,7 +141,7 @@ public class ReportsController {
         Map<Integer, InvItemMst> items = itemMap();
         Map<Integer, String> uomCodes = unitCodeMap();
         Map<Integer, HrcEmployeeMst> employees = employeeMap();
-        Map<String, IssueCustody> lastIssue = latestIssueCustody();
+        Map<String, IssueCustody> lastIssue = latestIssueCustodyByItemLocation();
         Map<Integer, Integer> blsOwnerByItem = blsOwnerByItem();
         Map<String, PeriodQty> period = (fromDate != null || toDate != null)
                 ? periodReceiptIssue(fromDate, toDate, locFilter)
@@ -249,7 +265,8 @@ public class ReportsController {
         Map<Integer, OrgLocationMst> locations = locationMap();
         Map<Integer, HrcEmployeeMst> employees = employeeMap();
         Map<Integer, String> deptNames = departmentNameMap();
-        Map<String, IssueCustody> lastIssue = latestIssueCustody();
+        Map<String, IssueCustody> lastIssueByBucket = latestIssueCustodyByBucket();
+        Map<String, Integer> blsIssuedTo = blsIssuedToByStockKey();
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (InvStockMst s : stocks) {
@@ -259,10 +276,30 @@ public class ReportsController {
             if (!matchesItemSearch(item, search)) continue;
 
             OrgLocationMst store = locations.get(s.getStkLocationIdLoc());
-            IssueCustody issued = lastIssue.get(custodyKey(s.getStkItemIdItm(), s.getStkLocationIdLoc()));
+            String bucketKey = stockCustodyKey(s.getStkItemIdItm(), s.getStkLocationIdLoc(), s.getStkBatchLotNo());
+            IssueCustody issued = lastIssueByBucket.get(bucketKey);
+            Integer blsEmp = blsIssuedTo.get(bucketKey);
+            if (blsEmp != null) {
+                if (issued == null) {
+                    issued = new IssueCustody(blsEmp, null, null);
+                } else if (issued.empId == null) {
+                    issued = new IssueCustody(blsEmp, issued.docNo, issued.docDate);
+                }
+            }
 
             Integer custodianEmpId = issued != null ? issued.empId : null;
-            String custodyMode = issued != null && issued.empId != null ? "ISSUED_TO" : "IN_STORE";
+            String custodyMode = custodianEmpId != null ? "ISSUED_TO" : "IN_STORE";
+
+            BigDecimal current = nz(s.getStkCurrentQty());
+            BigDecimal available = s.getStkAvailableQty() != null ? s.getStkAvailableQty() : current;
+            BigDecimal reserved = nz(s.getStkReservedQty());
+            // Drop empty ghost buckets (e.g. zeroed serial rows after stock moved).
+            if (current.compareTo(BigDecimal.ZERO) == 0
+                    && available.compareTo(BigDecimal.ZERO) == 0
+                    && reserved.compareTo(BigDecimal.ZERO) == 0
+                    && "IN_STORE".equals(custodyMode)) {
+                continue;
+            }
 
             if (employeeId != null && !employeeId.equals(custodianEmpId)
                     && !employeeId.equals(store == null ? null : store.getLocManagerEmpIdEmp())) {
@@ -272,9 +309,6 @@ public class ReportsController {
                 continue;
             }
 
-            BigDecimal current = nz(s.getStkCurrentQty());
-            BigDecimal available = s.getStkAvailableQty() != null ? s.getStkAvailableQty() : current;
-            BigDecimal reserved = nz(s.getStkReservedQty());
             HrcEmployeeMst custodian = custodianEmpId == null ? null : employees.get(custodianEmpId);
             HrcEmployeeMst manager = store == null || store.getLocManagerEmpIdEmp() == null
                     ? null : employees.get(store.getLocManagerEmpIdEmp());
@@ -526,7 +560,7 @@ public class ReportsController {
 
         var headers = headerRepo.findAll((root, query, cb) -> {
             List<Predicate> preds = new ArrayList<>();
-            preds.add(root.get("txhDocType").in(MOVEMENT_DOC_TYPES));
+            preds.add(root.get("txhDocType").in(LEDGER_DOC_TYPES));
             if (locFilter != null) {
                 if (locFilter.isEmpty()) {
                     preds.add(cb.disjunction());
@@ -541,12 +575,24 @@ public class ReportsController {
             return cb.and(preds.toArray(Predicate[]::new));
         }, PageRequest.of(0, 2000, Sort.by(Sort.Direction.ASC, "txhDocDate", "txhTxnHeaderId"))).getContent();
 
+        Map<Integer, OrgLocationMst> locations = locationMap();
+        Map<Integer, TxnHeaderMst> grnById = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            if ("GRN".equals(h.getTxhDocType())) {
+                grnById.put(h.getTxhTxnHeaderId(), h);
+            }
+        }
+        for (TxnHeaderMst h : headers) {
+            if ("INSPECTION_APPROVAL".equals(h.getTxhDocType()) && h.getTxhRefTxnHeaderIdTxh() != null) {
+                grnById.computeIfAbsent(h.getTxhRefTxnHeaderIdTxh(), id ->
+                        headerRepo.findById(id).orElse(null));
+            }
+        }
+
         Map<Integer, String> uomCodes = unitCodeMap();
         List<LedgerEvent> events = new ArrayList<>();
         for (TxnHeaderMst h : headers) {
-            if (!isMovementEligibleStatus(h.getTxhStatus())) continue;
-            String docType = h.getTxhDocType();
-            boolean transfer = "MATERIAL_TRANSFER".equals(docType);
+            if (!isLedgerEligibleStatus(h)) continue;
 
             List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
             for (TxnDetailDtl d : lines) {
@@ -554,52 +600,7 @@ public class ReportsController {
                 if (lineItemId == null || !focusIds.contains(lineItemId)) continue;
                 InvItemMst item = items.get(lineItemId);
                 if (item == null) continue;
-
-                if (locationId != null) {
-                    Integer lineLoc = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : h.getTxhLocationIdLoc();
-                    Integer fromLoc = h.getTxhFromLocationIdLoc();
-                    Integer toLoc = h.getTxhToLocationIdLoc() != null ? h.getTxhToLocationIdLoc() : h.getTxhLocationIdLoc();
-                    boolean touches = Objects.equals(locationId, lineLoc)
-                            || Objects.equals(locationId, fromLoc)
-                            || Objects.equals(locationId, toLoc);
-                    if (!touches) continue;
-                }
-
-                BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
-                BigDecimal receipt = BigDecimal.ZERO;
-                BigDecimal issue = BigDecimal.ZERO;
-                if (transfer) {
-                    if (locationId != null) {
-                        if (Objects.equals(locationId, h.getTxhToLocationIdLoc())) receipt = qty;
-                        else if (Objects.equals(locationId, h.getTxhFromLocationIdLoc())) issue = qty;
-                        else continue;
-                    } else {
-                        // Without store filter, show transfer as issue from source (no double-count)
-                        issue = qty;
-                    }
-                } else if (RECEIPT_DOC_TYPES.contains(docType)) {
-                    receipt = qty;
-                } else if (ISSUE_DOC_TYPES.contains(docType)) {
-                    issue = qty;
-                } else {
-                    continue;
-                }
-
-                Integer uomId = d.getTxdUomIdUnt() != null ? d.getTxdUomIdUnt() : item.getItmUomIdUnt();
-                events.add(new LedgerEvent(
-                        h.getTxhDocDate(),
-                        h.getTxhTxnHeaderId(),
-                        d.getTxdTxnDetailId(),
-                        lineItemId,
-                        item.getItmItemCode(),
-                        item.getItmItemName(),
-                        docTypeLabel(docType),
-                        h.getTxhDocNo(),
-                        d.getTxdBatchLotNo(),
-                        uomId == null ? null : uomCodes.get(uomId),
-                        receipt,
-                        issue
-                ));
+                events.addAll(itemLedgerEvents(h, d, item, grnById, locations, uomCodes, locationId));
             }
         }
 
@@ -607,25 +608,30 @@ public class ReportsController {
                 .comparing((LedgerEvent e) -> nullToEmpty(e.itemCode), String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(e -> e.date == null ? LocalDate.MIN : e.date)
                 .thenComparing(e -> e.headerId == null ? 0 : e.headerId)
-                .thenComparing(e -> e.detailId == null ? 0 : e.detailId));
+                .thenComparing(e -> e.detailId == null ? 0 : e.detailId)
+                .thenComparing(e -> e.subOrder));
 
-        Map<Integer, BigDecimal> balanceByItem = new HashMap<>();
+        Map<String, BigDecimal> balanceByKey = new HashMap<>();
         List<Map<String, Object>> rows = new ArrayList<>();
         for (LedgerEvent e : events) {
             boolean beforeFrom = fromDate != null && e.date != null && e.date.isBefore(fromDate);
             boolean afterTo = toDate != null && e.date != null && e.date.isAfter(toDate);
-            BigDecimal bal = balanceByItem.getOrDefault(e.itemId, BigDecimal.ZERO);
+            String balKey = ledgerBalanceKey(e.itemId, locationId);
+            BigDecimal bal = balanceByKey.getOrDefault(balKey, BigDecimal.ZERO);
             if (beforeFrom) {
-                balanceByItem.put(e.itemId, bal.add(e.receipt).subtract(e.issue));
+                balanceByKey.put(balKey, bal.add(e.receipt).subtract(e.issue));
                 continue;
             }
             if (afterTo) continue;
 
             bal = bal.add(e.receipt).subtract(e.issue);
-            balanceByItem.put(e.itemId, bal);
+            balanceByKey.put(balKey, bal);
 
+            String rowId = e.rowSuffix == null || e.rowSuffix.isBlank()
+                    ? String.valueOf(e.detailId)
+                    : e.detailId + "-" + e.rowSuffix;
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("id", e.detailId);
+            row.put("id", rowId);
             row.put("date", e.date);
             row.put("itemId", e.itemId);
             row.put("itemCode", e.itemCode);
@@ -634,6 +640,8 @@ public class ReportsController {
             row.put("docNo", e.docNo);
             row.put("batch", e.batch);
             row.put("uomCode", e.uomCode);
+            row.put("locationId", e.locationId);
+            row.put("locationCode", e.locationCode);
             row.put("receipt", e.receipt.compareTo(BigDecimal.ZERO) == 0 ? null : e.receipt);
             row.put("issue", e.issue.compareTo(BigDecimal.ZERO) == 0 ? null : e.issue);
             row.put("balance", bal);
@@ -748,34 +756,432 @@ public class ReportsController {
                 }
             }
             return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(Predicate[]::new));
-        }, PageRequest.of(0, 500)).getContent();
+        }, PageRequest.of(0, 500, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
 
         Map<Integer, InvItemMst> items = itemMap();
+        Map<Integer, TxnHeaderMst> grnById = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            if ("GRN".equals(h.getTxhDocType())) {
+                grnById.put(h.getTxhTxnHeaderId(), h);
+            }
+        }
+        for (TxnHeaderMst h : headers) {
+            if ("INSPECTION_APPROVAL".equals(h.getTxhDocType()) && h.getTxhRefTxnHeaderIdTxh() != null) {
+                grnById.computeIfAbsent(h.getTxhRefTxnHeaderIdTxh(), id ->
+                        headerRepo.findById(id).orElse(null));
+            }
+        }
+
         List<Map<String, Object>> rows = new ArrayList<>();
         for (TxnHeaderMst h : headers) {
             List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
             for (TxnDetailDtl d : lines) {
                 InvItemMst item = items.get(d.getTxdItemIdItm());
-                Map<String, Object> row = new HashMap<>();
-                row.put("id", d.getTxdTxnDetailId());
-                row.put("date", h.getTxhDocDate());
-                row.put("txnType", h.getTxhDocType());
-                row.put("txnNo", h.getTxhDocNo());
-                row.put("itemId", d.getTxdItemIdItm());
-                row.put("item", item == null ? null : item.getItmItemName());
-                row.put("categoryId", item == null ? null : item.getItmCategoryIdCat());
-                row.put("qty", d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
-                row.put("uomId", d.getTxdUomIdUnt());
-                row.put("fromLocationId", h.getTxhFromLocationIdLoc());
-                row.put("toLocationId", h.getTxhToLocationIdLoc() != null ? h.getTxhToLocationIdLoc() : h.getTxhLocationIdLoc());
-                row.put("entityId", h.getTxhEntityIdEnt());
-                row.put("employeeId", h.getTxhInitiatedByEmpIdEmp());
-                row.put("status", h.getTxhStatus());
-                row.put("value", d.getTxdAmount());
-                rows.add(row);
+                rows.addAll(fullReportRowsForLine(h, d, item, grnById));
             }
         }
         return pageOf(rows, page, pageSize);
+    }
+
+    /**
+     * Full report rows reflect where stock actually lands (rejected store, quarantine, home store),
+     * not just the document header store and accepted qty.
+     */
+    private List<Map<String, Object>> fullReportRowsForLine(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            Map<Integer, TxnHeaderMst> grnById
+    ) {
+        String docType = header.getTxhDocType();
+        if ("GRN".equals(docType)) {
+            return fullReportGrnRows(header, line, item);
+        }
+        if ("INSPECTION_APPROVAL".equals(docType)) {
+            return fullReportInspectionRows(header, line, item, grnById);
+        }
+        BigDecimal qty = line.getTxdQty() != null ? line.getTxdQty() : nz(line.getTxdAcceptedQty());
+        Integer fromLoc = header.getTxhFromLocationIdLoc();
+        Integer toLoc = header.getTxhToLocationIdLoc() != null
+                ? header.getTxhToLocationIdLoc()
+                : header.getTxhLocationIdLoc();
+        return List.of(buildFullReportRow(header, line, item, qty, fromLoc, toLoc, header.getTxhStatus(), null));
+    }
+
+    private List<Map<String, Object>> fullReportGrnRows(
+            TxnHeaderMst header, TxnDetailDtl line, InvItemMst item
+    ) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        BigDecimal rejectedQty = nz(line.getTxdRejectedQty());
+        BigDecimal acceptedQty = firstNonNullBigDecimal(
+                line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
+
+        if (rejectedQty.compareTo(BigDecimal.ZERO) > 0) {
+            Integer rejectedLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.REJECTED);
+            rows.add(buildFullReportRow(
+                    header, line, item, rejectedQty, null, rejectedLoc, header.getTxhStatus(), "rej"));
+        }
+        if (acceptedQty.compareTo(BigDecimal.ZERO) > 0) {
+            Integer targetLoc;
+            if (item != null && Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
+                targetLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.QUARANTINE);
+            } else {
+                targetLoc = line.getTxdLocationIdLoc() != null
+                        ? line.getTxdLocationIdLoc()
+                        : header.getTxhLocationIdLoc();
+            }
+            rows.add(buildFullReportRow(
+                    header, line, item, acceptedQty, null, targetLoc, header.getTxhStatus(), "acc"));
+        }
+        return rows;
+    }
+
+    private List<Map<String, Object>> fullReportInspectionRows(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            Map<Integer, TxnHeaderMst> grnById
+    ) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        BigDecimal qty = firstNonNullBigDecimal(line.getTxdQty(), line.getTxdAcceptedQty());
+        if (qty.compareTo(BigDecimal.ZERO) == 0) {
+            return rows;
+        }
+
+        Integer quarantineLoc = inspectionQuarantineForHeader(header, grnById);
+        String status = header.getTxhStatus();
+        boolean rejected = status != null && status.toLowerCase().contains("reject");
+
+        if (rejected) {
+            Integer rejectedLoc = rejectedLocForGrnRef(header.getTxhRefTxnHeaderIdTxh(), grnById);
+            rows.add(buildFullReportRow(header, line, item, qty, quarantineLoc, rejectedLoc, status, "rej"));
+        } else {
+            Integer homeLoc = line.getTxdLocationIdLoc();
+            if (homeLoc == null && item != null) {
+                homeLoc = item.getItmCurrentLocationIdLoc();
+            }
+            if ("Approved".equalsIgnoreCase(status) || isMovementEligibleStatus(status)) {
+                rows.add(buildFullReportRow(header, line, item, qty, quarantineLoc, homeLoc, status, null));
+            } else {
+                rows.add(buildFullReportRow(header, line, item, qty, null, quarantineLoc, status, null));
+            }
+        }
+        return rows;
+    }
+
+    private Map<String, Object> buildFullReportRow(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            BigDecimal qty,
+            Integer fromLocationId,
+            Integer toLocationId,
+            String status,
+            String rowSuffix
+    ) {
+        Map<String, Object> row = new HashMap<>();
+        String id = rowSuffix == null
+                ? String.valueOf(line.getTxdTxnDetailId())
+                : line.getTxdTxnDetailId() + "-" + rowSuffix;
+        row.put("id", id);
+        row.put("date", header.getTxhDocDate());
+        row.put("txnType", header.getTxhDocType());
+        row.put("txnNo", header.getTxhDocNo());
+        row.put("itemId", line.getTxdItemIdItm());
+        row.put("item", item == null ? null : item.getItmItemName());
+        row.put("categoryId", item == null ? null : item.getItmCategoryIdCat());
+        row.put("qty", qty);
+        row.put("uomId", line.getTxdUomIdUnt());
+        row.put("fromLocationId", fromLocationId);
+        row.put("toLocationId", toLocationId);
+        row.put("entityId", header.getTxhEntityIdEnt());
+        row.put("employeeId", header.getTxhInitiatedByEmpIdEmp());
+        row.put("status", status);
+        row.put("value", lineValueForQty(line, qty));
+        return row;
+    }
+
+    private BigDecimal lineValueForQty(TxnDetailDtl line, BigDecimal qty) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        if (line.getTxdRate() != null) {
+            return line.getTxdRate().multiply(qty);
+        }
+        BigDecimal totalQty = firstNonNullBigDecimal(
+                line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
+        if (line.getTxdAmount() != null && totalQty.compareTo(BigDecimal.ZERO) > 0) {
+            return line.getTxdAmount()
+                    .multiply(qty)
+                    .divide(totalQty, 2, java.math.RoundingMode.HALF_UP);
+        }
+        return line.getTxdAmount();
+    }
+
+    private Integer systemLocForGrnStore(Integer grnStoreId, SystemLocationRole role) {
+        Integer buId = systemLocations.resolveBuId(grnStoreId);
+        if (buId == null) {
+            return null;
+        }
+        return locationRepo.findByLocBuIdBuAndLocSystemRoleAndLocIsactiveTrue(buId, role.code())
+                .map(OrgLocationMst::getLocLocationId)
+                .orElse(null);
+    }
+
+    private Integer rejectedLocForGrnRef(Integer grnHeaderId, Map<Integer, TxnHeaderMst> grnById) {
+        if (grnHeaderId == null) {
+            return null;
+        }
+        TxnHeaderMst grn = grnById.get(grnHeaderId);
+        if (grn == null) {
+            grn = headerRepo.findById(grnHeaderId).orElse(null);
+        }
+        if (grn == null) {
+            return null;
+        }
+        return systemLocForGrnStore(grn.getTxhLocationIdLoc(), SystemLocationRole.REJECTED);
+    }
+
+    private Integer inspectionQuarantineForHeader(TxnHeaderMst header, Map<Integer, TxnHeaderMst> grnById) {
+        if (header.getTxhRefTxnHeaderIdTxh() != null) {
+            TxnHeaderMst grn = grnById.get(header.getTxhRefTxnHeaderIdTxh());
+            if (grn == null) {
+                grn = headerRepo.findById(header.getTxhRefTxnHeaderIdTxh()).orElse(null);
+            }
+            if (grn != null) {
+                Integer q = systemLocForGrnStore(grn.getTxhLocationIdLoc(), SystemLocationRole.QUARANTINE);
+                if (q != null) {
+                    return q;
+                }
+            }
+        }
+        return header.getTxhLocationIdLoc();
+    }
+
+    private static BigDecimal firstNonNullBigDecimal(BigDecimal... values) {
+        if (values == null) {
+            return BigDecimal.ZERO;
+        }
+        for (BigDecimal v : values) {
+            if (v != null) {
+                return v;
+            }
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private List<LedgerEvent> itemLedgerEvents(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            Map<Integer, TxnHeaderMst> grnById,
+            Map<Integer, OrgLocationMst> locations,
+            Map<Integer, String> uomCodes,
+            Integer locationFilter
+    ) {
+        String docType = header.getTxhDocType();
+        String batch = firstNonBlank(line.getTxdSerialNo(), line.getTxdBatchLotNo());
+        Integer uomId = line.getTxdUomIdUnt() != null ? line.getTxdUomIdUnt() : item.getItmUomIdUnt();
+        String uomCode = uomId == null ? null : uomCodes.get(uomId);
+
+        if ("GRN".equals(docType)) {
+            List<LedgerEvent> events = new ArrayList<>();
+            BigDecimal rejectedQty = nz(line.getTxdRejectedQty());
+            BigDecimal acceptedQty = firstNonNullBigDecimal(
+                    line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
+            if (rejectedQty.compareTo(BigDecimal.ZERO) > 0) {
+                Integer rejectedLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.REJECTED);
+                addLedgerReceipt(events, header, line, item, rejectedQty, "GRN · Rejected", batch, uomCode,
+                        rejectedLoc, locations, "rej", 1);
+            }
+            if (acceptedQty.compareTo(BigDecimal.ZERO) > 0) {
+                Integer targetLoc;
+                if (Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
+                    targetLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.QUARANTINE);
+                } else {
+                    targetLoc = line.getTxdLocationIdLoc() != null
+                            ? line.getTxdLocationIdLoc()
+                            : header.getTxhLocationIdLoc();
+                }
+                addLedgerReceipt(events, header, line, item, acceptedQty, docTypeLabel(docType), batch, uomCode,
+                        targetLoc, locations, "acc", 2);
+            }
+            return filterLedgerEventsByLocation(events, locationFilter);
+        }
+
+        if ("INSPECTION_APPROVAL".equals(docType)) {
+            List<LedgerEvent> events = new ArrayList<>();
+            BigDecimal qty = firstNonNullBigDecimal(line.getTxdQty(), line.getTxdAcceptedQty());
+            if (qty.compareTo(BigDecimal.ZERO) == 0) {
+                return events;
+            }
+            Integer quarantineLoc = inspectionQuarantineForHeader(header, grnById);
+            boolean rejected = header.getTxhStatus() != null
+                    && header.getTxhStatus().toLowerCase().contains("reject");
+            if (rejected) {
+                Integer rejectedLoc = rejectedLocForGrnRef(header.getTxhRefTxnHeaderIdTxh(), grnById);
+                addLedgerIssue(events, header, line, item, qty, "Inspection · Rejected", batch, uomCode,
+                        quarantineLoc, locations, "rej-out", 1);
+                addLedgerReceipt(events, header, line, item, qty, "Inspection · Rejected", batch, uomCode,
+                        rejectedLoc, locations, "rej-in", 2);
+            } else if ("Approved".equalsIgnoreCase(header.getTxhStatus())
+                    || isMovementEligibleStatus(header.getTxhStatus())) {
+                if (locationFilter != null) {
+                    Integer homeLoc = line.getTxdLocationIdLoc() != null
+                            ? line.getTxdLocationIdLoc()
+                            : item.getItmCurrentLocationIdLoc();
+                    addLedgerIssue(events, header, line, item, qty, "Inspection", batch, uomCode,
+                            quarantineLoc, locations, "out", 1);
+                    addLedgerReceipt(events, header, line, item, qty, "Inspection", batch, uomCode,
+                            homeLoc, locations, "in", 2);
+                }
+            }
+            return filterLedgerEventsByLocation(events, locationFilter);
+        }
+
+        if ("MATERIAL_TRANSFER".equals(docType)) {
+            List<LedgerEvent> events = new ArrayList<>();
+            BigDecimal qty = firstNonNullBigDecimal(line.getTxdQty(), line.getTxdAcceptedQty());
+            if (locationFilter != null) {
+                if (Objects.equals(locationFilter, header.getTxhToLocationIdLoc())) {
+                    addLedgerReceipt(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                            header.getTxhToLocationIdLoc(), locations, null, 0);
+                } else if (Objects.equals(locationFilter, header.getTxhFromLocationIdLoc())) {
+                    addLedgerIssue(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                            header.getTxhFromLocationIdLoc(), locations, null, 0);
+                }
+            } else {
+                addLedgerIssue(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                        header.getTxhFromLocationIdLoc(), locations, null, 0);
+            }
+            return events;
+        }
+
+        List<LedgerEvent> events = new ArrayList<>();
+        BigDecimal qty = firstNonNullBigDecimal(
+                line.getTxdQty(), line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdRequestedQty());
+        if (qty.compareTo(BigDecimal.ZERO) == 0) {
+            return events;
+        }
+        if (RECEIPT_DOC_TYPES.contains(docType)) {
+            Integer loc = line.getTxdLocationIdLoc() != null ? line.getTxdLocationIdLoc() : header.getTxhLocationIdLoc();
+            addLedgerReceipt(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                    loc, locations, null, 0);
+        } else if (ISSUE_DOC_TYPES.contains(docType)) {
+            Integer loc = header.getTxhFromLocationIdLoc() != null
+                    ? header.getTxhFromLocationIdLoc()
+                    : header.getTxhLocationIdLoc();
+            addLedgerIssue(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                    loc, locations, null, 0);
+        }
+        return filterLedgerEventsByLocation(events, locationFilter);
+    }
+
+    private void addLedgerReceipt(
+            List<LedgerEvent> events,
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            BigDecimal qty,
+            String docTypeLabel,
+            String batch,
+            String uomCode,
+            Integer locationId,
+            Map<Integer, OrgLocationMst> locations,
+            String rowSuffix,
+            int subOrder
+    ) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        events.add(new LedgerEvent(
+                header.getTxhDocDate(),
+                header.getTxhTxnHeaderId(),
+                line.getTxdTxnDetailId(),
+                rowSuffix,
+                subOrder,
+                item.getItmItemId(),
+                item.getItmItemCode(),
+                item.getItmItemName(),
+                docTypeLabel,
+                header.getTxhDocNo(),
+                batch,
+                uomCode,
+                locationId,
+                ledgerLocationCode(locations, locationId),
+                qty,
+                BigDecimal.ZERO
+        ));
+    }
+
+    private void addLedgerIssue(
+            List<LedgerEvent> events,
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            BigDecimal qty,
+            String docTypeLabel,
+            String batch,
+            String uomCode,
+            Integer locationId,
+            Map<Integer, OrgLocationMst> locations,
+            String rowSuffix,
+            int subOrder
+    ) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        events.add(new LedgerEvent(
+                header.getTxhDocDate(),
+                header.getTxhTxnHeaderId(),
+                line.getTxdTxnDetailId(),
+                rowSuffix,
+                subOrder,
+                item.getItmItemId(),
+                item.getItmItemCode(),
+                item.getItmItemName(),
+                docTypeLabel,
+                header.getTxhDocNo(),
+                batch,
+                uomCode,
+                locationId,
+                ledgerLocationCode(locations, locationId),
+                BigDecimal.ZERO,
+                qty
+        ));
+    }
+
+    private static List<LedgerEvent> filterLedgerEventsByLocation(List<LedgerEvent> events, Integer locationFilter) {
+        if (locationFilter == null) {
+            return events;
+        }
+        return events.stream()
+                .filter(e -> Objects.equals(locationFilter, e.locationId))
+                .toList();
+    }
+
+    private static String ledgerLocationCode(Map<Integer, OrgLocationMst> locations, Integer locationId) {
+        if (locationId == null) {
+            return null;
+        }
+        OrgLocationMst loc = locations.get(locationId);
+        return loc == null ? null : loc.getLocLocationCode();
+    }
+
+    private static String ledgerBalanceKey(Integer itemId, Integer locationFilter) {
+        if (locationFilter != null) {
+            return itemId + "|" + locationFilter;
+        }
+        return String.valueOf(itemId);
+    }
+
+    private static boolean isLedgerEligibleStatus(TxnHeaderMst header) {
+        if (isMovementEligibleStatus(header.getTxhStatus())) {
+            return true;
+        }
+        return "INSPECTION_APPROVAL".equals(header.getTxhDocType())
+                && header.getTxhStatus() != null
+                && header.getTxhStatus().toLowerCase().contains("reject");
     }
 
     // --- helpers ---
@@ -871,7 +1277,7 @@ public class ReportsController {
         return map;
     }
 
-    private Map<String, IssueCustody> latestIssueCustody() {
+    private Map<String, IssueCustody> latestIssueCustodyByItemLocation() {
         var headers = headerRepo.findAll((root, query, cb) -> cb.and(
                 cb.equal(root.get("txhDocType"), "MATERIAL_ISSUE"),
                 cb.notLike(cb.lower(root.get("txhStatus")), "%draft%"),
@@ -897,6 +1303,56 @@ public class ReportsController {
             }
         }
         return latest;
+    }
+
+    /** Latest material issue per item + store + serial/batch bucket (not whole item at store). */
+    private Map<String, IssueCustody> latestIssueCustodyByBucket() {
+        var headers = headerRepo.findAll((root, query, cb) -> cb.and(
+                cb.equal(root.get("txhDocType"), "MATERIAL_ISSUE"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%draft%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%reject%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%cancel%")
+        ), PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+
+        Map<String, IssueCustody> latest = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            Integer empId = h.getTxhHandedOverToEmpIdEmp() != null
+                    ? h.getTxhHandedOverToEmpIdEmp()
+                    : h.getTxhInitiatedByEmpIdEmp();
+            Integer locId = h.getTxhFromLocationIdLoc() != null
+                    ? h.getTxhFromLocationIdLoc()
+                    : h.getTxhLocationIdLoc();
+            if (locId == null) continue;
+            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
+            for (TxnDetailDtl d : lines) {
+                if (d.getTxdItemIdItm() == null) continue;
+                Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
+                String batch = firstNonBlank(d.getTxdSerialNo(), d.getTxdBatchLotNo());
+                String key = stockCustodyKey(d.getTxdItemIdItm(), locId, batch);
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate()));
+            }
+        }
+        return latest;
+    }
+
+    private Map<String, Integer> blsIssuedToByStockKey() {
+        Map<String, Integer> map = new HashMap<>();
+        for (InvBlsMst bls : blsRepo.findAll()) {
+            if (!Boolean.TRUE.equals(bls.getIbmIsactive())) continue;
+            if (bls.getIbmIssuedToEmpIdEmp() == null) continue;
+            if (Boolean.TRUE.equals(bls.getIbmIsDummy())) continue;
+            String batchKey = firstNonBlank(bls.getIbmSerialNo(), bls.getIbmBatchNo());
+            if (batchKey == null) continue;
+            map.put(
+                    stockCustodyKey(bls.getIbmItemIdItm(), bls.getIbmCurrentLocationIdLoc(), batchKey),
+                    bls.getIbmIssuedToEmpIdEmp());
+        }
+        return map;
+    }
+
+    private static String stockCustodyKey(Integer itemId, Integer locationId, String batchOrSerial) {
+        String batch = batchOrSerial == null || batchOrSerial.isBlank() ? "" : batchOrSerial.trim();
+        return itemId + "|" + (locationId == null ? "_" : locationId) + "|" + batch;
     }
 
     private static String custodyKey(Integer itemId, Integer locationId) {
@@ -926,6 +1382,7 @@ public class ReportsController {
             case "MATERIAL_ISSUE" -> "Issue";
             case "MATERIAL_TRANSFER" -> "Transfer";
             case "MATERIAL_RETURN" -> "Return";
+            case "INSPECTION_APPROVAL" -> "Inspection";
             default -> docType;
         };
     }
@@ -1018,6 +1475,8 @@ public class ReportsController {
             LocalDate date,
             Integer headerId,
             Integer detailId,
+            String rowSuffix,
+            int subOrder,
             Integer itemId,
             String itemCode,
             String itemName,
@@ -1025,6 +1484,8 @@ public class ReportsController {
             String docNo,
             String batch,
             String uomCode,
+            Integer locationId,
+            String locationCode,
             BigDecimal receipt,
             BigDecimal issue
     ) {}

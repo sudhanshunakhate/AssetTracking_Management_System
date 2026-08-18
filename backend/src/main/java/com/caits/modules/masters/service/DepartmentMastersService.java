@@ -6,9 +6,11 @@ import com.caits.common.PageResponse;
 import com.caits.common.spec.SpecUtils;
 import com.caits.domain.entity.HrcDepartmentMst;
 import com.caits.domain.entity.HrcEmployeeMst;
+import com.caits.domain.entity.OrgBusinessunitMst;
 import com.caits.domain.entity.OrgEntityMst;
 import com.caits.domain.repository.HrcDepartmentMstRepository;
 import com.caits.domain.repository.HrcEmployeeMstRepository;
+import com.caits.domain.repository.OrgBusinessunitMstRepository;
 import com.caits.domain.repository.OrgEntityMstRepository;
 import com.caits.modules.masters.dto.MasterDtos.DepartmentDto;
 import com.caits.modules.masters.dto.MasterDtos.DepartmentRequest;
@@ -27,17 +29,20 @@ public class DepartmentMastersService {
 
     private final HrcDepartmentMstRepository departmentRepo;
     private final OrgEntityMstRepository entityRepo;
+    private final OrgBusinessunitMstRepository buRepo;
     private final HrcEmployeeMstRepository employeeRepo;
     private final AccessScopeService accessScope;
 
     public DepartmentMastersService(
             HrcDepartmentMstRepository departmentRepo,
             OrgEntityMstRepository entityRepo,
+            OrgBusinessunitMstRepository buRepo,
             HrcEmployeeMstRepository employeeRepo,
             AccessScopeService accessScope
     ) {
         this.departmentRepo = departmentRepo;
         this.entityRepo = entityRepo;
+        this.buRepo = buRepo;
         this.employeeRepo = employeeRepo;
         this.accessScope = accessScope;
     }
@@ -65,6 +70,7 @@ public class DepartmentMastersService {
         require(req.departmentName(), "departmentName");
         if (req.entityId() == null) throw ApiException.badRequest("entityId is required");
         findEntity(req.entityId());
+        validateBu(req.entityId(), req.buId());
         validateHead(req.headEmpId());
         if (departmentRepo.existsByDeptDepartmentCodeIgnoreCase(req.departmentCode())) {
             throw ApiException.conflict("Department code already exists");
@@ -84,6 +90,7 @@ public class DepartmentMastersService {
             throw ApiException.conflict("Department code already exists");
         }
         if (req.entityId() != null) findEntity(req.entityId());
+        validateBu(req.entityId() != null ? req.entityId() : e.getDeptEntityIdEnt(), req.buId());
         validateHead(req.headEmpId());
         apply(e, req);
         e.setDeptModifiedBy(SecurityUtils.requireLoginId());
@@ -123,10 +130,20 @@ public class DepartmentMastersService {
                 .orElseThrow(() -> ApiException.badRequest("Head of Department employee not found"));
     }
 
+    private void validateBu(Integer entityId, Integer buId) {
+        if (buId == null) return;
+        OrgBusinessunitMst bu = buRepo.findById(buId)
+                .orElseThrow(() -> ApiException.badRequest("Operating Unit not found"));
+        if (entityId != null && !entityId.equals(bu.getBuEntityIdEnt())) {
+            throw ApiException.badRequest("Operating Unit does not belong to the selected Organization");
+        }
+    }
+
     private void apply(HrcDepartmentMst e, DepartmentRequest req) {
         if (req.departmentCode() != null) e.setDeptDepartmentCode(req.departmentCode().trim().toUpperCase());
         if (req.departmentName() != null) e.setDeptDepartmentName(req.departmentName().trim());
         if (req.entityId() != null) e.setDeptEntityIdEnt(req.entityId());
+        e.setDeptBuIdBu(req.buId());
         e.setDeptHeadEmpIdEmp(req.headEmpId());
         e.setDeptDesc(req.desc());
         if (req.isActive() != null) e.setDeptIsactive(req.isActive());
@@ -140,9 +157,19 @@ public class DepartmentMastersService {
                     .map(emp -> formatEmpName(emp))
                     .orElse(null);
         }
+        String buCode = null;
+        String buName = null;
+        if (e.getDeptBuIdBu() != null) {
+            OrgBusinessunitMst bu = buRepo.findById(e.getDeptBuIdBu()).orElse(null);
+            if (bu != null) {
+                buCode = bu.getBuBuCode();
+                buName = bu.getBuBuName();
+            }
+        }
         return new DepartmentDto(
                 e.getDeptDepartmentId(), e.getDeptDepartmentCode(), e.getDeptDepartmentName(),
-                e.getDeptEntityIdEnt(), e.getDeptHeadEmpIdEmp(), headName, e.getDeptDesc(), e.getDeptIsactive(),
+                e.getDeptEntityIdEnt(), e.getDeptBuIdBu(), buCode, buName,
+                e.getDeptHeadEmpIdEmp(), headName, e.getDeptDesc(), e.getDeptIsactive(),
                 e.getDeptCreatedBy(), e.getDeptCreatedOn(), e.getDeptModifiedBy(), e.getDeptModifiedOn(), message);
     }
 

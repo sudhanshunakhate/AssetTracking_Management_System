@@ -277,8 +277,10 @@ public class SecurityMastersService {
         require(req.employeeCode(), "employeeCode");
         require(req.firstName(), "firstName");
         require(req.email(), "email");
-        if (req.roleId() == null) throw ApiException.badRequest("roleId is required");
-        findRole(req.roleId());
+        if (Boolean.TRUE.equals(req.createLogin()) && req.roleId() == null) {
+            throw ApiException.badRequest("roleId is required when creating a user login");
+        }
+        if (req.roleId() != null) findRole(req.roleId());
         if (employeeRepo.existsByEmpEmployeeCodeIgnoreCase(req.employeeCode())) {
             throw ApiException.conflict("Employee code already exists");
         }
@@ -318,6 +320,9 @@ public class SecurityMastersService {
 
         String message = "Employee updated successfully";
         if (Boolean.TRUE.equals(req.createLogin()) && !userRepo.existsByUsrEmployeeIdEmp(e.getEmpEmployeeId())) {
+            if (req.roleId() == null) {
+                throw ApiException.badRequest("roleId is required when creating a user login");
+            }
             provisionLogin(e, req);
             message = "Employee updated successfully. User login was created automatically.";
         }
@@ -379,6 +384,14 @@ public class SecurityMastersService {
         if (userRepo.existsByUsrLoginIdIgnoreCase(loginId)) {
             throw ApiException.conflict("Login ID already exists");
         }
+        Integer roleId = req.roleId() != null ? req.roleId() : emp.getEmpRoleIdRol();
+        if (roleId == null) {
+            throw ApiException.badRequest("roleId is required to create a user login");
+        }
+        findRole(roleId);
+        emp.setEmpRoleIdRol(roleId);
+        employeeRepo.save(emp);
+
         Integer entityId = req.entityId();
         if (entityId == null) {
             entityId = entityRepo.findAll().stream()
@@ -392,7 +405,7 @@ public class SecurityMastersService {
         user.setUsrEmployeeIdEmp(emp.getEmpEmployeeId());
         user.setUsrLoginId(loginId);
         user.setUsrPasswordHash(passwordEncoder.encode(req.password()));
-        user.setUsrRoleIdRol(emp.getEmpRoleIdRol());
+        user.setUsrRoleIdRol(roleId);
         user.setUsrAccountStatus("Active");
         user.setUsrEntityIdEnt(entityId);
         user.setUsrBuAccessScope("ALL");

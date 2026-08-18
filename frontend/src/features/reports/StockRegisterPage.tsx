@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
-import { Card, CardBody } from '@/components/ui/Card'
+import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockRegister } from '@/api/transactions'
@@ -30,8 +30,9 @@ const emptyFilters = {
 
 export function StockRegisterPage() {
   const { seesAllLocations } = useAuth()
-  const [f, setF] = useState(emptyFilters)
-  const set = (k: keyof typeof emptyFilters, v: string) => setF((prev) => ({ ...prev, [k]: v }))
+  const [draft, setDraft] = useState(emptyFilters)
+  const [applied, setApplied] = useState(emptyFilters)
+  const set = (k: keyof typeof emptyFilters, v: string) => setDraft((prev) => ({ ...prev, [k]: v }))
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -46,10 +47,10 @@ export function StockRegisterPage() {
       const page = await fetchStockRegister({
         page: 1,
         pageSize: 200,
-        search: f.search || undefined,
-        locationId: f.loc || undefined,
-        fromDate: f.from || undefined,
-        toDate: f.to || undefined,
+        search: applied.search || undefined,
+        locationId: applied.loc || undefined,
+        fromDate: applied.from || undefined,
+        toDate: applied.to || undefined,
       })
       setRows(
         (page.data ?? []).map((r, idx) => ({
@@ -70,11 +71,18 @@ export function StockRegisterPage() {
     } finally {
       setLoading(false)
     }
-  }, [f])
+  }, [applied])
 
   useEffect(() => {
     void reload()
   }, [reload])
+
+  const applyFilters = () => setApplied({ ...draft })
+
+  const clearFilters = () => {
+    setDraft(emptyFilters)
+    setApplied(emptyFilters)
+  }
 
   const totals = useMemo(
     () => ({
@@ -102,59 +110,54 @@ export function StockRegisterPage() {
     <FadeContent>
       <PageHeader
         title="Stock Ledger"
-        description="Opening, receipt, issue and closing balances by item for the selected period, with owner for individual assets."
+        description="Opening, receipt, issue and closing balances by item for the selected period. Pick filters below and click Apply — changes are not loaded until you apply them."
         actions={
-          <>
-            <Button variant="ghost" onClick={() => setF(emptyFilters)}>
-              Clear
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={rows.length === 0}
-              onClick={() =>
-                downloadCsv(
-                  `stock-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
-                  headers,
-                  rows.map((r) => [
-                    r.srNo,
-                    r.itemName,
-                    r.uom,
-                    r.openingBalance,
-                    r.receiptDuringPeriod,
-                    r.issueDuringPeriod,
-                    r.closingBalance,
-                    r.ownerName,
-                  ]),
-                )
-              }
-            >
-              Export
-            </Button>
-            <Button onClick={() => void reload()}>Apply</Button>
-          </>
+          <Button
+            variant="ghost"
+            disabled={rows.length === 0}
+            onClick={() =>
+              downloadCsv(
+                `stock-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+                headers,
+                rows.map((r) => [
+                  r.srNo,
+                  r.itemName,
+                  r.uom,
+                  r.openingBalance,
+                  r.receiptDuringPeriod,
+                  r.issueDuringPeriod,
+                  r.closingBalance,
+                  r.ownerName,
+                ]),
+              )
+            }
+          >
+            Export
+          </Button>
         }
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading stock ledger…</div>}
 
       <Card className="mb-3">
+        <CardHeader title="Filters" subtitle="Narrow by item, date range, or store" />
         <CardBody>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
             <Field label="Search">
               <Input
-                value={f.search}
+                value={draft.search}
                 onChange={(e) => set('search', e.target.value)}
                 placeholder="Item name / code…"
               />
             </Field>
             <Field label="From Date">
-              <Input type="date" value={f.from} onChange={(e) => set('from', e.target.value)} />
+              <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />
             </Field>
             <Field label="To Date">
-              <Input type="date" value={f.to} onChange={(e) => set('to', e.target.value)} />
+              <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
             </Field>
             <Field label="Store">
-              <Select value={f.loc} onChange={(e) => set('loc', e.target.value)}>
+              <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
                 <option value="">{seesAllLocations ? 'All Stores' : 'My Stores'}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -163,6 +166,10 @@ export function StockRegisterPage() {
                 ))}
               </Select>
             </Field>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="ghost" onClick={clearFilters}>Clear</Button>
+            <Button onClick={applyFilters}>Apply</Button>
           </div>
         </CardBody>
       </Card>

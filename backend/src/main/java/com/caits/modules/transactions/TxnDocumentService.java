@@ -228,7 +228,7 @@ public class TxnDocumentService {
             if (docType == DocType.GRN && "SUBMIT".equals(action)) {
                 validateGrnInspectionRequirements(header, savedLines);
             }
-            if ("SUBMIT".equals(action) && postsStockOnSubmit(docType)) {
+            if ("SUBMIT".equals(action) && shouldPostStockOnSubmit(docType, header)) {
                 if (docType == DocType.INSPECTION_APPROVAL) {
                     stampInspectionApproved(header);
                 }
@@ -289,7 +289,7 @@ public class TxnDocumentService {
             if (docType == DocType.GRN && "SUBMIT".equals(action)) {
                 validateGrnInspectionRequirements(header, savedLines);
             }
-            if ("SUBMIT".equals(action) && postsStockOnSubmit(docType)) {
+            if ("SUBMIT".equals(action) && shouldPostStockOnSubmit(docType, header)) {
                 if (docType == DocType.INSPECTION_APPROVAL) {
                     stampInspectionApproved(header);
                 }
@@ -615,6 +615,26 @@ public class TxnDocumentService {
 
     private boolean postsStockOnSubmit(DocType docType) {
         return StockPostingRules.postsStockOnSubmit(docType);
+    }
+
+    /** Outward linked to a material transfer is gate documentation — stock already moved on the transfer. */
+    private boolean shouldPostStockOnSubmit(DocType docType, TxnHeaderMst header) {
+        if (!postsStockOnSubmit(docType)) {
+            return false;
+        }
+        if (docType == DocType.GATEPASS_OUTWARD && isLinkedMaterialTransfer(header.getTxhRefTxnHeaderIdTxh())) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isLinkedMaterialTransfer(Integer refTxnHeaderId) {
+        if (refTxnHeaderId == null) {
+            return false;
+        }
+        return headerRepo.findById(refTxnHeaderId)
+                .map(t -> DocType.MATERIAL_TRANSFER.code().equals(t.getTxhDocType()))
+                .orElse(false);
     }
 
     private String nextDocNo(DocType docType) {
@@ -1003,6 +1023,7 @@ public class TxnDocumentService {
                     line.getTxdIpAddress(),
                     line.getTxdMacAddress(),
                     line.getTxdHostname(),
+                    null,
                     line.getTxdRemark()
             ));
         }

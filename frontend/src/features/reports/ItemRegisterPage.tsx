@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
-import { Card, CardBody } from '@/components/ui/Card'
+import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchItemLedger } from '@/api/transactions'
@@ -18,6 +18,7 @@ type LedgerRow = {
   docNo: string
   batch: string
   uom: string
+  location: string
   receipt: string
   issue: string
   balance: number
@@ -38,8 +39,9 @@ const qtyCell = (v: string | number | null | undefined) => {
 
 export function ItemRegisterPage() {
   const { seesAllLocations } = useAuth()
-  const [f, setF] = useState(emptyFilters)
-  const set = (k: keyof typeof emptyFilters, v: string) => setF((prev) => ({ ...prev, [k]: v }))
+  const [draft, setDraft] = useState(emptyFilters)
+  const [applied, setApplied] = useState(emptyFilters)
+  const set = (k: keyof typeof emptyFilters, v: string) => setDraft((prev) => ({ ...prev, [k]: v }))
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -49,7 +51,7 @@ export function ItemRegisterPage() {
   const { rows: items } = useMasterList('items', mapItm)
   const { rows: stores } = useMasterList('locations', mapLoc)
 
-  const showItemCols = !f.itemId
+  const showItemCols = !applied.itemId
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -58,10 +60,10 @@ export function ItemRegisterPage() {
       const page = await fetchItemLedger({
         page: 1,
         pageSize: 200,
-        itemId: f.itemId || undefined,
-        locationId: f.loc || undefined,
-        fromDate: f.from || undefined,
-        toDate: f.to || undefined,
+        itemId: applied.itemId || undefined,
+        locationId: applied.loc || undefined,
+        fromDate: applied.from || undefined,
+        toDate: applied.to || undefined,
       })
       setRows(
         (page.data ?? []).map((r, idx) => ({
@@ -73,6 +75,7 @@ export function ItemRegisterPage() {
           docNo: String(r.docNo ?? ''),
           batch: String(r.batch ?? '').trim() || '—',
           uom: String(r.uomCode ?? '—'),
+          location: String(r.locationCode ?? '—'),
           receipt: qtyCell(r.receipt as string | number | null),
           issue: qtyCell(r.issue as string | number | null),
           balance: Number(r.balance ?? 0),
@@ -84,66 +87,91 @@ export function ItemRegisterPage() {
     } finally {
       setLoading(false)
     }
-  }, [f])
+  }, [applied])
 
   useEffect(() => {
     void reload()
   }, [reload])
 
+  const applyFilters = () => setApplied({ ...draft })
+
+  const clearFilters = () => {
+    setDraft(emptyFilters)
+    setApplied(emptyFilters)
+  }
+
   const headers = showItemCols
-    ? ['Date', 'Item Code', 'Item Name', 'Doc. Type', 'Doc. No.', 'Batch', 'UOM', 'Receipt', 'Issue', 'Balance']
-    : ['Date', 'Doc. Type', 'Doc. No.', 'Batch', 'UOM', 'Receipt', 'Issue', 'Balance']
+    ? [
+        'Date',
+        'Item Code',
+        'Item Name',
+        'Doc. Type',
+        'Doc. No.',
+        'Batch',
+        'UOM',
+        'Location',
+        'Receipt',
+        'Issue',
+        'Balance',
+      ]
+    : ['Date', 'Doc. Type', 'Doc. No.', 'Batch', 'UOM', 'Location', 'Receipt', 'Issue', 'Balance']
 
   return (
     <FadeContent>
       <PageHeader
         title="Item Ledger"
-        description="Running stock balance by document. Leave Item as All Items to see every item, or pick one to focus."
+        description="Running stock balance by document. Pick filters below and click Apply — changes are not loaded until you apply them."
         actions={
-          <>
-            <Button variant="ghost" onClick={() => setF(emptyFilters)}>
-              Clear
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={rows.length === 0}
-              onClick={() =>
-                downloadCsv(
-                  `item-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
-                  headers,
-                  rows.map((r) =>
-                    showItemCols
-                      ? [
-                          r.date,
-                          r.itemCode,
-                          r.itemName,
-                          r.docType,
-                          r.docNo,
-                          r.batch,
-                          r.uom,
-                          r.receipt,
-                          r.issue,
-                          r.balance,
-                        ]
-                      : [r.date, r.docType, r.docNo, r.batch, r.uom, r.receipt, r.issue, r.balance],
-                  ),
-                )
-              }
-            >
-              Export
-            </Button>
-            <Button onClick={() => void reload()}>Apply</Button>
-          </>
+          <Button
+            variant="ghost"
+            disabled={rows.length === 0}
+            onClick={() =>
+              downloadCsv(
+                `item-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+                headers,
+                rows.map((r) =>
+                  showItemCols
+                    ? [
+                        r.date,
+                        r.itemCode,
+                        r.itemName,
+                        r.docType,
+                        r.docNo,
+                        r.batch,
+                        r.uom,
+                        r.location,
+                        r.receipt,
+                        r.issue,
+                        r.balance,
+                      ]
+                    : [
+                        r.date,
+                        r.docType,
+                        r.docNo,
+                        r.batch,
+                        r.uom,
+                        r.location,
+                        r.receipt,
+                        r.issue,
+                        r.balance,
+                      ],
+                ),
+              )
+            }
+          >
+            Export
+          </Button>
         }
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading item ledger…</div>}
 
       <Card className="mb-3">
+        <CardHeader title="Filters" subtitle="Narrow by item, date range, or store" />
         <CardBody>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2.5">
             <Field label="Item">
-              <Select value={f.itemId} onChange={(e) => set('itemId', e.target.value)}>
+              <Select value={draft.itemId} onChange={(e) => set('itemId', e.target.value)}>
                 <option value="">All Items</option>
                 {items.map((i) => (
                   <option key={i.id} value={i.id}>
@@ -153,13 +181,13 @@ export function ItemRegisterPage() {
               </Select>
             </Field>
             <Field label="From Date">
-              <Input type="date" value={f.from} onChange={(e) => set('from', e.target.value)} />
+              <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />
             </Field>
             <Field label="To Date">
-              <Input type="date" value={f.to} onChange={(e) => set('to', e.target.value)} />
+              <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
             </Field>
             <Field label="Location">
-              <Select value={f.loc} onChange={(e) => set('loc', e.target.value)}>
+              <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
                 <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -168,6 +196,10 @@ export function ItemRegisterPage() {
                 ))}
               </Select>
             </Field>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="ghost" onClick={clearFilters}>Clear</Button>
+            <Button onClick={applyFilters}>Apply</Button>
           </div>
         </CardBody>
       </Card>
@@ -202,6 +234,7 @@ export function ItemRegisterPage() {
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.docNo}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.batch}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.location}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.receipt}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.issue}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{r.balance}</td>

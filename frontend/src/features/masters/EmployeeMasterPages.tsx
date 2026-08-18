@@ -78,7 +78,7 @@ type EmpFormState = {
   email: string
   phone: string
   altPhone: string
-  role: string
+  loginRole: string
   baseStore: string
   reportingTo: string
   status: boolean
@@ -103,7 +103,7 @@ const emptyForm = (): EmpFormState => ({
   email: '',
   phone: '',
   altPhone: '',
-  role: '',
+  loginRole: '',
   baseStore: '',
   reportingTo: '',
   status: true,
@@ -178,7 +178,7 @@ function EmployeeForm() {
           email: emp.email ?? '',
           phone: emp.phone ?? '',
           altPhone: emp.altPhone ?? '',
-          role: emp.roleId != null ? String(emp.roleId) : '',
+          loginRole: emp.roleId != null ? String(emp.roleId) : '',
           baseStore: emp.baseLocationId != null ? String(emp.baseLocationId) : '',
           reportingTo: emp.reportingToEmpId != null ? String(emp.reportingToEmpId) : '',
           status: emp.isActive !== false,
@@ -199,11 +199,6 @@ function EmployeeForm() {
       cancelled = true
     }
   }, [id, isNew, entities])
-
-  const roleLabel = useMemo(() => {
-    const r = roles.find((x) => x.id === values.role)
-    return r ? `${r.code} – ${r.name}` : '— pick Role above —'
-  }, [roles, values.role])
 
   const managerOptions = useMemo(
     () =>
@@ -265,7 +260,6 @@ function EmployeeForm() {
           validate: (v, all) =>
             v === String(all.phone ?? '').trim() ? 'Alt. Phone must differ from Phone' : '',
         },
-        { name: 'role', label: 'Role', required: true },
       ],
       bag,
       siblings,
@@ -301,6 +295,7 @@ function EmployeeForm() {
               validate: (v, all) => (v === String(all.password ?? '') ? '' : 'Passwords do not match'),
             },
             { name: 'entityId', label: 'Organization', required: true },
+            { name: 'loginRole', label: 'Role for Login', required: true },
           ],
           bag,
         ),
@@ -354,12 +349,12 @@ function EmployeeForm() {
         altPhone: values.altPhone.trim() || null,
         designation: values.designation.trim() || null,
         departmentId: numOrUndef(values.departmentId),
-        roleId: numOrUndef(values.role),
+        roleId: createLogin ? numOrUndef(values.loginRole) : null,
         baseLocationId: numOrUndef(values.baseStore),
         reportingToEmpId: numOrUndef(values.reportingTo),
         isActive: isActiveFromForm(values.status),
         createLogin,
-        loginId: values.loginId.trim().toLowerCase() || null,
+        loginId: createLogin ? values.loginId.trim().toLowerCase() || null : null,
         password: createLogin ? values.password : null,
         confirmPassword: createLogin ? values.confirmPassword : null,
         entityId: createLogin ? numOrUndef(values.entityId) : null,
@@ -492,7 +487,7 @@ function EmployeeForm() {
       </Card>
 
       <Card>
-        <CardHeader title="Professional Details" subtitle="Department, designation, role and location" />
+        <CardHeader title="Professional Details" subtitle="Department, designation and location" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Designation" error={err('designation')} className="md:col-span-2">
@@ -553,24 +548,6 @@ function EmployeeForm() {
                 disabled={readOnly}
               />
             </Field>
-            <Field label="Role" required error={err('role')} className="md:col-span-2">
-              <Select
-                value={values.role}
-                onChange={(e) => {
-                  touch('role')
-                  set('role', e.target.value)
-                }}
-                invalid={Boolean(err('role'))}
-                disabled={readOnly}
-              >
-                <option value="">— Assign Role —</option>
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.code} – {r.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <Field label="Base Store" className="md:col-span-2">
               <Select value={values.baseStore} onChange={(e) => set('baseStore', e.target.value)} disabled={readOnly}>
                 <option value="">— Assign Store —</option>
@@ -618,7 +595,18 @@ function EmployeeForm() {
               <Switch
                 label="Create User Login Automatically on Save"
                 checked={values.createLogin}
-                onChange={(v) => set('createLogin', v)}
+                onChange={(v) => {
+                  set('createLogin', v)
+                  if (!v) {
+                    setValues((prev) => ({
+                      ...prev,
+                      loginId: '',
+                      password: '',
+                      confirmPassword: '',
+                      loginRole: '',
+                    }))
+                  }
+                }}
                 disabled={readOnly}
               />
             </div>
@@ -674,8 +662,23 @@ function EmployeeForm() {
                   disabled={readOnly}
                 />
               </Field>
-              <Field label="Role for Login" hint="Taken from Role above">
-                <Input value={roleLabel} disabled />
+              <Field label="Role for Login" required error={err('loginRole')}>
+                <Select
+                  value={values.loginRole}
+                  onChange={(e) => {
+                    touch('loginRole')
+                    set('loginRole', e.target.value)
+                  }}
+                  invalid={Boolean(err('loginRole'))}
+                  disabled={readOnly}
+                >
+                  <option value="">— Select Role —</option>
+                  {roles.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.code} – {r.name}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field label="Organization" required error={err('entityId')} className="md:col-span-2">
                 <Select

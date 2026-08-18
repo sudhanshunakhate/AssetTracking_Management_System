@@ -21,6 +21,9 @@ public class HrcDepartmentMst {
     @Column(name = "dept_entity_id_ent", nullable = false)
     private Integer deptEntityIdEnt;
 
+    @Column(name = "dept_bu_id_bu")
+    private Integer deptBuIdBu;
+
     @Column(name = "dept_head_emp_id_emp")
     private Integer deptHeadEmpIdEmp;
 
@@ -53,6 +56,9 @@ public class HrcDepartmentMst {
 
     public Integer getDeptEntityIdEnt() { return deptEntityIdEnt; }
     public void setDeptEntityIdEnt(Integer deptEntityIdEnt) { this.deptEntityIdEnt = deptEntityIdEnt; }
+
+    public Integer getDeptBuIdBu() { return deptBuIdBu; }
+    public void setDeptBuIdBu(Integer deptBuIdBu) { this.deptBuIdBu = deptBuIdBu; }
 
     public Integer getDeptHeadEmpIdEmp() { return deptHeadEmpIdEmp; }
     public void setDeptHeadEmpIdEmp(Integer deptHeadEmpIdEmp) { this.deptHeadEmpIdEmp = deptHeadEmpIdEmp; }

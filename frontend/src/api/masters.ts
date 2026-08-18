@@ -365,6 +365,7 @@ export const mapItem = (i: ItemApi): ApiMasterRow => ({
   subCategory: i.subcategoryId != null ? String(i.subcategoryId) : '',
   uom: i.uomId != null ? String(i.uomId) : '',
   standardCost: Number(i.standardCost ?? 0),
+  isSerialized: Boolean(i.isSerialized),
   store: i.currentLocationId != null ? String(i.currentLocationId) : '',
   status: activeStatus(i.isActive),
 })
@@ -510,6 +511,9 @@ export type DepartmentApi = {
   departmentCode: string
   departmentName: string
   entityId?: number
+  buId?: number
+  buCode?: string
+  buName?: string
   headEmpId?: number
   headEmpName?: string
   desc?: string
@@ -521,6 +525,8 @@ export const mapDepartment = (d: DepartmentApi): ApiMasterRow => ({
   code: d.departmentCode,
   name: d.departmentName,
   orgCode: d.entityId != null ? String(d.entityId) : '',
+  ouCode: d.buId != null ? String(d.buId) : '',
+  ouName: d.buName ?? '',
   headEmpId: d.headEmpId != null ? String(d.headEmpId) : '',
   headEmpName: d.headEmpName ?? '',
   description: d.desc ?? '',

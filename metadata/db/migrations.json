@@ -298,8 +298,8 @@
                            "file":  "db_approach/030_grant_iapr_to_grn_roles.sql",
                            "description":  "Grant Inspection Approval menu to roles that can view GRN (not only ADMIN).",
                            "applied":  {
-                                           "local":  null,
-                                           "dev":  null
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-17"
                                        }
                        },
                        {
@@ -307,7 +307,7 @@
                            "file":  "db_approach/migrate_txn_line_issued_to.sql",
                            "description":  "Adds issued-to employee FK on txn_detail_dtl and inv_bls_mst for Opening Stock when Condition is Issued.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-08-17",
                                            "dev":  "2026-08-05"
                                        }
                        },
@@ -319,7 +319,25 @@
                                            "local":  "2026-08-17",
                                            "dev":  "2026-08-17"
                                        }
+                       },
+                       {
+                           "id":  "033-department-operating-unit",
+                           "file":  "db_approach/033_department_operating_unit.sql",
+                           "description":  "Optional Operating Unit FK on hrc_department_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-18"
+                                       }
+                       },
+                       {
+                           "id":  "034-employee-role-nullable",
+                           "file":  "db_approach/034_employee_role_nullable.sql",
+                           "description":  "Make emp_role_id_rol nullable so employees without login do not require a role.",
+                           "applied":  {
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-18"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-17"
+    "updated":  "2026-08-18"
 }

@@ -11,6 +11,7 @@ import { mapEmployee, mapItem, mapLocation, mapUnit, itemsForLocation, GEN_TYPE,
 import { useAuth } from '@/features/auth/AuthContext'
 import { itemOptionLabel, useLocationStock } from './lineGrid'
 import { GATEPASS_OUTWARD_PREFILL_KEY, type GatepassOutwardNavState } from './gatepassNavigation'
+import type { GatepassOutwardPrefill } from './transferGatepassBridge'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 
 export function GatepassPage() {
@@ -38,10 +39,16 @@ export function GatepassPage() {
 
   const sessionEmpId = user?.employeeId != null ? String(user.employeeId) : ''
 
-  const returnableOutwards = useMemo(
-    () => outward.rows.filter((r) => String(r.returnFlag).toUpperCase() === 'Y' || String(r.returnFlag).toLowerCase() === 'returnable'),
-    [outward.rows],
-  )
+  const returnableOutwards = useMemo(() => {
+    const inwardLinkedOutwardIds = new Set(
+      inward.rows.map((r) => r.refTxnHeaderId).filter((id) => Boolean(id)),
+    )
+    return outward.rows.filter((r) => {
+      const isReturnable =
+        String(r.returnFlag).toUpperCase() === 'Y' || String(r.returnFlag).toLowerCase() === 'returnable'
+      return isReturnable && !inwardLinkedOutwardIds.has(r.id)
+    })
+  }, [outward.rows, inward.rows])
 
   const [inwardForm, setInwardForm] = useState({
     date: todayIso(),
@@ -51,6 +58,7 @@ export function GatepassPage() {
     qty: '1',
     uom: '',
     remarks: '',
+    serialNo: '',
     returnableOutwardId: '',
   })
   const [outwardForm, setOutwardForm] = useState({
@@ -67,6 +75,7 @@ export function GatepassPage() {
     remarks: '',
   })
   const [linkedTransferId, setLinkedTransferId] = useState('')
+  const [transferOutwardLink, setTransferOutwardLink] = useState<GatepassOutwardPrefill | null>(null)
 
   /* When /auth/me fills employeeId after mount */
   useEffect(() => {
@@ -75,28 +84,49 @@ export function GatepassPage() {
     setOutwardForm((p) => (p.preparedBy ? p : { ...p, preparedBy: sessionEmpId, date: p.date || todayIso() }))
   }, [sessionEmpId])
 
-  /* Prefill outward from Material Transfer navigation */
+  /* Outward from Material Transfer — only transfer type + returnable are editable; lines come from the transfer on submit. */
   useEffect(() => {
     const state = location.state as GatepassOutwardNavState | null
     const prefill = state?.[GATEPASS_OUTWARD_PREFILL_KEY]
     if (!prefill) return
     setTab('outward')
-    setOutwardForm((p) => ({
-      ...p,
-      date: prefill.date || p.date || todayIso(),
-      store: prefill.storeId || p.store,
-      transferType: prefill.transferType || 'INTERNAL',
-      returnFlag: prefill.returnFlag || p.returnFlag,
-      party: prefill.party || p.party,
-      item: prefill.itemId || p.item,
-      qty: prefill.qty || p.qty,
-      uom: prefill.uomId || p.uom,
-      remarks: prefill.remarks || p.remarks,
-    }))
+    setTransferOutwardLink(prefill)
     setLinkedTransferId(prefill.transferDocId || '')
-    setMessage('Outward form prefilled from saved Material Transfer — review and submit.')
+    setOutwardForm({
+      date: '',
+      store: '',
+      preparedBy: sessionEmpId,
+      transferType: prefill.transferType || 'INTERNAL',
+      returnFlag: prefill.returnFlag || 'N',
+      party: '',
+      item: '',
+      qty: '',
+      uom: '',
+      batch: '',
+      remarks: '',
+    })
+    setMessage('Material transfer linked — set Transfer Type and Returnable / Non Returnable, then submit.')
     window.history.replaceState({}, document.title)
-  }, [location.state])
+  }, [location.state, sessionEmpId])
+
+  const resetInwardForm = useCallback(() => {
+    setInwardForm({
+      date: todayIso(),
+      store: '',
+      preparedBy: sessionEmpId,
+      item: '',
+      qty: '1',
+      uom: '',
+      remarks: '',
+      serialNo: '',
+      returnableOutwardId: '',
+    })
+  }, [sessionEmpId])
+
+  const refreshInward = useCallback(async () => {
+    await inward.reload()
+    await outward.reload()
+  }, [inward, outward])
 
   const transferTypeLabel = (value: string) => {
     const t = value.toUpperCase()
@@ -117,7 +147,18 @@ export function GatepassPage() {
   const { stockByItemId: outwardStock } = useLocationStock(outwardForm.store)
 
   const inwardHeaderReady = Boolean(inwardForm.store) && (inwardType === 'new' || Boolean(inwardForm.returnableOutwardId))
-  const outwardHeaderReady = Boolean(outwardForm.store && outwardForm.returnFlag && outwardForm.transferType)
+  const returnableInwardLocked = inwardType === 'returnable' && Boolean(inwardForm.returnableOutwardId)
+  const inwardSelectedItem = useMemo(
+    () => items.find((i) => i.id === inwardForm.item),
+    [items, inwardForm.item],
+  )
+  const inwardNeedsSerial = Boolean(
+    inwardSelectedItem?.isSerialized || inwardSelectedItem?.itemType === 'asset',
+  )
+  const fromTransferOutward = Boolean(transferOutwardLink)
+  const outwardHeaderReady = fromTransferOutward
+    ? Boolean(outwardForm.returnFlag && outwardForm.transferType)
+    : Boolean(outwardForm.store && outwardForm.returnFlag && outwardForm.transferType)
 
   const setIn = (k: keyof typeof inwardForm, v: string) => {
     setInwardForm((p) => {
@@ -150,7 +191,19 @@ export function GatepassPage() {
 
   const selectReturnableOutward = async (docId: string) => {
     setIn('returnableOutwardId', docId)
-    if (!docId) return
+    if (!docId) {
+      setInwardForm((p) => ({
+        ...p,
+        returnableOutwardId: '',
+        store: '',
+        item: '',
+        qty: '1',
+        uom: '',
+        serialNo: '',
+        remarks: '',
+      }))
+      return
+    }
     try {
       const doc = await fetchTxn('gatepass/outward', docId)
       const line = doc.lines?.[0]
@@ -162,6 +215,7 @@ export function GatepassPage() {
         uom: line?.uomId != null ? String(line.uomId) : p.uom,
         qty: line?.qty != null ? String(line.qty) : p.qty,
         remarks: doc.remarks ?? p.remarks,
+        serialNo: String(line?.serialNo ?? line?.batchLotNo ?? '').trim().toUpperCase(),
       }))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load outward document')
@@ -180,6 +234,10 @@ export function GatepassPage() {
       setError('You do not have Create/Edit permission for Gatepass')
       return
     }
+    if (returnableInwardLocked && !inwardForm.preparedBy) {
+      setError('Received By is required')
+      return
+    }
     setSaving(true)
     setError('')
     setMessage('')
@@ -188,6 +246,10 @@ export function GatepassPage() {
       if (itemId == null) throw new Error('Item is required')
       const qty = numOrUndef(inwardForm.qty) ?? 1
       const uomId = resolveUom(inwardForm.item, inwardForm.uom)
+      const serialNo = inwardForm.serialNo.trim().toUpperCase()
+      if (inwardNeedsSerial && !serialNo) {
+        throw new Error('Serial No. is required for this item')
+      }
       await createTxn('gatepass/inward', {
         docDate: inwardForm.date || todayIso(),
         locationId: numOrUndef(inwardForm.store),
@@ -203,12 +265,15 @@ export function GatepassPage() {
             qty,
             receivedQty: qty,
             acceptedQty: qty,
+            serialNo: serialNo || undefined,
+            batchLotNo: serialNo || undefined,
             locationId: numOrUndef(inwardForm.store),
           },
         ],
       })
       setMessage(action === 'SAVE_DRAFT' ? 'Inward gatepass saved as draft' : 'Inward gatepass completed')
-      await inward.reload()
+      await refreshInward()
+      resetInwardForm()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed')
     } finally {
@@ -221,38 +286,69 @@ export function GatepassPage() {
       setError('You do not have Create/Edit permission for Gatepass')
       return
     }
+    if (!outwardForm.transferType || !outwardForm.returnFlag) {
+      setError('Transfer Type and Returnable / Non Returnable are required')
+      return
+    }
     setSaving(true)
     setError('')
     setMessage('')
     try {
-      const itemId = numOrUndef(outwardForm.item)
-      if (itemId == null) throw new Error('Item is required')
-      const qty = numOrUndef(outwardForm.qty) ?? 1
-      const uomId = resolveUom(outwardForm.item, outwardForm.uom)
-      await createTxn('gatepass/outward', {
-        docDate: outwardForm.date || todayIso(),
-        locationId: numOrUndef(outwardForm.store),
-        fromLocationId: numOrUndef(outwardForm.store),
-        initiatedByEmpId: numOrUndef(outwardForm.preparedBy),
-        returnFlag: outwardForm.returnFlag,
-        docSubtype: outwardForm.transferType,
-        refTxnHeaderId: numOrUndef(linkedTransferId),
-        remarks: outwardForm.remarks || outwardForm.party,
-        docSubmitAction: action,
-        lines: [
+      const link = transferOutwardLink
+      const storeId = link?.storeId || outwardForm.store
+      const docDate = link?.date || outwardForm.date || todayIso()
+
+      let lines: Array<{
+        srNo: number
+        itemId?: number
+        uomId?: number
+        qty?: number
+        batchLotNo?: string
+        locationId?: number
+      }>
+
+      if (link && link.lines.length > 0) {
+        lines = link.lines.map((l, i) => ({
+          srNo: i + 1,
+          itemId: numOrUndef(l.itemId),
+          uomId: numOrUndef(l.uomId) ?? resolveUom(l.itemId, ''),
+          qty: numOrUndef(l.qty) ?? 1,
+          batchLotNo: l.batch || undefined,
+          locationId: numOrUndef(storeId),
+        }))
+      } else {
+        const itemId = numOrUndef(outwardForm.item)
+        if (itemId == null) throw new Error('Item is required')
+        const qty = numOrUndef(outwardForm.qty) ?? 1
+        const uomId = resolveUom(outwardForm.item, outwardForm.uom)
+        lines = [
           {
             srNo: 1,
             itemId,
             uomId,
             qty,
             batchLotNo: outwardForm.batch || undefined,
-            locationId: numOrUndef(outwardForm.store),
+            locationId: numOrUndef(storeId),
           },
-        ],
+        ]
+      }
+
+      await createTxn('gatepass/outward', {
+        docDate,
+        locationId: numOrUndef(storeId),
+        fromLocationId: numOrUndef(storeId),
+        initiatedByEmpId: numOrUndef(outwardForm.preparedBy),
+        returnFlag: outwardForm.returnFlag,
+        docSubtype: outwardForm.transferType,
+        refTxnHeaderId: numOrUndef(linkedTransferId),
+        remarks: fromTransferOutward ? undefined : outwardForm.remarks || outwardForm.party || undefined,
+        docSubmitAction: action,
+        lines,
       })
       setMessage(action === 'SAVE_DRAFT' ? 'Outward gatepass saved as draft' : 'Outward gatepass completed')
       if (action === 'SUBMIT' && linkedTransferId) {
         setLinkedTransferId('')
+        setTransferOutwardLink(null)
       }
       await outward.reload()
     } catch (err) {
@@ -361,7 +457,11 @@ export function GatepassPage() {
             <Card>
               <CardHeader
                 title="Select Returnable Outward"
-                subtitle="Choose an Outward Form marked Returnable — then save inward draft"
+                subtitle={
+                  returnableInwardLocked
+                    ? 'Details are taken from the outward document. You can change Received By and Serial No.'
+                    : 'Choose an Outward Form marked Returnable — then confirm who received it.'
+                }
               />
               <CardBody>
                 <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
@@ -369,6 +469,7 @@ export function GatepassPage() {
                     <Select
                       value={inwardForm.returnableOutwardId}
                       onChange={(e) => void selectReturnableOutward(e.target.value)}
+                      disabled={returnableInwardLocked}
                     >
                       <option value="">— Select Outward No. —</option>
                       {returnableOutwards.map((r) => (
@@ -379,7 +480,11 @@ export function GatepassPage() {
                     </Select>
                   </Field>
                   <Field label="Store" required>
-                    <Select value={inwardForm.store} onChange={(e) => setIn('store', e.target.value)}>
+                    <Select
+                      value={inwardForm.store}
+                      onChange={(e) => setIn('store', e.target.value)}
+                      disabled={returnableInwardLocked}
+                    >
                       <option value="">— Select Store —</option>
                       {stores.map((s) => (
                         <option key={s.id} value={s.id}>
@@ -388,14 +493,25 @@ export function GatepassPage() {
                       ))}
                     </Select>
                   </Field>
-                  <Field label="Received By" hint="Logged-in user">
-                    <Input value={preparedByLabel} readOnly disabled />
+                  <Field label="Received By" required hint="Who received the material at the gate">
+                    <Select
+                      value={inwardForm.preparedBy}
+                      onChange={(e) => setIn('preparedBy', e.target.value)}
+                      disabled={!returnableInwardLocked}
+                    >
+                      <option value="">— Select Employee —</option>
+                      {employees.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.code} – {String(e.firstName ?? '')} {String(e.lastName ?? '')}
+                        </option>
+                      ))}
+                    </Select>
                   </Field>
                   <Field label="Item" required className="md:col-span-2">
                     <Select
                       value={inwardForm.item}
                       onChange={(e) => setIn('item', e.target.value)}
-                      disabled={!inwardHeaderReady}
+                      disabled={returnableInwardLocked || !inwardHeaderReady}
                     >
                       <option value="">
                         {!inwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'}
@@ -412,14 +528,14 @@ export function GatepassPage() {
                       value={inwardForm.qty}
                       onChange={(e) => setIn('qty', e.target.value)}
                       type="number"
-                      disabled={!inwardHeaderReady}
+                      disabled={returnableInwardLocked || !inwardHeaderReady}
                     />
                   </Field>
                   <Field label="Unit">
                     <Select
                       value={inwardForm.uom}
                       onChange={(e) => setIn('uom', e.target.value)}
-                      disabled={!inwardHeaderReady}
+                      disabled={returnableInwardLocked || !inwardHeaderReady}
                     >
                       <option value="">—</option>
                       {units.map((u) => (
@@ -429,8 +545,32 @@ export function GatepassPage() {
                       ))}
                     </Select>
                   </Field>
+                  {inwardNeedsSerial && (
+                    <Field
+                      label="Serial No."
+                      required
+                      hint="Enter the asset serial being returned at the gate"
+                      className="md:col-span-2"
+                    >
+                      <Input
+                        value={inwardForm.serialNo}
+                        onChange={(e) => setIn('serialNo', e.target.value.toUpperCase())}
+                        disabled={!returnableInwardLocked}
+                        placeholder="Serial number"
+                      />
+                    </Field>
+                  )}
                 </div>
                 <div className="mt-4 flex justify-end gap-2">
+                  {returnableInwardLocked && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => void selectReturnableOutward('')}
+                      disabled={saving}
+                    >
+                      Change Outward
+                    </Button>
+                  )}
                   <Button variant="ghost" onClick={() => void saveInward('SAVE_DRAFT')} disabled={saving || !canSaveGp}>
                     {saving ? 'Saving…' : 'Save Draft'}
                   </Button>
@@ -514,18 +654,7 @@ export function GatepassPage() {
                 </CardBody>
               </Card>
               <FormActions
-                onClear={() =>
-                  setInwardForm({
-                    date: todayIso(),
-                    store: '',
-                    preparedBy: sessionEmpId,
-                    item: '',
-                    qty: '1',
-                    uom: '',
-                    remarks: '',
-                    returnableOutwardId: '',
-                  })
-                }
+                onClear={() => resetInwardForm()}
                 onBack={() => setInwardType('returnable')}
                 onSaveDraft={canSaveGp ? () => void saveInward('SAVE_DRAFT') : undefined}
                 draftLabel={saving ? 'Saving…' : 'Save Draft'}
@@ -587,7 +716,14 @@ export function GatepassPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Outward Details" />
+            <CardHeader
+              title="Outward Details"
+              subtitle={
+                fromTransferOutward
+                  ? 'Linked to a material transfer — item, store and party come from the transfer. Only Transfer Type and Returnable / Non Returnable can be changed.'
+                  : undefined
+              }
+            />
             <CardBody>
               <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
                 <Field label="Outward No." required>
@@ -598,6 +734,7 @@ export function GatepassPage() {
                     type="date"
                     value={outwardForm.date}
                     onChange={(e) => setOut('date', e.target.value)}
+                    disabled={fromTransferOutward}
                   />
                 </Field>
                 <Field label="Transfer Type" required>
@@ -628,7 +765,11 @@ export function GatepassPage() {
                   <Input value={preparedByLabel} readOnly disabled />
                 </Field>
                 <Field label="Store" required>
-                  <Select value={outwardForm.store} onChange={(e) => setOut('store', e.target.value)}>
+                  <Select
+                    value={outwardForm.store}
+                    onChange={(e) => setOut('store', e.target.value)}
+                    disabled={fromTransferOutward}
+                  >
                     <option value="">— Select Store —</option>
                     {stores.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -642,16 +783,21 @@ export function GatepassPage() {
                     placeholder="Customer or receiving party"
                     value={outwardForm.party}
                     onChange={(e) => setOut('party', e.target.value)}
+                    disabled={fromTransferOutward}
                   />
                 </Field>
                 <Field label="Item" required className="md:col-span-2">
                   <Select
                     value={outwardForm.item}
                     onChange={(e) => setOut('item', e.target.value)}
-                    disabled={!outwardHeaderReady}
+                    disabled={fromTransferOutward || !outwardHeaderReady}
                   >
                     <option value="">
-                      {!outwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'}
+                      {fromTransferOutward
+                        ? '— From linked transfer —'
+                        : !outwardHeaderReady
+                          ? '— Complete header fields first —'
+                          : '— Select Item —'}
                     </option>
                     {outwardItems.map((i) => (
                       <option key={i.id} value={i.id}>
@@ -665,14 +811,14 @@ export function GatepassPage() {
                     type="number"
                     value={outwardForm.qty}
                     onChange={(e) => setOut('qty', e.target.value)}
-                    disabled={!outwardHeaderReady}
+                    disabled={fromTransferOutward || !outwardHeaderReady}
                   />
                 </Field>
                 <Field label="Unit">
                   <Select
                     value={outwardForm.uom}
                     onChange={(e) => setOut('uom', e.target.value)}
-                    disabled={!outwardHeaderReady}
+                    disabled={fromTransferOutward || !outwardHeaderReady}
                   >
                     <option value="">—</option>
                     {units.map((u) => (
@@ -687,7 +833,7 @@ export function GatepassPage() {
                     value={outwardForm.batch}
                     onChange={(e) => setOut('batch', e.target.value)}
                     placeholder="Batch / lot"
-                    disabled={!outwardHeaderReady}
+                    disabled={fromTransferOutward || !outwardHeaderReady}
                   />
                 </Field>
                 <Field label="Remarks" className="md:col-span-2">
@@ -695,13 +841,16 @@ export function GatepassPage() {
                     placeholder="Remarks…"
                     value={outwardForm.remarks}
                     onChange={(e) => setOut('remarks', e.target.value)}
+                    disabled={fromTransferOutward}
                   />
                 </Field>
               </div>
             </CardBody>
           </Card>
           <FormActions
-            onClear={() =>
+            onClear={() => {
+              setLinkedTransferId('')
+              setTransferOutwardLink(null)
               setOutwardForm({
                 date: todayIso(),
                 store: '',
@@ -715,7 +864,7 @@ export function GatepassPage() {
                 batch: '',
                 remarks: '',
               })
-            }
+            }}
             onBack={() => setTab('inward')}
             onSaveDraft={canSaveGp ? () => void saveOutward('SAVE_DRAFT') : undefined}
             draftLabel={saving ? 'Saving…' : 'Save Draft'}

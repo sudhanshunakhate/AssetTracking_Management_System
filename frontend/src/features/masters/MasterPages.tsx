@@ -138,7 +138,7 @@ function ListStatus({ loading, error, label }: { loading: boolean; error: string
   )
 }
 
-function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} ? ${r.name}`) {
+function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} · ${r.name}`) {
   return rows.map((r) => ({ value: r.id, label: label(r) }))
 }
 
@@ -596,11 +596,11 @@ export function GeneralMastersMaster() {
       header: 'Parent Type',
       searchText: (r) => {
         const t = typeById[r.typeCode]
-        return t ? `${t.code} ? ${t.name}` : r.typeCode
+        return t ? `${t.code} · ${t.name}` : r.typeCode
       },
       render: (r) => {
         const t = typeById[r.typeCode]
-        return t ? `${t.code} ? ${t.name}` : r.typeCode
+        return t ? `${t.code} · ${t.name}` : r.typeCode
       },
     },
     { key: 'sort', header: 'Sort', searchText: (r) => String(r.sortOrder), render: (r) => r.sortOrder },
@@ -655,12 +655,15 @@ export function GeneralMastersMaster() {
 export function DepartmentsMaster() {
   const mapDeptStable = useCallback(mapDepartment, [])
   const mapEntityStable = useCallback(mapEntity, [])
+  const mapBuStable = useCallback(mapBusinessUnit, [])
   const mapEmpStable = useCallback(mapEmployee, [])
   const { rows, loading, error, reload } = useMasterList('departments', mapDeptStable)
   const { rows: orgs } = useMasterList('entities', mapEntityStable)
+  const { rows: ous } = useMasterList('business-units', mapBuStable)
   const { rows: employees } = useMasterList('employees', mapEmpStable)
 
   const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
+  const ouById = useMemo(() => Object.fromEntries(ous.map((o) => [o.id, o])), [ous])
 
   const columns: Column<Department>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
@@ -671,6 +674,12 @@ export function DepartmentsMaster() {
       searchText: (r) => orgById[r.orgCode]?.name ?? r.orgCode,
       render: (r) => orgById[r.orgCode]?.name ?? r.orgCode,
     },
+    {
+      key: 'ou',
+      header: 'Operating Unit',
+      searchText: (r) => ouById[r.ouCode]?.name ?? r.ouName ?? r.ouCode,
+      render: (r) => ouById[r.ouCode]?.name ?? r.ouName ?? (r.ouCode ? r.ouCode : '—'),
+    },
     { key: 'head', header: 'Head of Department', searchText: (r) => r.headEmpName, render: (r) => r.headEmpName || '—' },
     { key: 'description', header: 'Description', searchText: (r) => r.description, render: (r) => r.description },
     statusColumn(),
@@ -680,6 +689,17 @@ export function DepartmentsMaster() {
     { name: 'code', label: 'Department Code', uppercase: true, ...RULES.code(20) },
     { name: 'name', label: 'Department Name', span: 2, ...RULES.name(100, 2) },
     { name: 'orgCode', label: 'Organization', type: 'select', options: opt(orgs), ...RULES.select() },
+    {
+      name: 'ouCode',
+      label: 'Operating Unit',
+      type: 'select',
+      options: (values) => {
+        const org = String(values.orgCode ?? '')
+        const filtered = org ? ous.filter((o) => String(o.orgCode) === org) : ous
+        return opt(filtered)
+      },
+      placeholder: '— Optional —',
+    },
     {
       name: 'headEmpId',
       label: 'Head of Department',
@@ -714,6 +734,7 @@ export function DepartmentsMaster() {
             departmentCode: String(values.code ?? ''),
             departmentName: String(values.name ?? ''),
             entityId: numOrUndef(values.orgCode),
+            buId: numOrUndef(values.ouCode),
             headEmpId: numOrUndef(values.headEmpId),
             desc: String(values.description ?? ''),
             isActive: isActiveFromForm(values.status),
@@ -841,7 +862,7 @@ export function UsersMaster() {
       },
       render: (r) => {
         const emp = empById[r.employeeCode]
-        return emp ? `${emp.code} ? ${emp.firstName} ${emp.lastName}` : r.employeeCode
+        return emp ? `${emp.code} · ${emp.firstName} ${emp.lastName}` : r.employeeCode
       },
     },
     {
@@ -881,7 +902,7 @@ export function UsersMaster() {
         .filter((e) => Boolean(e.hasLogin))
         .map((e) => ({
           value: e.id,
-          label: `${e.code} ? ${e.firstName} ${e.lastName}`,
+          label: `${e.code} · ${e.firstName} ${e.lastName}`,
         })),
     [employees],
   )
@@ -1173,7 +1194,7 @@ function UserAccessMappingExtra({
               <option value="">? Select Organization ?</option>
               {orgs.map((o) => (
                 <option key={o.id} value={o.id}>
-                  {o.code} ? {o.name}
+                  {o.code} · {o.name}
                 </option>
               ))}
             </Select>
@@ -1221,7 +1242,7 @@ function UserAccessMappingExtra({
                   orgOus.map((o) => (
                     <Switch
                       key={o.id}
-                      label={`${o.code} ? ${o.name}`}
+                      label={`${o.code} · ${o.name}`}
                       checked={ouIds.includes(o.id)}
                       onChange={(v) => toggleOu(o.id, v)}
                     />
@@ -1251,7 +1272,7 @@ function UserAccessMappingExtra({
                   orgLocs.map((l) => (
                     <Switch
                       key={l.id}
-                      label={`${l.code} ? ${l.name}`}
+                      label={`${l.code} · ${l.name}`}
                       checked={locationIds.includes(l.id)}
                       onChange={(v) => toggleLoc(l.id, v)}
                     />
@@ -1274,7 +1295,7 @@ function UserAccessMappingExtra({
               <option value="">? Select Location ?</option>
               {(locScope === 'SELECTED' ? orgLocs.filter((l) => locationIds.includes(l.id)) : orgLocs).map((l) => (
                 <option key={l.id} value={l.id}>
-                  {l.code} ? {l.name}
+                  {l.code} · {l.name}
                 </option>
               ))}
             </Select>
@@ -1317,7 +1338,7 @@ export function ExceptionsMaster() {
       },
       render: (r) => {
         const emp = empById[r.employeeCode]
-        return emp ? `${emp.code} ? ${emp.firstName} ${emp.lastName}` : r.employeeCode
+        return emp ? `${emp.code} · ${emp.firstName} ${emp.lastName}` : r.employeeCode
       },
     },
     { key: 'type', header: 'Type', searchText: (r) => r.exceptionType, render: (r) => <Pill>{r.exceptionType}</Pill> },
@@ -1334,7 +1355,7 @@ export function ExceptionsMaster() {
       span: 2,
       options: employees.map((e) => ({
         value: e.id,
-        label: `${e.code} ? ${e.firstName} ${e.lastName}`,
+        label: `${e.code} · ${e.firstName} ${e.lastName}`,
       })),
       ...RULES.select(),
     },
@@ -1350,7 +1371,7 @@ export function ExceptionsMaster() {
       label: 'Menu Code',
       type: 'select',
       span: 3,
-      options: menus.map((m) => ({ value: m.menuCode, label: `${m.menuCode} ? ${m.menuLabel}` })),
+      options: menus.map((m) => ({ value: m.menuCode, label: `${m.menuCode} · ${m.menuLabel}` })),
       ...RULES.select(),
     },
     {

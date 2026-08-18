@@ -49,7 +49,7 @@ public class HrcEmployeeMst {
     @Column(name = "emp_alt_phone")
     private String empAltPhone;
 
-    @Column(name = "emp_role_id_rol", nullable = false)
+    @Column(name = "emp_role_id_rol")
     private Integer empRoleIdRol;
 
     @Column(name = "emp_base_location_id_loc")

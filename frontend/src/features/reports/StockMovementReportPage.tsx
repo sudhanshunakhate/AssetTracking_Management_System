@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
-import { Card, CardBody } from '@/components/ui/Card'
+import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockMovement } from '@/api/transactions'
@@ -37,8 +37,9 @@ const dash = (v: string) => (v.trim() ? v : '—')
 
 export function StockMovementReportPage() {
   const { seesAllLocations } = useAuth()
-  const [f, setF] = useState(emptyFilters)
-  const set = (k: keyof typeof emptyFilters, v: string) => setF((prev) => ({ ...prev, [k]: v }))
+  const [draft, setDraft] = useState(emptyFilters)
+  const [applied, setApplied] = useState(emptyFilters)
+  const set = (k: keyof typeof emptyFilters, v: string) => setDraft((prev) => ({ ...prev, [k]: v }))
   const [rows, setRows] = useState<MovementRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,12 +63,12 @@ export function StockMovementReportPage() {
       const page = await fetchStockMovement({
         page: 1,
         pageSize: 200,
-        search: f.search || undefined,
-        itemId: f.itemId || undefined,
-        employeeId: f.employeeId || undefined,
-        locationId: f.loc || undefined,
-        fromDate: f.from || undefined,
-        toDate: f.to || undefined,
+        search: applied.search || undefined,
+        itemId: applied.itemId || undefined,
+        employeeId: applied.employeeId || undefined,
+        locationId: applied.loc || undefined,
+        fromDate: applied.from || undefined,
+        toDate: applied.to || undefined,
       })
       setRows(
         (page.data ?? []).map((r) => {
@@ -100,11 +101,18 @@ export function StockMovementReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [f])
+  }, [applied])
 
   useEffect(() => {
     void reload()
   }, [reload])
+
+  const applyFilters = () => setApplied({ ...draft })
+
+  const clearFilters = () => {
+    setDraft(emptyFilters)
+    setApplied(emptyFilters)
+  }
 
   const headers = [
     'Date',
@@ -124,55 +132,50 @@ export function StockMovementReportPage() {
     <FadeContent>
       <PageHeader
         title="Asset Movement Register"
-        description="Track asset movements across locations and custodians. Filter by date range, item and owner."
+        description="Track asset movements across locations and custodians. Pick filters below and click Apply — changes are not loaded until you apply them."
         actions={
-          <>
-            <Button variant="ghost" onClick={() => setF(emptyFilters)}>
-              Clear
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={rows.length === 0}
-              onClick={() =>
-                downloadCsv(
-                  `asset-movement-register-${new Date().toISOString().slice(0, 10)}.csv`,
-                  headers,
-                  rows.map((r) => [
-                    r.date,
-                    r.assetId,
-                    r.assetName,
-                    r.fromLocation,
-                    r.toLocation,
-                    r.fromDept,
-                    r.toDept,
-                    r.custodian,
-                    r.movementType,
-                    r.reason,
-                    r.document,
-                  ]),
-                )
-              }
-            >
-              Export
-            </Button>
-            <Button onClick={() => void reload()}>Apply</Button>
-          </>
+          <Button
+            variant="ghost"
+            disabled={rows.length === 0}
+            onClick={() =>
+              downloadCsv(
+                `asset-movement-register-${new Date().toISOString().slice(0, 10)}.csv`,
+                headers,
+                rows.map((r) => [
+                  r.date,
+                  r.assetId,
+                  r.assetName,
+                  r.fromLocation,
+                  r.toLocation,
+                  r.fromDept,
+                  r.toDept,
+                  r.custodian,
+                  r.movementType,
+                  r.reason,
+                  r.document,
+                ]),
+              )
+            }
+          >
+            Export
+          </Button>
         }
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading asset movements…</div>}
 
       <Card className="mb-3">
+        <CardHeader title="Filters" subtitle="Narrow by date range, asset, owner, or location" />
         <CardBody>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
             <Field label="From Date">
-              <Input type="date" value={f.from} onChange={(e) => set('from', e.target.value)} />
+              <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />
             </Field>
             <Field label="To Date">
-              <Input type="date" value={f.to} onChange={(e) => set('to', e.target.value)} />
+              <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
             </Field>
             <Field label="Item">
-              <Select value={f.itemId} onChange={(e) => set('itemId', e.target.value)}>
+              <Select value={draft.itemId} onChange={(e) => set('itemId', e.target.value)}>
                 <option value="">All Assets</option>
                 {assetItems.map((i) => (
                   <option key={i.id} value={i.id}>
@@ -182,7 +185,7 @@ export function StockMovementReportPage() {
               </Select>
             </Field>
             <Field label="Owner">
-              <Select value={f.employeeId} onChange={(e) => set('employeeId', e.target.value)}>
+              <Select value={draft.employeeId} onChange={(e) => set('employeeId', e.target.value)}>
                 <option value="">All Owners</option>
                 {employees.map((e) => (
                   <option key={e.id} value={e.id}>
@@ -192,7 +195,7 @@ export function StockMovementReportPage() {
               </Select>
             </Field>
             <Field label="Location">
-              <Select value={f.loc} onChange={(e) => set('loc', e.target.value)}>
+              <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
                 <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -203,11 +206,15 @@ export function StockMovementReportPage() {
             </Field>
             <Field label="Search">
               <Input
-                value={f.search}
+                value={draft.search}
                 onChange={(e) => set('search', e.target.value)}
                 placeholder="Asset / document…"
               />
             </Field>
+          </div>
+          <div className="mt-3 flex justify-end gap-2">
+            <Button variant="ghost" onClick={clearFilters}>Clear</Button>
+            <Button onClick={applyFilters}>Apply</Button>
           </div>
         </CardBody>
       </Card>

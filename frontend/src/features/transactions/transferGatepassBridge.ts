@@ -1,21 +1,24 @@
 import type { ApiMasterRow } from '@/api/masters'
 import type { TxnDocument } from '@/api/transactions'
 import type { TransferLine } from './TransferItemLines'
-import { isPendingDocNo } from './txnConstants'
 
 export type TransferType = 'INTERNAL' | 'OU'
 
-export type GatepassOutwardPrefill = {
-  transferDocId: string
-  date: string
-  storeId: string
-  transferType: TransferType
-  returnFlag: string
-  party: string
+export type GatepassOutwardPrefillLine = {
   itemId: string
   qty: string
   uomId: string
-  remarks: string
+  batch?: string
+}
+
+/** Navigation payload from Material Transfer — UI shows only transfer type + returnable; lines are applied on submit. */
+export type GatepassOutwardPrefill = {
+  transferDocId: string
+  transferType: TransferType
+  returnFlag: string
+  date: string
+  storeId: string
+  lines: GatepassOutwardPrefillLine[]
 }
 
 import {
@@ -75,20 +78,27 @@ export function buildGatepassPrefillFromTransfer(
   transferDate: string,
   fromStoreId: string,
   toStoreId: string,
-  remarks: string,
-  transferNo: string,
+  _remarks: string,
+  _transferNo: string,
   lines: TransferLine[],
   locations: ApiMasterRow[],
 ): GatepassOutwardPrefill | null {
   if (!needsGatepassOutward(transferType, fromStoreId, toStoreId, locations)) return null
 
-  const firstLine = lines.find((l) => l.itemId)
   const toLoc = locations.find((l) => l.id === toStoreId)
   const toRole = String(toLoc?.systemRole ?? '').toUpperCase()
   const returnFlag =
     toRole === 'REJECTED' || String(toLoc?.name ?? '').toLowerCase().includes('reject') ? 'Y' : 'N'
 
-  const party = toLoc ? `${toLoc.code ?? ''} – ${toLoc.name ?? ''}`.trim() : ''
+  const prefillLines = lines
+    .filter((l) => l.itemId)
+    .map((l) => ({
+      itemId: l.itemId,
+      qty: l.transferQty || '1',
+      uomId: l.uomId ?? '',
+    }))
+
+  if (prefillLines.length === 0) return null
 
   return {
     transferDocId,
@@ -96,11 +106,7 @@ export function buildGatepassPrefillFromTransfer(
     storeId: fromStoreId,
     transferType,
     returnFlag,
-    party,
-    itemId: firstLine?.itemId ?? '',
-    qty: firstLine?.transferQty || '1',
-    uomId: firstLine?.uomId ?? '',
-    remarks: remarks || (!isPendingDocNo(transferNo) ? `Against transfer ${transferNo}` : ''),
+    lines: prefillLines,
   }
 }
 
