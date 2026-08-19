@@ -31,7 +31,9 @@ import { CsvImportButton } from '@/components/ui/CsvImportButton'
 import {
   EMPLOYEE_IMPORT_HEADERS,
   EMPLOYEE_IMPORT_SAMPLE,
-  importEmployeesFromCsv,
+  parseEmployeesFromCsv,
+  saveEmployeesFromDrafts,
+  type EmployeeImportDraft,
   type EmployeeImportResult,
 } from './employeeCsvImport'
 
@@ -737,22 +739,50 @@ function EmployeeList() {
   const { rows: departments } = useMasterList('departments', mapDeptStable)
   const { rows: locations } = useMasterList('locations', mapLocStable)
   const roleById = useMemo(() => Object.fromEntries(roles.map((r) => [r.id, r])), [roles])
+  const [previewRows, setPreviewRows] = useState<EmployeeImportDraft[]>([])
   const [importResult, setImportResult] = useState<EmployeeImportResult | null>(null)
   const [importing, setImporting] = useState(false)
+  const [savingImport, setSavingImport] = useState(false)
 
-  const onImportEmployees = async (csvRows: Record<string, string>[]) => {
-    setImporting(true)
+  const validPreviewCount = previewRows.filter((r) => !r.error).length
+  const invalidPreviewCount = previewRows.filter((r) => r.error).length
+
+  const onUploadEmployees = (csvRows: Record<string, string>[]) => {
+    const parsed = parseEmployeesFromCsv(csvRows, {
+      roles,
+      departments,
+      locations,
+      employees: rows,
+    })
+    setImportResult(null)
+    setPreviewRows(parsed.drafts)
+  }
+
+  const removePreviewRow = (key: string) => {
+    setPreviewRows((prev) => prev.filter((r) => r.key !== key))
+  }
+
+  const clearPreview = () => {
+    setPreviewRows([])
+    setImportResult(null)
+  }
+
+  const savePreview = async () => {
+    const toSave = previewRows.filter((r) => !r.error)
+    if (toSave.length === 0) {
+      setImportResult({ created: 0, failed: previewRows.map((r) => ({ row: r.sourceRow, message: r.error || 'Invalid row' })) })
+      return
+    }
+    setSavingImport(true)
     try {
-      const result = await importEmployeesFromCsv(csvRows, {
-        roles,
-        departments,
-        locations,
-        employees: rows,
-      })
+      const result = await saveEmployeesFromDrafts(toSave)
       setImportResult(result)
-      if (result.created > 0) await reload()
+      if (result.created > 0) {
+        await reload()
+        setPreviewRows([])
+      }
     } finally {
-      setImporting(false)
+      setSavingImport(false)
     }
   }
 
@@ -790,18 +820,85 @@ function EmployeeList() {
           canCreateMenu('EMP') ? (
             <div className="flex flex-wrap items-center gap-2">
               <CsvImportButton
-                label={importing ? 'Importing…' : 'Import CSV'}
+                label={importing ? 'Uploading…' : 'Upload CSV'}
                 templateFilename="employee_import_template.csv"
                 templateHeaders={EMPLOYEE_IMPORT_HEADERS}
                 sampleRow={EMPLOYEE_IMPORT_SAMPLE}
-                disabled={importing}
-                onRows={onImportEmployees}
+                disabled={importing || savingImport}
+                onRows={(csvRows) => {
+                  setImporting(true)
+                  try {
+                    onUploadEmployees(csvRows)
+                  } finally {
+                    setImporting(false)
+                  }
+                }}
               />
               <Button onClick={() => navigate('/masters/employees/new')}>Add Employee</Button>
             </div>
           ) : undefined
         }
       />
+      {previewRows.length > 0 && (
+        <Card className="mb-3">
+          <CardHeader
+            title="CSV preview"
+            subtitle={`${previewRows.length} row(s) loaded — ${validPreviewCount} ready to save, ${invalidPreviewCount} with errors. Review and remove rows, then Save.`}
+          />
+          <CardBody className="!p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-[var(--surface2)] text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text2)]">
+                    <th className="w-[54px] px-2 py-2 text-center">Action</th>
+                    <th className="px-2 py-2">Code</th>
+                    <th className="px-2 py-2">Name</th>
+                    <th className="px-2 py-2">Email</th>
+                    <th className="px-2 py-2">Role</th>
+                    <th className="px-2 py-2">Department</th>
+                    <th className="px-2 py-2">Location</th>
+                    <th className="px-2 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((r) => (
+                    <tr key={r.key} className="border-t border-[var(--border)] align-middle text-[12px]">
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          aria-label={`Remove ${r.employeeCode || `row ${r.sourceRow}`}`}
+                          disabled={savingImport}
+                          onClick={() => removePreviewRow(r.key)}
+                          className="rounded px-1.5 text-[14px] leading-none text-[var(--text3)] transition hover:text-[var(--danger)] disabled:opacity-40"
+                        >
+                          ×
+                        </button>
+                      </td>
+                      <td className="px-2 py-1.5 font-mono">{r.employeeCode || '—'}</td>
+                      <td className="px-2 py-1.5">{`${r.firstName} ${r.lastName}`.trim() || '—'}</td>
+                      <td className="px-2 py-1.5">{r.email || '—'}</td>
+                      <td className="px-2 py-1.5">{r.roleCode || '—'}</td>
+                      <td className="px-2 py-1.5">{r.departmentCode || '—'}</td>
+                      <td className="px-2 py-1.5">{r.locationCode || '—'}</td>
+                      <td className={`px-2 py-1.5 ${r.error ? 'text-[var(--danger)]' : 'text-[var(--accent)]'}`}>
+                        {r.error || 'Ready'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[var(--border)] px-3 py-2.5">
+              <Button variant="danger" disabled={savingImport} onClick={clearPreview}>
+                Clear
+              </Button>
+              <Button disabled={savingImport || validPreviewCount === 0} onClick={() => void savePreview()}>
+                {savingImport ? 'Saving…' : `Save ${validPreviewCount} employee${validPreviewCount === 1 ? '' : 's'}`}
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+      )}
       {importResult && (
         <div className="mb-3 rounded-md border border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-[12px]">
           <div className="font-semibold text-[var(--text)]">
@@ -810,7 +907,7 @@ function EmployeeList() {
           {importResult.failed.length > 0 && (
             <ul className="mt-1 max-h-40 overflow-y-auto text-[var(--danger)]">
               {importResult.failed.map((f) => (
-                <li key={f.row}>Row {f.row}: {f.message}</li>
+                <li key={`${f.row}-${f.message}`}>Row {f.row}: {f.message}</li>
               ))}
             </ul>
           )}

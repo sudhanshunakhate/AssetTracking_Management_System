@@ -2,11 +2,19 @@ import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { downloadCsvTemplate, readCsvFile } from '@/lib/csvImport'
 
+type TemplateLink = {
+  label: string
+  filename: string
+  headers: string[]
+  sampleRow?: string[]
+}
+
 type Props = {
   label?: string
   templateFilename: string
   templateHeaders: string[]
   sampleRow?: string[]
+  extraTemplates?: TemplateLink[]
   disabled?: boolean
   onRows: (rows: Record<string, string>[]) => void | Promise<void>
 }
@@ -16,6 +24,7 @@ export function CsvImportButton({
   templateFilename,
   templateHeaders,
   sampleRow,
+  extraTemplates = [],
   disabled,
   onRows,
 }: Props) {
@@ -57,14 +66,28 @@ export function CsvImportButton({
       >
         {busy ? 'Importing…' : label}
       </Button>
-      <button
-        type="button"
-        disabled={disabled || busy}
-        onClick={() => downloadCsvTemplate(templateFilename, templateHeaders, sampleRow)}
-        className="text-[11px] font-semibold text-[var(--accent)] underline disabled:opacity-40"
-      >
-        Download template
-      </button>
+      {extraTemplates.length === 0 ? (
+        <button
+          type="button"
+          disabled={disabled || busy}
+          onClick={() => downloadCsvTemplate(templateFilename, templateHeaders, sampleRow)}
+          className="text-[11px] font-semibold text-[var(--accent)] underline disabled:opacity-40"
+        >
+          Download template
+        </button>
+      ) : (
+        extraTemplates.map((t) => (
+          <button
+            key={t.filename}
+            type="button"
+            disabled={disabled || busy}
+            onClick={() => downloadCsvTemplate(t.filename, t.headers, t.sampleRow)}
+            className="text-[11px] font-semibold text-[var(--accent)] underline disabled:opacity-40"
+          >
+            {t.label}
+          </button>
+        ))
+      )}
     </div>
   )
 }
