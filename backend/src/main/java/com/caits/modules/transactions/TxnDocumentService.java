@@ -745,12 +745,12 @@ public class TxnDocumentService {
             if (home == null) {
                 continue;
             }
-            Integer buId = systemLocations.resolveBuId(home);
-            if (buId == null) {
+        Integer buId = systemLocations.resolveBuId(home);
+            if (buId == null && systemLocations.resolveEntityId(null, home) == null) {
                 continue;
             }
             header.setTxhLocationIdLoc(
-                    systemLocations.requireSystemLocation(buId, SystemLocationRole.QUARANTINE).getLocLocationId());
+                    systemLocations.requireSystemLocationForStore(home, SystemLocationRole.QUARANTINE).getLocLocationId());
             return;
         }
         throw ApiException.badRequest("Quarantine location could not be resolved for this inspection approval");
@@ -765,11 +765,7 @@ public class TxnDocumentService {
             if (store == null) {
                 return null;
             }
-            Integer buId = systemLocations.resolveBuId(store);
-            if (buId == null) {
-                return null;
-            }
-            return systemLocations.requireSystemLocation(buId, SystemLocationRole.QUARANTINE).getLocLocationId();
+            return systemLocations.requireSystemLocationForStore(store, SystemLocationRole.QUARANTINE).getLocLocationId();
         }).orElse(null);
     }
 
@@ -782,11 +778,7 @@ public class TxnDocumentService {
             if (store == null) {
                 return null;
             }
-            Integer buId = systemLocations.resolveBuId(store);
-            if (buId == null) {
-                return null;
-            }
-            return systemLocations.requireSystemLocation(buId, SystemLocationRole.REJECTED).getLocLocationId();
+            return systemLocations.requireSystemLocationForStore(store, SystemLocationRole.REJECTED).getLocLocationId();
         }).orElse(null);
     }
 
@@ -924,12 +916,12 @@ public class TxnDocumentService {
         if (headerStore == null) {
             throw ApiException.badRequest("Store is required for GRN stock posting");
         }
-        Integer buId = systemLocations.resolveBuId(headerStore);
-        if (buId == null) {
-            throw ApiException.badRequest("Operating Unit could not be resolved from the GRN store");
+        Integer entityId = systemLocations.resolveEntityId(null, headerStore);
+        if (entityId == null) {
+            throw ApiException.badRequest("Organization could not be resolved from the GRN store");
         }
-        Integer rejectedLoc = systemLocations.requireSystemLocation(buId, SystemLocationRole.REJECTED).getLocLocationId();
-        Integer quarantineLoc = systemLocations.requireSystemLocation(buId, SystemLocationRole.QUARANTINE).getLocLocationId();
+        Integer rejectedLoc = systemLocations.requireSystemLocationForEntity(entityId, SystemLocationRole.REJECTED).getLocLocationId();
+        Integer quarantineLoc = systemLocations.requireSystemLocationForEntity(entityId, SystemLocationRole.QUARANTINE).getLocLocationId();
         int sign = apply ? 1 : -1;
         Integer headerId = header.getTxhTxnHeaderId();
 
@@ -975,8 +967,8 @@ public class TxnDocumentService {
         if (headerStore == null) {
             return;
         }
-        Integer buId = systemLocations.resolveBuId(headerStore);
-        if (buId == null) {
+        Integer entityId = systemLocations.resolveEntityId(grnHeader.getTxhEntityIdEnt(), headerStore);
+        if (entityId == null) {
             return;
         }
 
@@ -1031,10 +1023,10 @@ public class TxnDocumentService {
             return;
         }
 
-        Integer quarantineLoc = systemLocations.requireSystemLocation(buId, SystemLocationRole.QUARANTINE).getLocLocationId();
-        Integer entityId = grnHeader.getTxhEntityIdEnt();
-        if (entityId == null) {
-            entityId = systemLocations.resolveEntityId(null, headerStore);
+        Integer quarantineLoc = systemLocations.requireSystemLocationForEntity(entityId, SystemLocationRole.QUARANTINE).getLocLocationId();
+        Integer entityIdForHeader = grnHeader.getTxhEntityIdEnt();
+        if (entityIdForHeader == null) {
+            entityIdForHeader = entityId;
         }
         Integer inspector = grnHeader.getTxhInspectedByEmpIdEmp();
         if (inspector == null) {
@@ -1047,7 +1039,7 @@ public class TxnDocumentService {
         TxnHeaderMst inspection = new TxnHeaderMst();
         inspection.setTxhDocType(DocType.INSPECTION_APPROVAL.code());
         inspection.setTxhDocDate(grnHeader.getTxhDocDate() != null ? grnHeader.getTxhDocDate() : LocalDate.now());
-        inspection.setTxhEntityIdEnt(entityId);
+        inspection.setTxhEntityIdEnt(entityIdForHeader);
         inspection.setTxhLocationIdLoc(quarantineLoc);
         inspection.setTxhInitiatedByEmpIdEmp(inspector);
         inspection.setTxhRefTxnHeaderIdTxh(grnHeader.getTxhTxnHeaderId());

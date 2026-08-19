@@ -333,7 +333,10 @@ export function StoresMaster() {
       key: 'ou',
       header: 'OU',
       searchText: (r) => r.ouCode,
-      render: (r) => ous.find((o) => o.id === r.ouCode)?.code ?? r.ouCode,
+      render: (r) =>
+        r.isSystemLocation
+          ? 'All OUs'
+          : ous.find((o) => o.id === r.ouCode)?.code ?? r.ouCode,
     },
     { key: 'city', header: 'City', searchText: (r) => r.city, render: (r) => r.city },
     statusColumn(),
@@ -369,6 +372,13 @@ export function StoresMaster() {
       ...RULES.select(),
     },
     { name: 'city', label: 'City', ...RULES.city() },
+    {
+      name: 'isSystemLocation',
+      label: 'System Derived Location',
+      type: 'switch',
+      hint: 'System locations are global per Organization (read-only)',
+      span: 2,
+    },
     { name: 'status', label: 'Active Location', type: 'switch', span: 4 },
   ]
 
@@ -397,7 +407,7 @@ export function StoresMaster() {
         base="/masters/stores"
         menuCode="STR"
         title="Location Master"
-        description="Locations defined entity-wise, mapped to an Organization and Operating Unit."
+        description="Operational locations are OU-specific. System Derived locations are global per Organization and shared across all OUs."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
@@ -406,8 +416,8 @@ export function StoresMaster() {
         validateForm={validateForm}
         readOnlyFields={(values) =>
           values.isSystemLocation
-            ? ['code', 'orgCode', 'ouCode', 'storeType', 'status']
-            : ['printLocationName']
+            ? ['code', 'name', 'orgCode', 'ouCode', 'storeType', 'status', 'city', 'isSystemLocation']
+            : ['printLocationName', 'isSystemLocation']
         }
         onFieldChange={(name, _value, values) => {
           if (name === 'orgCode' && values.ouCode) {

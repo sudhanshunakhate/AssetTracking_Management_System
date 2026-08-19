@@ -11,4 +11,8 @@ public interface OrgLocationMstRepository extends JpaRepository<OrgLocationMst, 
     boolean existsByLocLocationCodeIgnoreCase(String code);
     boolean existsByLocBuIdBuAndLocSystemRole(Integer buId, String systemRole);
     Optional<OrgLocationMst> findByLocBuIdBuAndLocSystemRoleAndLocIsactiveTrue(Integer buId, String systemRole);
+    boolean existsByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocBuIdBuIsNull(
+            Integer entityId, String systemRole);
+    Optional<OrgLocationMst> findByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocIsactiveTrue(
+            Integer entityId, String systemRole);
 }

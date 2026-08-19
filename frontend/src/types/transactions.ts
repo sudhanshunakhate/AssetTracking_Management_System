@@ -108,6 +108,7 @@ export interface StockRegisterRow {
 
 export interface FullReportRow {
   id: string
+  docId: string
   date: string
   txnType: string
   txnNo: string

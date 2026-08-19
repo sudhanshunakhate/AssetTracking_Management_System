@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 public class SystemLocationService {
@@ -24,24 +25,53 @@ public class SystemLocationService {
         this.locationRepo = locationRepo;
     }
 
-    /** Creates the five system locations for one Operating Unit when missing. */
+    /** Creates the five global system locations for an Organization when missing. */
+    @Transactional
+    public void ensureForEntity(Integer entityId) {
+        if (entityId == null) {
+            return;
+        }
+        for (SystemLocationRole role : SystemLocationRole.values()) {
+            if (locationRepo.existsByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocBuIdBuIsNull(
+                    entityId, role.code())) {
+                continue;
+            }
+            createSystemLocationForEntity(entityId, role);
+        }
+    }
+
+  /** @deprecated Prefer {@link #ensureForEntity}; kept for compatibility. */
     @Transactional
     public void ensureForBu(Integer buId) {
         OrgBusinessunitMst bu = buRepo.findById(buId)
                 .orElseThrow(() -> ApiException.notFound("Operating Unit not found"));
-        for (SystemLocationRole role : SystemLocationRole.values()) {
-            if (locationRepo.existsByLocBuIdBuAndLocSystemRole(buId, role.code())) {
-                continue;
-            }
-            createSystemLocation(bu, role);
-        }
+        ensureForEntity(bu.getBuEntityIdEnt());
     }
 
     @Transactional(readOnly = true)
     public OrgLocationMst requireSystemLocation(Integer buId, SystemLocationRole role) {
-        return locationRepo.findByLocBuIdBuAndLocSystemRoleAndLocIsactiveTrue(buId, role.code())
+        Integer entityId = resolveEntityIdFromBu(buId);
+        if (entityId == null) {
+            throw ApiException.badRequest("Organization could not be resolved for system location lookup");
+        }
+        return requireSystemLocationForEntity(entityId, role);
+    }
+
+    @Transactional(readOnly = true)
+    public OrgLocationMst requireSystemLocationForEntity(Integer entityId, SystemLocationRole role) {
+        return locationRepo.findByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocIsactiveTrue(
+                        entityId, role.code())
                 .orElseThrow(() -> ApiException.badRequest(
-                        "System location \"" + role.defaultName() + "\" is not configured for this Operating Unit"));
+                        "System location \"" + role.defaultName() + "\" is not configured for this Organization"));
+    }
+
+    @Transactional(readOnly = true)
+    public OrgLocationMst requireSystemLocationForStore(Integer locationId, SystemLocationRole role) {
+        Integer entityId = resolveEntityId(null, locationId);
+        if (entityId == null) {
+            throw ApiException.badRequest("Organization could not be resolved from the selected store");
+        }
+        return requireSystemLocationForEntity(entityId, role);
     }
 
     @Transactional(readOnly = true)
@@ -49,9 +79,14 @@ public class SystemLocationService {
         if (locationId == null) {
             return null;
         }
-        return locationRepo.findById(locationId)
-                .map(OrgLocationMst::getLocBuIdBu)
-                .orElse(null);
+        OrgLocationMst loc = locationRepo.findById(locationId).orElse(null);
+        if (loc == null) {
+            return null;
+        }
+        if (loc.getLocBuIdBu() != null) {
+            return loc.getLocBuIdBu();
+        }
+        return firstActiveBuIdForEntity(loc.getLocEntityIdEnt());
     }
 
     @Transactional(readOnly = true)
@@ -67,18 +102,33 @@ public class SystemLocationService {
                 .orElse(null);
     }
 
-    private void createSystemLocation(OrgBusinessunitMst bu, SystemLocationRole role) {
-        String baseCode = "SYS-" + bu.getBuBuId() + "-" + roleSuffix(role);
+    private Integer resolveEntityIdFromBu(Integer buId) {
+        if (buId == null) {
+            return null;
+        }
+        return buRepo.findById(buId).map(OrgBusinessunitMst::getBuEntityIdEnt).orElse(null);
+    }
+
+    private Integer firstActiveBuIdForEntity(Integer entityId) {
+        if (entityId == null) {
+            return null;
+        }
+        List<OrgBusinessunitMst> list = buRepo.findByBuEntityIdEntAndBuIsactiveTrue(entityId);
+        return list.isEmpty() ? null : list.get(0).getBuBuId();
+    }
+
+    private void createSystemLocationForEntity(Integer entityId, SystemLocationRole role) {
+        String baseCode = "SYS-ENT-" + entityId + "-" + roleSuffix(role);
         String code = baseCode;
         if (locationRepo.existsByLocLocationCodeIgnoreCase(code)) {
-            code = baseCode + "-OU";
+            code = baseCode + "-G";
         }
         OrgLocationMst loc = new OrgLocationMst();
         loc.setLocLocationCode(code);
         loc.setLocLocationName(role.defaultName());
         loc.setLocLocationType("System");
-        loc.setLocEntityIdEnt(bu.getBuEntityIdEnt());
-        loc.setLocBuIdBu(bu.getBuBuId());
+        loc.setLocEntityIdEnt(entityId);
+        loc.setLocBuIdBu(null);
         loc.setLocIsactive(true);
         loc.setLocIsSystemLocation(true);
         loc.setLocSystemRole(role.code());

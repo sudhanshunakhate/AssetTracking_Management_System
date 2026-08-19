@@ -70,6 +70,8 @@ public final class MasterDtos {
                           Boolean trackBatchLot, Boolean trackExpiry, Boolean isConsumable, Boolean allowNegativeStock,
                           String ram, String storage, String processor, String productNo,
                           Integer parentItemId, Boolean isActive,
+                          Integer entityId, String buAccessScope, String locationAccessScope,
+                          List<Integer> buIds, List<Integer> locationIds, List<Integer> effectiveLocationIds,
                           String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn,
                           String message) {}
     public record ItemRequest(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
@@ -80,7 +82,9 @@ public final class MasterDtos {
                               Boolean isUnderAmc, Boolean isInsuranceRequired, Boolean inspectionNeeded, String consumableType,
                               Boolean trackBatchLot, Boolean trackExpiry, Boolean isConsumable, Boolean allowNegativeStock,
                               String ram, String storage, String processor, String productNo,
-                              Integer parentItemId, Boolean isActive) {}
+                              Integer parentItemId, Boolean isActive,
+                              Integer entityId, String buAccessScope, String locationAccessScope,
+                              List<Integer> buIds, List<Integer> locationIds) {}
 
     public record VendorDto(Integer vendorId, String vendorCode, String vendorName, String partyType, String gstin,
                             String panNo, Integer rating, String add1, String add2, String city, String state, String pin,

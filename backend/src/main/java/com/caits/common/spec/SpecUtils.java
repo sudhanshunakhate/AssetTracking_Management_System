@@ -54,7 +54,10 @@ public final class SpecUtils {
         return (root, q, cb) -> root.get(field).in(values);
     }
 
-    @SafeVarargs
+    public static <T> Specification<T> notTrue(String field) {
+        return (root, q, cb) -> cb.or(cb.isFalse(root.get(field)), cb.isNull(root.get(field)));
+    }
+
     public static <T> Specification<T> combine(Specification<T>... specs) {
         List<Specification<T>> list = new ArrayList<>();
         for (Specification<T> s : specs) {

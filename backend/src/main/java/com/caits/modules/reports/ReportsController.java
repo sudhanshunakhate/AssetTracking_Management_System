@@ -1,5 +1,6 @@
 package com.caits.modules.reports;
 
+import com.caits.common.ApiException;
 import com.caits.common.PageResponse;
 import com.caits.domain.entity.HrcDepartmentMst;
 import com.caits.domain.entity.HrcEmployeeMst;
@@ -490,6 +491,7 @@ public class ReportsController {
 
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("id", d.getTxdTxnDetailId());
+                row.put("docId", h.getTxhTxnHeaderId());
                 row.put("date", h.getTxhDocDate());
                 row.put("assetId", assetId);
                 row.put("assetName", assetName);
@@ -630,6 +632,7 @@ public class ReportsController {
                     : e.detailId + "-" + e.rowSuffix;
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", rowId);
+            row.put("docId", e.headerId);
             row.put("date", e.date);
             row.put("itemId", e.itemId);
             row.put("itemCode", e.itemCode);
@@ -882,6 +885,7 @@ public class ReportsController {
                 ? String.valueOf(line.getTxdTxnDetailId())
                 : line.getTxdTxnDetailId() + "-" + rowSuffix;
         row.put("id", id);
+        row.put("docId", header.getTxhTxnHeaderId());
         row.put("date", header.getTxhDocDate());
         row.put("txnType", header.getTxhDocType());
         row.put("txnNo", header.getTxhDocNo());
@@ -917,13 +921,14 @@ public class ReportsController {
     }
 
     private Integer systemLocForGrnStore(Integer grnStoreId, SystemLocationRole role) {
-        Integer buId = systemLocations.resolveBuId(grnStoreId);
-        if (buId == null) {
+        if (grnStoreId == null) {
             return null;
         }
-        return locationRepo.findByLocBuIdBuAndLocSystemRoleAndLocIsactiveTrue(buId, role.code())
-                .map(OrgLocationMst::getLocLocationId)
-                .orElse(null);
+        try {
+            return systemLocations.requireSystemLocationForStore(grnStoreId, role).getLocLocationId();
+        } catch (ApiException ex) {
+            return null;
+        }
     }
 
     private Integer rejectedLocForGrnRef(Integer grnHeaderId, Map<Integer, TxnHeaderMst> grnById) {

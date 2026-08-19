@@ -68,6 +68,15 @@ public class InvItemMst {
     @Column(name = "itm_current_location_id_loc")
     private Integer itmCurrentLocationIdLoc;
 
+    @Column(name = "itm_entity_id_ent")
+    private Integer itmEntityIdEnt;
+
+    @Column(name = "itm_bu_access_scope")
+    private String itmBuAccessScope;
+
+    @Column(name = "itm_location_access_scope")
+    private String itmLocationAccessScope;
+
     @Column(name = "itm_is_serialized")
     private Boolean itmIsSerialized;
 
@@ -181,6 +190,15 @@ public class InvItemMst {
 
     public Integer getItmCurrentLocationIdLoc() { return itmCurrentLocationIdLoc; }
     public void setItmCurrentLocationIdLoc(Integer itmCurrentLocationIdLoc) { this.itmCurrentLocationIdLoc = itmCurrentLocationIdLoc; }
+
+    public Integer getItmEntityIdEnt() { return itmEntityIdEnt; }
+    public void setItmEntityIdEnt(Integer itmEntityIdEnt) { this.itmEntityIdEnt = itmEntityIdEnt; }
+
+    public String getItmBuAccessScope() { return itmBuAccessScope; }
+    public void setItmBuAccessScope(String itmBuAccessScope) { this.itmBuAccessScope = itmBuAccessScope; }
+
+    public String getItmLocationAccessScope() { return itmLocationAccessScope; }
+    public void setItmLocationAccessScope(String itmLocationAccessScope) { this.itmLocationAccessScope = itmLocationAccessScope; }
 
     public Boolean getItmIsSerialized() { return itmIsSerialized; }
     public void setItmIsSerialized(Boolean itmIsSerialized) { this.itmIsSerialized = itmIsSerialized; }

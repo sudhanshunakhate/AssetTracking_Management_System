@@ -21,7 +21,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { TransferItemLines, emptyTransferLine, type TransferLine } from './TransferItemLines'
 import { enrichLinesFromItems } from './lineGrid'
-import { locLabel, locationOptions as toLocationOptions, useTxnFormLookups } from './txnLookups'
+import { locLabel, locationOptions as toLocationOptions, systemLocationsForOu, useTxnFormLookups } from './txnLookups'
 
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
@@ -74,19 +74,19 @@ function blankForm(): FormState {
 }
 
 /** Prefer a "general" store under the OU; otherwise the first location mapped to it. */
-function defaultStoreForOu(locations: ApiMasterRow[], ouId: string): string {
-  const underOu = locations.filter((l) => String(l.ouCode ?? '') === ouId)
+function defaultStoreForOu(locations: ApiMasterRow[], ouId: string, ous: ApiMasterRow[]): string {
+  const underOu = systemStoresForOu(locations, ouId, ous)
   if (!underOu.length) return ''
-  const general = underOu.find((l) => {
-    const blob = `${l.code ?? ''} ${l.name ?? ''}`.toLowerCase()
-    return blob.includes('general') || /-01\b/.test(String(l.code ?? ''))
-  })
-  return (general ?? underOu[0]).id
+  const main = underOu.find((l) => String(l.systemRole ?? '').toUpperCase() === 'MAIN_STORE')
+  return (main ?? underOu[0]).id
 }
 
-function storesForOu(locations: ApiMasterRow[], ouId: string) {
-  if (!ouId) return []
-  return locations.filter((l) => String(l.ouCode ?? '') === ouId)
+function systemStoresForOu(
+  locations: ApiMasterRow[],
+  ouId: string,
+  ous: ApiMasterRow[],
+) {
+  return systemLocationsForOu(locations, ouId, ous)
 }
 
 /** Persist OU context on the header `purpose` field. */
@@ -265,17 +265,17 @@ function TransferForm() {
   /** Internal: both store lists = selected OU. OU transfer: From list = From OU, To list = To OU. */
   const fromStoreOptions = useMemo(() => {
     if (isInternal) {
-      return toLocationOptions(storesForOu(locations.rows, form.operatingUnitId))
+      return toLocationOptions(systemStoresForOu(locations.rows, form.operatingUnitId, ous.rows))
     }
-    return toLocationOptions(storesForOu(locations.rows, form.fromOuId))
-  }, [isInternal, locations.rows, form.operatingUnitId, form.fromOuId])
+    return toLocationOptions(systemStoresForOu(locations.rows, form.fromOuId, ous.rows))
+  }, [isInternal, locations.rows, form.operatingUnitId, form.fromOuId, ous.rows])
 
   const toStoreOptions = useMemo(() => {
     if (isInternal) {
-      return toLocationOptions(storesForOu(locations.rows, form.operatingUnitId))
+      return toLocationOptions(systemStoresForOu(locations.rows, form.operatingUnitId, ous.rows))
     }
-    return toLocationOptions(storesForOu(locations.rows, form.toOuId))
-  }, [isInternal, locations.rows, form.operatingUnitId, form.toOuId])
+    return toLocationOptions(systemStoresForOu(locations.rows, form.toOuId, ous.rows))
+  }, [isInternal, locations.rows, form.operatingUnitId, form.toOuId, ous.rows])
 
   /* ---- load existing ---- */
   useEffect(() => {
@@ -343,8 +343,8 @@ function TransferForm() {
     fromOu: string,
     toOu: string,
   ): Pick<FormState, 'fromStoreId' | 'toStoreId'> => {
-    const fromOk = fromOu && storesForOu(locations.rows, fromOu).some((l) => l.id === p.fromStoreId)
-    const toOk = toOu && storesForOu(locations.rows, toOu).some((l) => l.id === p.toStoreId)
+    const fromOk = fromOu && systemStoresForOu(locations.rows, fromOu, ous.rows).some((l) => l.id === p.fromStoreId)
+    const toOk = toOu && systemStoresForOu(locations.rows, toOu, ous.rows).some((l) => l.id === p.toStoreId)
     return {
       fromStoreId: fromOk ? p.fromStoreId : '',
       toStoreId: toOk ? p.toStoreId : '',
@@ -377,9 +377,9 @@ function TransferForm() {
 
   /** OU transfer: From OU → default From Store; filter From Store list. */
   const onFromOuChange = (ouId: string) => {
-    const defaultFrom = ouId ? defaultStoreForOu(locations.rows, ouId) : ''
+    const defaultFrom = ouId ? defaultStoreForOu(locations.rows, ouId, ous.rows) : ''
     setForm((p) => {
-      const fromOk = ouId && storesForOu(locations.rows, ouId).some((l) => l.id === p.fromStoreId)
+      const fromOk = ouId && systemStoresForOu(locations.rows, ouId, ous.rows).some((l) => l.id === p.fromStoreId)
       const nextFrom = fromOk ? p.fromStoreId : defaultFrom
       if (nextFrom !== p.fromStoreId) {
         const allowed = new Set(
@@ -404,9 +404,9 @@ function TransferForm() {
 
   /** OU transfer: To OU → default To Store; filter To Store list. */
   const onToOuChange = (ouId: string) => {
-    const defaultTo = ouId ? defaultStoreForOu(locations.rows, ouId) : ''
+    const defaultTo = ouId ? defaultStoreForOu(locations.rows, ouId, ous.rows) : ''
     setForm((p) => {
-      const toOk = ouId && storesForOu(locations.rows, ouId).some((l) => l.id === p.toStoreId)
+      const toOk = ouId && systemStoresForOu(locations.rows, ouId, ous.rows).some((l) => l.id === p.toStoreId)
       return {
         ...p,
         toOuId: ouId,

@@ -71,11 +71,11 @@ public class AccessScopeService {
     @Transactional(readOnly = true)
     public Scope current() {
         CurrentUser cu = SecurityUtils.requireCurrentUser();
-        if (isExempt(cu.roleCode())) {
-            return new Scope(true, null, "ALL", List.of(), "ALL", List.of(), null);
-        }
         SysmUserloginMst user = userRepo.findById(cu.userId())
                 .orElseThrow(() -> ApiException.unauthorized("User not found"));
+        if (Boolean.TRUE.equals(user.getUsrIsSystemUser()) || isExempt(cu.roleCode())) {
+            return new Scope(true, null, "ALL", List.of(), "ALL", List.of(), null);
+        }
         List<Integer> buIds = buMappingRepo.findByUboaUserIdUsr(user.getUsrUserId()).stream()
                 .map(SysmUserBuMappingDtl::getUboaBuIdBu)
                 .filter(Objects::nonNull)

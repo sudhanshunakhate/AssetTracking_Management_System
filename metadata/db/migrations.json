@@ -337,7 +337,34 @@
                                            "local":  "2026-08-17",
                                            "dev":  "2026-08-18"
                                        }
+                       },
+                       {
+                           "id":  "035-item-org-scope-mappings",
+                           "file":  "db_approach/035_item_org_scope_mappings.sql",
+                           "description":  "Item Master org-level OU/location scope mappings; entity and scope columns on inv_item_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-18",
+                                           "dev":  "2026-08-19"
+                                       }
+                       },
+                       {
+                           "id":  "036-global-system-locations",
+                           "file":  "db_approach/036_global_system_locations.sql",
+                           "description":  "Global system-derived locations per Organization; nullable OU on system rows; deactivate per-OU duplicates.",
+                           "applied":  {
+                                           "local":  "2026-08-18",
+                                           "dev":  "2026-08-19"
+                                       }
+                       },
+                       {
+                           "id":  "037-system-user-flags",
+                           "file":  "db_approach/037_system_user_flags.sql",
+                           "description":  "Hidden system user/employee flags; bootstrap admin excluded from Employee and User Access lists.",
+                           "applied":  {
+                                           "local":  "2026-08-19",
+                                           "dev":  "2026-08-19"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-18"
+    "updated":  "2026-08-19"
 }

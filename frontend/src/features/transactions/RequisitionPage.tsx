@@ -31,7 +31,7 @@ import {
   itemsForLocation,
   locLabel,
   locationOptions as toLocationOptions,
-  operationalLocations,
+  nonSystemLocations,
   quickAddEmployee,
   quickAddGenValue,
   quickAddLocation,
@@ -449,8 +449,8 @@ function RequisitionForm() {
   const addDesignation = quickAddGenValue('Add Designation', GEN_TYPE.DESIGNATION, designations)
 
   const employeeOptions = toEmployeeOptions(employees.rows)
-  const locationOptions = toLocationOptions(operationalLocations(locations.rows))
-  const lineLocations = operationalLocations(locations.rows)
+  const locationOptions = toLocationOptions(nonSystemLocations(locations.rows))
+  const lineLocations = nonSystemLocations(locations.rows)
 
   if (isNew && !canCreateMenu(MENU)) return <Navigate to={BASE} replace />
   if (loading) return <div className="text-sm text-[var(--text3)]">Loading requisition…</div>

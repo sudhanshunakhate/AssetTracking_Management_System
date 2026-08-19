@@ -306,6 +306,16 @@ public class AuthService {
     }
 
     private List<MenuPermissionDto> buildMenuPermissions(SysmUserloginMst user, SysmRolesMst role) {
+        if (Boolean.TRUE.equals(user.getUsrIsSystemUser())) {
+            return menuRepo.findByMtreeIsactiveTrueOrderByMtreeSortOrderAsc().stream()
+                    .map(menu -> new MenuPermissionDto(
+                            menu.getMtreeMenuCode(), true, true, true, true, true, true, true, true,
+                            menu.getMtreeSortOrder(),
+                            menu.getMtreeMenuGroup(),
+                            menu.getMtreeGroupSortOrder()))
+                    .toList();
+        }
+
         Map<Integer, SysmRolepermissionDtl> byMenuId = rolePermRepo.findAll().stream()
                 .filter(p -> Objects.equals(p.getRlpmRoleIdRol(), role.getRolRoleId()))
                 .collect(Collectors.toMap(SysmRolepermissionDtl::getRlpmMenuIdMtree, p -> p, (a, b) -> a));

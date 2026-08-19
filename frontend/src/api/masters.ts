@@ -354,6 +354,12 @@ export type ItemApi = {
   productNo?: string
   parentItemId?: number
   isActive?: boolean
+  entityId?: number
+  buAccessScope?: string
+  locationAccessScope?: string
+  buIds?: number[]
+  locationIds?: number[]
+  effectiveLocationIds?: number[]
 }
 
 export const mapItem = (i: ItemApi): ApiMasterRow => ({
@@ -366,18 +372,39 @@ export const mapItem = (i: ItemApi): ApiMasterRow => ({
   uom: i.uomId != null ? String(i.uomId) : '',
   standardCost: Number(i.standardCost ?? 0),
   isSerialized: Boolean(i.isSerialized),
+  trackBatchLot: Boolean(i.trackBatchLot),
   store: i.currentLocationId != null ? String(i.currentLocationId) : '',
+  orgCode: i.entityId != null ? String(i.entityId) : '',
+  ouScope: i.buAccessScope ?? 'ALL',
+  locationScope: i.locationAccessScope ?? 'SELECTED',
+  ouIds: (i.buIds ?? []).map(String),
+  locationIds: (i.effectiveLocationIds ?? i.locationIds ?? []).map(String),
   status: activeStatus(i.isActive),
 })
 
-/** Items whose Item Master home location matches the selected store. Empty until a location is chosen. */
+/** Operational locations selectable for item scope — excludes system-derived stores. */
+export function itemSelectableLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return rows.filter((l) => !l.isSystemLocation)
+}
+
+/** Items available at the selected store based on org / OU / location scope. */
 export function itemsForLocation(
   items: ApiMasterRow[],
   locationId: string | null | undefined,
 ): ApiMasterRow[] {
   if (!locationId) return []
   const loc = String(locationId)
-  return items.filter((i) => String(i.store ?? '') === loc)
+  return items.filter((i) => {
+    const ids = i.locationIds as string[] | undefined
+    if (ids && ids.length > 0) return ids.includes(loc)
+    return String(i.store ?? '') === loc
+  })
+}
+
+export async function uploadMasterFile(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return http.upload<{ url: string; originalName?: string; fileName?: string; size?: number }>('/files', form)
 }
 
 export type VendorApi = {

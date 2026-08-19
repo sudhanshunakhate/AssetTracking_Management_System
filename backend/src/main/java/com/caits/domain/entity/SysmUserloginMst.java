@@ -45,6 +45,9 @@ public class SysmUserloginMst {
     @Column(name = "usr_isactive", nullable = false)
     private Boolean usrIsactive;
 
+    @Column(name = "usr_is_system_user", nullable = false)
+    private Boolean usrIsSystemUser = false;
+
     @Column(name = "usr_last_login_on")
     private LocalDateTime usrLastLoginOn;
 
@@ -101,6 +104,9 @@ public class SysmUserloginMst {
 
     public Boolean getUsrIsactive() { return usrIsactive; }
     public void setUsrIsactive(Boolean usrIsactive) { this.usrIsactive = usrIsactive; }
+
+    public Boolean getUsrIsSystemUser() { return usrIsSystemUser; }
+    public void setUsrIsSystemUser(Boolean usrIsSystemUser) { this.usrIsSystemUser = usrIsSystemUser; }
 
     public LocalDateTime getUsrLastLoginOn() { return usrLastLoginOn; }
     public void setUsrLastLoginOn(LocalDateTime usrLastLoginOn) { this.usrLastLoginOn = usrLastLoginOn; }

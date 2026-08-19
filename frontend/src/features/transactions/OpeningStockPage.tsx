@@ -31,7 +31,7 @@ import {
 } from './OpeningStockItemLines'
 import {
   locationOptions as toLocationOptions,
-  operationalLocations,
+  nonSystemLocations,
   resolveTxnHeaderFromLines,
   useTxnFormLookups,
 } from './txnLookups'
@@ -253,10 +253,10 @@ function OpeningStockForm() {
   const err = (name: string) => (submitted || touched[name] ? (errors[name] ?? '') : '')
 
   const locationOptions = useMemo(
-    () => toLocationOptions(operationalLocations(locations.rows)),
+    () => toLocationOptions(nonSystemLocations(locations.rows)),
     [locations.rows],
   )
-  const lineLocations = useMemo(() => operationalLocations(locations.rows), [locations.rows])
+  const lineLocations = useMemo(() => nonSystemLocations(locations.rows), [locations.rows])
   const allItemsForType = useMemo(
     () =>
       items.rows.filter(

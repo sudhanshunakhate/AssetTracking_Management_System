@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Pill } from '@/components/ui/Badge'
@@ -7,13 +7,16 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, statusColumn, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
-import { LookupSelect } from '@/components/form/LookupSelect'
 import {
   createMaster,
   GEN_TYPE,
   isActiveFromForm,
   itemTypeFromGenCode,
   mapCategory,
+  mapEntity,
+  mapBusinessUnit,
+  itemSelectableLocations,
+  uploadMasterFile,
   mapItem,
   mapLocation,
   mapSubcategory,
@@ -26,7 +29,7 @@ import {
   type ItemApi,
   type VendorApi,
 } from '@/api/masters'
-import { http } from '@/api/client'
+import { http, resolveApiUrl } from '@/api/client'
 import type { Item, Vendor } from '@/types/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { MSG, PATTERNS, RULES, validateFields } from './validation'
@@ -95,6 +98,11 @@ function validatePan(pan: string): string | null {
 
 type ItemForm = {
   itemType: 'asset' | 'consumable'
+  orgCode: string
+  ouScope: string
+  locationScope: string
+  ouIds: string[]
+  locationIds: string[]
   code: string
   name: string
   category: string
@@ -131,6 +139,11 @@ type ItemForm = {
 
 const emptyItem = (): ItemForm => ({
   itemType: 'asset',
+  orgCode: '',
+  ouScope: 'ALL',
+  locationScope: 'SELECTED',
+  ouIds: [],
+  locationIds: [],
   code: '',
   name: '',
   category: '',
@@ -165,6 +178,243 @@ const emptyItem = (): ItemForm => ({
   productNo: '',
 })
 
+function ItemScopeMappingCard({
+  values,
+  set,
+  readOnly,
+  orgs,
+  ous,
+  locations,
+  ouScopeOpts,
+  err,
+  touch,
+}: {
+  values: ItemForm
+  set: <K extends keyof ItemForm>(k: K, v: ItemForm[K]) => void
+  readOnly: boolean
+  orgs: { id: string; code?: string; name?: string }[]
+  ous: { id: string; code?: string; name?: string; orgCode?: string }[]
+  locations: { id: string; code?: string; name?: string; orgCode?: string; ouCode?: string }[]
+  ouScopeOpts: { value: string; label: string }[]
+  err: (k: string) => string
+  touch: (k: string) => void
+}) {
+  const orgId = values.orgCode
+  const scope = values.ouScope
+  const locScope = values.locationScope
+  const ouIds = values.ouIds
+  const locationIds = values.locationIds
+  const orgOus = ous.filter((o) => !orgId || String(o.orgCode) === orgId)
+  const orgLocs = locations.filter((l) => {
+    if (orgId && String(l.orgCode) !== orgId) return false
+    if (scope === 'SELECTED' && ouIds.length > 0) {
+      return ouIds.includes(String(l.ouCode ?? ''))
+    }
+    return true
+  })
+
+  const onOrgChange = (nextOrg: string) => {
+    set('orgCode', nextOrg)
+    set('ouIds', [])
+    set('locationIds', [])
+    set('currentStore', '')
+  }
+
+  const onScopeChange = (nextScope: string) => {
+    set('ouScope', nextScope)
+    if (nextScope !== 'SELECTED') set('ouIds', [])
+    set('locationIds', [])
+    set('currentStore', '')
+  }
+
+  const onLocScopeChange = (nextScope: string) => {
+    set('locationScope', nextScope)
+    if (nextScope !== 'SELECTED') set('locationIds', [])
+    set('currentStore', '')
+  }
+
+  const toggleOu = (ouId: string, on: boolean) => {
+    const next = on ? [...new Set([...ouIds, ouId])] : ouIds.filter((x) => x !== ouId)
+    set('ouIds', next)
+    if (scope === 'SELECTED') {
+      const allowed = new Set(
+        locations
+          .filter((l) => (!orgId || String(l.orgCode) === orgId) && next.includes(String(l.ouCode ?? '')))
+          .map((l) => l.id),
+      )
+      const kept = locationIds.filter((id) => allowed.has(id))
+      set('locationIds', kept)
+      if (values.currentStore && !allowed.has(values.currentStore)) set('currentStore', kept[0] ?? '')
+    }
+  }
+
+  const toggleLoc = (locId: string, on: boolean) => {
+    const next = on ? [...new Set([...locationIds, locId])] : locationIds.filter((x) => x !== locId)
+    set('locationIds', next)
+    if (!next.includes(values.currentStore)) set('currentStore', next[0] ?? '')
+  }
+
+  const defaultLocOptions =
+    locScope === 'SELECTED' ? orgLocs.filter((l) => locationIds.includes(l.id)) : orgLocs
+
+  return (
+    <Card>
+      <CardHeader
+        title="Organization & Locations"
+        subtitle="Item is defined at Organization level — choose which Operating Units and Locations can use this item (system-derived stores are excluded)"
+      />
+      <CardBody>
+        <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+          <Field label="Organization" required error={err('orgCode')} className="md:col-span-2">
+            <Select
+              value={orgId}
+              disabled={readOnly}
+              onChange={(e) => {
+                touch('orgCode')
+                onOrgChange(e.target.value)
+              }}
+              onBlur={() => touch('orgCode')}
+              invalid={Boolean(err('orgCode'))}
+            >
+              <option value="">— Select Organization —</option>
+              {orgs.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.code} · {o.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
+            label="Operating Unit Access"
+            required
+            hint={scope === 'SELECTED' ? 'Pick one or more Operating Units below' : 'ALL = every OU under the Organization'}
+          >
+            <Select
+              value={scope}
+              disabled={readOnly}
+              onChange={(e) => onScopeChange(e.target.value)}
+            >
+              {ouScopeOpts.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
+            label="Location Access"
+            required
+            hint={locScope === 'SELECTED' ? 'Pick one or more Locations below' : 'ALL = every operational location under the Organization / OUs'}
+          >
+            <Select
+              value={locScope}
+              disabled={readOnly}
+              onChange={(e) => onLocScopeChange(e.target.value)}
+            >
+              {ouScopeOpts.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.value === 'ALL' ? 'All Locations' : o.value === 'SELECTED' ? 'Selected Locations' : o.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          {scope === 'SELECTED' && (
+            <Field
+              label="Select Operating Unit(s)"
+              required
+              error={err('ouIds')}
+              className="xl:col-span-4 md:col-span-2"
+            >
+              <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5">
+                {!orgId ? (
+                  <span className="text-xs text-[var(--text3)]">Select Organization first</span>
+                ) : orgOus.length === 0 ? (
+                  <span className="text-xs text-[var(--text3)]">No Operating Units for this Organization</span>
+                ) : (
+                  orgOus.map((o) => (
+                    <Switch
+                      key={o.id}
+                      label={`${o.code} · ${o.name}`}
+                      checked={ouIds.includes(o.id)}
+                      disabled={readOnly}
+                      onChange={(v) => {
+                        touch('ouIds')
+                        toggleOu(o.id, v)
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            </Field>
+          )}
+
+          {locScope === 'SELECTED' && (
+            <Field
+              label="Select Location(s)"
+              required
+              error={err('locationIds')}
+              className="xl:col-span-4 md:col-span-2"
+            >
+              <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2.5">
+                {!orgId ? (
+                  <span className="text-xs text-[var(--text3)]">Select Organization first</span>
+                ) : orgLocs.length === 0 ? (
+                  <span className="text-xs text-[var(--text3)]">
+                    {scope === 'SELECTED' && ouIds.length === 0
+                      ? 'Select Operating Unit(s) first'
+                      : 'No Locations available for current Organization / OU selection'}
+                  </span>
+                ) : (
+                  orgLocs.map((l) => (
+                    <Switch
+                      key={l.id}
+                      label={`${l.code} · ${l.name}`}
+                      checked={locationIds.includes(l.id)}
+                      disabled={readOnly}
+                      onChange={(v) => {
+                        touch('locationIds')
+                        toggleLoc(l.id, v)
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            </Field>
+          )}
+
+          <Field
+            label="Default / Home Location"
+            required
+            error={err('currentStore')}
+            className="md:col-span-2"
+            hint="Default store among the locations this item can be used at"
+          >
+            <Select
+              value={values.currentStore}
+              disabled={readOnly || !orgId || (locScope === 'SELECTED' && locationIds.length === 0)}
+              onChange={(e) => {
+                touch('currentStore')
+                set('currentStore', e.target.value)
+                set('storageLocation', e.target.value)
+              }}
+              onBlur={() => touch('currentStore')}
+              invalid={Boolean(err('currentStore'))}
+            >
+              <option value="">— Select Location —</option>
+              {defaultLocOptions.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.code} · {l.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      </CardBody>
+    </Card>
+  )
+}
+
 function ItemFormPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -178,18 +428,23 @@ function ItemFormPage() {
   const mapSub = useCallback(mapSubcategory, [])
   const mapUnt = useCallback(mapUnit, [])
   const mapLoc = useCallback(mapLocation, [])
+  const mapEnt = useCallback(mapEntity, [])
+  const mapBu = useCallback(mapBusinessUnit, [])
   const { rows: categories } = useMasterList('categories', mapCat)
   const { rows: subCategories } = useMasterList('subcategories', mapSub)
   const { rows: units } = useMasterList('units', mapUnt)
   const { rows: locations } = useMasterList('locations', mapLoc)
+  const { rows: orgs } = useMasterList('entities', mapEnt)
+  const { rows: ous } = useMasterList('business-units', mapBu)
   const { options: itemParamOpts } = useGenValues(GEN_TYPE.ITEM_PARAM, 'code')
   const { options: assetTypeOpts } = useGenValues(GEN_TYPE.ASSET_TYPE)
   const { options: consumableTypeOpts } = useGenValues(GEN_TYPE.CONSUMABLE_TYPE)
   const { options: deprOpts } = useGenValues(GEN_TYPE.DEPRECIATION)
+  const { options: ouScopeOpts } = useGenValues(GEN_TYPE.OU_SCOPE, 'code')
   const mapItm = useCallback(mapItem, [])
   const { rows: allItems } = useMasterList('items', mapItm)
 
-  const locationOptions = useMemo(() => opt(locations), [locations])
+  const selectableLocations = useMemo(() => itemSelectableLocations(locations), [locations])
 
   const [values, setValues] = useState<ItemForm>(emptyItem)
   const [loading, setLoading] = useState(!isNew)
@@ -197,6 +452,8 @@ function ItemFormPage() {
   const [error, setError] = useState('')
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
+  const [imageUploading, setImageUploading] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const set = <K extends keyof ItemForm>(k: K, v: ItemForm[K]) => setValues((p) => ({ ...p, [k]: v }))
   const touch = (k: string) => setTouched((prev) => (prev[k] ? prev : { ...prev, [k]: true }))
@@ -216,8 +473,9 @@ function ItemFormPage() {
       [
         { name: 'code', label: 'Item Code', ...RULES.code(40), uniqueMessage: 'This Item Code is already used' },
         { name: 'name', label: 'Item / Asset Name', ...RULES.name(150) },
+        { name: 'orgCode', label: 'Organization', required: true },
         { name: 'uom', label: 'Unit of Measure', required: true },
-        { name: 'currentStore', label: 'Location', required: true },
+        { name: 'currentStore', label: 'Default / Home Location', required: true },
         {
           name: 'subCategory',
           label: 'Sub Category',
@@ -229,13 +487,6 @@ function ItemFormPage() {
           },
         },
         { name: 'standardCost', label: 'Standard Cost', type: 'number', min: 0, max: 99999999 },
-        {
-          name: 'imageUrl',
-          label: 'Image URL',
-          maxLength: 300,
-          pattern: URL_RE,
-          patternMessage: 'Enter a full URL starting with http:// or https://',
-        },
         { name: 'description', label: 'Item Description', maxLength: 500 },
         { name: 'remarks', label: 'Remarks', maxLength: 250 },
       ],
@@ -271,6 +522,12 @@ function ItemFormPage() {
         ),
       )
     }
+    if (values.ouScope === 'SELECTED' && values.ouIds.length === 0) {
+      found.ouIds = 'Select at least one Operating Unit'
+    }
+    if (values.locationScope === 'SELECTED' && values.locationIds.length === 0) {
+      found.locationIds = 'Select at least one Location'
+    }
     return found
   }, [values, allItems, subCategories, id, isAsset, readOnly])
 
@@ -288,6 +545,11 @@ function ItemFormPage() {
         if (cancelled) return
         setValues({
           itemType: it.itemType === 'consumable' ? 'consumable' : 'asset',
+          orgCode: it.entityId != null ? String(it.entityId) : '',
+          ouScope: it.buAccessScope ?? 'ALL',
+          locationScope: it.locationAccessScope ?? 'SELECTED',
+          ouIds: (it.buIds ?? []).map(String),
+          locationIds: (it.locationIds ?? []).map(String),
           code: it.itemCode ?? '',
           name: it.itemName ?? '',
           category: it.categoryId != null ? String(it.categoryId) : '',
@@ -332,6 +594,21 @@ function ItemFormPage() {
     }
   }, [id, isNew])
 
+  const onImagePicked = async (file?: File) => {
+    if (!file || readOnly) return
+    setImageUploading(true)
+    setError('')
+    try {
+      const uploaded = await uploadMasterFile(file)
+      set('imageUrl', uploaded.url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Image upload failed')
+    } finally {
+      setImageUploading(false)
+      if (imageInputRef.current) imageInputRef.current.value = ''
+    }
+  }
+
   const save = async () => {
     if (readOnly) return
     setSubmitted(true)
@@ -351,6 +628,11 @@ function ItemFormPage() {
         itemCode: values.code.trim().toUpperCase(),
         itemName: values.name.trim(),
         itemType: values.itemType,
+        entityId: numOrUndef(values.orgCode),
+        buAccessScope: values.ouScope,
+        locationAccessScope: values.locationScope,
+        buIds: values.ouScope === 'SELECTED' ? values.ouIds.map((id) => Number(id)) : [],
+        locationIds: values.locationScope === 'SELECTED' ? values.locationIds.map((id) => Number(id)) : [],
         categoryId: numOrNull(values.category),
         subcategoryId: numOrNull(values.subCategory),
         uomId: numOrUndef(values.uom),
@@ -549,17 +831,37 @@ function ItemFormPage() {
                 placeholder="0.00"
               />
             </Field>
-            <Field label="Image URL" error={err('imageUrl')}>
-              <Input
-                type="url"
-                value={values.imageUrl}
-                disabled={readOnly}
-                onChange={(e) => set('imageUrl', e.target.value)}
-                onBlur={() => touch('imageUrl')}
-                maxLength={300}
-                invalid={Boolean(err('imageUrl'))}
-                placeholder="https://…"
+            <Field
+              label="Item Image"
+              hint={imageUploading ? 'Uploading…' : 'PNG, JPG, GIF or WebP up to 10 MB'}
+              className="md:col-span-2"
+            >
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                disabled={readOnly || imageUploading}
+                onChange={(e) => void onImagePicked(e.target.files?.[0])}
+                className="w-full rounded-md border border-[var(--border2)] bg-[var(--surface)] px-2.5 py-1 text-[12px] text-[var(--text2)] file:mr-2 file:rounded file:border-0 file:bg-[var(--surface2)] file:px-2 file:py-1 file:text-[11.5px] file:font-semibold file:text-[var(--text2)]"
               />
+              {values.imageUrl && (
+                <div className="mt-2 flex items-start gap-3">
+                  <img
+                    src={resolveApiUrl(values.imageUrl)}
+                    alt="Item preview"
+                    className="h-20 w-20 rounded-md border border-[var(--border)] object-cover"
+                  />
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="text-[11px] font-semibold text-[var(--danger)]"
+                      onClick={() => set('imageUrl', '')}
+                    >
+                      Remove image
+                    </button>
+                  )}
+                </div>
+              )}
             </Field>
             <Field label="Item Description" error={err('description')} className="md:col-span-2">
               <Textarea
@@ -596,31 +898,17 @@ function ItemFormPage() {
         </CardBody>
       </Card>
 
-      <Card>
-        <CardHeader
-          title="Location"
-          subtitle="Home store for this item — transactions filter the item list by the selected location"
-        />
-        <CardBody>
-          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-            <LookupSelect
-              label="Location"
-              required
-              value={values.currentStore}
-              onChange={(v) => {
-                touch('currentStore')
-                set('currentStore', v)
-                set('storageLocation', v)
-              }}
-              onBlur={() => touch('currentStore')}
-              options={locationOptions}
-              placeholder="— Select Location —"
-              error={err('currentStore')}
-              disabled={readOnly}
-            />
-          </div>
-        </CardBody>
-      </Card>
+      <ItemScopeMappingCard
+        values={values}
+        set={set}
+        readOnly={readOnly}
+        orgs={orgs}
+        ous={ous}
+        locations={selectableLocations}
+        ouScopeOpts={ouScopeOpts}
+        err={err}
+        touch={touch}
+      />
 
       {isAsset ? (
         <Card>
@@ -830,6 +1118,9 @@ function ItemFormPage() {
                   disabled={readOnly}
                   onChange={(v) => set('trackBatchLot', v)}
                 />
+                <span className="text-[10.5px] text-[var(--text3)] self-center">
+                  Catalog flag — batch/lot can be captured on receipts and issues when enabled
+                </span>
                 <Switch
                   label="Track Expiry"
                   checked={values.trackExpiry}

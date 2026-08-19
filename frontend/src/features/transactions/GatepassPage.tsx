@@ -12,7 +12,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { itemOptionLabel, useLocationStock } from './lineGrid'
 import { GATEPASS_OUTWARD_PREFILL_KEY, type GatepassOutwardNavState } from './gatepassNavigation'
 import type { GatepassOutwardPrefill } from './transferGatepassBridge'
-import { AUTO_DOC_NO_LABEL } from './txnConstants'
+import { systemLocations } from './txnLookups'
 
 export function GatepassPage() {
   const location = useLocation()
@@ -30,6 +30,7 @@ export function GatepassPage() {
   const mapUnt = useCallback(mapUnit, [])
   const { rows: employees } = useMasterList('employees', mapEmp)
   const { rows: stores } = useMasterList('locations', mapLoc)
+  const systemStores = useMemo(() => systemLocations(stores), [stores])
   const { rows: items } = useMasterList('items', mapItm)
   const { rows: units } = useMasterList('units', mapUnt)
   const { options: gpInOpts } = useGenValues(GEN_TYPE.GATEPASS_INWARD, 'code')
@@ -486,7 +487,7 @@ export function GatepassPage() {
                       disabled={returnableInwardLocked}
                     >
                       <option value="">— Select Store —</option>
-                      {stores.map((s) => (
+                      {systemStores.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.code} – {s.name}
                         </option>
@@ -598,7 +599,7 @@ export function GatepassPage() {
                     <Field label="Store" required>
                       <Select value={inwardForm.store} onChange={(e) => setIn('store', e.target.value)}>
                         <option value="">— Select Store —</option>
-                        {stores.map((s) => (
+                        {systemStores.map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.code} – {s.name}
                           </option>
@@ -771,7 +772,7 @@ export function GatepassPage() {
                     disabled={fromTransferOutward}
                   >
                     <option value="">— Select Store —</option>
-                    {stores.map((s) => (
+                    {systemStores.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.code} – {s.name}
                       </option>

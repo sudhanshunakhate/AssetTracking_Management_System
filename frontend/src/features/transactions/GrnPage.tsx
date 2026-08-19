@@ -29,6 +29,9 @@ import {
   locLabel,
   locationOptions as toLocationOptions,
   operationalLocations,
+  systemLocations,
+  systemLocationOptions,
+  systemLocationsForOu,
   quickAddEmployee,
   quickAddVendor,
   resolveTxnHeaderFromLines,
@@ -432,8 +435,8 @@ function GrnForm() {
   const addSupplier = quickAddVendor(vendors.reload)
 
   const employeeOptions = toEmployeeOptions(employees.rows)
-  const locationOptions = toLocationOptions(operationalLocations(locations.rows))
-  const lineLocations = operationalLocations(locations.rows)
+  const locationOptions = systemLocationOptions(locations.rows)
+  const lineLocations = systemLocations(locations.rows)
   const supplierOptions = toVendorOptions(vendors.rows)
   const allItemsForType = useMemo(
     () =>

@@ -12,6 +12,8 @@ D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\HrcDepartmentMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\HrcEmployeeMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\InvBlsMst.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\InvItemBuMappingDtl.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\InvItemLocationMappingDtl.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\InvItemMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\InvStockMst.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\entity\InvVendorMst.java
@@ -36,6 +38,8 @@ D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\HrcDepartmentMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\HrcEmployeeMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\InvBlsMstRepository.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\InvItemBuMappingDtlRepository.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\InvItemLocationMappingDtlRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\InvItemMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\InvStockMstRepository.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\domain\repository\InvVendorMstRepository.java

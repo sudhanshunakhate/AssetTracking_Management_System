@@ -74,10 +74,38 @@ export function isSpecialSystemLocation(loc: ApiMasterRow): boolean {
   )
 }
 
-/** Operational stores only — excludes quarantine, damaged, scrap, and rejected system locations. */
-export function operationalLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
-  return rows.filter((l) => !isSpecialSystemLocation(l))
+/** System-derived locations (global per Organization). */
+export function systemLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return rows.filter((l) => Boolean(l.isSystemLocation))
 }
+
+/** User-created operational locations (OU-specific, non-system). */
+export function nonSystemLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return rows.filter((l) => !l.isSystemLocation)
+}
+
+/** Operational pick lists — non-system locations only. */
+export function operationalLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return nonSystemLocations(rows)
+}
+
+export function systemLocationsForOrg(rows: ApiMasterRow[], entityId: string): ApiMasterRow[] {
+  if (!entityId) return []
+  return systemLocations(rows).filter((l) => String(l.orgCode) === String(entityId))
+}
+
+export function systemLocationsForOu(
+  rows: ApiMasterRow[],
+  ouId: string,
+  ous: ApiMasterRow[],
+): ApiMasterRow[] {
+  const ou = ous.find((o) => o.id === ouId)
+  if (!ou?.orgCode) return []
+  return systemLocationsForOrg(rows, String(ou.orgCode))
+}
+
+export const systemLocationOptions = (rows: ApiMasterRow[]) =>
+  locationOptions(systemLocations(rows))
 
 /** Items assigned to the selected store in Item Master. */
 export { itemsForLocation } from '@/api/masters'
@@ -87,7 +115,7 @@ export const employeeOptions = (rows: ApiMasterRow[]) =>
 export const locationOptions = (rows: ApiMasterRow[]) =>
   rows.map((l) => ({ value: l.id, label: locLabel(l) }))
 export const operationalLocationOptions = (rows: ApiMasterRow[]) =>
-  locationOptions(operationalLocations(rows))
+  locationOptions(nonSystemLocations(rows))
 export const vendorOptions = (rows: ApiMasterRow[]) =>
   rows.map((v) => ({ value: v.id, label: vendorLabel(v) }))
 
@@ -172,23 +200,30 @@ export function quickAddVendor(reload: () => Promise<void>): QuickAddConfig {
   }
 }
 
-/** Derive the system quarantine store for an operating unit. */
-export function quarantineForOperatingUnit(ouId: string, locations: ApiMasterRow[]): string {
+/** Derive the system quarantine store for an operating unit (global per Organization). */
+export function quarantineForOperatingUnit(
+  ouId: string,
+  locations: ApiMasterRow[],
+  ous: ApiMasterRow[] = [],
+): string {
   if (!ouId) return ''
-  const q = locations.find(
-    (l) =>
-      String(l.ouCode) === String(ouId) &&
-      String(l.systemRole ?? '').toUpperCase() === 'QUARANTINE',
+  const ou = ous.find((o) => o.id === ouId)
+  const entityId = ou?.orgCode ? String(ou.orgCode) : ''
+  const q = systemLocationsForOrg(locations, entityId).find(
+    (l) => String(l.systemRole ?? '').toUpperCase() === 'QUARANTINE',
   )
   return q?.id ?? ''
 }
 
-/** Quarantine store for the OU of a given operational location. */
+/** Quarantine store for the Organization of a given location. */
 export function quarantineForLocation(locationId: string, locations: ApiMasterRow[]): string {
   if (!locationId) return ''
   const loc = locations.find((l) => String(l.id) === String(locationId))
-  if (!loc?.ouCode) return ''
-  return quarantineForOperatingUnit(loc.ouCode, locations)
+  if (!loc?.orgCode) return ''
+  const q = systemLocationsForOrg(locations, String(loc.orgCode)).find(
+    (l) => String(l.systemRole ?? '').toUpperCase() === 'QUARANTINE',
+  )
+  return q?.id ?? ''
 }
 
 /** Derive document header entity/location from the first line with a location set. */

@@ -30,7 +30,7 @@ import {
   itemsForLocation,
   locLabel,
   locationOptions as toLocationOptions,
-  operationalLocations,
+  nonSystemLocations,
   quickAddEmployee,
   quickAddLocation,
   useTxnFormLookups,
@@ -198,10 +198,10 @@ function IssueForm() {
   })()
 
   const locationOptions = useMemo(
-    () => toLocationOptions(operationalLocations(locations.rows)),
+    () => toLocationOptions(nonSystemLocations(locations.rows)),
     [locations.rows],
   )
-  const lineLocations = useMemo(() => operationalLocations(locations.rows), [locations.rows])
+  const lineLocations = useMemo(() => nonSystemLocations(locations.rows), [locations.rows])
   const employeeOptions = useMemo(() => toEmployeeOptions(employees.rows), [employees.rows])
 
   const addLocation = quickAddLocation(locations.reload)

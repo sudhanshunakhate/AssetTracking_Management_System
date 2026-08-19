@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
@@ -7,10 +8,13 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockMovement } from '@/api/transactions'
 import { mapEmployee, mapItem, mapLocation, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 
 type MovementRow = {
   id: string
+  docId: string
+  docType: string
   date: string
   assetId: string
   assetName: string
@@ -36,6 +40,7 @@ const emptyFilters = {
 const dash = (v: string) => (v.trim() ? v : '—')
 
 export function StockMovementReportPage() {
+  const navigate = useNavigate()
   const { seesAllLocations } = useAuth()
   const [draft, setDraft] = useState(emptyFilters)
   const [applied, setApplied] = useState(emptyFilters)
@@ -81,6 +86,8 @@ export function StockMovementReportPage() {
           const document = String(r.document ?? r.docNo ?? '').trim()
           return {
             id: String(r.id ?? `${document}-${assetId}`),
+            docId: String(r.docId ?? ''),
+            docType: String(r.docType ?? '').trim(),
             date: String(r.date ?? ''),
             assetId: assetId || '—',
             assetName: assetName || '—',
@@ -236,10 +243,21 @@ export function StockMovementReportPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="hover:bg-[#f0f5ff]">
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 whitespace-nowrap">{r.date}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.assetId}</td>
+                {rows.map((r) => {
+                  const detailPath = txnDetailPath(r.docType, r.docId)
+                  const rowClass = detailPath
+                    ? 'cursor-pointer hover:bg-[#f0f5ff]'
+                    : 'hover:bg-[#f0f5ff]'
+                  return (
+                    <tr
+                      key={r.id}
+                      className={rowClass}
+                      onClick={() => {
+                        if (detailPath) navigate(detailPath)
+                      }}
+                    >
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 whitespace-nowrap">{r.date}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.assetId}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.assetName}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.fromLocation}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.toLocation}</td>
@@ -250,7 +268,8 @@ export function StockMovementReportPage() {
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.reason}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.document}</td>
                   </tr>
-                ))}
+                  )
+                })}
                 {!loading && rows.length === 0 && (
                   <tr>
                     <td colSpan={11} className="px-[11px] py-8 text-center text-[var(--text3)]">

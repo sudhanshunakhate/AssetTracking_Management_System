@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
@@ -7,10 +8,12 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchItemLedger } from '@/api/transactions'
 import { mapItem, mapLocation, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 
 type LedgerRow = {
   id: string
+  docId: string
   date: string
   itemCode: string
   itemName: string
@@ -38,6 +41,7 @@ const qtyCell = (v: string | number | null | undefined) => {
 }
 
 export function ItemRegisterPage() {
+  const navigate = useNavigate()
   const { seesAllLocations } = useAuth()
   const [draft, setDraft] = useState(emptyFilters)
   const [applied, setApplied] = useState(emptyFilters)
@@ -68,6 +72,7 @@ export function ItemRegisterPage() {
       setRows(
         (page.data ?? []).map((r, idx) => ({
           id: String(r.id ?? `${r.docNo}-${r.itemId}-${idx}`),
+          docId: String(r.docId ?? ''),
           date: String(r.date ?? ''),
           itemCode: String(r.itemCode ?? ''),
           itemName: String(r.itemName ?? ''),
@@ -221,25 +226,37 @@ export function ItemRegisterPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="hover:bg-[#f0f5ff]">
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 whitespace-nowrap">{r.date}</td>
-                    {showItemCols && (
-                      <>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.itemCode}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemName}</td>
-                      </>
-                    )}
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.docType}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.docNo}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.batch}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.location}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.receipt}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.issue}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{r.balance}</td>
-                  </tr>
-                ))}
+                {rows.map((r) => {
+                  const detailPath = txnDetailPath(r.docType, r.docId)
+                  const rowClass = detailPath
+                    ? 'cursor-pointer hover:bg-[#f0f5ff]'
+                    : 'hover:bg-[#f0f5ff]'
+                  return (
+                    <tr
+                      key={r.id}
+                      className={rowClass}
+                      onClick={() => {
+                        if (detailPath) navigate(detailPath)
+                      }}
+                    >
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 whitespace-nowrap">{r.date}</td>
+                      {showItemCols && (
+                        <>
+                          <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.itemCode}</td>
+                          <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemName}</td>
+                        </>
+                      )}
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.docType}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.docNo}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.batch}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.location}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.receipt}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.issue}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{r.balance}</td>
+                    </tr>
+                  )
+                })}
                 {!loading && rows.length === 0 && (
                   <tr>
                     <td

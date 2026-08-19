@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { DocTypeBadge, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -9,6 +10,7 @@ import { fetchFullReport } from '@/api/transactions'
 import { mapEmployee, mapEntity, mapLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { FullReportRow } from '@/types/transactions'
+import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 
 const emptyFilters = {
@@ -21,6 +23,7 @@ const emptyFilters = {
 }
 
 export function FullReportPage() {
+  const navigate = useNavigate()
   const { seesAllLocations } = useAuth()
   const [f, setF] = useState(emptyFilters)
   const set = (k: keyof typeof emptyFilters, v: string) => setF((prev) => ({ ...prev, [k]: v }))
@@ -62,6 +65,7 @@ export function FullReportPage() {
           const emp = empById[employeeId]
           return {
             id: String(r.id ?? `${r.txnNo}-${r.itemId}`),
+            docId: String(r.docId ?? ''),
             date: String(r.date ?? ''),
             txnType: String(r.txnType ?? ''),
             txnNo: String(r.txnNo ?? ''),
@@ -256,27 +260,39 @@ export function FullReportPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="hover:bg-[#f0f5ff]">
-                  <td className="border-b border-[var(--border)] px-3 py-2">{r.date}</td>
-                  <td className="border-b border-[var(--border)] px-3 py-2">
-                    <DocTypeBadge type={r.txnType} />
-                  </td>
-                  <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.txnNo}</td>
-                  <td className="border-b border-[var(--border)] px-3 py-2">{r.item}</td>
-                  <td className="border-b border-[var(--border)] px-3 py-2">{r.qty}</td>
-                  <td className="border-b border-[var(--border)] px-3 py-2">{r.fromLocation}</td>
-                  <td className="border-b border-[var(--border)] px-3 py-2">{r.toLocation}</td>
-                  <td className="border-b border-[var(--border)] px-3 py-2">{r.organization}</td>
-                  <td className="border-b border-[var(--border)] px-3 py-2">{r.employee}</td>
-                  <td className="border-b border-[var(--border)] px-3 py-2">
-                    <StatusPill status={r.status} />
-                  </td>
-                  <td className="border-b border-[var(--border)] px-3 py-2 font-mono">
-                    {r.value.toLocaleString('en-IN')}
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((r) => {
+                const detailPath = txnDetailPath(r.txnType, r.docId)
+                const rowClass = detailPath
+                  ? 'cursor-pointer hover:bg-[#f0f5ff]'
+                  : 'hover:bg-[#f0f5ff]'
+                return (
+                  <tr
+                    key={r.id}
+                    className={rowClass}
+                    onClick={() => {
+                      if (detailPath) navigate(detailPath)
+                    }}
+                  >
+                    <td className="border-b border-[var(--border)] px-3 py-2">{r.date}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">
+                      <DocTypeBadge type={r.txnType} />
+                    </td>
+                    <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.txnNo}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">{r.item}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">{r.qty}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">{r.fromLocation}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">{r.toLocation}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">{r.organization}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">{r.employee}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">
+                      <StatusPill status={r.status} />
+                    </td>
+                    <td className="border-b border-[var(--border)] px-3 py-2 font-mono">
+                      {r.value.toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </CardBody>

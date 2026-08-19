@@ -64,6 +64,7 @@ public class DataSeeder implements ApplicationRunner {
         seedMenusIfEmpty();
         seedAdminMenuPermissionsIfEmpty();
         seedDepartmentsIfEmpty();
+        ensureSystemUserFlags();
         seedLookupIfMissing("GTY-DESIG", "Designation", "Employee designations", DESIGNATIONS);
     }
 
@@ -185,6 +186,7 @@ public class DataSeeder implements ApplicationRunner {
         emp.setEmpDepartmentIdDept(itDeptId);
         emp.setEmpRoleIdRol(role.getRolRoleId());
         emp.setEmpIsactive(true);
+        emp.setEmpIsSystemEmployee(true);
         emp.setEmpCreatedBy("system");
         emp.setEmpCreatedOn(now);
         emp = employeeRepo.save(emp);
@@ -197,12 +199,32 @@ public class DataSeeder implements ApplicationRunner {
         user.setUsrAccountStatus("Active");
         user.setUsrEntityIdEnt(entity.getEntEntityId());
         user.setUsrBuAccessScope("ALL");
+        user.setUsrLocationAccessScope("ALL");
         user.setUsrForcePasswordReset(false);
         user.setUsrIsactive(true);
+        user.setUsrIsSystemUser(true);
         user.setUsrFailedAttempts(0);
         user.setUsrCreatedBy("system");
         user.setUsrCreatedOn(now);
         userRepo.save(user);
+    }
+
+    /** Marks the bootstrap admin login/employee as hidden system records on existing databases. */
+    private void ensureSystemUserFlags() {
+        userRepo.findByUsrLoginIdIgnoreCase("admin").ifPresent(user -> {
+            if (!Boolean.TRUE.equals(user.getUsrIsSystemUser())) {
+                user.setUsrIsSystemUser(true);
+                userRepo.save(user);
+            }
+            if (user.getUsrEmployeeIdEmp() != null) {
+                employeeRepo.findById(user.getUsrEmployeeIdEmp()).ifPresent(emp -> {
+                    if (!Boolean.TRUE.equals(emp.getEmpIsSystemEmployee())) {
+                        emp.setEmpIsSystemEmployee(true);
+                        employeeRepo.save(emp);
+                    }
+                });
+            }
+        });
     }
 
     private void seedMenusIfEmpty() {

@@ -61,6 +61,9 @@ public class HrcEmployeeMst {
     @Column(name = "emp_isactive", nullable = false)
     private Boolean empIsactive;
 
+    @Column(name = "emp_is_system_employee", nullable = false)
+    private Boolean empIsSystemEmployee = false;
+
     @Column(name = "emp_created_by")
     private String empCreatedBy;
 
@@ -123,6 +126,9 @@ public class HrcEmployeeMst {
 
     public Boolean getEmpIsactive() { return empIsactive; }
     public void setEmpIsactive(Boolean empIsactive) { this.empIsactive = empIsactive; }
+
+    public Boolean getEmpIsSystemEmployee() { return empIsSystemEmployee; }
+    public void setEmpIsSystemEmployee(Boolean empIsSystemEmployee) { this.empIsSystemEmployee = empIsSystemEmployee; }
 
     public String getEmpCreatedBy() { return empCreatedBy; }
     public void setEmpCreatedBy(String empCreatedBy) { this.empCreatedBy = empCreatedBy; }
