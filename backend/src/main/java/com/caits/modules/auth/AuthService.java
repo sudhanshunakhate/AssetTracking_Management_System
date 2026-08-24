@@ -306,25 +306,13 @@ public class AuthService {
     }
 
     private List<MenuPermissionDto> buildMenuPermissions(SysmUserloginMst user, SysmRolesMst role) {
-        if (Boolean.TRUE.equals(user.getUsrIsSystemUser())) {
-            return menuRepo.findByMtreeIsactiveTrueOrderByMtreeSortOrderAsc().stream()
-                    .map(menu -> new MenuPermissionDto(
-                            menu.getMtreeMenuCode(), true, true, true, true, true, true, true, true,
-                            menu.getMtreeSortOrder(),
-                            menu.getMtreeMenuGroup(),
-                            menu.getMtreeGroupSortOrder()))
-                    .toList();
-        }
-
-        Map<Integer, SysmRolepermissionDtl> byMenuId = rolePermRepo.findAll().stream()
-                .filter(p -> Objects.equals(p.getRlpmRoleIdRol(), role.getRolRoleId()))
+        Map<Integer, SysmRolepermissionDtl> byMenuId = rolePermRepo.findByRlpmRoleIdRol(role.getRolRoleId()).stream()
                 .collect(Collectors.toMap(SysmRolepermissionDtl::getRlpmMenuIdMtree, p -> p, (a, b) -> a));
 
         LocalDate today = LocalDate.now();
         Set<String> granted = new HashSet<>();
         Set<String> revoked = new HashSet<>();
-        for (SysmUseraccessExceptionDtl ex : exceptionRepo.findAll()) {
-            if (!Objects.equals(ex.getUexcEmployeeIdEmp(), user.getUsrEmployeeIdEmp())) continue;
+        for (SysmUseraccessExceptionDtl ex : exceptionRepo.findByUexcEmployeeIdEmp(user.getUsrEmployeeIdEmp())) {
             if (!Boolean.TRUE.equals(ex.getUexcIsactive())) continue;
             if (ex.getUexcValidFrom() != null && today.isBefore(ex.getUexcValidFrom())) continue;
             if (ex.getUexcValidUntil() != null && today.isAfter(ex.getUexcValidUntil())) continue;

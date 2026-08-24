@@ -21,6 +21,7 @@ import { useGenValues, GEN_TYPE } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
+import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import { enrichLinesFromItems, toNum } from './lineGrid'
 import {
   emptyOpeningStockLine,
@@ -45,6 +46,8 @@ type FormState = {
   entryNo: string
   openingDate: string
   remarks: string
+  attachmentUrl: string
+  attachmentName: string
   status: string
 }
 
@@ -53,6 +56,8 @@ function blankForm(): FormState {
     entryNo: AUTO_DOC_NO_LABEL,
     openingDate: todayIso(),
     remarks: '',
+    attachmentUrl: '',
+    attachmentName: '',
     status: '',
   }
 }
@@ -105,6 +110,12 @@ function OpeningStockList() {
       render: (r) => String(r.totalItems ?? 0),
     },
     { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status} /> },
+    {
+      key: 'attachment',
+      header: 'Attachment',
+      searchText: (r) => String(r.attachmentName ?? r.attachmentUrl ?? ''),
+      render: (r) => <AttachmentLink url={String(r.attachmentUrl ?? '')} name={String(r.attachmentName ?? '')} />,
+    },
   ]
 
   return (
@@ -169,6 +180,8 @@ function OpeningStockForm() {
           entryNo: doc.docNo ?? '',
           openingDate: doc.docDate ?? '',
           remarks: doc.remarks ?? '',
+          attachmentUrl: doc.attachmentUrl ?? '',
+          attachmentName: doc.attachmentName ?? '',
           status: doc.status ?? '',
         })
         const mapped = (doc.lines ?? []).map((l) => ({
@@ -276,6 +289,7 @@ function OpeningStockForm() {
       locationId: header.locationId,
       partyId: numOrUndef(firstSupplier),
       remarks: form.remarks,
+      ...attachmentPayload(form.attachmentUrl, form.attachmentName),
       totalAmount: 0,
       docSubmitAction: action,
       lines: filled.map((l, i) => {
@@ -396,6 +410,13 @@ function OpeningStockForm() {
           </div>
         </CardBody>
       </Card>
+
+      <AttachmentSection
+        url={form.attachmentUrl}
+        name={form.attachmentName}
+        readOnly={readOnly}
+        onChange={({ url, name }) => setForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))}
+      />
 
       <OpeningStockItemLines
         lines={lines}

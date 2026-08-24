@@ -25,6 +25,7 @@ import {
 import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
+import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import { enrichLinesFromItems, toNum } from './lineGrid'
 import type { ApiMasterRow } from '@/api/masters'
 import {
@@ -51,6 +52,8 @@ type FormState = {
   referenceNo: string
   initiatedByEmpId: string
   remark: string
+  attachmentUrl: string
+  attachmentName: string
   status: string
 }
 
@@ -64,6 +67,8 @@ function blankForm(): FormState {
     referenceNo: '',
     initiatedByEmpId: '',
     remark: '',
+    attachmentUrl: '',
+    attachmentName: '',
     status: '',
   }
 }
@@ -197,6 +202,12 @@ function InspectionApprovalList() {
       header: 'Status',
       searchText: (r) => r.status,
       render: (r) => <StatusPill status={r.status || '—'} />,
+    },
+    {
+      key: 'attachment',
+      header: 'Attachment',
+      searchText: (r) => String(r.attachmentName ?? r.attachmentUrl ?? ''),
+      render: (r) => <AttachmentLink url={String(r.attachmentUrl ?? '')} name={String(r.attachmentName ?? '')} />,
     },
   ]
 
@@ -334,6 +345,8 @@ function InspectionApprovalForm() {
           referenceNo: doc.referenceNo ?? '',
           initiatedByEmpId: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : '',
           remark: doc.remarks ?? '',
+          attachmentUrl: doc.attachmentUrl ?? '',
+          attachmentName: doc.attachmentName ?? '',
           status: doc.status ?? '',
         })
         const loaded = mapLoadedInspectionLines(doc.lines ?? [])
@@ -395,6 +408,7 @@ function InspectionApprovalForm() {
       referenceNo: form.referenceNo || undefined,
       initiatedByEmpId: form.initiatedByEmpId ? Number(form.initiatedByEmpId) : undefined,
       remarks: form.remark || undefined,
+      ...attachmentPayload(form.attachmentUrl, form.attachmentName),
       docSubmitAction: action,
       lines: lines
         .filter((l) => l.itemId)
@@ -582,6 +596,14 @@ function InspectionApprovalForm() {
           </div>
         </CardBody>
       </Card>
+
+      <AttachmentSection
+        url={form.attachmentUrl}
+        name={form.attachmentName}
+        readOnly={readOnly}
+        onChange={({ url, name }) => setForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))}
+        subtitle="GRN supporting file is copied here — add or replace the inspection report if needed"
+      />
 
       <InspectionItemLines
         lines={lines}

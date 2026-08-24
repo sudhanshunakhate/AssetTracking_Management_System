@@ -70,9 +70,7 @@ public class OrgMastersService {
         applyEntity(e, req);
         e.setEntCreatedBy(SecurityUtils.requireLoginId());
         e.setEntCreatedOn(LocalDateTime.now());
-        OrgEntityMst saved = entityRepo.save(e);
-        systemLocations.ensureForEntity(saved.getEntEntityId());
-        return toEntityDto(saved, "Entity created successfully");
+        return toEntityDto(entityRepo.save(e), "Entity created successfully");
     }
 
     @Transactional
@@ -152,7 +150,7 @@ public class OrgMastersService {
         e.setBuCreatedBy(SecurityUtils.requireLoginId());
         e.setBuCreatedOn(LocalDateTime.now());
         OrgBusinessunitMst saved = buRepo.save(e);
-        systemLocations.ensureForEntity(saved.getBuEntityIdEnt());
+        systemLocations.ensureForBu(saved.getBuBuId());
         return toBuDto(saved, "Business Unit created successfully");
     }
 
@@ -289,7 +287,9 @@ public class OrgMastersService {
             e.setLocCity(req.city());
             if (req.isActive() != null) e.setLocIsactive(req.isActive());
         } else {
+            if (req.locationName() != null) e.setLocLocationName(req.locationName());
             if (req.printLocationName() != null) e.setLocPrintLocationName(req.printLocationName());
+            if (req.city() != null) e.setLocCity(req.city());
         }
     }
 

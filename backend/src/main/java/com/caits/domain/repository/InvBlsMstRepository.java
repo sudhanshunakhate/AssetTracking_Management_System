@@ -4,9 +4,14 @@ import com.caits.domain.entity.InvBlsMst;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface InvBlsMstRepository extends JpaRepository<InvBlsMst, Integer>, JpaSpecificationExecutor<InvBlsMst> {
+
+    List<InvBlsMst> findByIbmIssuedToEmpIdEmpAndIbmIsDummyFalseAndIbmIsactiveTrue(Integer empId);
+
+    List<InvBlsMst> findByIbmIsactiveTrueAndIbmIssuedToEmpIdEmpIsNotNull();
 
     Optional<InvBlsMst> findFirstByIbmItemIdItmAndIbmIsDummyTrueAndIbmIsactiveTrue(Integer itemId);
 

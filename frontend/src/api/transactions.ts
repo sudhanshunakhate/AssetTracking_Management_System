@@ -25,6 +25,8 @@ export type TxnListItem = {
   status?: string
   docSubtype?: string
   returnFlag?: string
+  attachmentUrl?: string
+  attachmentName?: string
   createdOn?: string
   modifiedOn?: string
 }
@@ -100,6 +102,7 @@ export type DocumentRequest = {
   poDate?: string
   purpose?: string
   attachmentUrl?: string
+  attachmentName?: string
   inspectedByEmpId?: number
   inspectionDate?: string
   receivedByEmpId?: number
@@ -142,6 +145,8 @@ export function mapTxnListItem(item: TxnListItem): TxnRow {
     totalItems: Number(item.totalItems ?? 0),
     docSubtype: item.docSubtype ?? '',
     returnFlag: item.returnFlag ?? '',
+    attachmentUrl: item.attachmentUrl ?? '',
+    attachmentName: item.attachmentName ?? '',
     createdOn: item.createdOn ?? '',
     modifiedOn: item.modifiedOn ?? '',
     // aliases used by existing column / form keys
@@ -220,6 +225,7 @@ export type TxnDocument = {
   poDate?: string
   purpose?: string
   attachmentUrl?: string
+  attachmentName?: string
   inspectedByEmpId?: number
   inspectionDate?: string
   preparedByEmpId?: number
@@ -276,19 +282,23 @@ export function useTxnList(
   const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
-  const reload = useCallback(async () => {
+  const cacheKey = `txnlist:${resource}?status=${status ?? ''}&emp=${initiatedByEmpId ?? ''}&sync=${syncGrn ? '1' : '0'}`
+
+  const reload = useCallback(async (opts?: { force?: boolean }) => {
     if (!enabled) return
-    invalidateTxnList(resource)
+    if (opts?.force) invalidateTxnList(resource)
     setLoading(true)
     setError(null)
     try {
-      const page = await listMaster<TxnListItem>(resource, {
-        page: 1,
-        pageSize: 200,
-        status: status || undefined,
-        initiatedByEmpId: initiatedByEmpId ?? undefined,
-        syncGrn: syncGrn ? true : undefined,
-      })
+      const page = await cachedFetch(cacheKey, () =>
+        listMaster<TxnListItem>(resource, {
+          page: 1,
+          pageSize: 50,
+          status: status || undefined,
+          initiatedByEmpId: initiatedByEmpId ?? undefined,
+          syncGrn: syncGrn ? true : undefined,
+        }),
+      )
       setRows(sortTxnListRows((page.data ?? []).map(mapTxnListItem)))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load')
@@ -296,13 +306,13 @@ export function useTxnList(
     } finally {
       setLoading(false)
     }
-  }, [enabled, resource, status, initiatedByEmpId, syncGrn])
+  }, [enabled, cacheKey, resource, status, initiatedByEmpId, syncGrn])
 
   useEffect(() => {
     void reload()
   }, [reload])
 
-  return { rows, loading, error, reload }
+  return { rows, loading, error, reload: () => reload({ force: true }) }
 }
 
 export function invalidateTxnList(resource?: string) {
@@ -311,6 +321,8 @@ export function invalidateTxnList(resource?: string) {
 
 export async function createTxn(resource: string, body: DocumentRequest) {
   invalidateTxnList(resource)
+  invalidateDashboardSummary()
+  invalidateReportCache()
   const res = await http.post<TxnDocument>(`/${resource}`, body)
   invalidateDashboardSummary()
   return res
@@ -324,6 +336,14 @@ export async function updateTxn(resource: string, id: string, body: DocumentRequ
 
 export async function fetchTxn(resource: string, id: string) {
   return http.get<TxnDocument>(`/${resource}/${id}`)
+}
+
+/** Item IDs still allotted to this employee (Issue / Opening Stock minus Return). */
+export async function fetchAllottedItemIds(employeeId: string | number): Promise<string[]> {
+  const id = Number(employeeId)
+  if (!Number.isFinite(id) || id <= 0) return []
+  const res = await http.get<{ itemIds: number[] }>(`/returns/allotted-items?employeeId=${id}`)
+  return (res.itemIds ?? []).map(String)
 }
 
 export async function syncInspectionApprovalsFromGrn() {
@@ -431,8 +451,11 @@ export async function fetchStockRegister(params: Record<string, string | number 
     if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
   })
   if (!qs.has('page')) qs.set('page', '1')
-  if (!qs.has('pageSize')) qs.set('pageSize', '200')
-  return http.get<PageResponse<Record<string, unknown>>>(`/reports/stock-register?${qs}`)
+  if (!qs.has('pageSize')) qs.set('pageSize', '50')
+  const query = qs.toString()
+  return cachedFetch(`reports:stock-register?${query}`, () =>
+    http.get<PageResponse<Record<string, unknown>>>(`/reports/stock-register?${query}`),
+  )
 }
 
 export async function fetchFullReport(params: Record<string, string | number | boolean | undefined> = {}) {
@@ -441,8 +464,11 @@ export async function fetchFullReport(params: Record<string, string | number | b
     if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
   })
   if (!qs.has('page')) qs.set('page', '1')
-  if (!qs.has('pageSize')) qs.set('pageSize', '200')
-  return http.get<PageResponse<Record<string, unknown>>>(`/reports/full-report?${qs}`)
+  if (!qs.has('pageSize')) qs.set('pageSize', '50')
+  const query = qs.toString()
+  return cachedFetch(`reports:full-report?${query}`, () =>
+    http.get<PageResponse<Record<string, unknown>>>(`/reports/full-report?${query}`),
+  )
 }
 
 export async function fetchStockOwner(params: Record<string, string | number | boolean | undefined> = {}) {
@@ -494,10 +520,15 @@ export type DashboardSummary = {
 }
 
 export async function fetchDashboardSummary() {
-  return cachedFetch('dashboard:summary', () => http.get<DashboardSummary>('/dashboard/summary'), 30_000)
+  return cachedFetch('dashboard:summary', () => http.get<DashboardSummary>('/dashboard/summary'), 60_000)
 }
 
 /** Drop dashboard KPIs after stock-moving transactions. */
 export function invalidateDashboardSummary() {
   invalidateCache('dashboard:summary')
+}
+
+/** Drop cached report pages (dashboard charts, report screens). */
+export function invalidateReportCache() {
+  invalidateCache('reports:')
 }

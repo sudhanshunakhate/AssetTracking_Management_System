@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Resolves or creates Batch/Lot/Serial (BLS) rows when a transaction line is saved.
@@ -36,9 +37,20 @@ public class BlsService {
         this.detailRepo = detailRepo;
     }
 
+    public List<Integer> listItemIdsIssuedTo(Integer employeeId) {
+        if (employeeId == null) {
+            return List.of();
+        }
+        return blsRepo.findByIbmIssuedToEmpIdEmpAndIbmIsDummyFalseAndIbmIsactiveTrue(employeeId).stream()
+                .map(InvBlsMst::getIbmItemIdItm)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+    }
+
     @Transactional
     public InvBlsMst resolveForLine(Integer entityId, Integer locationId, LineRequest line,
-                                    Integer currentHeaderId, DocType docType) {
+                                    Integer currentHeaderId, DocType docType, Integer headerIssuedToEmpId) {
         if (line.itemId() == null) {
             throw ApiException.badRequest("line.itemId is required for BLS");
         }
@@ -49,20 +61,20 @@ public class BlsService {
         String batch = blankToNull(line.batchLotNo());
 
         if (serial != null) {
-            return upsertSerialUnit(entityId, locationId, item, line, serial, currentHeaderId, docType);
+            return upsertSerialUnit(entityId, locationId, item, line, serial, currentHeaderId, docType, headerIssuedToEmpId);
         }
         if (batch != null || Boolean.TRUE.equals(item.getItmTrackBatchLot())) {
             if (batch == null) {
                 return findOrCreateDummy(entityId, locationId, item.getItmItemId());
             }
-            return upsertBatch(entityId, locationId, item, line, batch);
+            return upsertBatch(entityId, locationId, item, line, batch, docType, headerIssuedToEmpId);
         }
         return findOrCreateDummy(entityId, locationId, item.getItmItemId());
     }
 
     private InvBlsMst upsertSerialUnit(Integer entityId, Integer locationId, InvItemMst item,
                                        LineRequest line, String serial,
-                                       Integer currentHeaderId, DocType docType) {
+                                       Integer currentHeaderId, DocType docType, Integer headerIssuedToEmpId) {
         InvBlsMst existing = blsRepo.findFirstByIbmSerialNoIgnoreCaseAndIbmIsactiveTrue(serial).orElse(null);
         if (existing != null) {
             if (!existing.getIbmItemIdItm().equals(item.getItmItemId())) {
@@ -73,7 +85,7 @@ public class BlsService {
                     && detailRepo.existsByTxdBlsIdIbmAndTxdTxnHeaderIdTxhNot(existing.getIbmBlsId(), currentHeaderId)) {
                 throw ApiException.conflict("Serial No. " + serial + " is already registered");
             }
-            applyInstanceFields(existing, entityId, locationId, line);
+            applyInstanceFields(existing, entityId, locationId, line, docType, headerIssuedToEmpId);
             existing.setIbmModifiedBy(SecurityUtils.loginIdOrSystem());
             existing.setIbmModifiedOn(LocalDateTime.now());
             return blsRepo.save(existing);
@@ -81,25 +93,25 @@ public class BlsService {
         InvBlsMst bls = newBls(entityId, locationId, item.getItmItemId(), false);
         bls.setIbmSerialNo(serial);
         bls.setIbmBatchNo(blankToNull(line.batchLotNo()));
-        applyInstanceFields(bls, entityId, locationId, line);
+        applyInstanceFields(bls, entityId, locationId, line, docType, headerIssuedToEmpId);
         return blsRepo.save(bls);
     }
 
     private InvBlsMst upsertBatch(Integer entityId, Integer locationId, InvItemMst item,
-                                  LineRequest line, String batch) {
+                                  LineRequest line, String batch, DocType docType, Integer headerIssuedToEmpId) {
         InvBlsMst existing = blsRepo
                 .findFirstByIbmItemIdItmAndIbmBatchNoIgnoreCaseAndIbmIsDummyFalseAndIbmIsactiveTrue(
                         item.getItmItemId(), batch)
                 .orElse(null);
         if (existing != null) {
-            applyInstanceFields(existing, entityId, locationId, line);
+            applyInstanceFields(existing, entityId, locationId, line, docType, headerIssuedToEmpId);
             existing.setIbmModifiedBy(SecurityUtils.loginIdOrSystem());
             existing.setIbmModifiedOn(LocalDateTime.now());
             return blsRepo.save(existing);
         }
         InvBlsMst bls = newBls(entityId, locationId, item.getItmItemId(), false);
         bls.setIbmBatchNo(batch);
-        applyInstanceFields(bls, entityId, locationId, line);
+        applyInstanceFields(bls, entityId, locationId, line, docType, headerIssuedToEmpId);
         return blsRepo.save(bls);
     }
 
@@ -124,7 +136,8 @@ public class BlsService {
         return bls;
     }
 
-    private void applyInstanceFields(InvBlsMst bls, Integer entityId, Integer locationId, LineRequest line) {
+    private void applyInstanceFields(InvBlsMst bls, Integer entityId, Integer locationId, LineRequest line,
+                                     DocType docType, Integer headerIssuedToEmpId) {
         if (entityId != null) bls.setIbmEntityIdEnt(entityId);
         if (locationId != null) bls.setIbmCurrentLocationIdLoc(locationId);
         if (line.mfgDate() != null) bls.setIbmMfgDate(line.mfgDate());
@@ -133,7 +146,28 @@ public class BlsService {
         if (blankToNull(line.macAddress()) != null) bls.setIbmMacAddress(line.macAddress().trim());
         if (blankToNull(line.hostname()) != null) bls.setIbmHostname(line.hostname().trim());
         if (blankToNull(line.itemCondition()) != null) bls.setIbmItemCondition(line.itemCondition().trim());
-        bls.setIbmIssuedToEmpIdEmp(line.issuedToEmpId());
+        applyIssuedTo(bls, docType, line.issuedToEmpId(), headerIssuedToEmpId);
+    }
+
+    /** Serial/batch units only — shared dummy BLS is never tied to one employee. */
+    private static void applyIssuedTo(InvBlsMst bls, DocType docType, Integer lineIssuedTo, Integer headerIssuedTo) {
+        if (Boolean.TRUE.equals(bls.getIbmIsDummy())) {
+            return;
+        }
+        if (docType == DocType.MATERIAL_RETURN) {
+            bls.setIbmIssuedToEmpIdEmp(null);
+            return;
+        }
+        if (docType == DocType.MATERIAL_ISSUE) {
+            Integer emp = lineIssuedTo != null ? lineIssuedTo : headerIssuedTo;
+            if (emp != null) {
+                bls.setIbmIssuedToEmpIdEmp(emp);
+            }
+            return;
+        }
+        if (lineIssuedTo != null) {
+            bls.setIbmIssuedToEmpIdEmp(lineIssuedTo);
+        }
     }
 
     private static String blankToNull(String v) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { http, listMaster, type PageResponse } from '@/api/client'
-import { cachedFetch, invalidateCache } from '@/api/requestCache'
+import { cachedFetch, invalidateCache, MASTER_TTL_MS } from '@/api/requestCache'
 import { sortMasterListRows } from '@/lib/listOrder'
 
 type Status = 'Active' | 'Inactive'
@@ -40,7 +40,7 @@ async function listMasterAll<TApi extends Record<string, unknown>>(resource: str
       ),
     )
     return rest.reduce<TApi[]>((all, page) => all.concat(page.data ?? []), rows)
-  })
+  }, MASTER_TTL_MS)
 }
 
 /** Call after mutating a master so lists refetch on next use. */

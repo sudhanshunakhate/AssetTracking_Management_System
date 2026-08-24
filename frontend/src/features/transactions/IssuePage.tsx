@@ -24,6 +24,7 @@ import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '
 import { IssueItemLines, emptyLine, type IssueLine } from './IssueItemLines'
 import { enrichLinesFromItems } from './lineGrid'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
+import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import {
   empLabel,
   employeeOptions as toEmployeeOptions,
@@ -52,6 +53,8 @@ type FormState = {
   storeId: string
   issuedTo: string
   remark: string
+  attachmentUrl: string
+  attachmentName: string
   status: string
 }
 
@@ -64,6 +67,8 @@ function blankForm(): FormState {
     storeId: '',
     issuedTo: '',
     remark: '',
+    attachmentUrl: '',
+    attachmentName: '',
     status: '',
   }
 }
@@ -138,6 +143,12 @@ export function IssueList() {
       render: (r) => <span className="tabular-nums">{Number(r.totalItems ?? 0)}</span>,
     },
     { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status || '—'} /> },
+    {
+      key: 'attachment',
+      header: 'Attachment',
+      searchText: (r) => String(r.attachmentName ?? r.attachmentUrl ?? ''),
+      render: (r) => <AttachmentLink url={String(r.attachmentUrl ?? '')} name={String(r.attachmentName ?? '')} />,
+    },
   ]
 
   return (
@@ -257,6 +268,8 @@ function IssueForm() {
           storeId: doc.locationId != null ? String(doc.locationId) : '',
           issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : '',
           remark: doc.remarks ?? '',
+          attachmentUrl: doc.attachmentUrl ?? '',
+          attachmentName: doc.attachmentName ?? '',
           status: doc.status ?? '',
         })
         const mapped = (doc.lines ?? []).map((l) => ({
@@ -370,6 +383,7 @@ function IssueForm() {
       initiatedByEmpId: form.issuedTo ? Number(form.issuedTo) : undefined,
       refTxnHeaderId: form.requisitionId ? Number(form.requisitionId) : undefined,
       remarks: form.remark || undefined,
+      ...attachmentPayload(form.attachmentUrl, form.attachmentName),
       docSubmitAction: action,
       lines: lines
         .filter((l) => l.itemId !== '')
@@ -384,6 +398,7 @@ function IssueForm() {
             availableStock: l.availableStock === '' ? undefined : Number(l.availableStock),
             batchLotNo: l.batchLotNo || undefined,
             locationId: l.locationId ? Number(l.locationId) : locationId,
+            issuedToEmpId: form.issuedTo ? Number(form.issuedTo) : undefined,
             remark: l.remark || undefined,
           }
         }),
@@ -512,6 +527,13 @@ function IssueForm() {
           </div>
         </CardBody>
       </Card>
+
+      <AttachmentSection
+        url={form.attachmentUrl}
+        name={form.attachmentName}
+        readOnly={readOnly}
+        onChange={({ url, name }) => setForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))}
+      />
 
       <div className="mt-3">
         <IssueItemLines

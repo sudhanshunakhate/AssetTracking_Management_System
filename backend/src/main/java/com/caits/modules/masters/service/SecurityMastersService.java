@@ -78,7 +78,6 @@ public class SecurityMastersService {
     @Transactional(readOnly = true)
     public PageResponse<RoleDto> listRoles(int page, int pageSize, String search, Boolean isActive) {
         Specification<SysmRolesMst> spec = SpecUtils.combine(
-                SpecUtils.notTrue("rolIsSystemRole"),
                 SpecUtils.activeEquals("rolIsactive", isActive),
                 SpecUtils.searchContains(search, "rolRoleCode", "rolRoleName"));
         Page<SysmRolesMst> result = roleRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
@@ -88,9 +87,7 @@ public class SecurityMastersService {
 
     @Transactional(readOnly = true)
     public RoleDto getRole(Integer id) {
-        SysmRolesMst e = findRole(id);
-        if (Boolean.TRUE.equals(e.getRolIsSystemRole())) throw ApiException.notFound("Role not found");
-        return toRoleDto(e, null);
+        return toRoleDto(findRole(id), null);
     }
 
     @Transactional
@@ -109,7 +106,6 @@ public class SecurityMastersService {
     @Transactional
     public RoleDto updateRole(Integer id, RoleRequest req) {
         SysmRolesMst e = findRole(id);
-        if (Boolean.TRUE.equals(e.getRolIsSystemRole())) throw ApiException.badRequest("Cannot modify a system role");
         if (Boolean.TRUE.equals(e.getRolIsSystemRole()) && req.roleCode() != null
                 && !req.roleCode().equalsIgnoreCase(e.getRolRoleCode())) {
             throw ApiException.badRequest("Cannot change system role code");
@@ -139,8 +135,7 @@ public class SecurityMastersService {
 
     @Transactional(readOnly = true)
     public List<PermissionDto> getPermissions(Integer roleId) {
-        SysmRolesMst role = findRole(roleId);
-        if (Boolean.TRUE.equals(role.getRolIsSystemRole())) throw ApiException.notFound("Role not found");
+        findRole(roleId);
         Map<Integer, SysmMenutreeMst> menuById = menuRepo.findAll().stream()
                 .collect(Collectors.toMap(SysmMenutreeMst::getMtreeMenuId, m -> m, (a, b) -> a));
         return rolePermRepo.findByRlpmRoleIdRol(roleId).stream()
@@ -257,7 +252,6 @@ public class SecurityMastersService {
     @Transactional(readOnly = true)
     public PageResponse<EmployeeDto> listEmployees(int page, int pageSize, String search, Boolean isActive) {
         Specification<HrcEmployeeMst> spec = SpecUtils.combine(
-                SpecUtils.notTrue("empIsSystemEmployee"),
                 SpecUtils.activeEquals("empIsactive", isActive),
                 SpecUtils.searchContains(search, "empEmployeeCode", "empFirstName", "empLastName", "empEmail"));
         Page<HrcEmployeeMst> result = employeeRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
@@ -267,21 +261,13 @@ public class SecurityMastersService {
 
     @Transactional(readOnly = true)
     public EmployeeDto getEmployee(Integer id) {
-        HrcEmployeeMst e = findEmployee(id);
-        if (Boolean.TRUE.equals(e.getEmpIsSystemEmployee())) {
-            throw ApiException.notFound("Employee not found");
-        }
-        return toEmpDto(e, null);
+        return toEmpDto(findEmployee(id), null);
     }
 
     @Transactional(readOnly = true)
     public List<SubordinateDto> subordinates(Integer employeeId) {
-        HrcEmployeeMst parent = findEmployee(employeeId);
-        if (Boolean.TRUE.equals(parent.getEmpIsSystemEmployee())) {
-            throw ApiException.notFound("Employee not found");
-        }
+        findEmployee(employeeId);
         return employeeRepo.findByEmpReportingToEmpIdEmp(employeeId).stream()
-                .filter(e -> !Boolean.TRUE.equals(e.getEmpIsSystemEmployee()))
                 .map(e -> new SubordinateDto(e.getEmpEmployeeId(), e.getEmpEmployeeCode(), e.getEmpFirstName(), e.getEmpDesignation()))
                 .toList();
     }
@@ -318,7 +304,6 @@ public class SecurityMastersService {
     @Transactional
     public EmployeeDto updateEmployee(Integer id, EmployeeRequest req) {
         HrcEmployeeMst e = findEmployee(id);
-        rejectIfSystemEmployee(e);
         if (req.employeeCode() != null && !req.employeeCode().equalsIgnoreCase(e.getEmpEmployeeCode())
                 && employeeRepo.existsByEmpEmployeeCodeIgnoreCase(req.employeeCode())) {
             throw ApiException.conflict("Employee code already exists");
@@ -347,7 +332,6 @@ public class SecurityMastersService {
     @Transactional
     public MessageResponse deleteEmployee(Integer id) {
         HrcEmployeeMst e = findEmployee(id);
-        rejectIfSystemEmployee(e);
         e.setEmpIsactive(false);
         e.setEmpModifiedBy(SecurityUtils.requireLoginId());
         e.setEmpModifiedOn(LocalDateTime.now());
@@ -357,12 +341,6 @@ public class SecurityMastersService {
 
     private HrcEmployeeMst findEmployee(Integer id) {
         return employeeRepo.findById(id).orElseThrow(() -> ApiException.notFound("Employee not found"));
-    }
-
-    private static void rejectIfSystemEmployee(HrcEmployeeMst e) {
-        if (Boolean.TRUE.equals(e.getEmpIsSystemEmployee())) {
-            throw ApiException.badRequest("The system employee cannot be modified or removed");
-        }
     }
 
     private void applyEmp(HrcEmployeeMst e, EmployeeRequest req) {
@@ -479,7 +457,6 @@ public class SecurityMastersService {
     @Transactional(readOnly = true)
     public PageResponse<UserDto> listUsers(int page, int pageSize, String search, Boolean isActive) {
         Specification<SysmUserloginMst> spec = SpecUtils.combine(
-                SpecUtils.notTrue("usrIsSystemUser"),
                 SpecUtils.activeEquals("usrIsactive", isActive),
                 SpecUtils.searchContains(search, "usrLoginId"));
         Page<SysmUserloginMst> result = userRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
@@ -489,11 +466,7 @@ public class SecurityMastersService {
 
     @Transactional(readOnly = true)
     public UserDto getUser(Integer id) {
-        SysmUserloginMst e = findUser(id);
-        if (Boolean.TRUE.equals(e.getUsrIsSystemUser())) {
-            throw ApiException.notFound("User not found");
-        }
-        return toUserDto(e, null);
+        return toUserDto(findUser(id), null);
     }
 
     @Transactional
@@ -507,7 +480,6 @@ public class SecurityMastersService {
             throw ApiException.badRequest("Password must be at least 8 characters");
         }
         HrcEmployeeMst emp = findEmployee(req.employeeId());
-        rejectIfSystemEmployee(emp);
         if (userRepo.existsByUsrEmployeeIdEmp(emp.getEmpEmployeeId())) {
             throw ApiException.conflict("A login already exists for this employee");
         }
@@ -538,15 +510,11 @@ public class SecurityMastersService {
     @Transactional
     public UserDto updateUser(Integer id, UserRequest req) {
         SysmUserloginMst e = findUser(id);
-        rejectIfSystemUser(e);
         if (req.loginId() != null && !req.loginId().equalsIgnoreCase(e.getUsrLoginId())
                 && userRepo.existsByUsrLoginIdIgnoreCase(req.loginId())) {
             throw ApiException.conflict("Login ID already exists");
         }
-        if (req.employeeId() != null) {
-            HrcEmployeeMst emp = findEmployee(req.employeeId());
-            rejectIfSystemEmployee(emp);
-        }
+        if (req.employeeId() != null) findEmployee(req.employeeId());
         if (req.roleId() != null) findRole(req.roleId());
         applyUser(e, req);
         if (req.password() != null && !req.password().isBlank()) {
@@ -565,7 +533,6 @@ public class SecurityMastersService {
     @Transactional
     public MessageResponse deleteUser(Integer id) {
         SysmUserloginMst e = findUser(id);
-        rejectIfSystemUser(e);
         e.setUsrIsactive(false);
         e.setUsrAccountStatus("Disabled");
         e.setUsrModifiedBy(SecurityUtils.requireLoginId());
@@ -577,7 +544,6 @@ public class SecurityMastersService {
     @Transactional
     public MessageResponse resetPassword(Integer userId) {
         SysmUserloginMst e = findUser(userId);
-        rejectIfSystemUser(e);
         String temp = "Temp@" + UUID.randomUUID().toString().substring(0, 8);
         e.setUsrPasswordHash(passwordEncoder.encode(temp));
         e.setUsrForcePasswordReset(true);
@@ -591,7 +557,6 @@ public class SecurityMastersService {
     @Transactional
     public LockStatusResponse lockStatus(Integer userId, LockStatusRequest req) {
         SysmUserloginMst e = findUser(userId);
-        rejectIfSystemUser(e);
         if (req == null || req.action() == null) throw ApiException.badRequest("action is required");
         String action = req.action().trim().toLowerCase();
         if ("lock".equals(action)) {
@@ -611,9 +576,6 @@ public class SecurityMastersService {
     @Transactional(readOnly = true)
     public OuAccessDto getOuAccess(Integer userId) {
         SysmUserloginMst e = findUser(userId);
-        if (Boolean.TRUE.equals(e.getUsrIsSystemUser())) {
-            throw ApiException.notFound("User not found");
-        }
         List<Integer> buIds = buMappingRepo.findByUboaUserIdUsr(userId).stream()
                 .map(SysmUserBuMappingDtl::getUboaBuIdBu).toList();
         List<Integer> locationIds = locationMappingRepo.findByUlocUserIdUsr(userId).stream()
@@ -626,7 +588,6 @@ public class SecurityMastersService {
     @Transactional
     public OuAccessDto putOuAccess(Integer userId, OuAccessRequest req) {
         SysmUserloginMst e = findUser(userId);
-        rejectIfSystemUser(e);
         // A scoped administrator must not be able to hand out access they do not hold themselves.
         if (req.buIds() != null) req.buIds().forEach(accessScope::requireBuAllowed);
         if (req.locationIds() != null) req.locationIds().forEach(accessScope::requireLocationAllowed);
@@ -685,12 +646,6 @@ public class SecurityMastersService {
         return userRepo.findById(id).orElseThrow(() -> ApiException.notFound("User not found"));
     }
 
-    private static void rejectIfSystemUser(SysmUserloginMst e) {
-        if (Boolean.TRUE.equals(e.getUsrIsSystemUser())) {
-            throw ApiException.badRequest("The system user cannot be modified or removed");
-        }
-    }
-
     private void applyUser(SysmUserloginMst e, UserRequest req) {
         if (req.employeeId() != null) e.setUsrEmployeeIdEmp(req.employeeId());
         if (req.loginId() != null) e.setUsrLoginId(req.loginId());
@@ -739,8 +694,7 @@ public class SecurityMastersService {
         require(req.exceptionType(), "exceptionType");
         require(req.menuCode(), "menuCode");
         require(req.reason(), "reason");
-        HrcEmployeeMst exEmp = findEmployee(req.employeeId());
-        rejectIfSystemEmployee(exEmp);
+        findEmployee(req.employeeId());
         validateException(req.employeeId(), req.menuCode(), req.exceptionType(),
                 req.validFrom(), req.validUntil(), null);
         SysmUseraccessExceptionDtl e = new SysmUseraccessExceptionDtl();
@@ -753,10 +707,7 @@ public class SecurityMastersService {
     @Transactional
     public AccessExceptionDto updateException(Integer id, AccessExceptionRequest req) {
         SysmUseraccessExceptionDtl e = findException(id);
-        if (req.employeeId() != null) {
-            HrcEmployeeMst exEmp = findEmployee(req.employeeId());
-            rejectIfSystemEmployee(exEmp);
-        }
+        if (req.employeeId() != null) findEmployee(req.employeeId());
         validateException(
                 req.employeeId() != null ? req.employeeId() : e.getUexcEmployeeIdEmp(),
                 req.menuCode() != null ? req.menuCode() : e.getUexcMenuCodeMtree(),

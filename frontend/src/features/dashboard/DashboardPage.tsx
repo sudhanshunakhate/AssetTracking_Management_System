@@ -11,6 +11,7 @@ import {
   fetchFullReport,
   fetchStockRegister,
   invalidateDashboardSummary,
+  invalidateReportCache,
   type DashboardSummary,
 } from '@/api/transactions'
 
@@ -745,6 +746,7 @@ export function DashboardPage() {
   const [activity, setActivity] = useState<ActivityRow[]>([])
   const [txnTypeChart, setTxnTypeChart] = useState<ChartSlice[]>([])
   const [loading, setLoading] = useState(true)
+  const [chartsLoading, setChartsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [storeView, setStoreView] = useState<StoreView>('ranked')
@@ -757,17 +759,23 @@ export function DashboardPage() {
     [locations],
   )
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (force = false) => {
     setLoading(true)
+    setChartsLoading(true)
     setError(null)
     try {
-      invalidateDashboardSummary()
-      const [sum, stockPage, txnPage] = await Promise.all([
-        fetchDashboardSummary(),
-        fetchStockRegister({ page: 1, pageSize: 200 }),
-        fetchFullReport({ page: 1, pageSize: 200 }),
-      ])
+      if (force) {
+        invalidateDashboardSummary()
+        invalidateReportCache()
+      }
+      const sum = await fetchDashboardSummary()
       setSummary(sum)
+      setLoading(false)
+
+      const [stockPage, txnPage] = await Promise.all([
+        fetchStockRegister({ page: 1, pageSize: 50 }),
+        fetchFullReport({ page: 1, pageSize: 50 }),
+      ])
 
       const mappedStock: StockRow[] = (stockPage.data ?? []).map((r) => {
         const locationId = String(r.locationId ?? '')
@@ -827,6 +835,7 @@ export function DashboardPage() {
       setTxnTypeChart([])
     } finally {
       setLoading(false)
+      setChartsLoading(false)
     }
   }, [locById])
 
@@ -945,8 +954,8 @@ export function DashboardPage() {
                 Updated {updatedAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
-            <Button variant="ghost" onClick={() => void reload()} disabled={loading}>
-              {loading ? 'Refreshing…' : 'Refresh'}
+            <Button variant="ghost" onClick={() => void reload(true)} disabled={loading || chartsLoading}>
+              {loading || chartsLoading ? 'Refreshing…' : 'Refresh'}
             </Button>
           </div>
         }

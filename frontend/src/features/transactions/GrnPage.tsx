@@ -20,6 +20,7 @@ import {
 import { useAuth } from '@/features/auth/AuthContext'
 import { notBefore, validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { GEN_TYPE, useGenValues } from '@/api/masters'
+import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import { GrnItemLines, emptyGrnLine, type GrnLine } from './GrnItemLines'
 import type { ItemKind } from './OpeningStockItemLines'
 import { enrichLinesFromItems, money, toNum } from './lineGrid'
@@ -60,6 +61,8 @@ type FormState = {
   remarks: string
   preparedBy: string
   preparedDate: string
+  attachmentUrl: string
+  attachmentName: string
   status: string
 }
 
@@ -77,6 +80,8 @@ function blankForm(employeeId?: number | null): FormState {
     remarks: '',
     preparedBy: employeeId != null ? String(employeeId) : '',
     preparedDate: todayIso(),
+    attachmentUrl: '',
+    attachmentName: '',
     status: '',
   }
 }
@@ -136,6 +141,12 @@ function GrnList() {
       render: (r) => <span className="tabular-nums">{money(Number(r.totalAmount ?? 0))}</span>,
     },
     { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status || '—'} /> },
+    {
+      key: 'attachment',
+      header: 'Attachment',
+      searchText: (r) => String(r.attachmentName ?? r.attachmentUrl ?? ''),
+      render: (r) => <AttachmentLink url={String(r.attachmentUrl ?? '')} name={String(r.attachmentName ?? '')} />,
+    },
   ]
 
   return (
@@ -220,6 +231,8 @@ function GrnForm() {
           remarks: doc.remarks ?? '',
           preparedBy: doc.preparedByEmpId != null ? String(doc.preparedByEmpId) : '',
           preparedDate: doc.preparedDate ?? '',
+          attachmentUrl: doc.attachmentUrl ?? '',
+          attachmentName: doc.attachmentName ?? '',
           status: doc.status ?? '',
         })
         const mapped = (doc.lines ?? []).map((l) => ({
@@ -363,6 +376,7 @@ function GrnForm() {
       preparedByEmpId: form.preparedBy ? Number(form.preparedBy) : undefined,
       preparedDate: form.preparedDate || undefined,
       remarks: form.remarks || undefined,
+      ...attachmentPayload(form.attachmentUrl, form.attachmentName),
       totalReceivedQty: totals.received,
       totalAcceptedQty: totals.accepted,
       totalRejectedQty: totals.rejected,
@@ -590,6 +604,14 @@ function GrnForm() {
           </div>
         </CardBody>
       </Card>
+
+      <AttachmentSection
+        url={form.attachmentUrl}
+        name={form.attachmentName}
+        readOnly={readOnly}
+        onChange={({ url, name }) => setForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))}
+        subtitle="Invoice scan, delivery challan, or other supporting file"
+      />
 
       <Card>
         <CardHeader title="Quantity Summary" subtitle="Auto-calculated from the item lines below" />

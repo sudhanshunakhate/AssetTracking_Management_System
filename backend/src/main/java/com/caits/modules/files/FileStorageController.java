@@ -32,10 +32,14 @@ import java.util.UUID;
 @RequestMapping("/api/v1/files")
 public class FileStorageController {
 
-    /** Extensions accepted for attachments — anything executable is rejected. */
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            "pdf", "png", "jpg", "jpeg", "gif", "webp", "txt", "csv",
-            "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip"
+    /**
+     * Documents and images are accepted. Executables and script files are rejected.
+     */
+    private static final Set<String> BLOCKED_EXTENSIONS = Set.of(
+            "exe", "bat", "cmd", "com", "scr", "pif", "msi", "msp",
+            "js", "mjs", "vbs", "vbe", "ps1", "sh", "bash", "dll",
+            "jar", "war", "apk", "app", "dmg", "hta", "wsf", "cpl",
+            "msc", "reg", "inf", "lnk", "gadget"
     );
 
     private static final DateTimeFormatter FOLDER = DateTimeFormatter.ofPattern("yyyy/MM");
@@ -56,12 +60,19 @@ public class FileStorageController {
         String original = StringUtils.cleanPath(
                 file.getOriginalFilename() == null ? "attachment" : file.getOriginalFilename());
         String ext = StringUtils.getFilenameExtension(original);
-        if (ext == null || !ALLOWED_EXTENSIONS.contains(ext.toLowerCase(Locale.ROOT))) {
-            throw ApiException.badRequest("Unsupported file type. Allowed: " + String.join(", ", ALLOWED_EXTENSIONS));
+        if (ext == null || ext.isBlank()) {
+            ext = extensionFromContentType(file.getContentType());
+        }
+        if (ext == null || ext.isBlank()) {
+            ext = "bin";
+        }
+        ext = ext.toLowerCase(Locale.ROOT);
+        if (BLOCKED_EXTENSIONS.contains(ext)) {
+            throw ApiException.badRequest("This file type cannot be attached. Use a document or image.");
         }
 
         String relativeDir = LocalDate.now().format(FOLDER);
-        String storedName = UUID.randomUUID() + "." + ext.toLowerCase(Locale.ROOT);
+        String storedName = UUID.randomUUID() + "." + ext;
         Path target = root.resolve(relativeDir).resolve(storedName).normalize();
         if (!target.startsWith(root)) {
             throw ApiException.badRequest("Invalid file path");
@@ -93,5 +104,32 @@ public class FileStorageController {
                 .contentType(MediaType.parseMediaType(contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + name + "\"")
                 .body(new FileSystemResource(target));
+    }
+
+    private static String extensionFromContentType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return null;
+        }
+        String mime = contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        return switch (mime) {
+            case "image/jpeg" -> "jpg";
+            case "image/png" -> "png";
+            case "image/gif" -> "gif";
+            case "image/webp" -> "webp";
+            case "image/bmp" -> "bmp";
+            case "image/svg+xml" -> "svg";
+            case "image/tiff" -> "tiff";
+            case "application/pdf" -> "pdf";
+            case "text/plain" -> "txt";
+            case "text/csv" -> "csv";
+            case "application/zip" -> "zip";
+            case "application/msword" -> "doc";
+            case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx";
+            case "application/vnd.ms-excel" -> "xls";
+            case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> "xlsx";
+            case "application/vnd.ms-powerpoint" -> "ppt";
+            case "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> "pptx";
+            default -> null;
+        };
     }
 }

@@ -241,6 +241,72 @@ export function resolveApiUrl(path: string): string {
   return `${origin}${path.startsWith('/') ? '' : '/'}${path}`
 }
 
+/** Stored attachment URLs are `/api/v1/files/...`; the shared client prefixes `API_BASE`. */
+export function toApiRelativePath(storedUrl: string): string {
+  const raw = storedUrl.split('#')[0].trim()
+  if (!raw) return ''
+  if (/^https?:\/\//i.test(raw)) {
+    const idx = raw.indexOf('/api/v1/')
+    return idx >= 0 ? raw.slice(idx + '/api/v1'.length) : raw
+  }
+  if (raw.startsWith('/api/v1/')) return raw.slice('/api/v1'.length)
+  return raw.startsWith('/') ? raw : `/${raw}`
+}
+
+/**
+ * Downloads a protected file with the session JWT. A plain `<a href>` cannot send
+ * Authorization, so the API returns "Session expired" in a new tab.
+ */
+export async function fetchAuthenticatedBlob(storedUrl: string): Promise<Blob> {
+  beginLoading()
+  try {
+    markUserActivity()
+    await maybeRefreshSession()
+    const path = toApiRelativePath(storedUrl)
+    const headers = new Headers()
+    const token = getToken()
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+    const res = await fetch(`${API_BASE}${path}`, { headers, cache: 'no-store' })
+    if (!res.ok) {
+      const text = await res.text()
+      let msg = res.statusText || 'Could not open file'
+      try {
+        const body = text ? (JSON.parse(text) as { message?: string }) : null
+        if (body?.message) msg = body.message
+      } catch {
+        if (text) msg = text
+      }
+      if (isSessionExpiredError(res.status, msg)) fireSessionExpired()
+      throw new ApiError(res.status, msg)
+    }
+    return res.blob()
+  } finally {
+    endLoading()
+  }
+}
+
+/** Opens an authenticated attachment in a new tab (images, PDFs) or downloads it. */
+export async function openAuthenticatedFile(storedUrl: string, fileName?: string) {
+  const preview = window.open('about:blank', '_blank')
+  try {
+    const blob = await fetchAuthenticatedBlob(storedUrl)
+    const objectUrl = URL.createObjectURL(blob)
+    if (preview && !preview.closed) {
+      preview.location.href = objectUrl
+    } else {
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = fileName?.trim() || 'attachment'
+      a.rel = 'noreferrer'
+      a.click()
+    }
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+  } catch (err) {
+    preview?.close()
+    throw err
+  }
+}
+
 export type LoginResponse = {
   token: string
   expiresIn: number

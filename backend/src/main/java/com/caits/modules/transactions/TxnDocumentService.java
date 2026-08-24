@@ -31,13 +31,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class TxnDocumentService {
@@ -196,6 +201,98 @@ public class TxnDocumentService {
         TxnHeaderMst header = requireHeader(docType, docId);
         List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(header.getTxhTxnHeaderId());
         return toDocument(header, lines, null);
+    }
+
+    /**
+     * Items currently allotted to an employee: posted Issue / Opening Stock (Issued)
+     * minus posted Material Return, plus serial/batch units still marked issued-to on BLS.
+     */
+    public AllottedItemsResponse listAllottedItems(Integer employeeId) {
+        if (employeeId == null) {
+            return new AllottedItemsResponse(List.of());
+        }
+
+        Map<Integer, BigDecimal> net = new HashMap<>();
+        Set<Integer> headerIds = new HashSet<>();
+        for (TxnDetailDtl d : detailRepo.findByTxdIssuedToEmpIdEmp(employeeId)) {
+            if (d.getTxdTxnHeaderIdTxh() != null) {
+                headerIds.add(d.getTxdTxnHeaderIdTxh());
+            }
+        }
+        headerRepo.findAll((root, query, cb) -> cb.and(
+                root.get("txhDocType").in(
+                        DocType.MATERIAL_ISSUE.code(),
+                        DocType.MATERIAL_RETURN.code()),
+                cb.or(
+                        cb.equal(root.get("txhInitiatedByEmpIdEmp"), employeeId),
+                        cb.and(
+                                cb.equal(root.get("txhDocType"), DocType.MATERIAL_ISSUE.code()),
+                                cb.equal(root.get("txhHandedOverToEmpIdEmp"), employeeId)
+                        )
+                )
+        )).forEach(h -> headerIds.add(h.getTxhTxnHeaderId()));
+
+        if (!headerIds.isEmpty()) {
+            Map<Integer, TxnHeaderMst> headers = new HashMap<>();
+            headerRepo.findAllById(headerIds).forEach(h -> headers.put(h.getTxhTxnHeaderId(), h));
+            for (TxnHeaderMst header : headers.values()) {
+                if (!isPostedStatus(header.getTxhStatus())) {
+                    continue;
+                }
+                DocType type;
+                try {
+                    type = DocType.fromCode(header.getTxhDocType());
+                } catch (IllegalArgumentException ex) {
+                    continue;
+                }
+                Integer headerEmp = header.getTxhHandedOverToEmpIdEmp() != null
+                        ? header.getTxhHandedOverToEmpIdEmp()
+                        : header.getTxhInitiatedByEmpIdEmp();
+                for (TxnDetailDtl line : detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(header.getTxhTxnHeaderId())) {
+                    Integer itemId = line.getTxdItemIdItm();
+                    if (itemId == null) {
+                        continue;
+                    }
+                    BigDecimal qty = resolveQty(type, line);
+                    if (qty == null || qty.compareTo(BigDecimal.ZERO) == 0) {
+                        continue;
+                    }
+                    if (type == DocType.MATERIAL_ISSUE) {
+                        Integer emp = line.getTxdIssuedToEmpIdEmp() != null
+                                ? line.getTxdIssuedToEmpIdEmp()
+                                : headerEmp;
+                        if (employeeId.equals(emp)) {
+                            addNet(net, itemId, qty);
+                        }
+                    } else if (type == DocType.OPENING_STOCK) {
+                        if (employeeId.equals(line.getTxdIssuedToEmpIdEmp())) {
+                            addNet(net, itemId, qty);
+                        }
+                    } else if (type == DocType.MATERIAL_RETURN) {
+                        if (employeeId.equals(header.getTxhInitiatedByEmpIdEmp())) {
+                            addNet(net, itemId, qty.negate());
+                        }
+                    }
+                }
+            }
+        }
+
+        Set<Integer> allotted = new HashSet<>();
+        for (Map.Entry<Integer, BigDecimal> e : net.entrySet()) {
+            if (e.getValue().compareTo(BigDecimal.ZERO) > 0) {
+                allotted.add(e.getKey());
+            }
+        }
+        for (Integer itemId : blsService.listItemIdsIssuedTo(employeeId)) {
+            BigDecimal n = net.get(itemId);
+            if (n == null || n.compareTo(BigDecimal.ZERO) > 0) {
+                allotted.add(itemId);
+            }
+        }
+
+        List<Integer> ids = new ArrayList<>(allotted);
+        ids.sort(Integer::compareTo);
+        return new AllottedItemsResponse(ids);
     }
 
     @Transactional
@@ -691,7 +788,7 @@ public class TxnDocumentService {
         h.setTxhPoNo(req.poNo());
         h.setTxhPoDate(req.poDate());
         h.setTxhPurpose(req.purpose());
-        h.setTxhAttachmentUrl(req.attachmentUrl());
+        h.setTxhAttachmentUrl(packAttachment(req.attachmentUrl(), req.attachmentName()));
         h.setTxhInspectedByEmpIdEmp(req.inspectedByEmpId());
         h.setTxhInspectionDate(req.inspectionDate());
         h.setTxhHandedOverToEmpIdEmp(req.handedOverToEmpId());
@@ -832,7 +929,8 @@ public class TxnDocumentService {
             d.setTxdIpAddress(line.ipAddress());
             d.setTxdMacAddress(line.macAddress());
             d.setTxdHostname(line.hostname());
-            d.setTxdIssuedToEmpIdEmp(line.issuedToEmpId());
+            Integer issuedTo = resolveLineIssuedTo(docType, header, line);
+            d.setTxdIssuedToEmpIdEmp(issuedTo);
             d.setTxdRemark(line.remark());
             // Standing register: create / reuse BLS and point the line at it.
             InvBlsMst bls = blsService.resolveForLine(
@@ -840,7 +938,8 @@ public class TxnDocumentService {
                     d.getTxdLocationIdLoc(),
                     line,
                     header.getTxhTxnHeaderId(),
-                    docType);
+                    docType,
+                    issuedTo);
             d.setTxdBlsIdIbm(bls.getIbmBlsId());
             saved.add(detailRepo.save(d));
             i++;
@@ -1044,6 +1143,7 @@ public class TxnDocumentService {
         inspection.setTxhInitiatedByEmpIdEmp(inspector);
         inspection.setTxhRefTxnHeaderIdTxh(grnHeader.getTxhTxnHeaderId());
         inspection.setTxhReferenceNo(grnHeader.getTxhDocNo());
+        inspection.setTxhAttachmentUrl(grnHeader.getTxhAttachmentUrl());
         inspection.setTxhRemarks("Pending inspection for GRN " + grnHeader.getTxhDocNo());
         inspection.setTxhDocNo(nextDocNo(DocType.INSPECTION_APPROVAL));
         inspection.setTxhStatus(draftStatus(DocType.INSPECTION_APPROVAL));
@@ -1234,6 +1334,33 @@ public class TxnDocumentService {
         return StockPostingRules.stockSign(docType);
     }
 
+    private static Integer resolveLineIssuedTo(DocType docType, TxnHeaderMst header, LineRequest line) {
+        if (docType == DocType.MATERIAL_RETURN) {
+            return null;
+        }
+        if (line.issuedToEmpId() != null) {
+            return line.issuedToEmpId();
+        }
+        if (docType == DocType.MATERIAL_ISSUE) {
+            return header.getTxhHandedOverToEmpIdEmp() != null
+                    ? header.getTxhHandedOverToEmpIdEmp()
+                    : header.getTxhInitiatedByEmpIdEmp();
+        }
+        return null;
+    }
+
+    private static void addNet(Map<Integer, BigDecimal> net, Integer itemId, BigDecimal qty) {
+        net.merge(itemId, qty, BigDecimal::add);
+    }
+
+    private static boolean isPostedStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return false;
+        }
+        String s = status.toLowerCase();
+        return !s.contains("draft") && !s.contains("pending") && !s.contains("reject") && !s.contains("cancel");
+    }
+
     private BigDecimal resolveQty(DocType docType, TxnDetailDtl line) {
         return switch (docType) {
             case GRN -> firstNonNull(line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
@@ -1326,7 +1453,39 @@ public class TxnDocumentService {
         return BigDecimal.ZERO;
     }
 
+    /** Original filename is stored after '#' on txh_attachment_url so no extra column is required. */
+    private static String packAttachment(String url, String name) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String base = url.split("#", 2)[0];
+        if (name == null || name.isBlank()) {
+            return base;
+        }
+        return base + "#" + URLEncoder.encode(name.trim(), StandardCharsets.UTF_8);
+    }
+
+    private static String unpackAttachmentUrl(String stored) {
+        if (stored == null || stored.isBlank()) {
+            return null;
+        }
+        int hash = stored.indexOf('#');
+        return hash < 0 ? stored : stored.substring(0, hash);
+    }
+
+    private static String unpackAttachmentName(String stored) {
+        if (stored == null) {
+            return null;
+        }
+        int hash = stored.indexOf('#');
+        if (hash < 0 || hash >= stored.length() - 1) {
+            return null;
+        }
+        return URLDecoder.decode(stored.substring(hash + 1), StandardCharsets.UTF_8);
+    }
+
     private ListItem toListItem(TxnHeaderMst h, int totalItems) {
+        String storedAttachment = h.getTxhAttachmentUrl();
         return new ListItem(
                 h.getTxhTxnHeaderId(),
                 h.getTxhDocNo(),
@@ -1349,6 +1508,8 @@ public class TxnDocumentService {
                 h.getTxhStatus(),
                 h.getTxhDocSubtype(),
                 h.getTxhReturnFlag(),
+                unpackAttachmentUrl(storedAttachment),
+                unpackAttachmentName(storedAttachment),
                 h.getTxhCreatedOn(),
                 h.getTxhModifiedOn()
         );
@@ -1386,7 +1547,8 @@ public class TxnDocumentService {
                 h.getTxhPoNo(),
                 h.getTxhPoDate(),
                 h.getTxhPurpose(),
-                h.getTxhAttachmentUrl(),
+                unpackAttachmentUrl(h.getTxhAttachmentUrl()),
+                unpackAttachmentName(h.getTxhAttachmentUrl()),
                 h.getTxhInspectedByEmpIdEmp(),
                 h.getTxhInspectionDate(),
                 h.getTxhHandedOverToEmpIdEmp(),

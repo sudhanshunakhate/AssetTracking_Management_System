@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -396,6 +397,9 @@ public class ReportsController {
         Map<Integer, HrcEmployeeMst> employees = employeeMap();
         Map<Integer, String> deptNames = departmentNameMap();
 
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+
         List<Map<String, Object>> rows = new ArrayList<>();
         for (TxnHeaderMst h : headers) {
             if (!isMovementEligibleStatus(h.getTxhStatus())) continue;
@@ -443,7 +447,7 @@ public class ReportsController {
             String reason = firstNonBlank(h.getTxhPurpose(), h.getTxhRemarks());
             String movementType = movementTypeLabel(h.getTxhDocType());
 
-            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 InvItemMst item = items.get(d.getTxdItemIdItm());
                 if (itemId != null && (item == null || !itemId.equals(item.getItmItemId()))) continue;
@@ -590,11 +594,13 @@ public class ReportsController {
         }
 
         Map<Integer, String> uomCodes = unitCodeMap();
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
         List<LedgerEvent> events = new ArrayList<>();
         for (TxnHeaderMst h : headers) {
             if (!isLedgerEligibleStatus(h)) continue;
 
-            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 Integer lineItemId = d.getTxdItemIdItm();
                 if (lineItemId == null || !focusIds.contains(lineItemId)) continue;
@@ -773,9 +779,11 @@ public class ReportsController {
             }
         }
 
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
         List<Map<String, Object>> rows = new ArrayList<>();
         for (TxnHeaderMst h : headers) {
-            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 InvItemMst item = items.get(d.getTxdItemIdItm());
                 rows.addAll(fullReportRowsForLine(h, d, item, grnById));
@@ -1210,6 +1218,8 @@ public class ReportsController {
         }, PageRequest.of(0, 2000, Sort.by(Sort.Direction.ASC, "txhDocDate", "txhTxnHeaderId"))).getContent();
 
         Map<String, PeriodQty> map = new HashMap<>();
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
         for (TxnHeaderMst h : headers) {
             if (!isMovementEligibleStatus(h.getTxhStatus())) continue;
             String docType = h.getTxhDocType();
@@ -1218,7 +1228,7 @@ public class ReportsController {
             boolean issue = ISSUE_DOC_TYPES.contains(docType);
             if (!receipt && !issue) continue;
 
-            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 if (d.getTxdItemIdItm() == null) continue;
                 BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
@@ -1238,9 +1248,7 @@ public class ReportsController {
 
     private Map<Integer, Integer> blsOwnerByItem() {
         Map<Integer, Integer> map = new HashMap<>();
-        for (InvBlsMst bls : blsRepo.findAll()) {
-            if (!Boolean.TRUE.equals(bls.getIbmIsactive())) continue;
-            if (bls.getIbmIssuedToEmpIdEmp() == null) continue;
+        for (InvBlsMst bls : blsRepo.findByIbmIsactiveTrueAndIbmIssuedToEmpIdEmpIsNotNull()) {
             // Prefer non-dummy serial units
             if (Boolean.TRUE.equals(bls.getIbmIsDummy()) && map.containsKey(bls.getIbmItemIdItm())) continue;
             map.put(bls.getIbmItemIdItm(), bls.getIbmIssuedToEmpIdEmp());
@@ -1288,6 +1296,8 @@ public class ReportsController {
                 cb.notLike(cb.lower(root.get("txhStatus")), "%cancel%")
         ), PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
 
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
         Map<String, IssueCustody> latest = new HashMap<>();
         for (TxnHeaderMst h : headers) {
             Integer empId = h.getTxhHandedOverToEmpIdEmp() != null
@@ -1297,7 +1307,7 @@ public class ReportsController {
                     ? h.getTxhFromLocationIdLoc()
                     : h.getTxhLocationIdLoc();
             if (locId == null) continue;
-            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 if (d.getTxdItemIdItm() == null) continue;
                 Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
@@ -1317,6 +1327,8 @@ public class ReportsController {
                 cb.notLike(cb.lower(root.get("txhStatus")), "%cancel%")
         ), PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
 
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
         Map<String, IssueCustody> latest = new HashMap<>();
         for (TxnHeaderMst h : headers) {
             Integer empId = h.getTxhHandedOverToEmpIdEmp() != null
@@ -1326,7 +1338,7 @@ public class ReportsController {
                     ? h.getTxhFromLocationIdLoc()
                     : h.getTxhLocationIdLoc();
             if (locId == null) continue;
-            List<TxnDetailDtl> lines = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(h.getTxhTxnHeaderId());
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 if (d.getTxdItemIdItm() == null) continue;
                 Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
@@ -1340,15 +1352,26 @@ public class ReportsController {
 
     private Map<String, Integer> blsIssuedToByStockKey() {
         Map<String, Integer> map = new HashMap<>();
-        for (InvBlsMst bls : blsRepo.findAll()) {
-            if (!Boolean.TRUE.equals(bls.getIbmIsactive())) continue;
-            if (bls.getIbmIssuedToEmpIdEmp() == null) continue;
+        for (InvBlsMst bls : blsRepo.findByIbmIsactiveTrueAndIbmIssuedToEmpIdEmpIsNotNull()) {
             if (Boolean.TRUE.equals(bls.getIbmIsDummy())) continue;
             String batchKey = firstNonBlank(bls.getIbmSerialNo(), bls.getIbmBatchNo());
             if (batchKey == null) continue;
             map.put(
                     stockCustodyKey(bls.getIbmItemIdItm(), bls.getIbmCurrentLocationIdLoc(), batchKey),
                     bls.getIbmIssuedToEmpIdEmp());
+        }
+        return map;
+    }
+
+    /** One query for all detail lines belonging to the given headers (avoids N+1 in reports). */
+    private Map<Integer, List<TxnDetailDtl>> linesByHeaderIds(Collection<Integer> headerIds) {
+        if (headerIds == null || headerIds.isEmpty()) {
+            return Map.of();
+        }
+        List<TxnDetailDtl> all = detailRepo.findByTxdTxnHeaderIdTxhInOrderByTxdTxnHeaderIdTxhAscTxdSrNoAsc(headerIds);
+        Map<Integer, List<TxnDetailDtl>> map = new HashMap<>();
+        for (TxnDetailDtl d : all) {
+            map.computeIfAbsent(d.getTxdTxnHeaderIdTxh(), k -> new ArrayList<>()).add(d);
         }
         return map;
     }

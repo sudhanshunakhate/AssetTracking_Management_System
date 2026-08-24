@@ -291,6 +291,11 @@ public class TransactionControllers {
     }
 
     // ---------- Returns ----------
+    @GetMapping("/returns/allotted-items")
+    public AllottedItemsResponse allottedItems(@RequestParam Integer employeeId) {
+        return service.listAllottedItems(employeeId);
+    }
+
     @GetMapping("/returns")
     public PageResponse<ListItem> listReturn(
             @RequestParam(required = false) String status,

@@ -24,6 +24,7 @@ import { enrichLinesFromItems } from './lineGrid'
 import { locLabel, locationOptions as toLocationOptions, systemLocationsForOu, useTxnFormLookups } from './txnLookups'
 
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
+import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import {
   buildGatepassPrefillFromTransfer,
   buildGatepassPrefillFromTxnDoc,
@@ -55,6 +56,8 @@ type FormState = {
   fromStoreId: string
   toStoreId: string
   remarks: string
+  attachmentUrl: string
+  attachmentName: string
   status: string
 }
 
@@ -69,6 +72,8 @@ function blankForm(): FormState {
     fromStoreId: '',
     toStoreId: '',
     remarks: '',
+    attachmentUrl: '',
+    attachmentName: '',
     status: '',
   }
 }
@@ -178,6 +183,12 @@ function TransferList() {
       header: 'Status',
       searchText: (r) => r.status,
       render: (r) => <StatusPill status={r.status || '—'} />,
+    },
+    {
+      key: 'attachment',
+      header: 'Attachment',
+      searchText: (r) => String(r.attachmentName ?? r.attachmentUrl ?? ''),
+      render: (r) => <AttachmentLink url={String(r.attachmentUrl ?? '')} name={String(r.attachmentName ?? '')} />,
     },
     {
       key: 'action',
@@ -308,6 +319,8 @@ function TransferForm() {
           fromStoreId: doc.fromLocationId != null ? String(doc.fromLocationId) : '',
           toStoreId: doc.toLocationId != null ? String(doc.toLocationId) : '',
           remarks: doc.remarks ?? '',
+          attachmentUrl: doc.attachmentUrl ?? '',
+          attachmentName: doc.attachmentName ?? '',
           status: doc.status ?? '',
         })
         const mapped = (doc.lines ?? []).map((l) => ({
@@ -518,6 +531,7 @@ function TransferForm() {
       docSubtype: form.transferType,
       purpose: encodePurpose(form),
       remarks: form.remarks || undefined,
+      ...attachmentPayload(form.attachmentUrl, form.attachmentName),
       docSubmitAction: 'SUBMIT',
       lines: lines
         .filter((l) => l.itemId !== '')
@@ -746,6 +760,13 @@ function TransferForm() {
           </div>
         </CardBody>
       </Card>
+
+      <AttachmentSection
+        url={form.attachmentUrl}
+        name={form.attachmentName}
+        readOnly={readOnly}
+        onChange={({ url, name }) => setForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))}
+      />
 
       <div className="mt-3">
         <TransferItemLines

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { StatusPill } from '@/components/ui/Badge'
@@ -8,14 +8,12 @@ import { DataTable, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LookupSelect } from '@/components/form/LookupSelect'
-import { resolveApiUrl } from '@/api/client'
 import { GEN_TYPE, mapDepartment, useMasterList } from '@/api/masters'
 import {
   createTxn,
   fetchTxn,
   todayIso,
   updateTxn,
-  uploadAttachment,
   useTxnList,
   type DocumentRequest,
   type TxnRow,
@@ -23,6 +21,7 @@ import {
 import { useAuth } from '@/features/auth/AuthContext'
 import { notBefore, validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { RequisitionItemLines, emptyLine, type RequisitionLine } from './RequisitionItemLines'
+import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import { enrichLinesFromItems } from './lineGrid'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
@@ -173,6 +172,12 @@ function RequisitionList() {
       render: (r) => <span className="tabular-nums">{Number(r.totalItems ?? 0)}</span>,
     },
     { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status || '—'} /> },
+    {
+      key: 'attachment',
+      header: 'Attachment',
+      searchText: (r) => String(r.attachmentName ?? r.attachmentUrl ?? ''),
+      render: (r) => <AttachmentLink url={String(r.attachmentUrl ?? '')} name={String(r.attachmentName ?? '')} />,
+    },
   ]
 
   return (
@@ -220,12 +225,10 @@ function RequisitionForm() {
   const [lines, setLines] = useState<RequisitionLine[]>(() => [emptyLine()])
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
-  const fileInput = useRef<HTMLInputElement>(null)
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }))
@@ -259,7 +262,7 @@ function RequisitionForm() {
           designation: doc.designation ?? '',
           deliverTo: doc.locationId != null ? String(doc.locationId) : '',
           attachmentUrl,
-          attachmentName: attachmentUrl.split('/').pop() ?? '',
+          attachmentName: doc.attachmentName || (attachmentUrl.split('/').pop() ?? ''),
           remark: doc.remarks ?? '',
           approvedBy: doc.approvedByEmpId != null ? String(doc.approvedByEmpId) : '',
           approvedDate: doc.approvedDate ?? '',
@@ -381,7 +384,7 @@ function RequisitionForm() {
       initiatedByEmpId: form.requestedBy ? Number(form.requestedBy) : undefined,
       employeeRefCode: form.employeeCode || undefined,
       designation: form.reqType === 'EMPLOYEE' ? form.designation || undefined : undefined,
-      attachmentUrl: form.attachmentUrl || undefined,
+      ...attachmentPayload(form.attachmentUrl, form.attachmentName),
       remarks: form.remark || undefined,
       docSubmitAction: action,
       lines: lines
@@ -425,21 +428,6 @@ function RequisitionForm() {
       setError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setSaving(false)
-    }
-  }
-
-  const onFilePicked = async (file: File | undefined) => {
-    if (!file) return
-    setUploading(true)
-    setError(null)
-    try {
-      const uploaded = await uploadAttachment(file)
-      setForm((p) => ({ ...p, attachmentUrl: uploaded.url, attachmentName: uploaded.originalName }))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
-      if (fileInput.current) fileInput.current.value = ''
-    } finally {
-      setUploading(false)
     }
   }
 
@@ -613,46 +601,6 @@ function RequisitionForm() {
               quickAdd={addLocation}
             />
 
-            <Field
-              label="Attachment"
-              hint={uploading ? 'Uploading…' : 'PDF, image or document up to 10 MB'}
-            >
-              <input
-                ref={fileInput}
-                type="file"
-                disabled={readOnly || uploading}
-                onChange={(e) => void onFilePicked(e.target.files?.[0])}
-                className="w-full rounded-md border border-[var(--border2)] bg-[var(--surface)] px-2.5 py-1 text-[12px] text-[var(--text2)] file:mr-2 file:rounded file:border-0 file:bg-[var(--surface2)] file:px-2 file:py-1 file:text-[11.5px] file:font-semibold file:text-[var(--text2)]"
-              />
-            </Field>
-
-            {form.attachmentUrl && (
-              <Field label="Attached File">
-                <div className="flex items-center gap-2">
-                  <a
-                    href={resolveApiUrl(form.attachmentUrl)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="truncate text-[12px] font-medium text-[var(--accent)] underline"
-                  >
-                    {form.attachmentName || 'View attachment'}
-                  </a>
-                  {!readOnly && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setForm((p) => ({ ...p, attachmentUrl: '', attachmentName: '' }))
-                        if (fileInput.current) fileInput.current.value = ''
-                      }}
-                      className="text-[11px] font-semibold text-[var(--danger)]"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </Field>
-            )}
-
             <Field label="Remark" className="md:col-span-2 xl:col-span-3">
               <Textarea
                 value={form.remark}
@@ -666,6 +614,13 @@ function RequisitionForm() {
           </div>
         </CardBody>
       </Card>
+
+      <AttachmentSection
+        url={form.attachmentUrl}
+        name={form.attachmentName}
+        readOnly={readOnly}
+        onChange={({ url, name }) => setForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))}
+      />
 
       <RequisitionItemLines
         lines={lines}

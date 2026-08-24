@@ -1,6 +1,5 @@
 package com.caits.modules.dashboard;
 
-import com.caits.domain.entity.InvStockMst;
 import com.caits.domain.repository.InvItemMstRepository;
 import com.caits.domain.repository.InvStockMstRepository;
 import com.caits.domain.repository.InvVendorMstRepository;
@@ -11,7 +10,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,16 +43,18 @@ public class DashboardController {
     public Map<String, Object> summary() {
         List<Integer> locFilter = accessScope.resolveLocationFilter(null);
 
-        List<InvStockMst> stocks = locFilter == null
-                ? stockRepo.findAll()
-                : stockRepo.findAll((root, query, cb) ->
-                        locFilter.isEmpty() ? cb.disjunction() : root.get("stkLocationIdLoc").in(locFilter));
-
-        long lowStock = stocks.stream().filter(s -> {
-            BigDecimal cur = s.getStkCurrentQty() == null ? BigDecimal.ZERO : s.getStkCurrentQty();
-            BigDecimal reorder = s.getStkReorderLevel() == null ? BigDecimal.ZERO : s.getStkReorderLevel();
-            return reorder.compareTo(BigDecimal.ZERO) > 0 && cur.compareTo(reorder) <= 0;
-        }).count();
+        long lowStock;
+        long stockRows;
+        if (locFilter == null) {
+            lowStock = stockRepo.countLowStockAll();
+            stockRows = stockRepo.countActiveStockRowsAll();
+        } else if (locFilter.isEmpty()) {
+            lowStock = 0;
+            stockRows = 0;
+        } else {
+            lowStock = stockRepo.countLowStockByLocations(locFilter);
+            stockRows = stockRepo.countActiveStockRowsByLocations(locFilter);
+        }
 
         long txnCount = locFilter == null
                 ? headerRepo.count()
@@ -72,7 +72,7 @@ public class DashboardController {
         body.put("totalVendors", vendorRepo.count());
         body.put("totalTransactions", txnCount);
         body.put("lowStockCount", lowStock);
-        body.put("stockRows", stocks.size());
+        body.put("stockRows", stockRows);
         return body;
     }
 }

@@ -64,6 +64,7 @@ public final class TxnDtos {
             LocalDate poDate,
             String purpose,
             String attachmentUrl,
+            String attachmentName,
             Integer inspectedByEmpId,
             LocalDate inspectionDate,
             Integer handedOverToEmpId,
@@ -155,6 +156,7 @@ public final class TxnDtos {
             LocalDate poDate,
             String purpose,
             String attachmentUrl,
+            String attachmentName,
             Integer inspectedByEmpId,
             LocalDate inspectionDate,
             Integer handedOverToEmpId,
@@ -206,6 +208,8 @@ public final class TxnDtos {
             String status,
             String docSubtype,
             String returnFlag,
+            String attachmentUrl,
+            String attachmentName,
             java.time.LocalDateTime createdOn,
             java.time.LocalDateTime modifiedOn
     ) {}
@@ -213,4 +217,7 @@ public final class TxnDtos {
     public record ApproveRequest(Integer approvedByEmpId, String remarks) {}
 
     public record RejectRequest(String reason) {}
+
+    /** Item IDs currently allotted to an employee (Material Return item picker). */
+    public record AllottedItemsResponse(List<Integer> itemIds) {}
 }

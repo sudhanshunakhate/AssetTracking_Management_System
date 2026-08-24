@@ -12,7 +12,9 @@ type Entry<T> = {
 const store = new Map<string, Entry<unknown>>()
 
 /** How long a successful response is reused without refetching. */
-const TTL_MS = 60_000
+export const TTL_MS = 60_000
+/** Master dropdown data changes rarely — reuse longer to avoid re-downloading full catalogs. */
+export const MASTER_TTL_MS = 300_000
 
 export async function cachedFetch<T>(key: string, loader: () => Promise<T>, ttlMs = TTL_MS): Promise<T> {
   const existing = store.get(key) as Entry<T> | undefined

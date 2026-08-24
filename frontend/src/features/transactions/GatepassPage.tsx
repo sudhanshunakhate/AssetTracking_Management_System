@@ -10,6 +10,7 @@ import { createTxn, fetchTxn, numOrUndef, todayIso, useTxnList } from '@/api/tra
 import { mapEmployee, mapItem, mapLocation, mapUnit, itemsForLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { itemOptionLabel, useLocationStock } from './lineGrid'
+import { AttachmentFields, AttachmentLink, attachmentPayload } from './AttachmentSection'
 import { GATEPASS_OUTWARD_PREFILL_KEY, type GatepassOutwardNavState } from './gatepassNavigation'
 import type { GatepassOutwardPrefill } from './transferGatepassBridge'
 import { systemLocations } from './txnLookups'
@@ -61,6 +62,8 @@ export function GatepassPage() {
     remarks: '',
     serialNo: '',
     returnableOutwardId: '',
+    attachmentUrl: '',
+    attachmentName: '',
   })
   const [outwardForm, setOutwardForm] = useState({
     date: todayIso(),
@@ -74,6 +77,8 @@ export function GatepassPage() {
     uom: '',
     batch: '',
     remarks: '',
+    attachmentUrl: '',
+    attachmentName: '',
   })
   const [linkedTransferId, setLinkedTransferId] = useState('')
   const [transferOutwardLink, setTransferOutwardLink] = useState<GatepassOutwardPrefill | null>(null)
@@ -105,6 +110,8 @@ export function GatepassPage() {
       uom: '',
       batch: '',
       remarks: '',
+      attachmentUrl: '',
+      attachmentName: '',
     })
     setMessage('Material transfer linked — set Transfer Type and Returnable / Non Returnable, then submit.')
     window.history.replaceState({}, document.title)
@@ -121,6 +128,8 @@ export function GatepassPage() {
       remarks: '',
       serialNo: '',
       returnableOutwardId: '',
+      attachmentUrl: '',
+      attachmentName: '',
     })
   }, [sessionEmpId])
 
@@ -257,6 +266,7 @@ export function GatepassPage() {
         initiatedByEmpId: numOrUndef(inwardForm.preparedBy),
         refTxnHeaderId: numOrUndef(inwardForm.returnableOutwardId),
         remarks: inwardForm.remarks,
+        ...attachmentPayload(inwardForm.attachmentUrl, inwardForm.attachmentName),
         docSubmitAction: action,
         lines: [
           {
@@ -343,6 +353,7 @@ export function GatepassPage() {
         docSubtype: outwardForm.transferType,
         refTxnHeaderId: numOrUndef(linkedTransferId),
         remarks: fromTransferOutward ? undefined : outwardForm.remarks || outwardForm.party || undefined,
+        ...attachmentPayload(outwardForm.attachmentUrl, outwardForm.attachmentName),
         docSubmitAction: action,
         lines,
       })
@@ -424,7 +435,7 @@ export function GatepassPage() {
               <table className="w-full border-collapse text-xs">
                 <thead>
                   <tr className="bg-[var(--surface2)]">
-                    {['Doc No', 'Date', 'Status'].map((h) => (
+                    {['Doc No', 'Date', 'Status', 'Attachment'].map((h) => (
                       <th key={h} className="border-b border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold uppercase text-[var(--text3)]">
                         {h}
                       </th>
@@ -434,7 +445,7 @@ export function GatepassPage() {
                 <tbody>
                   {inward.rows.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-3 py-3 text-[var(--text3)]">
+                      <td colSpan={4} className="px-3 py-3 text-[var(--text3)]">
                         No inward documents yet
                       </td>
                     </tr>
@@ -445,6 +456,9 @@ export function GatepassPage() {
                         <td className="border-b border-[var(--border)] px-3 py-2">{r.docDate}</td>
                         <td className="border-b border-[var(--border)] px-3 py-2">
                           <StatusPill status={r.status || '—'} />
+                        </td>
+                        <td className="border-b border-[var(--border)] px-3 py-2">
+                          <AttachmentLink url={String(r.attachmentUrl ?? '')} name={String(r.attachmentName ?? '')} />
                         </td>
                       </tr>
                     ))
@@ -562,6 +576,15 @@ export function GatepassPage() {
                     </Field>
                   )}
                 </div>
+                <div className="mt-3">
+                  <AttachmentFields
+                    url={inwardForm.attachmentUrl}
+                    name={inwardForm.attachmentName}
+                    onChange={({ url, name }) =>
+                      setInwardForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))
+                    }
+                  />
+                </div>
                 <div className="mt-4 flex justify-end gap-2">
                   {returnableInwardLocked && (
                     <Button
@@ -652,6 +675,15 @@ export function GatepassPage() {
                       />
                     </Field>
                   </div>
+                  <div className="mt-3">
+                    <AttachmentFields
+                      url={inwardForm.attachmentUrl}
+                      name={inwardForm.attachmentName}
+                      onChange={({ url, name }) =>
+                        setInwardForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))
+                      }
+                    />
+                  </div>
                 </CardBody>
               </Card>
               <FormActions
@@ -680,7 +712,7 @@ export function GatepassPage() {
               <table className="w-full border-collapse text-xs">
                 <thead>
                   <tr className="bg-[var(--surface2)]">
-                    {['Doc No', 'Date', 'Transfer Type', 'Returnable', 'Status'].map((h) => (
+                    {['Doc No', 'Date', 'Transfer Type', 'Returnable', 'Status', 'Attachment'].map((h) => (
                       <th key={h} className="border-b border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold uppercase text-[var(--text3)]">
                         {h}
                       </th>
@@ -690,7 +722,7 @@ export function GatepassPage() {
                 <tbody>
                   {outward.rows.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-3 text-[var(--text3)]">
+                      <td colSpan={6} className="px-3 py-3 text-[var(--text3)]">
                         No outward documents yet
                       </td>
                     </tr>
@@ -707,6 +739,9 @@ export function GatepassPage() {
                         </td>
                         <td className="border-b border-[var(--border)] px-3 py-2">
                           <StatusPill status={r.status || '—'} />
+                        </td>
+                        <td className="border-b border-[var(--border)] px-3 py-2">
+                          <AttachmentLink url={String(r.attachmentUrl ?? '')} name={String(r.attachmentName ?? '')} />
                         </td>
                       </tr>
                     ))
@@ -846,6 +881,15 @@ export function GatepassPage() {
                   />
                 </Field>
               </div>
+              <div className="mt-3">
+                <AttachmentFields
+                  url={outwardForm.attachmentUrl}
+                  name={outwardForm.attachmentName}
+                  onChange={({ url, name }) =>
+                    setOutwardForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))
+                  }
+                />
+              </div>
             </CardBody>
           </Card>
           <FormActions
@@ -864,6 +908,8 @@ export function GatepassPage() {
                 uom: '',
                 batch: '',
                 remarks: '',
+                attachmentUrl: '',
+                attachmentName: '',
               })
             }}
             onBack={() => setTab('inward')}

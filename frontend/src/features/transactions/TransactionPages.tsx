@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { StatusPill } from '@/components/ui/Badge'
 import { type Column } from '@/components/ui/DataTable'
 import {
   createTxn,
+  fetchAllottedItemIds,
   fetchTxn,
   numOrUndef,
   todayIso,
@@ -12,7 +13,6 @@ import {
   type TxnDocument,
 } from '@/api/transactions'
 import {
-  itemsForLocation,
   mapEmployee,
   mapItem,
   mapLocation,
@@ -22,8 +22,9 @@ import {
 } from '@/api/masters'
 import type { MaterialReturn } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
+import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import { itemOptionLabel, useLocationStock } from './lineGrid'
-import { nonSystemLocations } from './txnLookups'
+import { operationalLocations } from './txnLookups'
 
 function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} – ${r.name}`) {
   return rows.map((r) => ({ value: r.id, label: label(r) }))
@@ -58,6 +59,7 @@ function TxnRoutes({
   loadRecord,
   readOnlyFields,
   viewOnlyExisting = false,
+  renderExtraForm,
 }: {
   base: string
   title: string
@@ -86,6 +88,11 @@ function TxnRoutes({
   loadRecord?: (id: string) => Promise<Record<string, unknown> | null>
   readOnlyFields?: string[]
   viewOnlyExisting?: boolean
+  renderExtraForm?: (
+    values: Record<string, unknown>,
+    set: (k: string, v: unknown) => void,
+    recordId: string,
+  ) => ReactNode
 }) {
   const shared = {
     title,
@@ -107,6 +114,7 @@ function TxnRoutes({
     loadRecord,
     readOnlyFields,
     viewOnlyExisting,
+    renderExtraForm,
   }
   return (
     <Routes>
@@ -204,6 +212,8 @@ function mapDocToFlatForm(doc: TxnDocument, extras: Record<string, unknown> = {}
   return {
     date: doc.docDate ?? todayIso(),
     remarks: doc.remarks ?? '',
+    attachmentUrl: doc.attachmentUrl ?? '',
+    attachmentName: doc.attachmentName ?? '',
     item: line?.itemId != null ? String(line.itemId) : '',
     itemCode: line?.itemCode ?? '',
     itemName: line?.itemName ?? '',
@@ -227,6 +237,12 @@ export function ReturnsPages() {
   const patchItem = itemFieldPatch(items.rows)
   const [stockLoc, setStockLoc] = useState('')
   const { stockByItemId } = useLocationStock(stockLoc)
+  const [allottedByEmp, setAllottedByEmp] = useState<Record<string, string[]>>({})
+
+  const clearItemFields = (): Record<string, unknown> => {
+    setStockLoc('')
+    return { item: '', itemName: '', itemCode: '', itemType: '', uom: '', store: '', availableStock: '' }
+  }
 
   const columns: Column<MaterialReturn>[] = [
     { key: 'no', header: 'Return No.', searchText: (r) => r.returnNo, render: (r) => <b className="font-mono">{r.returnNo}</b> },
@@ -244,11 +260,21 @@ export function ReturnsPages() {
       render: (r) => locLabel(locations.rows, String((r as { locationId?: string }).locationId ?? '')),
     },
     { key: 'status', header: 'Status', searchText: (r) => r.status, render: (r) => <StatusPill status={r.status} /> },
+    {
+      key: 'attachment',
+      header: 'Attachment',
+      searchText: (r) => String((r as { attachmentName?: string; attachmentUrl?: string }).attachmentName ?? (r as { attachmentUrl?: string }).attachmentUrl ?? ''),
+      render: (r) => (
+        <AttachmentLink
+          url={String((r as { attachmentUrl?: string }).attachmentUrl ?? '')}
+          name={String((r as { attachmentName?: string }).attachmentName ?? '')}
+        />
+      ),
+    },
   ]
   const fields: FieldDef[] = [
     { name: 'date', label: 'Return Date', required: true },
     { name: 'returnedBy', label: 'Returned By', type: 'select', required: true, span: 2, options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`) },
-    { name: 'store', label: 'Return to Store', type: 'select', required: true, options: opt(nonSystemLocations(locations.rows)) },
     {
       name: 'item',
       label: 'Item',
@@ -256,15 +282,35 @@ export function ReturnsPages() {
       required: true,
       span: 2,
       lockedUntilHeader: true,
-      options: (values) =>
-        itemsForLocation(items.rows, String(values.store ?? '')).map((i) => ({
-          value: i.id,
-          label: itemOptionLabel(i, String(values.store ?? '') === stockLoc ? stockByItemId : undefined),
-        })),
-      placeholder: '— Select Store first —',
-      hint: 'Only items assigned to this store — stock shown for that store',
+      options: (values) => {
+        const empId = String(values.returnedBy ?? '')
+        const current = String(values.item ?? '')
+        if (!empId) return []
+        const loaded = allottedByEmp[empId]
+        const allowed = new Set(loaded ?? [])
+        if (current) allowed.add(current)
+        if (!loaded && !current) return []
+        return items.rows
+          .filter((i) => allowed.has(i.id))
+          .map((i) => ({
+            value: i.id,
+            label: itemOptionLabel(i, stockByItemId),
+          }))
+      },
+      placeholder: '— Select allotted item —',
+      hint: 'Pick Returned By first. Only items currently allotted to that employee appear here.',
     },
-    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master', lockedUntilHeader: true },
+    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
+    {
+      name: 'store',
+      label: 'Return to Store',
+      type: 'select',
+      required: true,
+      lockedUntilHeader: true,
+      options: opt(operationalLocations(locations.rows)),
+      placeholder: '— Select Item first —',
+      hint: 'Auto-filled from Item Master — change only if returning to a different store',
+    },
     { name: 'qty', label: 'Return Qty', type: 'number', required: true, lockedUntilHeader: true },
     {
       name: 'uom',
@@ -296,18 +342,62 @@ export function ReturnsPages() {
         formTitle="Return Details"
         addLabel="New Return"
         viewOnlyExisting
-        getDefaults={() => ({ date: todayIso(), qty: 1 })}
+        getDefaults={() => ({ date: todayIso(), qty: 1, attachmentUrl: '', attachmentName: '' })}
         readOnlyFields={['itemName']}
-        onFieldChange={(name, value, values) => {
-          const base = patchItem(name, value) ?? {}
-          if (name === 'store') {
-            setStockLoc(String(value ?? ''))
-            const allowed = itemsForLocation(items.rows, String(value ?? ''))
-            if (values.item && !allowed.some((i) => i.id === String(values.item))) {
-              return { ...base, item: '', itemName: '', uom: '' }
+        renderExtraForm={(values, set, recordId) => (
+          <AttachmentSection
+            url={String(values.attachmentUrl ?? '')}
+            name={String(values.attachmentName ?? '')}
+            readOnly={recordId !== 'new'}
+            onChange={({ url, name }) => {
+              set('attachmentUrl', url)
+              set('attachmentName', name)
+            }}
+          />
+        )}
+        onFieldChange={async (name, value, values) => {
+          if (name === 'returnedBy') {
+            const empId = String(value ?? '')
+            const currentItem = String(values.item ?? '')
+            if (!empId) return clearItemFields()
+            let ids = allottedByEmp[empId]
+            if (ids === undefined) {
+              try {
+                ids = await fetchAllottedItemIds(empId)
+              } catch {
+                ids = []
+              }
+              setAllottedByEmp((prev) => ({ ...prev, [empId]: ids }))
+            }
+            if (currentItem && !ids.includes(currentItem)) {
+              return clearItemFields()
+            }
+            return {}
+          }
+          if (name === 'item') {
+            const item = items.rows.find((i) => i.id === String(value ?? ''))
+            if (!item) {
+              setStockLoc('')
+              return { uom: '', availableStock: '', itemCode: '', itemName: '', itemType: '', store: '' }
+            }
+            const homeStore = String(item.store ?? '')
+            const storeOk = operationalLocations(locations.rows).some((l) => l.id === homeStore)
+            const store = storeOk ? homeStore : ''
+            setStockLoc(store)
+            return {
+              uom: String(item.uom ?? ''),
+              availableStock: '',
+              itemCode: String(item.code ?? ''),
+              itemName: String(item.name ?? ''),
+              itemType: String(item.itemType ?? ''),
+              store,
             }
           }
-          return base
+          if (name === 'store') {
+            setStockLoc(String(value ?? ''))
+            return patchItem(name, value) ?? {}
+          }
+          return patchItem(name, value) ?? {}
         }}
         loadRecord={async (id) => {
           const doc = await fetchTxn('returns', id)
@@ -324,6 +414,7 @@ export function ReturnsPages() {
             locationId: numOrUndef(values.store),
             initiatedByEmpId: numOrUndef(values.returnedBy),
             remarks: String(values.remarks ?? ''),
+            ...attachmentPayload(String(values.attachmentUrl ?? ''), String(values.attachmentName ?? '')),
             docSubmitAction: action,
             lines: lineFromForm(values, items.rows),
           }

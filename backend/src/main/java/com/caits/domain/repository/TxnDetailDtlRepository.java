@@ -13,6 +13,10 @@ import java.util.List;
 public interface TxnDetailDtlRepository extends JpaRepository<TxnDetailDtl, Integer>, JpaSpecificationExecutor<TxnDetailDtl> {
     List<TxnDetailDtl> findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(Integer headerId);
 
+    List<TxnDetailDtl> findByTxdTxnHeaderIdTxhInOrderByTxdTxnHeaderIdTxhAscTxdSrNoAsc(Collection<Integer> headerIds);
+
+    List<TxnDetailDtl> findByTxdIssuedToEmpIdEmp(Integer empId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     void deleteByTxdTxnHeaderIdTxh(Integer headerId);
 
