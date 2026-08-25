@@ -19,7 +19,6 @@ import {
 } from '@/api/transactions'
 import { useAuth } from '@/features/auth/AuthContext'
 import { notBefore, validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
-import { GEN_TYPE, useGenValues } from '@/api/masters'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import { GrnItemLines, emptyGrnLine, type GrnLine } from './GrnItemLines'
 import type { ItemKind } from './OpeningStockItemLines'
@@ -28,11 +27,7 @@ import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   employeeOptions as toEmployeeOptions,
   locLabel,
-  locationOptions as toLocationOptions,
-  operationalLocations,
-  systemLocations,
   systemLocationOptions,
-  systemLocationsForOu,
   quickAddEmployee,
   quickAddVendor,
   resolveTxnHeaderFromLines,
@@ -179,7 +174,6 @@ function GrnForm() {
   const isNew = id === 'new'
 
   const { locations, employees, vendors, items, units } = useTxnFormLookups()
-  const { options: conditionOpts } = useGenValues(GEN_TYPE.ASSET_CONDITION)
 
   const [form, setForm] = useState<FormState>(() => blankForm(user?.employeeId))
   const [itemType, setItemType] = useState<ItemKind>('asset')
@@ -344,7 +338,7 @@ function GrnForm() {
       return Boolean(item?.inspectionNeeded) && toNum(l.acceptedQty) > 0
     })
     if (needsInspection && !form.inspectedBy) {
-      found.inspectedBy = 'Inspected By is required when any item needs inspection.'
+      found.inspectedBy = 'To Be Inspected By is required when any item needs inspection.'
     }
     if (form.preparedDate && !form.preparedBy) found.preparedBy = 'Select who prepared the GRN.'
     return found
@@ -450,7 +444,6 @@ function GrnForm() {
 
   const employeeOptions = toEmployeeOptions(employees.rows)
   const locationOptions = systemLocationOptions(locations.rows)
-  const lineLocations = systemLocations(locations.rows)
   const supplierOptions = toVendorOptions(vendors.rows)
   const allItemsForType = useMemo(
     () =>
@@ -568,7 +561,7 @@ function GrnForm() {
             </Field>
 
             <LookupSelect
-              label="Inspected By"
+              label="To Be Inspected By"
               value={form.inspectedBy}
               onChange={(v) => set('inspectedBy', v)}
               onBlur={() => touch('inspectedBy')}
@@ -648,8 +641,7 @@ function GrnForm() {
         items={allItemsForType}
         allItems={allItemsForType}
         units={units.rows}
-        locations={lineLocations}
-        conditionOptions={conditionOpts}
+        locations={locations.rows}
         storeLocationId=""
         locationOptions={locationOptions}
         readOnly={readOnly}

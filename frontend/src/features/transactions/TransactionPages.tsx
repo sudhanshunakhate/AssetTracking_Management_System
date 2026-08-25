@@ -4,13 +4,14 @@ import { StatusPill } from '@/components/ui/Badge'
 import { type Column } from '@/components/ui/DataTable'
 import {
   createTxn,
-  fetchAllottedItemIds,
+  fetchAllottedItems,
   fetchTxn,
   numOrUndef,
   todayIso,
   useTxnList,
   type DocumentRequest,
   type TxnDocument,
+  type AllottedUnit,
 } from '@/api/transactions'
 import {
   mapEmployee,
@@ -238,6 +239,7 @@ export function ReturnsPages() {
   const [stockLoc, setStockLoc] = useState('')
   const { stockByItemId } = useLocationStock(stockLoc)
   const [allottedByEmp, setAllottedByEmp] = useState<Record<string, string[]>>({})
+  const [allottedUnitsByEmp, setAllottedUnitsByEmp] = useState<Record<string, AllottedUnit[]>>({})
 
   const clearItemFields = (): Record<string, unknown> => {
     setStockLoc('')
@@ -320,6 +322,12 @@ export function ReturnsPages() {
       options: opt(units.rows, (u) => String(u.code)),
       lockedUntilHeader: true,
     },
+    {
+      name: 'serialNo',
+      label: 'Serial No.',
+      lockedUntilHeader: true,
+      hint: 'Imported from units in this employee’s custody when you pick Returned By / Item. Required for assets.',
+    },
     { name: 'batch', label: 'Batch / Lot (optional)', lockedUntilHeader: true },
     { name: 'remarks', label: 'Remarks', span: 2 },
   ]
@@ -359,31 +367,71 @@ export function ReturnsPages() {
           if (name === 'returnedBy') {
             const empId = String(value ?? '')
             const currentItem = String(values.item ?? '')
-            if (!empId) return clearItemFields()
+            if (!empId) return { ...clearItemFields(), serialNo: '', ipAddress: '', macAddress: '', hostname: '' }
             let ids = allottedByEmp[empId]
-            if (ids === undefined) {
+            let units = allottedUnitsByEmp[empId]
+            if (ids === undefined || units === undefined) {
               try {
-                ids = await fetchAllottedItemIds(empId)
+                const allotted = await fetchAllottedItems(empId)
+                ids = allotted.itemIds
+                units = allotted.units
               } catch {
                 ids = []
+                units = []
               }
               setAllottedByEmp((prev) => ({ ...prev, [empId]: ids }))
+              setAllottedUnitsByEmp((prev) => ({ ...prev, [empId]: units ?? [] }))
             }
+            const patch: Record<string, unknown> = { serialNo: '', ipAddress: '', macAddress: '', hostname: '' }
             if (currentItem && !ids.includes(currentItem)) {
-              return clearItemFields()
+              Object.assign(patch, clearItemFields())
             }
-            return {}
+            const empUnits = units ?? []
+            if (empUnits.length === 1) {
+              const u = empUnits[0]
+              const itemId = String(u.itemId)
+              const item = items.rows.find((i) => i.id === itemId)
+              const homeStore = String(item?.store ?? '')
+              const storeOk = operationalLocations(locations.rows).some((l) => l.id === homeStore)
+              setStockLoc(storeOk ? homeStore : '')
+              Object.assign(patch, {
+                item: itemId,
+                uom: String(item?.uom ?? ''),
+                itemCode: String(item?.code ?? ''),
+                itemName: String(item?.name ?? ''),
+                itemType: String(item?.itemType ?? ''),
+                store: storeOk ? homeStore : '',
+                serialNo: u.serialNo ?? '',
+                ipAddress: u.ipAddress ?? '',
+                macAddress: u.macAddress ?? '',
+                hostname: u.hostname ?? '',
+                batch: u.batchLotNo ?? '',
+              })
+            }
+            return patch
           }
           if (name === 'item') {
             const item = items.rows.find((i) => i.id === String(value ?? ''))
             if (!item) {
               setStockLoc('')
-              return { uom: '', availableStock: '', itemCode: '', itemName: '', itemType: '', store: '' }
+              return { uom: '', availableStock: '', itemCode: '', itemName: '', itemType: '', store: '', serialNo: '' }
             }
             const homeStore = String(item.store ?? '')
             const storeOk = operationalLocations(locations.rows).some((l) => l.id === homeStore)
             const store = storeOk ? homeStore : ''
             setStockLoc(store)
+            const empId = String(values.returnedBy ?? '')
+            const match = (allottedUnitsByEmp[empId] ?? []).filter((u) => String(u.itemId) === item.id)
+            const serialPatch =
+              match.length === 1
+                ? {
+                    serialNo: match[0].serialNo ?? '',
+                    ipAddress: match[0].ipAddress ?? '',
+                    macAddress: match[0].macAddress ?? '',
+                    hostname: match[0].hostname ?? '',
+                    batch: match[0].batchLotNo ?? values.batch,
+                  }
+                : { serialNo: '', ipAddress: '', macAddress: '', hostname: '' }
             return {
               uom: String(item.uom ?? ''),
               availableStock: '',
@@ -391,6 +439,7 @@ export function ReturnsPages() {
               itemName: String(item.name ?? ''),
               itemType: String(item.itemType ?? ''),
               store,
+              ...serialPatch,
             }
           }
           if (name === 'store') {

@@ -218,6 +218,15 @@ public final class TxnDtos {
 
     public record RejectRequest(String reason) {}
 
-    /** Item IDs currently allotted to an employee (Material Return item picker). */
-    public record AllottedItemsResponse(List<Integer> itemIds) {}
+    /** Item IDs and serial units currently allotted to an employee (Material Return picker). */
+    public record AllottedUnit(
+            Integer itemId,
+            String serialNo,
+            String ipAddress,
+            String macAddress,
+            String hostname,
+            String batchLotNo
+    ) {}
+
+    public record AllottedItemsResponse(List<Integer> itemIds, List<AllottedUnit> units) {}
 }

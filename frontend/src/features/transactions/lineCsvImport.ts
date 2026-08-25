@@ -52,6 +52,7 @@ export const OST_ASSET_IMPORT_HEADERS = [
   'itemType*',
   'locationCode*',
   'serialNo*',
+  'custodyEmployeeCode*',
   'ipAddress',
   'macAddress',
   'hostname',
@@ -65,10 +66,11 @@ export const OST_ASSET_IMPORT_SAMPLE = [
   'asset',
   'STR-MAIN',
   'SN-12345',
+  'EMP-001',
   '192.168.0.10',
   'AA-BB-CC-DD-EE-FF',
   'laptop01',
-  'Good',
+  'Issued',
   '',
   'Imported asset unit',
 ]
@@ -102,6 +104,7 @@ type ResolveCtx = {
   items: ApiMasterRow[]
   locations: ApiMasterRow[]
   vendors: ApiMasterRow[]
+  employees?: ApiMasterRow[]
   defaultLocationId: string
   activeItemType: ItemKind
   docKind: 'grn' | 'opening'
@@ -169,6 +172,23 @@ function assertItemCodeColumn(rows: Record<string, string>[]) {
   throw new Error(
     `CSV header must include itemCode. Found columns: ${found}.\nDownload the Asset or Consumable template and keep those column names in row 1.`,
   )
+}
+
+function resolveEmployeeId(employees: ApiMasterRow[] | undefined, code: string) {
+  const q = code.trim().toUpperCase()
+  if (!q) return ''
+  const list = employees ?? []
+  const hit = list.find(
+    (e) =>
+      String(e.code ?? '').toUpperCase() === q ||
+      String(e.id ?? '') === code.trim(),
+  )
+  if (!hit) {
+    throw new Error(
+      `Employee code not found: ${code}. Use a code from Employee Master, e.g. ${availableCodes(list)}`,
+    )
+  }
+  return hit.id
 }
 
 function resolveItemByCode(items: ApiMasterRow[], itemCode: string) {
@@ -273,10 +293,14 @@ export function importOpeningStockLines(
         supplierId: supplier?.id ?? '',
         remark: csvVal(row, 'remark'),
         qty: '',
+        issuedToEmpId: '',
       }
 
       if (kind === 'asset') {
         if (!line.serialNo.trim()) throw new Error('serialNo is required for asset lines')
+        const custody = csvVal(row, 'custodyemployeecode', 'custody', 'employee', 'issuedto')
+        if (!custody) throw new Error('custodyEmployeeCode is required for asset lines')
+        line.issuedToEmpId = resolveEmployeeId(ctx.employees, custody)
         line.qty = '1'
       } else {
         const qty = toNum(csvVal(row, 'qty', 'receivedqty') || '0')

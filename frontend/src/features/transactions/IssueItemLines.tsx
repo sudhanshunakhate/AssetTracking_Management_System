@@ -23,10 +23,25 @@ export type IssueLine = BaseLine & {
   requestedQty: string
   issueQty: string
   batchLotNo: string
+  serialNo: string
+  ipAddress: string
+  macAddress: string
+  hostname: string
+  itemType: string
 }
 
 export function emptyLine(): IssueLine {
-  return { ...baseLine(), requestedQty: '', issueQty: '', batchLotNo: '' }
+  return {
+    ...baseLine(),
+    requestedQty: '',
+    issueQty: '',
+    batchLotNo: '',
+    serialNo: '',
+    ipAddress: '',
+    macAddress: '',
+    hostname: '',
+    itemType: '',
+  }
 }
 
 const DATALIST_ID = 'issue-item-options'
@@ -42,6 +57,7 @@ export function IssueItemLines({
   units,
   locations,
   storeLocationId,
+  toLocationId = '',
   readOnly = false,
   headerReady = true,
   error,
@@ -52,6 +68,7 @@ export function IssueItemLines({
   units: ApiMasterRow[]
   locations: ApiMasterRow[]
   storeLocationId: string
+  toLocationId?: string
   readOnly?: boolean
   /** When false, item grid stays locked until required header fields are filled. */
   headerReady?: boolean
@@ -101,6 +118,7 @@ export function IssueItemLines({
     const cached = stockByItemId[item.id]
     patch(line.key, {
       ...applyItemMaster(item, stockLocation),
+      itemType: String(item.itemType ?? ''),
       availableStock: cached != null ? String(cached) : '',
     })
     void lookup(line.key, Number(item.id), stockLocation)
@@ -118,6 +136,13 @@ export function IssueItemLines({
     if (line.itemId && stockByItemId[line.itemId] != null) return String(stockByItemId[line.itemId])
     return line.availableStock
   }
+
+  const showAssetFields = lines.some((l) => {
+    if (!l.itemId) return false
+    if (l.itemType === 'asset') return true
+    return items.find((i) => i.id === l.itemId)?.itemType === 'asset'
+  })
+  const toLoc = locationById.get(toLocationId)
 
   return (
     <Card>
@@ -138,11 +163,20 @@ export function IssueItemLines({
                 <th className={`${gridHeadCell} w-[170px]`}>Item Code</th>
                 <th className={gridHeadCell}>Item Name</th>
                 <th className={`${gridHeadCell} w-[110px]`}>UOM</th>
+                {showAssetFields && (
+                  <>
+                    <th className={`${gridHeadCell} w-[130px]`}>Serial No.</th>
+                    <th className={`${gridHeadCell} w-[120px]`}>IP Address</th>
+                    <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
+                    <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
+                  </>
+                )}
                 <th className={`${gridHeadCell} w-[120px]`}>Requested Qty</th>
                 <th className={`${gridHeadCell} w-[120px]`}>Issue Qty</th>
                 <th className={`${gridHeadCell} w-[120px]`}>Available Stock</th>
                 <th className={`${gridHeadCell} w-[130px]`}>Batch / Lot</th>
-                <th className={`${gridHeadCell} w-[150px]`}>Location</th>
+                <th className={`${gridHeadCell} w-[150px]`}>From Location</th>
+                <th className={`${gridHeadCell} w-[150px]`}>To Location</th>
                 <th className={`${gridHeadCell} w-[170px]`}>Remark</th>
                 <th className={`${gridHeadCell} w-[56px] text-center`}>Action</th>
               </tr>
@@ -151,6 +185,8 @@ export function IssueItemLines({
               {lines.map((line, idx) => {
                 const unit = unitById.get(line.uomId)
                 const location = locationById.get(line.locationId || storeLocationId)
+                const isAsset =
+                  line.itemType === 'asset' || items.find((i) => i.id === line.itemId)?.itemType === 'asset'
                 const shownStock = displayStock(line)
                 const shortfall =
                   line.itemId !== '' &&
@@ -182,6 +218,63 @@ export function IssueItemLines({
                         className={gridInput}
                       />
                     </td>
+                    {showAssetFields && (
+                      <>
+                        <td className={gridCell}>
+                          {isAsset ? (
+                            <Input
+                              value={line.serialNo}
+                              onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
+                              disabled={lineFieldsLocked}
+                              maxLength={100}
+                              placeholder="SN-…"
+                              className={gridInput}
+                            />
+                          ) : (
+                            <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                          )}
+                        </td>
+                        <td className={gridCell}>
+                          {isAsset ? (
+                            <Input
+                              value={line.ipAddress}
+                              onChange={(e) => patch(line.key, { ipAddress: e.target.value })}
+                              disabled={lineFieldsLocked}
+                              maxLength={45}
+                              className={gridInput}
+                            />
+                          ) : (
+                            <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                          )}
+                        </td>
+                        <td className={gridCell}>
+                          {isAsset ? (
+                            <Input
+                              value={line.macAddress}
+                              onChange={(e) => patch(line.key, { macAddress: e.target.value.toUpperCase() })}
+                              disabled={lineFieldsLocked}
+                              maxLength={17}
+                              className={gridInput}
+                            />
+                          ) : (
+                            <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                          )}
+                        </td>
+                        <td className={gridCell}>
+                          {isAsset ? (
+                            <Input
+                              value={line.hostname}
+                              onChange={(e) => patch(line.key, { hostname: e.target.value })}
+                              disabled={lineFieldsLocked}
+                              maxLength={150}
+                              className={gridInput}
+                            />
+                          ) : (
+                            <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                          )}
+                        </td>
+                      </>
+                    )}
                     <td className={gridCell}>
                       <Input
                         value={line.requestedQty}
@@ -231,6 +324,14 @@ export function IssueItemLines({
                     <td className={gridCell}>
                       <Input
                         value={location ? String(location.code ?? '') : ''}
+                        readOnly
+                        placeholder="—"
+                        className={gridInput}
+                      />
+                    </td>
+                    <td className={gridCell}>
+                      <Input
+                        value={toLoc ? String(toLoc.code ?? '') : ''}
                         readOnly
                         placeholder="—"
                         className={gridInput}

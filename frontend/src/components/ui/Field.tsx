@@ -1,4 +1,40 @@
-import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react'
+import {
+  Children,
+  isValidElement,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from 'react'
+
+function selectedOptionLabel(children: ReactNode, value: unknown): string {
+  if (value == null || String(value) === '') return ''
+  const want = String(value)
+  let found = ''
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child)) return
+    const props = child.props as { value?: unknown; children?: ReactNode }
+    if (child.type === 'optgroup') {
+      const nested = selectedOptionLabel(props.children, value)
+      if (nested) found = nested
+      return
+    }
+    if (String(props.value ?? '') === want) {
+      const text =
+        typeof props.children === 'string' || typeof props.children === 'number'
+          ? String(props.children)
+          : ''
+      if (text) found = text
+    }
+  })
+  return found
+}
+
+function displayTitle(explicit: string | undefined, fallback: string): string | undefined {
+  if (explicit != null && explicit !== '') return explicit
+  const t = fallback.trim()
+  return t ? t : undefined
+}
 
 export function Field({
   label,
@@ -39,23 +75,34 @@ const invalid =
 
 type Invalidatable = { invalid?: boolean }
 
-export function Input({ invalid: bad, ...props }: InputHTMLAttributes<HTMLInputElement> & Invalidatable) {
+export function Input({ invalid: bad, title, ...props }: InputHTMLAttributes<HTMLInputElement> & Invalidatable) {
+  const valueTitle = typeof props.value === 'string' ? props.value : String(props.value ?? '')
   return (
     <input
       {...props}
+      title={displayTitle(title, valueTitle)}
       aria-invalid={bad || undefined}
-      className={`${control} ${bad ? invalid : ''} ${props.className ?? ''}`}
+      className={`${control} truncate ${bad ? invalid : ''} ${props.className ?? ''}`}
     />
   )
 }
 
-export function Select({ invalid: bad, ...props }: SelectHTMLAttributes<HTMLSelectElement> & Invalidatable) {
+export function Select({
+  invalid: bad,
+  title,
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement> & Invalidatable) {
+  const label = selectedOptionLabel(children, props.value)
   return (
     <select
       {...props}
+      title={displayTitle(title, label)}
       aria-invalid={bad || undefined}
-      className={`${control} cursor-pointer ${bad ? invalid : ''} ${props.className ?? ''}`}
-    />
+      className={`${control} cursor-pointer truncate ${bad ? invalid : ''} ${props.className ?? ''}`}
+    >
+      {children}
+    </select>
   )
 }
 

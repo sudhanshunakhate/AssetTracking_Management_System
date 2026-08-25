@@ -131,14 +131,9 @@ export function OpeningStockItemLines({
   const importPool = allItems ?? items
   const { stockByItemId } = useLocationStock(locationId)
 
-  const showIssuedTo = useMemo(
-    () =>
-      isAsset &&
-      lines.some((l) => l.itemId !== '' && isIssuedCondition(l.itemCondition, conditionOptions)),
-    [isAsset, lines, conditionOptions],
-  )
+  const showIssuedTo = isAsset
 
-  const colCount = isAsset ? (showIssuedTo ? 14 : 13) : 12
+  const colCount = isAsset ? 14 : 12
 
   const [pickItemId, setPickItemId] = useState('')
   const [pickQty, setPickQty] = useState('1')
@@ -152,11 +147,7 @@ export function OpeningStockItemLines({
   )
 
   const setCondition = (key: string, itemCondition: string) => {
-    const issued = isIssuedCondition(itemCondition, conditionOptions)
-    patch(key, {
-      itemCondition,
-      ...(issued ? {} : { issuedToEmpId: '' }),
-    })
+    patch(key, { itemCondition })
   }
 
   const buildLineFromItem = (item: ApiMasterRow, qty: number): OpeningStockLine => ({
@@ -214,6 +205,7 @@ export function OpeningStockItemLines({
       items: importPool,
       locations,
       vendors,
+      employees,
       defaultLocationId: locationId,
       activeItemType: itemType,
       docKind: 'opening',
@@ -353,7 +345,7 @@ export function OpeningStockItemLines({
                     <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
                     <th className={`${gridHeadCell} w-[120px]`}>Condition</th>
                     {showIssuedTo && (
-                      <th className={`${gridHeadCell} w-[160px]`}>{gridHeadLabel('Issued To', true)}</th>
+                      <th className={`${gridHeadCell} w-[160px]`}>{gridHeadLabel('Custody', true)}</th>
                     )}
                   </>
                 ) : (
@@ -390,8 +382,7 @@ export function OpeningStockItemLines({
                     const serialMissing = isAsset && !line.serialNo.trim()
                     const locationMissing = !line.locationId
                     const qtyMissing = !isAsset && toNum(line.qty) <= 0
-                    const lineIssued = isIssuedCondition(line.itemCondition, conditionOptions)
-                    const issuedToMissing = lineIssued && !line.issuedToEmpId
+                    const issuedToMissing = isAsset && !line.issuedToEmpId
                     return (
                       <tr key={line.key} className="border-b border-[var(--border)] align-middle">
                         <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
@@ -470,24 +461,20 @@ export function OpeningStockItemLines({
                             </td>
                             {showIssuedTo && (
                               <td className={gridCell}>
-                                {lineIssued ? (
-                                  <Select
-                                    value={line.issuedToEmpId}
-                                    onChange={(e) => patch(line.key, { issuedToEmpId: e.target.value })}
-                                    disabled={linesLocked}
-                                    invalid={showLineErrors && issuedToMissing}
-                                    className={gridInput}
-                                  >
-                                    <option value="">— Select Employee —</option>
-                                    {employees.map((e) => (
-                                      <option key={e.id} value={e.id}>
-                                        {e.code} – {e.firstName} {e.lastName}
-                                      </option>
-                                    ))}
-                                  </Select>
-                                ) : (
-                                  <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
-                                )}
+                                <Select
+                                  value={line.issuedToEmpId}
+                                  onChange={(e) => patch(line.key, { issuedToEmpId: e.target.value })}
+                                  disabled={linesLocked}
+                                  invalid={showLineErrors && issuedToMissing}
+                                  className={gridInput}
+                                >
+                                  <option value="">— Select Employee —</option>
+                                  {employees.map((e) => (
+                                    <option key={e.id} value={e.id}>
+                                      {e.code} – {e.firstName} {e.lastName}
+                                    </option>
+                                  ))}
+                                </Select>
                               </td>
                             )}
                           </>

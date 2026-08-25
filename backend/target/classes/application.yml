@@ -16,6 +16,13 @@ spring:
     username: caits
     password: caits123
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 10000
+      idle-timeout: 300000
+      max-lifetime: 600000
+      keepalive-time: 120000
   jpa:
     open-in-view: false
     hibernate:
@@ -25,6 +32,9 @@ spring:
         default_schema: caits_local
         jdbc:
           time_zone: Asia/Kolkata
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
         format_sql: true
     show-sql: false
   jackson:

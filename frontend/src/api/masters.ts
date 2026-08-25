@@ -379,6 +379,7 @@ export const mapItem = (i: ItemApi): ApiMasterRow => ({
   locationScope: i.locationAccessScope ?? 'SELECTED',
   ouIds: (i.buIds ?? []).map(String),
   locationIds: (i.effectiveLocationIds ?? i.locationIds ?? []).map(String),
+  inspectionNeeded: Boolean(i.inspectionNeeded),
   status: activeStatus(i.isActive),
 })
 

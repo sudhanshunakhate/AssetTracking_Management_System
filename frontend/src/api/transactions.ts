@@ -338,12 +338,36 @@ export async function fetchTxn(resource: string, id: string) {
   return http.get<TxnDocument>(`/${resource}/${id}`)
 }
 
+export type AllottedUnit = {
+  itemId: number
+  serialNo?: string
+  ipAddress?: string
+  macAddress?: string
+  hostname?: string
+  batchLotNo?: string
+}
+
+export type AllottedItems = {
+  itemIds: string[]
+  units: AllottedUnit[]
+}
+
 /** Item IDs still allotted to this employee (Issue / Opening Stock minus Return). */
 export async function fetchAllottedItemIds(employeeId: string | number): Promise<string[]> {
+  const data = await fetchAllottedItems(employeeId)
+  return data.itemIds
+}
+
+export async function fetchAllottedItems(employeeId: string | number): Promise<AllottedItems> {
   const id = Number(employeeId)
-  if (!Number.isFinite(id) || id <= 0) return []
-  const res = await http.get<{ itemIds: number[] }>(`/returns/allotted-items?employeeId=${id}`)
-  return (res.itemIds ?? []).map(String)
+  if (!Number.isFinite(id) || id <= 0) return { itemIds: [], units: [] }
+  const res = await http.get<{ itemIds?: number[]; units?: AllottedUnit[] }>(
+    `/returns/allotted-items?employeeId=${id}`,
+  )
+  return {
+    itemIds: (res.itemIds ?? []).map(String),
+    units: res.units ?? [],
+  }
 }
 
 export async function syncInspectionApprovalsFromGrn() {

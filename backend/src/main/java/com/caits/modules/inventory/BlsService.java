@@ -37,6 +37,13 @@ public class BlsService {
         this.detailRepo = detailRepo;
     }
 
+    public List<InvBlsMst> listUnitsIssuedTo(Integer employeeId) {
+        if (employeeId == null) {
+            return List.of();
+        }
+        return blsRepo.findByIbmIssuedToEmpIdEmpAndIbmIsDummyFalseAndIbmIsactiveTrue(employeeId);
+    }
+
     public List<Integer> listItemIdsIssuedTo(Integer employeeId) {
         if (employeeId == null) {
             return List.of();

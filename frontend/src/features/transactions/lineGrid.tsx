@@ -49,8 +49,8 @@ export function gridHeadLabel(label: string, required = false) {
     label
   )
 }
-export const gridInput = 'px-2 py-1 text-[12px]'
-export const gridInputRight = 'px-2 py-1 text-right text-[12px]'
+export const gridInput = 'px-2 py-1 text-[12px] truncate'
+export const gridInputRight = 'px-2 py-1 text-right text-[12px] truncate'
 
 export function toNum(value: string | number | undefined | null) {
   const n = Number(value ?? 0)

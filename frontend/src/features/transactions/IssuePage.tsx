@@ -52,6 +52,8 @@ type FormState = {
   requisitionDisplay: string
   storeId: string
   issuedTo: string
+  toLocationId: string
+  reqSubtype: string
   remark: string
   attachmentUrl: string
   attachmentName: string
@@ -66,6 +68,8 @@ function blankForm(): FormState {
     requisitionDisplay: '',
     storeId: '',
     issuedTo: '',
+    toLocationId: '',
+    reqSubtype: '',
     remark: '',
     attachmentUrl: '',
     attachmentName: '',
@@ -267,6 +271,8 @@ function IssueForm() {
           requisitionDisplay: '',
           storeId: doc.locationId != null ? String(doc.locationId) : '',
           issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : '',
+          toLocationId: doc.toLocationId != null ? String(doc.toLocationId) : '',
+          reqSubtype: doc.docSubtype ?? '',
           remark: doc.remarks ?? '',
           attachmentUrl: doc.attachmentUrl ?? '',
           attachmentName: doc.attachmentName ?? '',
@@ -282,6 +288,11 @@ function IssueForm() {
           issueQty: l.qty != null ? String(l.qty) : '',
           availableStock: l.availableStock != null ? String(l.availableStock) : '',
           batchLotNo: l.batchLotNo ?? '',
+          serialNo: l.serialNo ?? '',
+          ipAddress: l.ipAddress ?? '',
+          macAddress: l.macAddress ?? '',
+          hostname: l.hostname ?? '',
+          itemType: l.itemType ?? '',
           locationId: l.locationId != null ? String(l.locationId) : '',
           remark: l.remark ?? '',
         }))
@@ -308,6 +319,16 @@ function IssueForm() {
         requisitionDisplay: `${doc.docNo ?? ''} · ${doc.docDate || ''}`.trim(),
         storeId: doc.locationId != null ? String(doc.locationId) : p.storeId,
         issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : p.issuedTo,
+        reqSubtype: doc.docSubtype ?? p.reqSubtype,
+        toLocationId: (() => {
+          const subtype = (doc.docSubtype ?? '').toUpperCase()
+          if (subtype === 'EMPLOYEE' && doc.initiatedByEmpId != null) {
+            const emp = employees.rows.find((e) => e.id === String(doc.initiatedByEmpId))
+            const base = String(emp?.baseStore ?? '')
+            if (base) return base
+          }
+          return doc.locationId != null ? String(doc.locationId) : p.toLocationId
+        })(),
       }))
       const storeLoc = doc.locationId != null ? String(doc.locationId) : ''
       const mapped = (doc.lines ?? []).map((l) => {
@@ -323,6 +344,7 @@ function IssueForm() {
           issueQty: reqQty,
           availableStock: l.availableStock != null ? String(l.availableStock) : '',
           locationId: l.locationId != null ? String(l.locationId) : storeLoc,
+          itemType: l.itemType ?? '',
           remark: l.remark ?? '',
         }
       })
@@ -354,6 +376,7 @@ function IssueForm() {
     { name: 'requisitionId', label: 'Against Requisition', required: true },
     { name: 'storeId', label: 'Store', required: true },
     { name: 'issuedTo', label: 'Issued To', required: true },
+    { name: 'toLocationId', label: 'To Location', required: true },
   ]
 
   const headerReady = useMemo(
@@ -369,9 +392,16 @@ function IssueForm() {
       e.lines = 'Every item line needs a positive issue quantity.'
     } else if (filled.some((l) => !l.uomId)) {
       e.lines = 'Every item line needs a UOM (pick a valid item).'
+    } else if (
+      filled.some((l) => {
+        const kind = l.itemType || items.rows.find((i) => i.id === l.itemId)?.itemType
+        return kind === 'asset' && !String(l.serialNo ?? '').trim()
+      })
+    ) {
+      e.lines = 'Serial No. is required on every asset line.'
     }
     return e
-  }, [form, lines])
+  }, [form, lines, items.rows])
 
   const err = (name: string) => (submitted || touched[name] ? errors[name] : undefined)
 
@@ -380,6 +410,7 @@ function IssueForm() {
     return {
       docDate: form.issueDate,
       locationId,
+      toLocationId: form.toLocationId ? Number(form.toLocationId) : undefined,
       initiatedByEmpId: form.issuedTo ? Number(form.issuedTo) : undefined,
       refTxnHeaderId: form.requisitionId ? Number(form.requisitionId) : undefined,
       remarks: form.remark || undefined,
@@ -397,6 +428,10 @@ function IssueForm() {
             qty,
             availableStock: l.availableStock === '' ? undefined : Number(l.availableStock),
             batchLotNo: l.batchLotNo || undefined,
+            serialNo: l.serialNo || undefined,
+            ipAddress: l.ipAddress || undefined,
+            macAddress: l.macAddress || undefined,
+            hostname: l.hostname || undefined,
             locationId: l.locationId ? Number(l.locationId) : locationId,
             issuedToEmpId: form.issuedTo ? Number(form.issuedTo) : undefined,
             remark: l.remark || undefined,
@@ -505,13 +540,40 @@ function IssueForm() {
               label="Issued To"
               required
               value={form.issuedTo}
-              onChange={(v) => set('issuedTo', v)}
+              onChange={(v) => {
+                setForm((p) => {
+                  const emp = employees.rows.find((e) => e.id === v)
+                  const next = { ...p, issuedTo: v }
+                  if (p.reqSubtype === 'EMPLOYEE' && emp?.baseStore) {
+                    next.toLocationId = String(emp.baseStore)
+                  }
+                  return next
+                })
+              }}
               onBlur={() => touch('issuedTo')}
               options={employeeOptions}
               placeholder="— Select Employee —"
               error={err('issuedTo')}
               disabled={readOnly}
               quickAdd={addEmployee}
+            />
+
+            <LookupSelect
+              label="To Location"
+              required
+              value={form.toLocationId}
+              onChange={(v) => set('toLocationId', v)}
+              onBlur={() => touch('toLocationId')}
+              options={locationOptions}
+              placeholder="— Select Location —"
+              error={err('toLocationId')}
+              disabled={readOnly}
+              hint={
+                form.reqSubtype === 'EMPLOYEE'
+                  ? 'Defaults to the employee’s base location'
+                  : 'Defaults to the requisition location'
+              }
+              quickAdd={addLocation}
             />
 
             <Field label="Remark" className="md:col-span-2 xl:col-span-3">
@@ -543,6 +605,7 @@ function IssueForm() {
           units={units.rows}
           locations={lineLocations}
           storeLocationId={form.storeId}
+          toLocationId={form.toLocationId}
           readOnly={readOnly}
           headerReady={headerReady}
           error={submitted ? errors.lines : undefined}

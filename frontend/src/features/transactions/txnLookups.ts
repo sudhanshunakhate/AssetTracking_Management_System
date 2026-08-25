@@ -215,15 +215,38 @@ export function quarantineForOperatingUnit(
   return q?.id ?? ''
 }
 
+function systemRoleForEntity(locations: ApiMasterRow[], entityId: string, role: string): string {
+  if (!entityId) return ''
+  const hit = systemLocationsForOrg(locations, entityId).find(
+    (l) => String(l.systemRole ?? '').toUpperCase() === role.toUpperCase(),
+  )
+  return hit?.id ?? ''
+}
+
+function entityIdOfLocation(locationId: string, locations: ApiMasterRow[]): string {
+  const loc = locations.find((l) => String(l.id) === String(locationId))
+  return loc?.orgCode ? String(loc.orgCode) : ''
+}
+
 /** Quarantine store for the Organization of a given location. */
 export function quarantineForLocation(locationId: string, locations: ApiMasterRow[]): string {
-  if (!locationId) return ''
-  const loc = locations.find((l) => String(l.id) === String(locationId))
-  if (!loc?.orgCode) return ''
-  const q = systemLocationsForOrg(locations, String(loc.orgCode)).find(
-    (l) => String(l.systemRole ?? '').toUpperCase() === 'QUARANTINE',
-  )
-  return q?.id ?? ''
+  return systemRoleForEntity(locations, entityIdOfLocation(locationId, locations), 'QUARANTINE')
+}
+
+/** System Rejected store for the Organization of a given location (or first system loc org). */
+export function rejectedForLocation(locationId: string, locations: ApiMasterRow[]): string {
+  const entityId =
+    entityIdOfLocation(locationId, locations) ||
+    (systemLocations(locations)[0]?.orgCode ? String(systemLocations(locations)[0].orgCode) : '')
+  return systemRoleForEntity(locations, entityId, 'REJECTED')
+}
+
+export function quarantineForEntity(locations: ApiMasterRow[], entityId: string): string {
+  return systemRoleForEntity(locations, entityId, 'QUARANTINE')
+}
+
+export function rejectedForEntity(locations: ApiMasterRow[], entityId: string): string {
+  return systemRoleForEntity(locations, entityId, 'REJECTED')
 }
 
 /** Derive document header entity/location from the first line with a location set. */

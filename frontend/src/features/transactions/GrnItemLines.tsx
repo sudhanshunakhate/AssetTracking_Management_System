@@ -27,6 +27,7 @@ import {
   importGrnLines,
 } from './lineCsvImport'
 import type { ItemKind } from './OpeningStockItemLines'
+import { quarantineForEntity, rejectedForEntity, systemLocations } from './txnLookups'
 
 export type GrnLine = BaseLine & {
   receivedQty: string
@@ -59,6 +60,32 @@ export function emptyGrnLine(): GrnLine {
 
 const DATALIST_ID = 'grn-item-options'
 
+function orgForLocations(locations: ApiMasterRow[], locationId: string) {
+  const loc = locations.find((l) => String(l.id) === String(locationId))
+  if (loc?.orgCode) return String(loc.orgCode)
+  const sys = systemLocations(locations)[0]
+  return sys?.orgCode ? String(sys.orgCode) : ''
+}
+
+function lockedLocationForLine(
+  item: ApiMasterRow | undefined,
+  accepted: number,
+  rejected: number,
+  locations: ApiMasterRow[],
+  currentLoc: string,
+): { locationId: string; locked: boolean } {
+  const org = orgForLocations(locations, currentLoc)
+  if (rejected > 0 && accepted <= 0) {
+    const id = rejectedForEntity(locations, org)
+    return { locationId: id || currentLoc, locked: Boolean(id) }
+  }
+  if (Boolean(item?.inspectionNeeded) && accepted > 0) {
+    const id = quarantineForEntity(locations, org)
+    return { locationId: id || currentLoc, locked: Boolean(id) }
+  }
+  return { locationId: currentLoc, locked: false }
+}
+
 /**
  * GRN Item Details — Item Type drives extra columns:
  * Asset → serial / network fields; each unit line has received 1 with editable accepted / rejected.
@@ -74,7 +101,6 @@ export function GrnItemLines({
   units,
   locations,
   vendors: _vendors,
-  conditionOptions = [],
   storeLocationId,
   locationOptions = [],
   allItems,
@@ -92,7 +118,6 @@ export function GrnItemLines({
   units: ApiMasterRow[]
   locations: ApiMasterRow[]
   vendors?: ApiMasterRow[]
-  conditionOptions?: { value: string; label: string; code?: string }[]
   storeLocationId: string
   locationOptions?: { value: string; label: string }[]
   readOnly?: boolean
@@ -129,11 +154,13 @@ export function GrnItemLines({
   const { loading: stockLoading, lookup } = useStockLookup(onStock)
 
   const buildLine = (item: ApiMasterRow, qty: number): GrnLine => {
-    const location = storeLocationId || String(item.store ?? '')
     const cost = toNum(item.standardCost as number)
+    const accepted = qty
+    const rejected = 0
+    const locked = lockedLocationForLine(item, accepted, rejected, locations, storeLocationId)
     return {
       ...emptyGrnLine(),
-      ...applyItemMaster(item, location),
+      ...applyItemMaster(item, locked.locationId || storeLocationId || String(item.store ?? '')),
       receivedQty: String(qty),
       acceptedQty: String(qty),
       rejectedQty: '0',
@@ -200,6 +227,10 @@ export function GrnItemLines({
       defaultLocationId: storeLocationId,
       activeItemType: itemType,
       docKind: 'grn',
+    }).map((l) => {
+      const item = items.find((i) => i.id === l.itemId)
+      const locked = lockedLocationForLine(item, toNum(l.acceptedQty), toNum(l.rejectedQty), locations, l.locationId)
+      return { ...l, locationId: locked.locationId }
     })
     imported.forEach((l) => {
       if (l.itemId && l.locationId) void lookup(l.key, Number(l.itemId), l.locationId)
@@ -210,43 +241,39 @@ export function GrnItemLines({
     })
   }
 
+  const applyQtyLocation = (line: GrnLine, acceptedQty: string, rejectedQty: string) => {
+    const item = items.find((i) => i.id === line.itemId)
+    const locked = lockedLocationForLine(item, toNum(acceptedQty), toNum(rejectedQty), locations, line.locationId)
+    return { acceptedQty, rejectedQty, locationId: locked.locationId }
+  }
+
   const setReceived = (line: GrnLine, value: string) => {
     if (isAsset) return
     const received = toNum(value)
     const item = items.find((i) => i.id === line.itemId)
     const cost = item ? toNum(item.standardCost as number) : 0
     const accepted = line.acceptedQty === '' ? value : line.acceptedQty
+    const rejected = String(Math.max(received - toNum(accepted), 0))
     patch(line.key, {
       receivedQty: value,
-      acceptedQty: accepted,
-      rejectedQty: String(Math.max(received - toNum(accepted), 0)),
+      ...applyQtyLocation(line, accepted, rejected),
       amount: cost > 0 ? String(received * cost) : line.amount,
     })
   }
 
   const setAccepted = (line: GrnLine, value: string) => {
-    if (isAsset) {
-      patch(line.key, {
-        acceptedQty: value,
-        rejectedQty: String(Math.max(toNum(line.receivedQty) - toNum(value), 0)),
-      })
-      return
-    }
-    patch(line.key, {
-      acceptedQty: value,
-      rejectedQty: String(Math.max(toNum(line.receivedQty) - toNum(value), 0)),
-    })
+    const rejected = String(Math.max(toNum(line.receivedQty) - toNum(value), 0))
+    const locPatch = applyQtyLocation(line, value, rejected)
+    patch(line.key, locPatch)
   }
 
   const setRejected = (line: GrnLine, value: string) => {
     if (isAsset) {
-      patch(line.key, {
-        rejectedQty: value,
-        acceptedQty: String(Math.max(toNum(line.receivedQty) - toNum(value), 0)),
-      })
+      const accepted = String(Math.max(toNum(line.receivedQty) - toNum(value), 0))
+      patch(line.key, applyQtyLocation(line, accepted, value))
       return
     }
-    patch(line.key, { rejectedQty: value })
+    patch(line.key, applyQtyLocation(line, line.acceptedQty, value))
   }
 
   const removeLine = (key: string) =>
@@ -257,7 +284,7 @@ export function GrnItemLines({
 
   const filled = lines.filter((l) => l.itemId !== '')
   const totalAmount = filled.reduce((sum, l) => sum + toNum(l.amount), 0)
-  const typeColSpan = isAsset ? 5 : 1
+  const typeColSpan = isAsset ? 4 : 1
   const emptyColSpan = 4 + typeColSpan + 7
 
   return (
@@ -351,7 +378,6 @@ export function GrnItemLines({
                     <th className={`${gridHeadCell} w-[120px]`}>IP Address</th>
                     <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
                     <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
-                    <th className={`${gridHeadCell} w-[120px]`}>Condition</th>
                   </>
                 ) : (
                   <th className={`${gridHeadCell} w-[110px]`}>Batch / Lot</th>
@@ -386,6 +412,27 @@ export function GrnItemLines({
                     line.itemId !== '' &&
                     received > 0 &&
                     Math.abs(split - received) > 0.0001
+                  const item = items.find((i) => i.id === line.itemId)
+                  const locLock = lockedLocationForLine(
+                    item,
+                    toNum(line.acceptedQty),
+                    toNum(line.rejectedQty),
+                    locations,
+                    line.locationId,
+                  )
+                  const locOptions =
+                    locLock.locationId && !locationOptions.some((o) => o.value === locLock.locationId)
+                      ? [
+                          ...locationOptions,
+                          {
+                            value: locLock.locationId,
+                            label:
+                              locations.find((l) => l.id === locLock.locationId)
+                                ? `${locations.find((l) => l.id === locLock.locationId)?.code} – ${locations.find((l) => l.id === locLock.locationId)?.name}`
+                                : locLock.locationId,
+                          },
+                        ]
+                      : locationOptions
                   return (
                     <tr key={line.key} className="border-b border-[var(--border)] align-middle">
                       <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
@@ -442,21 +489,6 @@ export function GrnItemLines({
                               placeholder="host.local"
                               className={gridInput}
                             />
-                          </td>
-                          <td className={gridCell}>
-                            <Select
-                              value={line.itemCondition}
-                              onChange={(e) => patch(line.key, { itemCondition: e.target.value })}
-                              disabled={linesLocked}
-                              className={gridInput}
-                            >
-                              <option value="">— Select —</option>
-                              {conditionOptions.map((c) => (
-                                <option key={c.code ?? c.value} value={c.value}>
-                                  {c.label}
-                                </option>
-                              ))}
-                            </Select>
                           </td>
                         </>
                       ) : (
@@ -525,14 +557,14 @@ export function GrnItemLines({
                       </td>
                       <td className={gridCell}>
                         <Select
-                          value={line.locationId}
+                          value={locLock.locationId || line.locationId}
                           onChange={(e) => onLocationChange(line, e.target.value)}
-                          disabled={linesLocked}
+                          disabled={linesLocked || locLock.locked}
                           invalid={showLineErrors && locationMissing}
                           className={gridInput}
                         >
                           <option value="">— Select —</option>
-                          {locationOptions.map((o) => (
+                          {locOptions.map((o) => (
                             <option key={o.value} value={o.value}>
                               {o.label}
                             </option>

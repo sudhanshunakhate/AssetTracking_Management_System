@@ -209,7 +209,7 @@ public class TxnDocumentService {
      */
     public AllottedItemsResponse listAllottedItems(Integer employeeId) {
         if (employeeId == null) {
-            return new AllottedItemsResponse(List.of());
+            return new AllottedItemsResponse(List.of(), List.of());
         }
 
         Map<Integer, BigDecimal> net = new HashMap<>();
@@ -292,7 +292,23 @@ public class TxnDocumentService {
 
         List<Integer> ids = new ArrayList<>(allotted);
         ids.sort(Integer::compareTo);
-        return new AllottedItemsResponse(ids);
+
+        List<AllottedUnit> units = new ArrayList<>();
+        for (InvBlsMst bls : blsService.listUnitsIssuedTo(employeeId)) {
+            Integer itemId = bls.getIbmItemIdItm();
+            if (itemId == null || !allotted.contains(itemId)) {
+                continue;
+            }
+            units.add(new AllottedUnit(
+                    itemId,
+                    bls.getIbmSerialNo(),
+                    bls.getIbmIpAddress(),
+                    bls.getIbmMacAddress(),
+                    bls.getIbmHostname(),
+                    bls.getIbmBatchNo()
+            ));
+        }
+        return new AllottedItemsResponse(ids, units);
     }
 
     @Transactional
