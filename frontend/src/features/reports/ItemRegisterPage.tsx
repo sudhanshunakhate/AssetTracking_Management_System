@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
@@ -18,6 +18,7 @@ type LedgerRow = {
   itemCode: string
   itemName: string
   docType: string
+  txnType: string
   docNo: string
   batch: string
   uom: string
@@ -42,9 +43,11 @@ const qtyCell = (v: string | number | null | undefined) => {
 
 export function ItemRegisterPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const presetItem = searchParams.get('itemId') ?? ''
   const { seesAllLocations } = useAuth()
-  const [draft, setDraft] = useState(emptyFilters)
-  const [applied, setApplied] = useState(emptyFilters)
+  const [draft, setDraft] = useState({ ...emptyFilters, itemId: presetItem })
+  const [applied, setApplied] = useState({ ...emptyFilters, itemId: presetItem })
   const set = (k: keyof typeof emptyFilters, v: string) => setDraft((prev) => ({ ...prev, [k]: v }))
   const [rows, setRows] = useState<LedgerRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -54,6 +57,7 @@ export function ItemRegisterPage() {
   const mapLoc = useCallback(mapLocation, [])
   const { rows: items } = useMasterList('items', mapItm)
   const { rows: stores } = useMasterList('locations', mapLoc)
+  const storeById = useMemo(() => Object.fromEntries(stores.map((s) => [s.id, s])), [stores])
 
   const showItemCols = !applied.itemId
 
@@ -70,21 +74,30 @@ export function ItemRegisterPage() {
         toDate: applied.to || undefined,
       })
       setRows(
-        (page.data ?? []).map((r, idx) => ({
+        (page.data ?? []).map((r, idx) => {
+          const locId = String(r.locationId ?? '')
+          const locName =
+            storeById[locId]?.name ||
+            String(r.locationName ?? '').trim() ||
+            String(r.locationCode ?? '').trim() ||
+            '—'
+          return {
           id: String(r.id ?? `${r.docNo}-${r.itemId}-${idx}`),
           docId: String(r.docId ?? ''),
           date: String(r.date ?? ''),
           itemCode: String(r.itemCode ?? ''),
           itemName: String(r.itemName ?? ''),
           docType: String(r.docType ?? ''),
+          txnType: String(r.txnType ?? r.docType ?? ''),
           docNo: String(r.docNo ?? ''),
           batch: String(r.batch ?? '').trim() || '—',
           uom: String(r.uomCode ?? '—'),
-          location: String(r.locationCode ?? '—'),
+          location: locName,
           receipt: qtyCell(r.receipt as string | number | null),
           issue: qtyCell(r.issue as string | number | null),
           balance: Number(r.balance ?? 0),
-        })),
+          }
+        }),
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load item ledger')
@@ -92,7 +105,7 @@ export function ItemRegisterPage() {
     } finally {
       setLoading(false)
     }
-  }, [applied])
+  }, [applied, storeById])
 
   useEffect(() => {
     void reload()
@@ -227,7 +240,7 @@ export function ItemRegisterPage() {
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const detailPath = txnDetailPath(r.docType, r.docId)
+                  const detailPath = txnDetailPath(r.txnType || r.docType, r.docId)
                   const rowClass = detailPath
                     ? 'cursor-pointer hover:bg-[#f0f5ff]'
                     : 'hover:bg-[#f0f5ff]'

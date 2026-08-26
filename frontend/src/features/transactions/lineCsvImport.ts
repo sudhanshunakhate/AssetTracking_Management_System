@@ -13,7 +13,6 @@ export const LINE_IMPORT_HEADERS = [
   'ipAddress',
   'macAddress',
   'hostname',
-  'itemCondition',
   'receivedQty',
   'acceptedQty',
   'rejectedQty',
@@ -34,7 +33,6 @@ export const LINE_IMPORT_SAMPLE = [
   '192.168.0.10',
   'AA-BB-CC-DD-EE-FF',
   'laptop01',
-  'Good',
   '',
   '',
   '',
@@ -52,7 +50,7 @@ export const OST_ASSET_IMPORT_HEADERS = [
   'itemType*',
   'locationCode*',
   'serialNo*',
-  'custodyEmployeeCode*',
+  'custodyEmployeeCode',
   'ipAddress',
   'macAddress',
   'hostname',
@@ -299,8 +297,11 @@ export function importOpeningStockLines(
       if (kind === 'asset') {
         if (!line.serialNo.trim()) throw new Error('serialNo is required for asset lines')
         const custody = csvVal(row, 'custodyemployeecode', 'custody', 'employee', 'issuedto')
-        if (!custody) throw new Error('custodyEmployeeCode is required for asset lines')
-        line.issuedToEmpId = resolveEmployeeId(ctx.employees, custody)
+        const issued = line.itemCondition.trim().toLowerCase().startsWith('issued')
+        if (issued && !custody) {
+          throw new Error('custodyEmployeeCode is required when itemCondition is Issued')
+        }
+        if (custody) line.issuedToEmpId = resolveEmployeeId(ctx.employees, custody)
         line.qty = '1'
       } else {
         const qty = toNum(csvVal(row, 'qty', 'receivedqty') || '0')

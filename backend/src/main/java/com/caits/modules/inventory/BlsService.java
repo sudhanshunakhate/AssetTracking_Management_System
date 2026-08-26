@@ -156,6 +156,24 @@ public class BlsService {
         applyIssuedTo(bls, docType, line.issuedToEmpId(), headerIssuedToEmpId);
     }
 
+    @Transactional
+    public void patchUnitIdentity(Integer blsId, String serial, String ip, String mac, String hostname) {
+        if (blsId == null) {
+            return;
+        }
+        blsRepo.findById(blsId).ifPresent(bls -> {
+            if (!Boolean.TRUE.equals(bls.getIbmIsDummy()) && blankToNull(serial) != null) {
+                bls.setIbmSerialNo(serial.trim());
+            }
+            if (blankToNull(ip) != null) bls.setIbmIpAddress(ip.trim());
+            if (blankToNull(mac) != null) bls.setIbmMacAddress(mac.trim());
+            if (blankToNull(hostname) != null) bls.setIbmHostname(hostname.trim());
+            bls.setIbmModifiedBy(SecurityUtils.loginIdOrSystem());
+            bls.setIbmModifiedOn(LocalDateTime.now());
+            blsRepo.save(bls);
+        });
+    }
+
     /** Serial/batch units only — shared dummy BLS is never tied to one employee. */
     private static void applyIssuedTo(InvBlsMst bls, DocType docType, Integer lineIssuedTo, Integer headerIssuedTo) {
         if (Boolean.TRUE.equals(bls.getIbmIsDummy())) {

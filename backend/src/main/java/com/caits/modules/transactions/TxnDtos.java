@@ -32,7 +32,8 @@ public final class TxnDtos {
             String macAddress,
             String hostname,
             Integer issuedToEmpId,
-            String remark
+            String remark,
+            Integer detailId
     ) {}
 
     public record DocumentRequest(

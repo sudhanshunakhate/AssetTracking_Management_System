@@ -458,9 +458,15 @@ export function ReturnsPages() {
           })
         }}
         onSave={async (id, values, action = 'SUBMIT') => {
+          const itemType = String(values.itemType ?? '')
+          if (itemType !== 'consumable' && !String(values.serialNo ?? '').trim()) {
+            throw new Error('Serial No. is required when returning an asset')
+          }
+          const emp = employees.rows.find((e) => e.id === String(values.returnedBy ?? ''))
           const body: DocumentRequest = {
             docDate: String(values.date || todayIso()),
             locationId: numOrUndef(values.store),
+            fromLocationId: numOrUndef(emp?.baseStore),
             initiatedByEmpId: numOrUndef(values.returnedBy),
             remarks: String(values.remarks ?? ''),
             ...attachmentPayload(String(values.attachmentUrl ?? ''), String(values.attachmentName ?? '')),

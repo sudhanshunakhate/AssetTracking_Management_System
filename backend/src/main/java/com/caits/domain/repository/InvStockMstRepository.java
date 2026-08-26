@@ -83,7 +83,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
 
     /** [0]=store label, [1]=sum qty */
     @Query(value = """
-            SELECT COALESCE(l.loc_location_code, l.loc_location_name, CAST(s.stk_location_id_loc AS text)),
+            SELECT COALESCE(l.loc_location_name, l.loc_location_code, CAST(s.stk_location_id_loc AS text)),
                    COALESCE(SUM(s.stk_current_qty), 0)
             FROM caits_local.inv_stock_mst s
             LEFT JOIN caits_local.org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
@@ -94,7 +94,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     List<Object[]> stockQtyByStoreAll();
 
     @Query(value = """
-            SELECT COALESCE(l.loc_location_code, l.loc_location_name, CAST(s.stk_location_id_loc AS text)),
+            SELECT COALESCE(l.loc_location_name, l.loc_location_code, CAST(s.stk_location_id_loc AS text)),
                    COALESCE(SUM(s.stk_current_qty), 0)
             FROM caits_local.inv_stock_mst s
             LEFT JOIN caits_local.org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
@@ -112,7 +112,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     @Query(value = """
             SELECT s.stk_stock_id, s.stk_item_id_itm,
                    COALESCE(i.itm_item_code, ''), COALESCE(i.itm_item_name, ''),
-                   COALESCE(l.loc_location_code, l.loc_location_name, '—'),
+                   COALESCE(l.loc_location_name, l.loc_location_code, '—'),
                    COALESCE(s.stk_current_qty, 0), s.stk_reorder_level
             FROM caits_local.inv_stock_mst s
             LEFT JOIN caits_local.inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
@@ -131,7 +131,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     @Query(value = """
             SELECT s.stk_stock_id, s.stk_item_id_itm,
                    COALESCE(i.itm_item_code, ''), COALESCE(i.itm_item_name, ''),
-                   COALESCE(l.loc_location_code, l.loc_location_name, '—'),
+                   COALESCE(l.loc_location_name, l.loc_location_code, '—'),
                    COALESCE(s.stk_current_qty, 0), s.stk_reorder_level
             FROM caits_local.inv_stock_mst s
             LEFT JOIN caits_local.inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
@@ -153,7 +153,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     @Query(value = """
             SELECT s.stk_stock_id, s.stk_item_id_itm,
                    COALESCE(i.itm_item_code, ''), COALESCE(i.itm_item_name, ''),
-                   COALESCE(l.loc_location_code, l.loc_location_name, '—'),
+                   COALESCE(l.loc_location_name, l.loc_location_code, '—'),
                    COALESCE(s.stk_current_qty, 0), s.stk_reorder_level
             FROM caits_local.inv_stock_mst s
             LEFT JOIN caits_local.inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
@@ -167,7 +167,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     @Query(value = """
             SELECT s.stk_stock_id, s.stk_item_id_itm,
                    COALESCE(i.itm_item_code, ''), COALESCE(i.itm_item_name, ''),
-                   COALESCE(l.loc_location_code, l.loc_location_name, '—'),
+                   COALESCE(l.loc_location_name, l.loc_location_code, '—'),
                    COALESCE(s.stk_current_qty, 0), s.stk_reorder_level
             FROM caits_local.inv_stock_mst s
             LEFT JOIN caits_local.inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm

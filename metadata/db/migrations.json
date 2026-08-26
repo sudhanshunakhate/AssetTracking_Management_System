@@ -364,6 +364,24 @@
                                            "local":  "2026-08-26",
                                            "dev":  "2026-08-26"
                                        }
+                       },
+                       {
+                           "id":  "040-repair-same-loc-issue-stock",
+                           "file":  "db_approach/040_repair_same_loc_issue_stock.sql",
+                           "description":  "Restore on-hand qty for assets issued at the same store after a bug depleted stock while BLS still showed issued-to.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-26"
+                                       }
+                       },
+                       {
+                           "id":  "041-repair-negative-ledger-opening",
+                           "file":  "db_approach/041_repair_negative_ledger_opening.sql",
+                           "description":  "Restore zeroed issued/Acer stock and add recon batches so Stock Ledger Opening is non-negative.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-26"
+                                       }
                        }
                    ],
     "updated":  "2026-08-26"

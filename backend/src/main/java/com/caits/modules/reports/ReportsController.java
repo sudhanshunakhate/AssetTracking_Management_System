@@ -144,11 +144,19 @@ public class ReportsController {
         Map<Integer, InvItemMst> items = itemMap();
         Map<Integer, String> uomCodes = unitCodeMap();
         Map<Integer, HrcEmployeeMst> employees = employeeMap();
+        Map<Integer, OrgLocationMst> locations = locationMap();
         Map<String, IssueCustody> lastIssue = latestIssueCustodyByItemLocation();
         Map<Integer, Integer> blsOwnerByItem = blsOwnerByItem();
-        // Receipt / issue always come from posted transactions — not stk_inward_qty / stk_issued_qty on buckets
-        // (those lifetime counters double-count across serial/batch rows and mix in non-movement postings).
+        Map<Integer, List<Map<String, Object>>> unitsByItem =
+                stockLedgerUnitsByItem(locFilter, employees, locations, stocks);
+        // Period movements (from–to). Baseline anchors so Opening/Closing stay consistent with live stock
+        // even when historical docs and posting rules don't fully line up.
         Map<String, PeriodQty> period = periodReceiptIssue(fromDate, toDate, locFilter);
+        Map<String, PeriodQty> throughTo = toDate == null
+                ? periodReceiptIssue(null, null, locFilter)
+                : periodReceiptIssue(null, toDate, locFilter);
+        Map<String, PeriodQty> allTime = periodReceiptIssue(null, null, locFilter);
+        boolean unitsMatchClosing = toDate == null || !toDate.isBefore(LocalDate.now());
 
         // Aggregate stock by item (sum across matching locations) for ledger rows.
         Map<Integer, StockLedgerAgg> byItem = new LinkedHashMap<>();
@@ -177,24 +185,23 @@ public class ReportsController {
         int sr = 1;
         for (StockLedgerAgg agg : byItem.values()) {
             Integer itemId = agg.item.getItmItemId();
-            BigDecimal closing = agg.closing;
+            BigDecimal liveClosing = agg.closing;
 
-            PeriodQty pq = PeriodQty.ZERO;
-            for (Integer locId : agg.locationIds) {
-                pq = pq.add(period.getOrDefault(periodKey(itemId, locId), PeriodQty.ZERO));
-            }
-            pq = pq.add(period.getOrDefault(periodKey(itemId, null), PeriodQty.ZERO));
+            PeriodQty pq = sumPeriodForItem(period, itemId, agg.locationIds);
+            PeriodQty toDateNet = sumPeriodForItem(throughTo, itemId, agg.locationIds);
+            PeriodQty lifeNet = sumPeriodForItem(allTime, itemId, agg.locationIds);
 
+            // Undocumented / rule-drift stock so that as-of-today closing == live.
+            BigDecimal baseline = liveClosing.subtract(lifeNet.receipt).add(lifeNet.issue);
+            BigDecimal closing = baseline.add(toDateNet.receipt).subtract(toDateNet.issue);
             BigDecimal receipt = pq.receipt;
             BigDecimal issue = pq.issue;
             BigDecimal opening = closing.subtract(receipt).add(issue);
-            if (opening.compareTo(BigDecimal.ZERO) < 0) {
-                opening = BigDecimal.ZERO;
-            }
 
             if (closing.compareTo(BigDecimal.ZERO) == 0
                     && receipt.compareTo(BigDecimal.ZERO) == 0
-                    && issue.compareTo(BigDecimal.ZERO) == 0) {
+                    && issue.compareTo(BigDecimal.ZERO) == 0
+                    && opening.compareTo(BigDecimal.ZERO) == 0) {
                 continue;
             }
 
@@ -219,6 +226,7 @@ public class ReportsController {
             row.put("itemId", itemId);
             row.put("itemCode", agg.item.getItmItemCode());
             row.put("itemName", agg.item.getItmItemName());
+            row.put("itemType", agg.item.getItmItemType());
             row.put("uomId", agg.uomId);
             row.put("uomCode", agg.uomId == null ? null : uomCodes.get(agg.uomId));
             row.put("openingBalance", opening);
@@ -226,6 +234,9 @@ public class ReportsController {
             row.put("issueDuringPeriod", issue);
             row.put("closingBalance", closing);
             row.put("ownerName", ownerName);
+            // Unit serials are always live on-hand — only attach when Closing is also live.
+            row.put("units", unitsMatchClosing ? unitsByItem.getOrDefault(itemId, List.of()) : List.of());
+            row.put("unitsAsOf", unitsMatchClosing ? "LIVE" : "OMITTED_HISTORICAL");
             rows.add(row);
         }
 
@@ -281,9 +292,9 @@ public class ReportsController {
             Integer blsEmp = blsIssuedTo.get(bucketKey);
             if (blsEmp != null) {
                 if (issued == null) {
-                    issued = new IssueCustody(blsEmp, null, null);
+                    issued = new IssueCustody(blsEmp, null, null, null);
                 } else if (issued.empId == null) {
-                    issued = new IssueCustody(blsEmp, issued.docNo, issued.docDate);
+                    issued = new IssueCustody(blsEmp, issued.docNo, issued.docDate, issued.docId);
                 }
             }
 
@@ -340,6 +351,7 @@ public class ReportsController {
             row.put("custodianDept", custodian == null ? null : deptNames.get(custodian.getEmpDepartmentIdDept()));
             row.put("custodianDesignation", custodian == null ? null : custodian.getEmpDesignation());
             row.put("lastIssueDocNo", issued == null ? null : issued.docNo);
+            row.put("lastIssueDocId", issued == null ? null : issued.docId);
             row.put("lastIssueDate", issued == null ? null : issued.docDate);
             row.put("lastTxnDate", s.getStkLastTransactionDate());
             row.put("status", stockStatus(current, nz(s.getStkReorderLevel())));
@@ -403,6 +415,7 @@ public class ReportsController {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (TxnHeaderMst h : headers) {
             if (!isMovementEligibleStatus(h.getTxhStatus())) continue;
+            if (isGatepassLinkedToTransfer(h)) continue;
             String dir = movementDirection(h.getTxhDocType());
             if (direction != null && !direction.isBlank() && !direction.equalsIgnoreCase(dir)) continue;
 
@@ -504,8 +517,8 @@ public class ReportsController {
                 row.put("itemName", assetName);
                 row.put("fromLocation", fromLabel);
                 row.put("toLocation", toLabel);
-                row.put("fromStore", from == null ? null : from.getLocLocationCode());
-                row.put("toStore", to == null ? null : to.getLocLocationCode());
+                row.put("fromStore", fromLabel);
+                row.put("toStore", toLabel);
                 row.put("fromLocationId", lineFrom);
                 row.put("toLocationId", lineTo);
                 row.put("fromDept", fromDept);
@@ -599,6 +612,7 @@ public class ReportsController {
         List<LedgerEvent> events = new ArrayList<>();
         for (TxnHeaderMst h : headers) {
             if (!isLedgerEligibleStatus(h)) continue;
+            if (isGatepassLinkedToTransfer(h)) continue;
 
             List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
@@ -644,11 +658,13 @@ public class ReportsController {
             row.put("itemCode", e.itemCode);
             row.put("itemName", e.itemName);
             row.put("docType", e.docType);
+            row.put("txnType", e.txnType);
             row.put("docNo", e.docNo);
             row.put("batch", e.batch);
             row.put("uomCode", e.uomCode);
             row.put("locationId", e.locationId);
             row.put("locationCode", e.locationCode);
+            row.put("locationName", e.locationName);
             row.put("receipt", e.receipt.compareTo(BigDecimal.ZERO) == 0 ? null : e.receipt);
             row.put("issue", e.issue.compareTo(BigDecimal.ZERO) == 0 ? null : e.issue);
             row.put("balance", bal);
@@ -722,7 +738,7 @@ public class ReportsController {
             row.put("isConsumable", Boolean.TRUE.equals(item.getItmIsConsumable()));
             row.put("standardCost", item.getItmStandardCost());
             row.put("currentLocationId", item.getItmCurrentLocationIdLoc());
-            row.put("currentStore", curLoc == null ? null : curLoc.getLocLocationCode());
+            row.put("currentStore", locLabel(curLoc));
             row.put("totalStockQty", agg.qty);
             row.put("totalStockValue", agg.value);
             row.put("storeCount", agg.storeCount);
@@ -1056,16 +1072,18 @@ public class ReportsController {
             if (locationFilter != null) {
                 if (Objects.equals(locationFilter, header.getTxhToLocationIdLoc())) {
                     addLedgerReceipt(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
-                            header.getTxhToLocationIdLoc(), locations, null, 0);
+                            header.getTxhToLocationIdLoc(), locations, "in", 2);
                 } else if (Objects.equals(locationFilter, header.getTxhFromLocationIdLoc())) {
                     addLedgerIssue(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
-                            header.getTxhFromLocationIdLoc(), locations, null, 0);
+                            header.getTxhFromLocationIdLoc(), locations, "out", 1);
                 }
             } else {
                 addLedgerIssue(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
-                        header.getTxhFromLocationIdLoc(), locations, null, 0);
+                        header.getTxhFromLocationIdLoc(), locations, "out", 1);
+                addLedgerReceipt(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                        header.getTxhToLocationIdLoc(), locations, "in", 2);
             }
-            return events;
+            return filterLedgerEventsByLocation(events, locationFilter);
         }
 
         List<LedgerEvent> events = new ArrayList<>();
@@ -1115,11 +1133,13 @@ public class ReportsController {
                 item.getItmItemCode(),
                 item.getItmItemName(),
                 docTypeLabel,
+                header.getTxhDocType(),
                 header.getTxhDocNo(),
                 batch,
                 uomCode,
                 locationId,
                 ledgerLocationCode(locations, locationId),
+                ledgerLocationName(locations, locationId),
                 qty,
                 BigDecimal.ZERO
         ));
@@ -1152,11 +1172,13 @@ public class ReportsController {
                 item.getItmItemCode(),
                 item.getItmItemName(),
                 docTypeLabel,
+                header.getTxhDocType(),
                 header.getTxhDocNo(),
                 batch,
                 uomCode,
                 locationId,
                 ledgerLocationCode(locations, locationId),
+                ledgerLocationName(locations, locationId),
                 BigDecimal.ZERO,
                 qty
         ));
@@ -1177,6 +1199,21 @@ public class ReportsController {
         }
         OrgLocationMst loc = locations.get(locationId);
         return loc == null ? null : loc.getLocLocationCode();
+    }
+
+    private static String ledgerLocationName(Map<Integer, OrgLocationMst> locations, Integer locationId) {
+        if (locationId == null) {
+            return null;
+        }
+        OrgLocationMst loc = locations.get(locationId);
+        if (loc == null) {
+            return null;
+        }
+        String name = loc.getLocLocationName();
+        if (name != null && !name.isBlank()) {
+            return name.trim();
+        }
+        return loc.getLocLocationCode();
     }
 
     private static String ledgerBalanceKey(Integer itemId, Integer locationFilter) {
@@ -1218,17 +1255,58 @@ public class ReportsController {
         }, PageRequest.of(0, 2000, Sort.by(Sort.Direction.ASC, "txhDocDate", "txhTxnHeaderId"))).getContent();
 
         Map<String, PeriodQty> map = new HashMap<>();
+        Map<Integer, InvItemMst> items = itemMap();
         Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
                 headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
         for (TxnHeaderMst h : headers) {
             if (!isMovementEligibleStatus(h.getTxhStatus())) continue;
+            if (isGatepassLinkedToTransfer(h)) continue;
             String docType = h.getTxhDocType();
-            if ("MATERIAL_TRANSFER".equals(docType)) continue;
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+
+            if ("MATERIAL_TRANSFER".equals(docType) || "MATERIAL_ISSUE".equals(docType)) {
+                for (TxnDetailDtl d : lines) {
+                    if (d.getTxdItemIdItm() == null) continue;
+                    BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
+                    Integer fromLoc = h.getTxhFromLocationIdLoc() != null
+                            ? h.getTxhFromLocationIdLoc()
+                            : h.getTxhLocationIdLoc();
+                    if (fromLoc == null && d.getTxdLocationIdLoc() != null) {
+                        fromLoc = d.getTxdLocationIdLoc();
+                    }
+                    Integer toLoc = h.getTxhToLocationIdLoc();
+                    boolean moved = toLoc != null && fromLoc != null && !toLoc.equals(fromLoc);
+                    if ("MATERIAL_ISSUE".equals(docType) && !moved) {
+                        // Asset same-store issue is custody-only (no on-hand change). Consumables leave stock.
+                        InvItemMst item = items.get(d.getTxdItemIdItm());
+                        boolean asset = item != null
+                                && item.getItmItemType() != null
+                                && !"consumable".equalsIgnoreCase(item.getItmItemType());
+                        if (asset) {
+                            continue;
+                        }
+                        if (fromLoc != null) {
+                            PeriodQty fromPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), fromLoc), k -> new PeriodQty());
+                            fromPq.issue = fromPq.issue.add(qty);
+                        }
+                        continue;
+                    }
+                    if (fromLoc != null) {
+                        PeriodQty fromPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), fromLoc), k -> new PeriodQty());
+                        fromPq.issue = fromPq.issue.add(qty);
+                    }
+                    if (toLoc != null) {
+                        PeriodQty toPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), toLoc), k -> new PeriodQty());
+                        toPq.receipt = toPq.receipt.add(qty);
+                    }
+                }
+                continue;
+            }
+
             boolean receipt = RECEIPT_DOC_TYPES.contains(docType);
             boolean issue = ISSUE_DOC_TYPES.contains(docType);
             if (!receipt && !issue) continue;
 
-            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 if (d.getTxdItemIdItm() == null) continue;
                 BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
@@ -1244,6 +1322,82 @@ public class ReportsController {
             }
         }
         return map;
+    }
+
+    /**
+     * Per-item unit breakdown for Stock Ledger expanders.
+     * One row per on-hand stock bucket (qty &gt; 0), enriched from BLS when present —
+     * so unit count / serials align with Closing, including Rejected / Quarantine / Damaged.
+     */
+    private Map<Integer, List<Map<String, Object>>> stockLedgerUnitsByItem(
+            List<Integer> locFilter,
+            Map<Integer, HrcEmployeeMst> employees,
+            Map<Integer, OrgLocationMst> locations,
+            List<InvStockMst> stocks
+    ) {
+        Map<String, InvBlsMst> blsByBucket = new HashMap<>();
+        Map<String, InvBlsMst> blsByItemSerial = new HashMap<>();
+        for (InvBlsMst bls : blsRepo.findByIbmIsDummyFalseAndIbmIsactiveTrue()) {
+            Integer itemId = bls.getIbmItemIdItm();
+            if (itemId == null) continue;
+            Integer locId = bls.getIbmCurrentLocationIdLoc();
+            String batchKey = firstNonBlank(bls.getIbmSerialNo(), bls.getIbmBatchNo(), bls.getIbmLotNo());
+            if (locId != null) {
+                blsByBucket.putIfAbsent(stockCustodyKey(itemId, locId, batchKey), bls);
+            }
+            if (batchKey != null && !batchKey.isBlank()) {
+                blsByItemSerial.putIfAbsent(itemId + "|" + batchKey.trim().toUpperCase(), bls);
+            }
+        }
+
+        Map<Integer, List<Map<String, Object>>> byItem = new HashMap<>();
+        for (InvStockMst s : stocks) {
+            Integer itemId = s.getStkItemIdItm();
+            Integer locId = s.getStkLocationIdLoc();
+            if (itemId == null || locId == null) continue;
+            if (locFilter != null) {
+                if (locFilter.isEmpty()) continue;
+                if (!locFilter.contains(locId)) continue;
+            }
+            BigDecimal onHand = nz(s.getStkCurrentQty());
+            if (onHand.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            String batch = s.getStkBatchLotNo();
+            String bucketKey = stockCustodyKey(itemId, locId, batch);
+            InvBlsMst bls = blsByBucket.get(bucketKey);
+            if (bls == null && batch != null && !batch.isBlank()) {
+                bls = blsByItemSerial.get(itemId + "|" + batch.trim().toUpperCase());
+            }
+
+            OrgLocationMst loc = locations.get(locId);
+            Integer custodianEmpId = bls == null ? null : bls.getIbmIssuedToEmpIdEmp();
+            HrcEmployeeMst custodian = custodianEmpId == null ? null : employees.get(custodianEmpId);
+
+            Map<String, Object> unit = new LinkedHashMap<>();
+            unit.put("blsId", bls == null ? null : bls.getIbmBlsId());
+            unit.put("serialNo", firstNonBlank(bls == null ? null : bls.getIbmSerialNo(), batch));
+            unit.put("batchLotNo", bls == null
+                    ? batch
+                    : firstNonBlank(bls.getIbmBatchNo(), bls.getIbmLotNo(), batch));
+            unit.put("ipAddress", bls == null ? null : bls.getIbmIpAddress());
+            unit.put("macAddress", bls == null ? null : bls.getIbmMacAddress());
+            unit.put("hostname", bls == null ? null : bls.getIbmHostname());
+            unit.put("itemCondition", bls == null ? null : bls.getIbmItemCondition());
+            unit.put("qty", onHand);
+            unit.put("locationId", locId);
+            unit.put("locationCode", loc == null ? null : loc.getLocLocationCode());
+            unit.put("locationName", loc == null ? null : loc.getLocLocationName());
+            unit.put("custodianEmpId", custodianEmpId);
+            unit.put("custodian", empLabel(custodian));
+            unit.put("custodyMode", custodianEmpId != null ? "ISSUED_TO" : "IN_STORE");
+            byItem.computeIfAbsent(itemId, id -> new ArrayList<>()).add(unit);
+        }
+        for (List<Map<String, Object>> units : byItem.values()) {
+            units.sort(Comparator
+                    .comparing((Map<String, Object> u) -> String.valueOf(u.getOrDefault("serialNo", "")), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(u -> String.valueOf(u.getOrDefault("locationCode", "")), String.CASE_INSENSITIVE_ORDER));
+        }
+        return byItem;
     }
 
     private Map<Integer, Integer> blsOwnerByItem() {
@@ -1312,7 +1466,7 @@ public class ReportsController {
                 if (d.getTxdItemIdItm() == null) continue;
                 Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
                 String key = custodyKey(d.getTxdItemIdItm(), locId);
-                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate()));
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId()));
             }
         }
         return latest;
@@ -1344,7 +1498,7 @@ public class ReportsController {
                 Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
                 String batch = firstNonBlank(d.getTxdSerialNo(), d.getTxdBatchLotNo());
                 String key = stockCustodyKey(d.getTxdItemIdItm(), locId, batch);
-                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate()));
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId()));
             }
         }
         return latest;
@@ -1385,6 +1539,24 @@ public class ReportsController {
         return itemId + "|" + locationId;
     }
 
+    private static PeriodQty sumPeriodForItem(
+            Map<String, PeriodQty> period,
+            Integer itemId,
+            Set<Integer> locationIds
+    ) {
+        if (period == null || period.isEmpty() || itemId == null) {
+            return PeriodQty.ZERO;
+        }
+        PeriodQty pq = PeriodQty.ZERO;
+        if (locationIds != null) {
+            for (Integer locId : locationIds) {
+                pq = pq.add(period.getOrDefault(periodKey(itemId, locId), PeriodQty.ZERO));
+            }
+        }
+        pq = pq.add(period.getOrDefault(periodKey(itemId, null), PeriodQty.ZERO));
+        return pq;
+    }
+
     private static String periodKey(Integer itemId, Integer locationId) {
         return itemId + "|" + (locationId == null ? "_" : locationId);
     }
@@ -1420,8 +1592,26 @@ public class ReportsController {
     private static boolean isMovementEligibleStatus(String status) {
         if (status == null || status.isBlank()) return true;
         String s = status.toLowerCase();
+        // Stock already moved on transfer while waiting for outward gatepass.
+        if (s.contains("pending for outward")) {
+            return true;
+        }
         return !s.contains("draft") && !s.contains("reject") && !s.contains("cancel")
                 && !s.contains("pending") && !s.equals("in pending");
+    }
+
+    /** Outward linked to a transfer is gate paperwork — stock already moved on the transfer. */
+    private boolean isGatepassLinkedToTransfer(TxnHeaderMst header) {
+        if (header == null || !"GATEPASS_OUTWARD".equals(header.getTxhDocType())) {
+            return false;
+        }
+        Integer refId = header.getTxhRefTxnHeaderIdTxh();
+        if (refId == null) {
+            return false;
+        }
+        return headerRepo.findById(refId)
+                .map(t -> "MATERIAL_TRANSFER".equals(t.getTxhDocType()))
+                .orElse(false);
     }
 
     private static boolean matchesItemSearch(InvItemMst item, String search) {
@@ -1450,10 +1640,9 @@ public class ReportsController {
 
     private static String locLabel(OrgLocationMst loc) {
         if (loc == null) return null;
-        String code = loc.getLocLocationCode();
         String name = loc.getLocLocationName();
-        if (code != null && name != null) return code + " – " + name;
-        return name != null ? name : code;
+        if (name != null && !name.isBlank()) return name.trim();
+        return loc.getLocLocationCode();
     }
 
     private static String custodianArrow(HrcEmployeeMst from, HrcEmployeeMst to) {
@@ -1495,7 +1684,7 @@ public class ReportsController {
         return PageResponse.of(p, size, rows.size(), rows.subList(from, to));
     }
 
-    private record IssueCustody(Integer empId, String docNo, LocalDate docDate) {}
+    private record IssueCustody(Integer empId, String docNo, LocalDate docDate, Integer docId) {}
 
     private record LedgerEvent(
             LocalDate date,
@@ -1507,11 +1696,13 @@ public class ReportsController {
             String itemCode,
             String itemName,
             String docType,
+            String txnType,
             String docNo,
             String batch,
             String uomCode,
             Integer locationId,
             String locationCode,
+            String locationName,
             BigDecimal receipt,
             BigDecimal issue
     ) {}

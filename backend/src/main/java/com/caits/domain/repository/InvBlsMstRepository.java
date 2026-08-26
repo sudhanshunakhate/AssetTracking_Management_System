@@ -13,6 +13,8 @@ public interface InvBlsMstRepository extends JpaRepository<InvBlsMst, Integer>, 
 
     List<InvBlsMst> findByIbmIsactiveTrueAndIbmIssuedToEmpIdEmpIsNotNull();
 
+    List<InvBlsMst> findByIbmIsDummyFalseAndIbmIsactiveTrue();
+
     Optional<InvBlsMst> findFirstByIbmItemIdItmAndIbmIsDummyTrueAndIbmIsactiveTrue(Integer itemId);
 
     Optional<InvBlsMst> findFirstByIbmSerialNoIgnoreCaseAndIbmIsactiveTrue(String serialNo);

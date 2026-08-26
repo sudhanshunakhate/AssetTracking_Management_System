@@ -10,6 +10,13 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  define: {
+    // @stomp/stompjs references Node's `global` in the browser build
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: ['@stomp/stompjs'],
+  },
   server: {
     proxy: {
       '/api': {

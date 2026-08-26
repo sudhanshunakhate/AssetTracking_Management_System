@@ -52,6 +52,7 @@ export type TxnRow = {
 }
 
 export type LineRequest = {
+  detailId?: number
   srNo?: number
   itemId: number
   uomId?: number
@@ -329,6 +330,9 @@ export async function createTxn(resource: string, body: DocumentRequest) {
 }
 
 export async function updateTxn(resource: string, id: string, body: DocumentRequest) {
+  invalidateTxnList(resource)
+  invalidateDashboardSummary()
+  invalidateReportCache()
   const res = await http.put(`/${resource}/${id}`, body)
   invalidateDashboardSummary()
   return res

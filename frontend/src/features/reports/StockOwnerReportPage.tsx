@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Pill, StatusBadge, StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -7,6 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockOwner } from '@/api/transactions'
 import { mapCategory, mapEmployee, mapLocation, mapUnit, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 
 type OwnerRow = {
@@ -26,6 +28,7 @@ type OwnerRow = {
   custodian: string
   custodianDept: string
   lastIssueDocNo: string
+  lastIssueDocId: string
   lastIssueDate: string
   status: string
 }
@@ -37,6 +40,7 @@ const CUSTODY_LABEL: Record<string, string> = {
 }
 
 export function StockOwnerReportPage() {
+  const navigate = useNavigate()
   const { seesAllLocations } = useAuth()
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
@@ -78,8 +82,8 @@ export function StockOwnerReportPage() {
           const uomId = String(r.uomId ?? '')
           return {
             id: String(r.id ?? `${r.itemId}-${r.locationId}`),
-            store: String(r.storeCode ?? r.locationId ?? '—'),
-            storeName: String(r.storeName ?? '—'),
+            store: String(r.storeName ?? r.storeCode ?? r.locationId ?? '—'),
+            storeName: String(r.storeName ?? r.storeCode ?? '—'),
             storeManager: String(r.storeManager ?? '—'),
             itemCode: String(r.itemCode ?? ''),
             itemName: String(r.itemName ?? ''),
@@ -93,6 +97,7 @@ export function StockOwnerReportPage() {
             custodian: String(r.custodian ?? '—'),
             custodianDept: String(r.custodianDept ?? '—'),
             lastIssueDocNo: String(r.lastIssueDocNo ?? '—'),
+            lastIssueDocId: String(r.lastIssueDocId ?? ''),
             lastIssueDate: String(r.lastIssueDate ?? '—'),
             status: String(r.status ?? ''),
           }
@@ -294,10 +299,17 @@ export function StockOwnerReportPage() {
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.custodianDept}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">
                       {r.lastIssueDocNo !== '—' ? (
-                        <span>
+                        <button
+                          type="button"
+                          className="text-left"
+                          onClick={() => {
+                            const path = txnDetailPath('MATERIAL_ISSUE', r.lastIssueDocId)
+                            if (path) navigate(path)
+                          }}
+                        >
                           <span className="font-mono">{r.lastIssueDocNo}</span>
                           <span className="text-[var(--text3)]"> · {r.lastIssueDate}</span>
-                        </span>
+                        </button>
                       ) : (
                         '—'
                       )}

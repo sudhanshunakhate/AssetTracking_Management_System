@@ -14,6 +14,7 @@ import {
   fetchTxn,
   mapTxnListItem,
   todayIso,
+  updateTxn,
   useTxnList,
   type DocumentRequest,
   type TxnListItem,
@@ -203,8 +204,10 @@ function IssueForm() {
 
   const canEdit = isNew ? canCreateMenu(MENU) : canEditMenu(MENU)
   const statusEditable = EDITABLE_STATUSES.includes(form.status)
-  // Material issue API is create-only; existing docs are view-only.
-  const readOnly = !isNew || !canEdit || !statusEditable
+  const headerLocked = !isNew || !canEdit || (!isNew && !statusEditable)
+  const readOnly = headerLocked
+  const lockStockFields = !isNew
+  const assetReadOnly = !isNew && !canEdit
 
   const requisitionLabel = form.requisitionDisplay || (() => {
     if (!form.requisitionId) return ''
@@ -280,6 +283,7 @@ function IssueForm() {
         })
         const mapped = (doc.lines ?? []).map((l) => ({
           ...emptyLine(),
+          detailId: l.detailId,
           itemId: l.itemId != null ? String(l.itemId) : '',
           itemCode: l.itemCode ?? '',
           itemName: l.itemName ?? '',
@@ -410,6 +414,7 @@ function IssueForm() {
     return {
       docDate: form.issueDate,
       locationId,
+      fromLocationId: locationId,
       toLocationId: form.toLocationId ? Number(form.toLocationId) : undefined,
       initiatedByEmpId: form.issuedTo ? Number(form.issuedTo) : undefined,
       refTxnHeaderId: form.requisitionId ? Number(form.requisitionId) : undefined,
@@ -422,6 +427,7 @@ function IssueForm() {
           const qty = Number(l.issueQty || 0)
           return {
             srNo: i + 1,
+            detailId: l.detailId,
             itemId: Number(l.itemId),
             uomId: l.uomId ? Number(l.uomId) : undefined,
             requestedQty: l.requestedQty === '' ? undefined : Number(l.requestedQty),
@@ -464,6 +470,42 @@ function IssueForm() {
     }
   }
 
+  const saveIdentity = async () => {
+    if (!issueId) return
+    setSubmitted(true)
+    setMessage(null)
+    const filled = lines.filter((l) => l.itemId !== '')
+    if (
+      filled.some((l) => {
+        const kind = l.itemType || items.rows.find((i) => i.id === l.itemId)?.itemType
+        return kind === 'asset' && !String(l.serialNo ?? '').trim()
+      })
+    ) {
+      setError('Serial No. is required on every asset line.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await updateTxn(RESOURCE, issueId, {
+        lines: filled.map((l, i) => ({
+          srNo: i + 1,
+          detailId: l.detailId,
+          itemId: Number(l.itemId),
+          serialNo: l.serialNo || undefined,
+          ipAddress: l.ipAddress || undefined,
+          macAddress: l.macAddress || undefined,
+          hostname: l.hostname || undefined,
+        })),
+      })
+      setMessage('Serial / network fields saved.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (isNew && !requisitionIdParam) return <Navigate to={`${BASE}/pick-requisition`} replace />
   if (issueId && !/^\d+$/.test(issueId)) return <Navigate to={BASE} replace />
   if (isNew && !canCreateMenu(MENU)) return <Navigate to={BASE} replace />
@@ -491,7 +533,7 @@ function IssueForm() {
           )}
           {!isNew && (
             <div className="mt-1 text-[12px] text-[var(--text3)]">
-              Posted issues are view-only. Create a new issue to post further stock.
+              Header and quantities are locked after submit. Serial, IP, MAC and hostname can still be updated.
             </div>
           )}
         </div>
@@ -606,7 +648,8 @@ function IssueForm() {
           locations={lineLocations}
           storeLocationId={form.storeId}
           toLocationId={form.toLocationId}
-          readOnly={readOnly}
+          readOnly={assetReadOnly}
+          lockStockFields={lockStockFields}
           headerReady={headerReady}
           error={submitted ? errors.lines : undefined}
         />
@@ -643,6 +686,11 @@ function IssueForm() {
               {saving ? 'Saving…' : 'Submit Issue'}
             </Button>
           </>
+        )}
+        {!isNew && canEdit && (
+          <Button onClick={() => void saveIdentity()} disabled={saving}>
+            {saving ? 'Saving…' : 'Save serial / network'}
+          </Button>
         )}
       </div>
     </FadeContent>

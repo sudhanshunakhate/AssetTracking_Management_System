@@ -216,6 +216,11 @@ public class TransactionControllers {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(DocType.MATERIAL_ISSUE, body));
     }
 
+    @PutMapping("/material-issues/{docId}")
+    public DocumentResponse patchIssueIdentity(@PathVariable Integer docId, @RequestBody DocumentRequest body) {
+        return service.patchPostedIssueIdentity(docId, body);
+    }
+
     @DeleteMapping("/material-issues/{docId}")
     public MessageResponse deleteIssue(@PathVariable Integer docId) {
         return service.delete(DocType.MATERIAL_ISSUE, docId);

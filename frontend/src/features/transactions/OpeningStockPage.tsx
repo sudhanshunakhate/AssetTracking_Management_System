@@ -25,6 +25,7 @@ import { AttachmentLink, AttachmentSection, attachmentPayload } from './Attachme
 import { enrichLinesFromItems, toNum } from './lineGrid'
 import {
   emptyOpeningStockLine,
+  isIssuedCondition,
   OpeningStockItemLines,
   type ItemKind,
   type OpeningStockLine,
@@ -246,8 +247,11 @@ function OpeningStockForm() {
     else if (filled.some((l) => toNum(l.qty) <= 0)) next.lines = 'Quantity must be greater than 0 on every line'
     else if (itemType === 'asset' && filled.some((l) => !l.serialNo.trim())) {
       next.lines = 'Serial No. is required on every asset unit line'
-    }     else if (itemType === 'asset' && filled.some((l) => !l.issuedToEmpId)) {
-      next.lines = 'Custody employee is required on every asset unit line'
+    } else if (
+      itemType === 'asset' &&
+      filled.some((l) => isIssuedCondition(l.itemCondition, conditionOpts) && !l.issuedToEmpId)
+    ) {
+      next.lines = 'Custody employee is required when Condition is Issued'
     } else if (filled.some((l) => !l.locationId)) {
       next.lines = 'Location is required on every item line'
     }

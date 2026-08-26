@@ -3,6 +3,7 @@ package com.caits.modules.transactions;
 import com.caits.common.ApiException;
 import com.caits.common.MessageResponse;
 import com.caits.common.PageResponse;
+import com.caits.domain.entity.HrcEmployeeMst;
 import com.caits.domain.entity.InvBlsMst;
 import com.caits.domain.entity.InvItemMst;
 import com.caits.domain.entity.InvStockMst;
@@ -10,6 +11,7 @@ import com.caits.domain.entity.OrgLocationMst;
 import com.caits.domain.entity.TxnDetailDtl;
 import com.caits.domain.entity.TxnHeaderMst;
 import com.caits.domain.entity.UnitMst;
+import com.caits.domain.repository.HrcEmployeeMstRepository;
 import com.caits.domain.repository.InvItemMstRepository;
 import com.caits.domain.repository.InvStockMstRepository;
 import com.caits.domain.repository.OrgLocationMstRepository;
@@ -60,6 +62,7 @@ public class TxnDocumentService {
     private final SystemLocationService systemLocations;
     private final OrgLocationMstRepository locationRepo;
     private final ApplicationEventPublisher events;
+    private final HrcEmployeeMstRepository employeeRepo;
 
     public TxnDocumentService(
             TxnHeaderMstRepository headerRepo,
@@ -71,7 +74,8 @@ public class TxnDocumentService {
             BlsService blsService,
             SystemLocationService systemLocations,
             OrgLocationMstRepository locationRepo,
-            ApplicationEventPublisher events
+            ApplicationEventPublisher events,
+            HrcEmployeeMstRepository employeeRepo
     ) {
         this.headerRepo = headerRepo;
         this.detailRepo = detailRepo;
@@ -83,6 +87,7 @@ public class TxnDocumentService {
         this.systemLocations = systemLocations;
         this.locationRepo = locationRepo;
         this.events = events;
+        this.employeeRepo = employeeRepo;
     }
 
     public PageResponse<ListItem> list(
@@ -356,16 +361,24 @@ public class TxnDocumentService {
                 header.setTxhPostingDate(header.getTxhPostingDate() != null ? header.getTxhPostingDate() : LocalDate.now());
                 header = headerRepo.save(header);
                 markLinkedRequisitionIssued(docType, header);
-                markLinkedTransferCompleted(docType, header);
                 if (docType == DocType.GRN) {
                     createPendingInspectionApproval(header, savedLines);
                 }
+            } else if ("SUBMIT".equals(action) && docType == DocType.GATEPASS_OUTWARD
+                    && isLinkedMaterialTransfer(header.getTxhRefTxnHeaderIdTxh())) {
+                // Linked outward is gate documentation only — stock already moved on the transfer.
+                header.setTxhStatus(resolveSubmitStatusAfterPosting(docType, header));
+                header.setTxhPostingDate(header.getTxhPostingDate() != null ? header.getTxhPostingDate() : LocalDate.now());
+                header = headerRepo.save(header);
             } else if ("REJECT".equals(action) && docType == DocType.INSPECTION_APPROVAL) {
                 stampInspectionApproved(header);
                 postInspectionRejectStock(header, savedLines, true);
                 header.setTxhStatus("Rejected");
                 header.setTxhPostingDate(LocalDate.now());
                 header = headerRepo.save(header);
+            }
+            if ("SUBMIT".equals(action)) {
+                markLinkedTransferCompleted(docType, header);
             }
         }
         emitLifecycle(action, docType, header);
@@ -418,10 +431,14 @@ public class TxnDocumentService {
                 header.setTxhPostingDate(LocalDate.now());
                 header = headerRepo.save(header);
                 markLinkedRequisitionIssued(docType, header);
-                markLinkedTransferCompleted(docType, header);
                 if (docType == DocType.GRN) {
                     createPendingInspectionApproval(header, savedLines);
                 }
+            } else if ("SUBMIT".equals(action) && docType == DocType.GATEPASS_OUTWARD
+                    && isLinkedMaterialTransfer(header.getTxhRefTxnHeaderIdTxh())) {
+                header.setTxhStatus(resolveSubmitStatusAfterPosting(docType, header));
+                header.setTxhPostingDate(LocalDate.now());
+                header = headerRepo.save(header);
             } else if ("REJECT".equals(action) && docType == DocType.INSPECTION_APPROVAL) {
                 stampInspectionApproved(header);
                 postInspectionRejectStock(header, savedLines, true);
@@ -429,9 +446,65 @@ public class TxnDocumentService {
                 header.setTxhPostingDate(LocalDate.now());
                 header = headerRepo.save(header);
             }
+            if ("SUBMIT".equals(action)) {
+                markLinkedTransferCompleted(docType, header);
+            }
         }
         emitLifecycle(action, docType, header);
         return toDocument(header, savedLines, "Document updated successfully");
+    }
+
+    /**
+     * Posted store issues cannot be re-lined (stock already posted). Allow serial / network
+     * identity edits on existing lines and the linked BLS row only.
+     */
+    @Transactional
+    public DocumentResponse patchPostedIssueIdentity(Integer docId, DocumentRequest req) {
+        TxnHeaderMst header = requireHeader(DocType.MATERIAL_ISSUE, docId);
+        requireDocumentVisible(header);
+        if (req.lines() == null || req.lines().isEmpty()) {
+            throw ApiException.badRequest("At least one line is required");
+        }
+        List<TxnDetailDtl> existing = detailRepo.findByTxdTxnHeaderIdTxhOrderByTxdSrNoAsc(header.getTxhTxnHeaderId());
+        Map<Integer, TxnDetailDtl> byDetailId = new HashMap<>();
+        Map<Integer, TxnDetailDtl> bySrNo = new HashMap<>();
+        for (TxnDetailDtl d : existing) {
+            if (d.getTxdTxnDetailId() != null) byDetailId.put(d.getTxdTxnDetailId(), d);
+            if (d.getTxdSrNo() != null) bySrNo.put(d.getTxdSrNo(), d);
+        }
+        for (LineRequest line : req.lines()) {
+            TxnDetailDtl d = null;
+            if (line.detailId() != null) {
+                d = byDetailId.get(line.detailId());
+            }
+            if (d == null && line.srNo() != null) {
+                d = bySrNo.get(line.srNo());
+            }
+            if (d == null) {
+                throw ApiException.badRequest("Issue line not found for identity update");
+            }
+            if (line.serialNo() != null) d.setTxdSerialNo(blankToNull(line.serialNo()));
+            if (line.ipAddress() != null) d.setTxdIpAddress(blankToNull(line.ipAddress()));
+            if (line.macAddress() != null) d.setTxdMacAddress(blankToNull(line.macAddress()));
+            if (line.hostname() != null) d.setTxdHostname(blankToNull(line.hostname()));
+            detailRepo.save(d);
+            blsService.patchUnitIdentity(
+                    d.getTxdBlsIdIbm(),
+                    d.getTxdSerialNo(),
+                    d.getTxdIpAddress(),
+                    d.getTxdMacAddress(),
+                    d.getTxdHostname());
+        }
+        header.setTxhModifiedBy(SecurityUtils.loginIdOrSystem());
+        header.setTxhModifiedOn(LocalDateTime.now());
+        header = headerRepo.save(header);
+        return toDocument(header, existing, "Issue identity fields updated");
+    }
+
+    private static String blankToNull(String v) {
+        if (v == null) return null;
+        String t = v.trim();
+        return t.isEmpty() ? null : t;
     }
 
     @Transactional
@@ -604,7 +677,10 @@ public class TxnDocumentService {
         if (lines == null || lines.isEmpty()) {
             throw ApiException.badRequest("At least one line item is required");
         }
-        if (!StockPostingRules.isInboundStock(docType)) {
+        boolean requireAssetSerial = docType == DocType.MATERIAL_ISSUE
+                || docType == DocType.MATERIAL_RETURN
+                || StockPostingRules.isInboundStock(docType);
+        if (!requireAssetSerial) {
             return;
         }
         for (int i = 0; i < lines.size(); i++) {
@@ -612,7 +688,12 @@ public class TxnDocumentService {
             if (line.itemId() == null) continue;
             InvItemMst item = itemRepo.findById(line.itemId()).orElse(null);
             if (item == null) continue;
-            if (!Boolean.TRUE.equals(item.getItmIsSerialized())) continue;
+            boolean serialized = Boolean.TRUE.equals(item.getItmIsSerialized());
+            boolean asset = item.getItmItemType() != null
+                    && !"consumable".equalsIgnoreCase(item.getItmItemType());
+            boolean mustHaveSerial = serialized
+                    || ((docType == DocType.MATERIAL_ISSUE || docType == DocType.MATERIAL_RETURN) && asset);
+            if (!mustHaveSerial) continue;
             String serial = line.serialNo() == null ? "" : line.serialNo().trim();
             if (serial.isEmpty()) {
                 String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(line.itemId());
@@ -986,10 +1067,10 @@ public class TxnDocumentService {
             Integer issuedTo = resolveLineIssuedTo(docType, header, line);
             d.setTxdIssuedToEmpIdEmp(issuedTo);
             d.setTxdRemark(line.remark());
-            // Standing register: create / reuse BLS and point the line at it.
+            Integer blsLocation = resolveBlsLocation(docType, header, d.getTxdLocationIdLoc());
             InvBlsMst bls = blsService.resolveForLine(
                     header.getTxhEntityIdEnt(),
-                    d.getTxdLocationIdLoc(),
+                    blsLocation,
                     line,
                     header.getTxhTxnHeaderId(),
                     docType,
@@ -1033,21 +1114,38 @@ public class TxnDocumentService {
             Integer itemId = line.getTxdItemIdItm();
             Integer uomId = line.getTxdUomIdUnt();
 
-            // Transfer: move qty from source → destination (preserve batch buckets; FIFO when omitted).
-            if (docType == DocType.MATERIAL_TRANSFER && apply && sign < 0) {
+            if (apply && docType == DocType.MATERIAL_TRANSFER && sign < 0) {
                 Integer toLoc = header.getTxhToLocationIdLoc();
                 if (toLoc == null) {
                     throw ApiException.badRequest("To location is required for stock transfer");
                 }
-                if (batch == null || batch.isBlank()) {
-                    for (var taken : consumeFifo(itemId, locationId, uomId, qty, headerId)) {
-                        upsertStock(itemId, toLoc, uomId, taken.batch(), taken.qty(), headerId);
-                    }
-                } else {
-                    upsertStock(itemId, locationId, uomId, batch, qty.negate(), headerId);
-                    upsertStock(itemId, toLoc, uomId, batch, qty, headerId);
-                }
+                moveStock(itemId, locationId, toLoc, uomId, batch, qty, headerId);
                 continue;
+            }
+
+            if (apply && docType == DocType.MATERIAL_ISSUE && sign < 0) {
+                Integer toLoc = header.getTxhToLocationIdLoc();
+                if (toLoc != null && !toLoc.equals(locationId)) {
+                    // Issue to a different store: move on-hand stock with the unit.
+                    moveStock(itemId, locationId, toLoc, uomId, batch, qty, headerId);
+                    continue;
+                }
+                // Same store: assets stay on-hand (BLS custody only). Consumables still leave stock.
+                InvItemMst issuedItem = itemRepo.findById(itemId).orElse(null);
+                boolean asset = issuedItem != null
+                        && issuedItem.getItmItemType() != null
+                        && !"consumable".equalsIgnoreCase(issuedItem.getItmItemType());
+                if (asset) {
+                    continue;
+                }
+            }
+
+            if (apply && docType == DocType.MATERIAL_RETURN && sign > 0) {
+                Integer fromLoc = resolveReturnFromLocation(header);
+                if (fromLoc != null && locationId != null && !fromLoc.equals(locationId)) {
+                    moveStock(itemId, fromLoc, locationId, uomId, batch, qty, headerId);
+                    continue;
+                }
             }
 
             BigDecimal delta = qty.multiply(BigDecimal.valueOf(sign));
@@ -1169,7 +1267,8 @@ public class TxnDocumentService {
                     line.getTxdMacAddress(),
                     line.getTxdHostname(),
                     null,
-                    line.getTxdRemark()
+                    line.getTxdRemark(),
+                    null
             ));
         }
         if (inspectionLines.isEmpty()) {
@@ -1433,6 +1532,57 @@ public class TxnDocumentService {
             case MATERIAL_TRANSFER -> header.getTxhFromLocationIdLoc();
             default -> header.getTxhLocationIdLoc() != null ? header.getTxhLocationIdLoc() : header.getTxhToLocationIdLoc();
         };
+    }
+
+    private static Integer resolveBlsLocation(DocType docType, TxnHeaderMst header, Integer lineLocationId) {
+        if (docType == DocType.MATERIAL_ISSUE && header.getTxhToLocationIdLoc() != null) {
+            return header.getTxhToLocationIdLoc();
+        }
+        if (docType == DocType.MATERIAL_RETURN && header.getTxhLocationIdLoc() != null) {
+            return header.getTxhLocationIdLoc();
+        }
+        return lineLocationId;
+    }
+
+    private Integer resolveReturnFromLocation(TxnHeaderMst header) {
+        if (header.getTxhFromLocationIdLoc() != null) {
+            return header.getTxhFromLocationIdLoc();
+        }
+        Integer empId = header.getTxhInitiatedByEmpIdEmp();
+        if (empId == null) {
+            return null;
+        }
+        Integer base = employeeRepo.findById(empId).map(HrcEmployeeMst::getEmpBaseLocationIdLoc).orElse(null);
+        if (base != null) {
+            header.setTxhFromLocationIdLoc(base);
+            headerRepo.save(header);
+        }
+        return base;
+    }
+
+    private void moveStock(
+            Integer itemId,
+            Integer fromLoc,
+            Integer toLoc,
+            Integer uomId,
+            String batch,
+            BigDecimal qty,
+            Integer headerId
+    ) {
+        if (fromLoc == null || toLoc == null) {
+            throw ApiException.badRequest("From and To locations are required to move stock");
+        }
+        if (fromLoc.equals(toLoc) || qty == null || qty.compareTo(BigDecimal.ZERO) == 0) {
+            return;
+        }
+        if (batch == null || batch.isBlank()) {
+            for (var taken : consumeFifo(itemId, fromLoc, uomId, qty, headerId)) {
+                upsertStock(itemId, toLoc, uomId, taken.batch(), taken.qty(), headerId);
+            }
+        } else {
+            upsertStock(itemId, fromLoc, uomId, batch, qty.negate(), headerId);
+            upsertStock(itemId, toLoc, uomId, batch, qty, headerId);
+        }
     }
 
     private void upsertStock(

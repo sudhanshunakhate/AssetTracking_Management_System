@@ -20,6 +20,7 @@ import {
 } from './lineGrid'
 
 export type IssueLine = BaseLine & {
+  detailId?: number
   requestedQty: string
   issueQty: string
   batchLotNo: string
@@ -59,6 +60,7 @@ export function IssueItemLines({
   storeLocationId,
   toLocationId = '',
   readOnly = false,
+  lockStockFields = false,
   headerReady = true,
   error,
 }: {
@@ -70,6 +72,8 @@ export function IssueItemLines({
   storeLocationId: string
   toLocationId?: string
   readOnly?: boolean
+  /** Locks item / qty / batch / remark while leaving asset identity fields editable. */
+  lockStockFields?: boolean
   /** When false, item grid stays locked until required header fields are filled. */
   headerReady?: boolean
   error?: string
@@ -78,8 +82,9 @@ export function IssueItemLines({
   const unitById = useCodeIndex(units)
   const locationById = useCodeIndex(locations)
   const { stockByItemId } = useLocationStock(storeLocationId)
-  const linesLocked = readOnly || !headerReady
-  const lineFieldsLocked = readOnly
+  const linesLocked = readOnly || lockStockFields || !headerReady
+  const lineFieldsLocked = readOnly || lockStockFields
+  const assetFieldsLocked = readOnly
 
   const patch = useCallback(
     (key: string, changes: Partial<IssueLine>) => {
@@ -225,7 +230,7 @@ export function IssueItemLines({
                             <Input
                               value={line.serialNo}
                               onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
-                              disabled={lineFieldsLocked}
+                              disabled={assetFieldsLocked}
                               maxLength={100}
                               placeholder="SN-…"
                               className={gridInput}
@@ -239,7 +244,7 @@ export function IssueItemLines({
                             <Input
                               value={line.ipAddress}
                               onChange={(e) => patch(line.key, { ipAddress: e.target.value })}
-                              disabled={lineFieldsLocked}
+                              disabled={assetFieldsLocked}
                               maxLength={45}
                               className={gridInput}
                             />
@@ -252,7 +257,7 @@ export function IssueItemLines({
                             <Input
                               value={line.macAddress}
                               onChange={(e) => patch(line.key, { macAddress: e.target.value.toUpperCase() })}
-                              disabled={lineFieldsLocked}
+                              disabled={assetFieldsLocked}
                               maxLength={17}
                               className={gridInput}
                             />
@@ -265,7 +270,7 @@ export function IssueItemLines({
                             <Input
                               value={line.hostname}
                               onChange={(e) => patch(line.key, { hostname: e.target.value })}
-                              disabled={lineFieldsLocked}
+                              disabled={assetFieldsLocked}
                               maxLength={150}
                               className={gridInput}
                             />
