@@ -543,13 +543,39 @@ export type DashboardSummary = {
   stockRows: number
 }
 
+export type DashboardWidget = {
+  code: string
+  type: string
+  title: string
+  subtitle?: string
+  icon?: string
+  tone?: string
+  linkPath?: string
+  colSpan: number
+  sortOrder: number
+  data: Record<string, unknown>
+}
+
+export type DashboardHome = {
+  roleCode: string
+  roleName: string
+  title: string
+  description: string
+  widgets: DashboardWidget[]
+}
+
 export async function fetchDashboardSummary() {
   return cachedFetch('dashboard:summary', () => http.get<DashboardSummary>('/dashboard/summary'), 60_000)
+}
+
+export async function fetchDashboardHome() {
+  return cachedFetch('dashboard:home', () => http.get<DashboardHome>('/dashboard/home'), 45_000)
 }
 
 /** Drop dashboard KPIs after stock-moving transactions. */
 export function invalidateDashboardSummary() {
   invalidateCache('dashboard:summary')
+  invalidateCache('dashboard:home')
 }
 
 /** Drop cached report pages (dashboard charts, report screens). */

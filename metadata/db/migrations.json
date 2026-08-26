@@ -346,7 +346,25 @@
                                            "local":  "2026-08-19",
                                            "dev":  null
                                        }
+                       },
+                       {
+                           "id":  "038-create-notifications",
+                           "file":  "db_approach/038_create_notifications.sql",
+                           "description":  "Per-user notifications and Web Push subscriptions for role-based real-time and OS alerts.",
+                           "applied":  {
+                                           "local":  "2026-08-25",
+                                           "dev":  "2026-08-25"
+                                       }
+                       },
+                       {
+                           "id":  "039-dashboard-role-widgets",
+                           "file":  "db_approach/039_dashboard_role_widgets.sql",
+                           "description":  "Role-based dashboard widget catalog and role mappings so each role sees a different home layout.",
+                           "applied":  {
+                                           "local":  "2026-08-26",
+                                           "dev":  "2026-08-26"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-19"
+    "updated":  "2026-08-26"
 }

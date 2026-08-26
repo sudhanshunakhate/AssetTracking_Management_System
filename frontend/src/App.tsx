@@ -35,6 +35,8 @@ import { ReturnsPages } from '@/features/transactions/TransactionPages'
 import { TransfersPages } from '@/features/transactions/TransferPage'
 import { InspectionApprovalPages } from '@/features/transactions/InspectionApprovalPage'
 
+import { NotificationProvider } from '@/features/notifications/NotificationContext'
+
 function RootRedirect() {
   const { user } = useAuth()
   return <Navigate to={user ? '/dashboard' : '/login'} replace />
@@ -43,9 +45,10 @@ function RootRedirect() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppBusyBridge />
-      <GlobalLoader />
-      <Routes>
+      <NotificationProvider>
+        <AppBusyBridge />
+        <GlobalLoader />
+        <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<DashboardPage />} />
@@ -84,7 +87,8 @@ export default function App() {
         </Route>
         <Route path="/" element={<RootRedirect />} />
         <Route path="*" element={<RootRedirect />} />
-      </Routes>
+        </Routes>
+      </NotificationProvider>
     </AuthProvider>
   )
 }

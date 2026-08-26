@@ -20,8 +20,11 @@ import com.caits.modules.masters.SystemLocationRole;
 import com.caits.modules.masters.SystemLocationService;
 import com.caits.modules.inventory.BlsService;
 import com.caits.modules.transactions.TxnDtos.*;
+import com.caits.modules.notifications.TxnLifecycleNotificationEvent;
 import com.caits.security.AccessScopeService;
+import com.caits.security.CurrentUser;
 import com.caits.security.SecurityUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -56,6 +59,7 @@ public class TxnDocumentService {
     private final BlsService blsService;
     private final SystemLocationService systemLocations;
     private final OrgLocationMstRepository locationRepo;
+    private final ApplicationEventPublisher events;
 
     public TxnDocumentService(
             TxnHeaderMstRepository headerRepo,
@@ -66,7 +70,8 @@ public class TxnDocumentService {
             AccessScopeService accessScope,
             BlsService blsService,
             SystemLocationService systemLocations,
-            OrgLocationMstRepository locationRepo
+            OrgLocationMstRepository locationRepo,
+            ApplicationEventPublisher events
     ) {
         this.headerRepo = headerRepo;
         this.detailRepo = detailRepo;
@@ -77,6 +82,7 @@ public class TxnDocumentService {
         this.blsService = blsService;
         this.systemLocations = systemLocations;
         this.locationRepo = locationRepo;
+        this.events = events;
     }
 
     public PageResponse<ListItem> list(
@@ -362,6 +368,7 @@ public class TxnDocumentService {
                 header = headerRepo.save(header);
             }
         }
+        emitLifecycle(action, docType, header);
         return toDocument(header, savedLines, docType.name().replace('_', ' ') + " created successfully");
     }
 
@@ -423,6 +430,7 @@ public class TxnDocumentService {
                 header = headerRepo.save(header);
             }
         }
+        emitLifecycle(action, docType, header);
         return toDocument(header, savedLines, "Document updated successfully");
     }
 
@@ -455,6 +463,7 @@ public class TxnDocumentService {
         header.setTxhModifiedBy(SecurityUtils.loginIdOrSystem());
         header.setTxhModifiedOn(LocalDateTime.now());
         header = headerRepo.save(header);
+        emitKind("APPROVED", docType, header);
         return toDocument(header, lines, "Document approved successfully");
     }
 
@@ -472,6 +481,7 @@ public class TxnDocumentService {
         header.setTxhModifiedBy(SecurityUtils.loginIdOrSystem());
         header.setTxhModifiedOn(LocalDateTime.now());
         headerRepo.save(header);
+        emitKind("REJECTED", docType, header);
         return MessageResponse.of("Document rejected successfully");
     }
 
@@ -518,6 +528,34 @@ public class TxnDocumentService {
                 null, null, locationId, null, null, null, null, null, null, null, null,
                 1, 100
         );
+    }
+
+    private void emitLifecycle(String action, DocType docType, TxnHeaderMst header) {
+        if ("SUBMIT".equals(action)) {
+            emitKind("SUBMITTED", docType, header);
+        } else if ("REJECT".equals(action)) {
+            emitKind("REJECTED", docType, header);
+        }
+    }
+
+    private void emitKind(String kind, DocType docType, TxnHeaderMst header) {
+        Integer actor = null;
+        try {
+            CurrentUser cu = SecurityUtils.requireCurrentUser();
+            actor = cu.userId();
+        } catch (Exception ignored) {
+            // system / unauthenticated jobs
+        }
+        events.publishEvent(new TxnLifecycleNotificationEvent(
+                kind,
+                docType,
+                header.getTxhTxnHeaderId(),
+                header.getTxhDocNo(),
+                header.getTxhStatus(),
+                header.getTxhInspectedByEmpIdEmp(),
+                header.getTxhInitiatedByEmpIdEmp(),
+                actor
+        ));
     }
 
     private TxnHeaderMst requireHeader(DocType docType, Integer docId) {
@@ -1167,6 +1205,7 @@ public class TxnDocumentService {
         inspection.setTxhCreatedOn(LocalDateTime.now());
         inspection = headerRepo.save(inspection);
         saveLines(inspection, DocType.INSPECTION_APPROVAL, inspectionLines);
+        emitKind("INSPECTION_ASSIGNED", DocType.INSPECTION_APPROVAL, inspection);
     }
 
     /**

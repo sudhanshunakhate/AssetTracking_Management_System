@@ -5,6 +5,7 @@ import { navGroups } from '@/config/navigation'
 import { useAuth } from '@/features/auth/AuthContext'
 import { ProfileModal } from '@/features/auth/ProfileModal'
 import { FavouritesModal } from '@/features/auth/FavouritesModal'
+import { NotificationBell } from '@/features/notifications/NotificationBell'
 
 function crumbFromPath(pathname: string) {
   for (const g of navGroups) {
@@ -117,6 +118,7 @@ export function Topbar() {
         />
         {statusLabel}
       </div>
+      <NotificationBell />
       <div className="relative ml-3" ref={menuRef}>
         <button
           type="button"

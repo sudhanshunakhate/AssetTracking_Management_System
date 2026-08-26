@@ -24,19 +24,27 @@ public class DashboardController {
     private final InvStockMstRepository stockRepo;
     private final TxnHeaderMstRepository headerRepo;
     private final AccessScopeService accessScope;
+    private final DashboardHomeService homeService;
 
     public DashboardController(
             InvItemMstRepository itemRepo,
             InvVendorMstRepository vendorRepo,
             InvStockMstRepository stockRepo,
             TxnHeaderMstRepository headerRepo,
-            AccessScopeService accessScope
+            AccessScopeService accessScope,
+            DashboardHomeService homeService
     ) {
         this.itemRepo = itemRepo;
         this.vendorRepo = vendorRepo;
         this.stockRepo = stockRepo;
         this.headerRepo = headerRepo;
         this.accessScope = accessScope;
+        this.homeService = homeService;
+    }
+
+    @GetMapping("/home")
+    public DashboardDtos.HomeResponse home() {
+        return homeService.home();
     }
 
     @GetMapping("/summary")

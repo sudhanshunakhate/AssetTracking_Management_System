@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 
+if ('serviceWorker' in navigator) {
+  void navigator.serviceWorker.register('/sw.js')
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
