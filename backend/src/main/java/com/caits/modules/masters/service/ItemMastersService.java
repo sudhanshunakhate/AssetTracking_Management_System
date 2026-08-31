@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class ItemMastersService {
@@ -26,16 +28,36 @@ public class ItemMastersService {
     private final InvStockMstRepository stockRepo;
     private final UnitMstRepository unitRepo;
     private final CategoryMstRepository categoryRepo;
+    private final InvItemBuMappingDtlRepository itemBuMappingRepo;
+    private final InvItemLocationMappingDtlRepository itemLocationMappingRepo;
+    private final OrgLocationMstRepository locationRepo;
+    private final OrgBusinessunitMstRepository buRepo;
+    private final OrgEntityMstRepository entityRepo;
     private final AccessScopeService accessScope;
 
-    public ItemMastersService(InvItemMstRepository itemRepo, InvVendorMstRepository vendorRepo,
-                              InvStockMstRepository stockRepo, UnitMstRepository unitRepo,
-                              CategoryMstRepository categoryRepo, AccessScopeService accessScope) {
+    public ItemMastersService(
+            InvItemMstRepository itemRepo,
+            InvVendorMstRepository vendorRepo,
+            InvStockMstRepository stockRepo,
+            UnitMstRepository unitRepo,
+            CategoryMstRepository categoryRepo,
+            InvItemBuMappingDtlRepository itemBuMappingRepo,
+            InvItemLocationMappingDtlRepository itemLocationMappingRepo,
+            OrgLocationMstRepository locationRepo,
+            OrgBusinessunitMstRepository buRepo,
+            OrgEntityMstRepository entityRepo,
+            AccessScopeService accessScope
+    ) {
         this.itemRepo = itemRepo;
         this.vendorRepo = vendorRepo;
         this.stockRepo = stockRepo;
         this.unitRepo = unitRepo;
         this.categoryRepo = categoryRepo;
+        this.itemBuMappingRepo = itemBuMappingRepo;
+        this.itemLocationMappingRepo = itemLocationMappingRepo;
+        this.locationRepo = locationRepo;
+        this.buRepo = buRepo;
+        this.entityRepo = entityRepo;
         this.accessScope = accessScope;
     }
 
@@ -46,13 +68,16 @@ public class ItemMastersService {
                 SpecUtils.activeEquals("itmIsactive", isActive),
                 SpecUtils.searchContains(search, "itmItemCode", "itmItemName"));
         Page<InvItemMst> result = itemRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
+        List<OrgLocationMst> selectableLocations = selectableLocations();
         return PageResponse.of(page, pageSize, result.getTotalElements(),
-                result.getContent().stream().map(e -> toItemDto(e, null)).toList());
+                result.getContent().stream()
+                        .map(e -> toItemDto(e, null, selectableLocations))
+                        .toList());
     }
 
     @Transactional(readOnly = true)
     public ItemDto getItem(Integer id) {
-        return toItemDto(findItem(id), null);
+        return toItemDto(findItem(id), null, selectableLocations());
     }
 
     @Transactional
@@ -67,11 +92,14 @@ public class ItemMastersService {
         if (itemRepo.existsByItmItemCodeIgnoreCase(req.itemCode())) {
             throw ApiException.conflict("Item code already exists");
         }
+        validateItemScope(req);
         InvItemMst e = new InvItemMst();
         applyItem(e, req);
         e.setItmCreatedBy(SecurityUtils.requireLoginId());
         e.setItmCreatedOn(LocalDateTime.now());
-        return toItemDto(itemRepo.save(e), "Item created successfully");
+        e = itemRepo.save(e);
+        saveItemMappings(e, req);
+        return toItemDto(e, "Item created successfully", selectableLocations());
     }
 
     @Transactional
@@ -84,10 +112,13 @@ public class ItemMastersService {
         if (req.uomId() != null) {
             unitRepo.findById(req.uomId()).orElseThrow(() -> ApiException.badRequest("Invalid uomId"));
         }
+        validateItemScope(req);
         applyItem(e, req);
         e.setItmModifiedBy(SecurityUtils.requireLoginId());
         e.setItmModifiedOn(LocalDateTime.now());
-        return toItemDto(itemRepo.save(e), "Item updated successfully");
+        e = itemRepo.save(e);
+        saveItemMappings(e, req);
+        return toItemDto(e, "Item updated successfully", selectableLocations());
     }
 
     @Transactional
@@ -102,6 +133,88 @@ public class ItemMastersService {
 
     private InvItemMst findItem(Integer id) {
         return itemRepo.findById(id).orElseThrow(() -> ApiException.notFound("Item not found"));
+    }
+
+    private void validateItemScope(ItemRequest req) {
+        if (req.entityId() == null) {
+            throw ApiException.badRequest("entityId is required");
+        }
+        entityRepo.findById(req.entityId())
+                .orElseThrow(() -> ApiException.badRequest("Invalid entityId"));
+
+        String buScope = normalizeScope(req.buAccessScope(), "ALL");
+        String locScope = normalizeScope(req.locationAccessScope(), "SELECTED");
+
+        if ("SELECTED".equals(buScope)) {
+            if (req.buIds() == null || req.buIds().isEmpty()) {
+                throw ApiException.badRequest("Select at least one Operating Unit");
+            }
+            for (Integer buId : req.buIds()) {
+                OrgBusinessunitMst bu = buRepo.findById(buId)
+                        .orElseThrow(() -> ApiException.badRequest("Invalid buId: " + buId));
+                if (!req.entityId().equals(bu.getBuEntityIdEnt())) {
+                    throw ApiException.badRequest("Operating Unit does not belong to the selected Organization");
+                }
+            }
+        }
+
+        if ("SELECTED".equals(locScope)) {
+            if (req.locationIds() == null || req.locationIds().isEmpty()) {
+                throw ApiException.badRequest("Select at least one Location");
+            }
+            for (Integer locId : req.locationIds()) {
+                OrgLocationMst loc = locationRepo.findById(locId)
+                        .orElseThrow(() -> ApiException.badRequest("Invalid locationId: " + locId));
+                if (!req.entityId().equals(loc.getLocEntityIdEnt())) {
+                    throw ApiException.badRequest("Location does not belong to the selected Organization");
+                }
+                if (isSystemDerivedLocation(loc)) {
+                    throw ApiException.badRequest("System-derived locations cannot be assigned to items");
+                }
+            }
+        }
+
+        if (req.currentLocationId() != null) {
+            List<Integer> effective = resolveEffectiveLocationIds(
+                    req.entityId(),
+                    buScope,
+                    req.buIds(),
+                    locScope,
+                    req.locationIds(),
+                    selectableLocations());
+            if (!effective.contains(req.currentLocationId())) {
+                throw ApiException.badRequest("Default location must be one of the selected locations");
+            }
+        }
+    }
+
+    private void saveItemMappings(InvItemMst item, ItemRequest req) {
+        Integer itemId = item.getItmItemId();
+        String buScope = normalizeScope(req.buAccessScope(), item.getItmBuAccessScope());
+        String locScope = normalizeScope(req.locationAccessScope(), item.getItmLocationAccessScope());
+
+        // Flush deletes before inserts — Hibernate otherwise inserts first and hits unique conflicts.
+        itemBuMappingRepo.deleteByIibmItemIdItm(itemId);
+        itemBuMappingRepo.flush();
+        if ("SELECTED".equals(buScope) && req.buIds() != null) {
+            for (Integer buId : req.buIds().stream().distinct().toList()) {
+                InvItemBuMappingDtl m = new InvItemBuMappingDtl();
+                m.setIibmItemIdItm(itemId);
+                m.setIibmBuIdBu(buId);
+                itemBuMappingRepo.save(m);
+            }
+        }
+
+        itemLocationMappingRepo.deleteByIlimItemIdItm(itemId);
+        itemLocationMappingRepo.flush();
+        if ("SELECTED".equals(locScope) && req.locationIds() != null) {
+            for (Integer locId : req.locationIds().stream().distinct().toList()) {
+                InvItemLocationMappingDtl m = new InvItemLocationMappingDtl();
+                m.setIlimItemIdItm(itemId);
+                m.setIlimLocationIdLoc(locId);
+                itemLocationMappingRepo.save(m);
+            }
+        }
     }
 
     private void applyItem(InvItemMst e, ItemRequest req) {
@@ -122,6 +235,11 @@ public class ItemMastersService {
         e.setItmDepreciationMethod(req.depreciationMethod());
         e.setItmDepreciationRate(req.depreciationRate());
         e.setItmCurrentLocationIdLoc(req.currentLocationId());
+        if (req.entityId() != null) e.setItmEntityIdEnt(req.entityId());
+        if (req.buAccessScope() != null) e.setItmBuAccessScope(normalizeScope(req.buAccessScope(), "ALL"));
+        if (req.locationAccessScope() != null) {
+            e.setItmLocationAccessScope(normalizeScope(req.locationAccessScope(), "SELECTED"));
+        }
         e.setItmIsSerialized(Boolean.TRUE.equals(req.isSerialized()));
         e.setItmIsReturnable(Boolean.TRUE.equals(req.isReturnable()));
         e.setItmIsUnderAmc(Boolean.TRUE.equals(req.isUnderAmc()));
@@ -140,8 +258,25 @@ public class ItemMastersService {
         e.setItmIsactive(req.isActive() == null || req.isActive());
     }
 
-    private ItemDto toItemDto(InvItemMst e, String message) {
-        return new ItemDto(e.getItmItemId(), e.getItmItemCode(), e.getItmItemName(), e.getItmItemType(),
+    private ItemDto toItemDto(InvItemMst e, String message, List<OrgLocationMst> selectableLocations) {
+        List<Integer> buIds = itemBuMappingRepo.findByIibmItemIdItm(e.getItmItemId()).stream()
+                .map(InvItemBuMappingDtl::getIibmBuIdBu)
+                .toList();
+        List<Integer> locationIds = itemLocationMappingRepo.findByIlimItemIdItm(e.getItmItemId()).stream()
+                .map(InvItemLocationMappingDtl::getIlimLocationIdLoc)
+                .toList();
+        String buScope = normalizeScope(e.getItmBuAccessScope(), "ALL");
+        String locScope = normalizeScope(e.getItmLocationAccessScope(), "SELECTED");
+        List<Integer> effectiveLocationIds = resolveEffectiveLocationIds(
+                e.getItmEntityIdEnt(),
+                buScope,
+                buIds,
+                locScope,
+                locationIds,
+                selectableLocations);
+
+        return new ItemDto(
+                e.getItmItemId(), e.getItmItemCode(), e.getItmItemName(), e.getItmItemType(),
                 e.getItmCategoryIdCat(), e.getItmSubcategoryIdScat(), e.getItmUomIdUnt(), e.getItmStandardCost(),
                 e.getItmImageUrl(), e.getItmDesc(), e.getItmRemarks(), e.getItmAssetType(), e.getItmMakeBrand(),
                 e.getItmModel(), e.getItmUsefulLifeYears(), e.getItmDepreciationMethod(),
@@ -151,9 +286,53 @@ public class ItemMastersService {
                 e.getItmTrackBatchLot(), e.getItmTrackExpiry(), e.getItmIsConsumable(),
                 e.getItmAllowNegativeStock(), e.getItmRam(), e.getItmStorage(), e.getItmProcessor(),
                 e.getItmProductNo(), e.getItmParentItemIdItm(),
-                e.getItmIsactive(), e.getItmEntityIdEnt(), null, null, List.of(), List.of(), List.of(),
+                e.getItmIsactive(),
+                e.getItmEntityIdEnt(), buScope, locScope, buIds, locationIds, effectiveLocationIds,
                 e.getItmCreatedBy(), e.getItmCreatedOn(),
                 e.getItmModifiedBy(), e.getItmModifiedOn(), message);
+    }
+
+    private List<OrgLocationMst> selectableLocations() {
+        return locationRepo.findAll().stream()
+                .filter(l -> Boolean.TRUE.equals(l.getLocIsactive()))
+                .filter(l -> !isSystemDerivedLocation(l))
+                .toList();
+    }
+
+    private List<Integer> resolveEffectiveLocationIds(
+            Integer entityId,
+            String buScope,
+            List<Integer> buIds,
+            String locScope,
+            List<Integer> mappedLocationIds,
+            List<OrgLocationMst> selectableLocations
+    ) {
+        if (entityId == null) {
+            return mappedLocationIds == null ? List.of() : mappedLocationIds;
+        }
+        Set<Integer> allowedBuIds = new HashSet<>();
+        if ("SELECTED".equals(buScope) && buIds != null) {
+            allowedBuIds.addAll(buIds);
+        }
+
+        if ("SELECTED".equals(locScope)) {
+            return mappedLocationIds == null ? List.of() : mappedLocationIds;
+        }
+
+        return selectableLocations.stream()
+                .filter(l -> entityId.equals(l.getLocEntityIdEnt()))
+                .filter(l -> "ALL".equals(buScope) || allowedBuIds.contains(l.getLocBuIdBu()))
+                .map(OrgLocationMst::getLocLocationId)
+                .toList();
+    }
+
+    private static boolean isSystemDerivedLocation(OrgLocationMst loc) {
+        return Boolean.TRUE.equals(loc.getLocIsSystemLocation());
+    }
+
+    private static String normalizeScope(String scope, String defaultValue) {
+        if (scope == null || scope.isBlank()) return defaultValue;
+        return scope.trim().toUpperCase();
     }
 
     // ---- Vendors ----

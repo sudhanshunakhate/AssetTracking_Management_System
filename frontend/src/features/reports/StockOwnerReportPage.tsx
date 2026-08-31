@@ -10,6 +10,7 @@ import { mapCategory, mapEmployee, mapLocation, mapUnit, useMasterList } from '@
 import { useAuth } from '@/features/auth/AuthContext'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
+import { formatStockQty } from '@/features/transactions/lineGrid'
 
 type OwnerRow = {
   id: string
@@ -161,8 +162,8 @@ export function StockOwnerReportPage() {
                   r.itemCode,
                   r.itemName,
                   r.category,
-                  r.currentQty,
-                  r.availableQty,
+                  formatStockQty(r.currentQty),
+                  formatStockQty(r.availableQty),
                   r.value,
                   CUSTODY_LABEL[r.custodyMode] ?? r.custodyMode,
                   r.custodian,
@@ -235,6 +236,18 @@ export function StockOwnerReportPage() {
               <option value="ASSIGNED">Assigned</option>
               <option value="ISSUED_TO">Issued To</option>
             </select>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setQ('')
+                setCat('')
+                setStore('')
+                setEmployee('')
+                setCustody('')
+              }}
+            >
+              Clear
+            </Button>
           </div>
 
           <div className="overflow-x-auto">
@@ -277,8 +290,8 @@ export function StockOwnerReportPage() {
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.itemCode}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemName}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.category}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{r.currentQty}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.availableQty}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{formatStockQty(r.currentQty)}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.availableQty)}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">
                       {r.value.toLocaleString('en-IN')}
                     </td>
@@ -342,7 +355,7 @@ export function StockOwnerReportPage() {
               Stores: <strong>{totals.stores}</strong>
             </div>
             <div>
-              Total Qty: <strong>{totals.qty}</strong>
+              Total Qty: <strong>{formatStockQty(totals.qty)}</strong>
             </div>
             <div className="font-bold text-[var(--text)]">
               Stock Value:{' '}

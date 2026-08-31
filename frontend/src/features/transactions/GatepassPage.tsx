@@ -6,14 +6,23 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
-import { createTxn, fetchTxn, numOrUndef, todayIso, useTxnList } from '@/api/transactions'
+import {
+  createTxn,
+  fetchAvailableSerials,
+  fetchTxn,
+  numOrUndef,
+  todayIso,
+  useTxnList,
+  type AvailableSerialUnit,
+} from '@/api/transactions'
 import { mapEmployee, mapItem, mapLocation, mapUnit, itemsForLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
-import { itemOptionLabel, useLocationStock } from './lineGrid'
+import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
+import { SearchableItemSelect, useLocationStock, wholeQtyStr } from './lineGrid'
 import { AttachmentFields, AttachmentLink, attachmentPayload } from './AttachmentSection'
 import { GATEPASS_OUTWARD_PREFILL_KEY, type GatepassOutwardNavState } from './gatepassNavigation'
 import type { GatepassOutwardPrefill } from './transferGatepassBridge'
-import { systemLocations } from './txnLookups'
+import { locLabel, systemLocations } from './txnLookups'
 
 export function GatepassPage() {
   const location = useLocation()
@@ -38,6 +47,18 @@ export function GatepassPage() {
   const { options: retFlagOpts } = useGenValues(GEN_TYPE.RETURNABLE_FLAG, 'code')
   const outward = useTxnList('gatepass/outward')
   const inward = useTxnList('gatepass/inward')
+  const [inwardStatusFilter, setInwardStatusFilter] = useState('')
+  const [outwardStatusFilter, setOutwardStatusFilter] = useState('')
+  const inwardStatusOptions = useMemo(() => txnStatusFilterOptions(inward.rows), [inward.rows])
+  const outwardStatusOptions = useMemo(() => txnStatusFilterOptions(outward.rows), [outward.rows])
+  const filteredInward = useMemo(
+    () => filterRowsByStatus(inward.rows, inwardStatusFilter),
+    [inward.rows, inwardStatusFilter],
+  )
+  const filteredOutward = useMemo(
+    () => filterRowsByStatus(outward.rows, outwardStatusFilter),
+    [outward.rows, outwardStatusFilter],
+  )
 
   const sessionEmpId = user?.employeeId != null ? String(user.employeeId) : ''
 
@@ -76,12 +97,14 @@ export function GatepassPage() {
     qty: '1',
     uom: '',
     batch: '',
+    serialNo: '',
     remarks: '',
     attachmentUrl: '',
     attachmentName: '',
   })
   const [linkedTransferId, setLinkedTransferId] = useState('')
   const [transferOutwardLink, setTransferOutwardLink] = useState<GatepassOutwardPrefill | null>(null)
+  const [outwardSerials, setOutwardSerials] = useState<AvailableSerialUnit[]>([])
 
   /* When /auth/me fills employeeId after mount */
   useEffect(() => {
@@ -109,6 +132,7 @@ export function GatepassPage() {
       qty: '',
       uom: '',
       batch: '',
+      serialNo: '',
       remarks: '',
       attachmentUrl: '',
       attachmentName: '',
@@ -155,6 +179,14 @@ export function GatepassPage() {
   const outwardItems = useMemo(() => itemsForLocation(items, outwardForm.store), [items, outwardForm.store])
   const { stockByItemId: inwardStock } = useLocationStock(inwardForm.store)
   const { stockByItemId: outwardStock } = useLocationStock(outwardForm.store)
+  const locationByItemId = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const i of items) {
+      const loc = stores.find((l) => l.id === String(i.store ?? ''))
+      if (loc) map[i.id] = locLabel(loc)
+    }
+    return map
+  }, [items, stores])
 
   const inwardHeaderReady = Boolean(inwardForm.store) && (inwardType === 'new' || Boolean(inwardForm.returnableOutwardId))
   const returnableInwardLocked = inwardType === 'returnable' && Boolean(inwardForm.returnableOutwardId)
@@ -166,6 +198,14 @@ export function GatepassPage() {
     inwardSelectedItem?.isSerialized || inwardSelectedItem?.itemType === 'asset',
   )
   const fromTransferOutward = Boolean(transferOutwardLink)
+  const outwardSelectedItem = useMemo(
+    () => items.find((i) => i.id === outwardForm.item),
+    [items, outwardForm.item],
+  )
+  const outwardNeedsSerial = Boolean(
+    !fromTransferOutward &&
+      (outwardSelectedItem?.isSerialized || outwardSelectedItem?.itemType === 'asset'),
+  )
   const outwardHeaderReady = fromTransferOutward
     ? Boolean(outwardForm.returnFlag && outwardForm.transferType)
     : Boolean(outwardForm.store && outwardForm.returnFlag && outwardForm.transferType)
@@ -190,14 +230,36 @@ export function GatepassPage() {
       if (k === 'store') {
         next.item = ''
         next.uom = ''
+        next.serialNo = ''
+        next.batch = ''
       }
       if (k === 'item') {
         const item = items.find((i) => i.id === v)
         next.uom = item ? String(item.uom ?? '') : ''
+        next.serialNo = ''
+        next.batch = ''
       }
       return next
     })
   }
+
+  useEffect(() => {
+    let cancelled = false
+    if (!outwardNeedsSerial || !outwardForm.item || !outwardForm.store) {
+      setOutwardSerials([])
+      return
+    }
+    void fetchAvailableSerials(Number(outwardForm.item), Number(outwardForm.store))
+      .then((units) => {
+        if (!cancelled) setOutwardSerials(units)
+      })
+      .catch(() => {
+        if (!cancelled) setOutwardSerials([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [outwardNeedsSerial, outwardForm.item, outwardForm.store])
 
   const selectReturnableOutward = async (docId: string) => {
     setIn('returnableOutwardId', docId)
@@ -223,7 +285,7 @@ export function GatepassPage() {
         store: doc.locationId != null ? String(doc.locationId) : p.store,
         item: line?.itemId != null ? String(line.itemId) : p.item,
         uom: line?.uomId != null ? String(line.uomId) : p.uom,
-        qty: line?.qty != null ? String(line.qty) : p.qty,
+        qty: line?.qty != null ? wholeQtyStr(line.qty) : p.qty,
         remarks: doc.remarks ?? p.remarks,
         serialNo: String(line?.serialNo ?? line?.batchLotNo ?? '').trim().toUpperCase(),
       }))
@@ -315,6 +377,7 @@ export function GatepassPage() {
         uomId?: number
         qty?: number
         batchLotNo?: string
+        serialNo?: string
         locationId?: number
       }>
 
@@ -332,13 +395,18 @@ export function GatepassPage() {
         if (itemId == null) throw new Error('Item is required')
         const qty = numOrUndef(outwardForm.qty) ?? 1
         const uomId = resolveUom(outwardForm.item, outwardForm.uom)
+        const serialNo = outwardForm.serialNo.trim().toUpperCase()
+        if (outwardNeedsSerial && !serialNo) {
+          throw new Error('Serial No. is required for asset outward')
+        }
         lines = [
           {
             srNo: 1,
             itemId,
             uomId,
             qty,
-            batchLotNo: outwardForm.batch || undefined,
+            batchLotNo: serialNo || outwardForm.batch || undefined,
+            serialNo: serialNo || undefined,
             locationId: numOrUndef(storeId),
           },
         ]
@@ -430,7 +498,23 @@ export function GatepassPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Recent Inward Documents" subtitle="Loaded from /gatepass/inward" />
+            <CardHeader
+              title="Recent Inward Documents"
+              subtitle="Loaded from /gatepass/inward"
+              actions={
+                <Select
+                  value={inwardStatusFilter}
+                  onChange={(e) => setInwardStatusFilter(e.target.value)}
+                  className="min-w-[140px] text-xs"
+                >
+                  {inwardStatusOptions.map((o) => (
+                    <option key={o.value || 'all'} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              }
+            />
             <CardBody className="p-0">
               <table className="w-full border-collapse text-xs">
                 <thead>
@@ -443,14 +527,14 @@ export function GatepassPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {inward.rows.length === 0 ? (
+                  {filteredInward.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-3 py-3 text-[var(--text3)]">
                         No inward documents yet
                       </td>
                     </tr>
                   ) : (
-                    inward.rows.map((r) => (
+                    filteredInward.map((r) => (
                       <tr key={r.id}>
                         <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.docNo}</td>
                         <td className="border-b border-[var(--border)] px-3 py-2">{r.docDate}</td>
@@ -523,26 +607,24 @@ export function GatepassPage() {
                     </Select>
                   </Field>
                   <Field label="Item" required className="md:col-span-2">
-                    <Select
+                    <SearchableItemSelect
                       value={inwardForm.item}
-                      onChange={(e) => setIn('item', e.target.value)}
+                      onChange={(id) => setIn('item', id)}
+                      items={inwardItems}
+                      stockByItemId={inwardStock}
+                      locationByItemId={locationByItemId}
                       disabled={returnableInwardLocked || !inwardHeaderReady}
-                    >
-                      <option value="">
-                        {!inwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'}
-                      </option>
-                      {inwardItems.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {itemOptionLabel(i, inwardStock)}
-                        </option>
-                      ))}
-                    </Select>
+                      placeholder={
+                        !inwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'
+                      }
+                    />
                   </Field>
                   <Field label="Qty" required>
                     <Input
                       value={inwardForm.qty}
                       onChange={(e) => setIn('qty', e.target.value)}
                       type="number"
+                      step="1"
                       disabled={returnableInwardLocked || !inwardHeaderReady}
                     />
                   </Field>
@@ -630,24 +712,22 @@ export function GatepassPage() {
                       </Select>
                     </Field>
                     <Field label="Item" required className="md:col-span-2">
-                      <Select
+                      <SearchableItemSelect
                         value={inwardForm.item}
-                        onChange={(e) => setIn('item', e.target.value)}
+                        onChange={(id) => setIn('item', id)}
+                        items={inwardItems}
+                        stockByItemId={inwardStock}
+                        locationByItemId={locationByItemId}
                         disabled={!inwardHeaderReady}
-                      >
-                        <option value="">
-                          {!inwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'}
-                        </option>
-                        {inwardItems.map((i) => (
-                          <option key={i.id} value={i.id}>
-                            {itemOptionLabel(i, inwardStock)}
-                          </option>
-                        ))}
-                      </Select>
+                        placeholder={
+                          !inwardHeaderReady ? '— Complete header fields first —' : '— Select Item —'
+                        }
+                      />
                     </Field>
                     <Field label="Qty" required>
                       <Input
                         type="number"
+                        step="1"
                         value={inwardForm.qty}
                         onChange={(e) => setIn('qty', e.target.value)}
                         disabled={!inwardHeaderReady}
@@ -707,7 +787,23 @@ export function GatepassPage() {
           </div>
 
           <Card>
-            <CardHeader title="Recent Outward Documents" subtitle="Loaded from /gatepass/outward" />
+            <CardHeader
+              title="Recent Outward Documents"
+              subtitle="Loaded from /gatepass/outward"
+              actions={
+                <Select
+                  value={outwardStatusFilter}
+                  onChange={(e) => setOutwardStatusFilter(e.target.value)}
+                  className="min-w-[140px] text-xs"
+                >
+                  {outwardStatusOptions.map((o) => (
+                    <option key={o.value || 'all'} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              }
+            />
             <CardBody className="p-0">
               <table className="w-full border-collapse text-xs">
                 <thead>
@@ -720,14 +816,14 @@ export function GatepassPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {outward.rows.length === 0 ? (
+                  {filteredOutward.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-3 py-3 text-[var(--text3)]">
                         No outward documents yet
                       </td>
                     </tr>
                   ) : (
-                    outward.rows.map((r) => (
+                    filteredOutward.map((r) => (
                       <tr key={r.id}>
                         <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.docNo}</td>
                         <td className="border-b border-[var(--border)] px-3 py-2">{r.docDate}</td>
@@ -823,31 +919,29 @@ export function GatepassPage() {
                   />
                 </Field>
                 <Field label="Item" required className="md:col-span-2">
-                  <Select
+                  <SearchableItemSelect
                     value={outwardForm.item}
-                    onChange={(e) => setOut('item', e.target.value)}
+                    onChange={(id) => setOut('item', id)}
+                    items={outwardItems}
+                    stockByItemId={outwardStock}
+                    locationByItemId={locationByItemId}
                     disabled={fromTransferOutward || !outwardHeaderReady}
-                  >
-                    <option value="">
-                      {fromTransferOutward
+                    placeholder={
+                      fromTransferOutward
                         ? '— From linked transfer —'
                         : !outwardHeaderReady
                           ? '— Complete header fields first —'
-                          : '— Select Item —'}
-                    </option>
-                    {outwardItems.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {itemOptionLabel(i, outwardStock)}
-                      </option>
-                    ))}
-                  </Select>
+                          : '— Select Item —'
+                    }
+                  />
                 </Field>
                 <Field label="Qty" required>
                   <Input
                     type="number"
+                    step="1"
                     value={outwardForm.qty}
                     onChange={(e) => setOut('qty', e.target.value)}
-                    disabled={fromTransferOutward || !outwardHeaderReady}
+                    disabled={fromTransferOutward || !outwardHeaderReady || outwardNeedsSerial}
                   />
                 </Field>
                 <Field label="Unit">
@@ -864,14 +958,31 @@ export function GatepassPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="Batch / Lot" hint="Optional — blank depletes FIFO">
-                  <Input
-                    value={outwardForm.batch}
-                    onChange={(e) => setOut('batch', e.target.value)}
-                    placeholder="Batch / lot"
-                    disabled={fromTransferOutward || !outwardHeaderReady}
-                  />
-                </Field>
+                {outwardNeedsSerial ? (
+                  <Field label="Serial No." required className="md:col-span-2" hint="Non-issued units at this store">
+                    <Select
+                      value={outwardForm.serialNo}
+                      onChange={(e) => setOut('serialNo', e.target.value.toUpperCase())}
+                      disabled={fromTransferOutward || !outwardHeaderReady}
+                    >
+                      <option value="">— Select serial —</option>
+                      {outwardSerials.map((u) => (
+                        <option key={u.blsId} value={String(u.serialNo ?? '')}>
+                          {u.serialNo}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : (
+                  <Field label="Batch / Lot" hint="Optional — blank depletes FIFO">
+                    <Input
+                      value={outwardForm.batch}
+                      onChange={(e) => setOut('batch', e.target.value)}
+                      placeholder="Batch / lot"
+                      disabled={fromTransferOutward || !outwardHeaderReady}
+                    />
+                  </Field>
+                )}
                 <Field label="Remarks" className="md:col-span-2">
                   <Input
                     placeholder="Remarks…"
@@ -907,6 +1018,7 @@ export function GatepassPage() {
                 qty: '1',
                 uom: '',
                 batch: '',
+                serialNo: '',
                 remarks: '',
                 attachmentUrl: '',
                 attachmentName: '',

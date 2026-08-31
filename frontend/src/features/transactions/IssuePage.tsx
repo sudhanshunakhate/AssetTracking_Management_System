@@ -7,8 +7,10 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { Modal } from '@/components/ui/Modal'
 import { LookupSelect } from '@/components/form/LookupSelect'
 import { api, type PageResponse } from '@/api/client'
+import { fetchDepartmentMappedLocation, mapDepartment, useMasterList } from '@/api/masters'
 import {
   createTxn,
   fetchTxn,
@@ -20,10 +22,11 @@ import {
   type TxnListItem,
   type TxnRow,
 } from '@/api/transactions'
+import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { IssueItemLines, emptyLine, type IssueLine } from './IssueItemLines'
-import { enrichLinesFromItems } from './lineGrid'
+import { enrichLinesFromItems, wholeQtyStr } from './lineGrid'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import {
@@ -55,6 +58,8 @@ type FormState = {
   issuedTo: string
   toLocationId: string
   reqSubtype: string
+  departmentId: string
+  departmentName: string
   remark: string
   attachmentUrl: string
   attachmentName: string
@@ -71,6 +76,8 @@ function blankForm(): FormState {
     issuedTo: '',
     toLocationId: '',
     reqSubtype: '',
+    departmentId: '',
+    departmentName: '',
     remark: '',
     attachmentUrl: '',
     attachmentName: '',
@@ -108,6 +115,9 @@ export function IssueList() {
   const navigate = useNavigate()
   const { canCreateMenu } = useAuth()
   const { rows, loading, error } = useTxnList(RESOURCE)
+  const [statusFilter, setStatusFilter] = useState('')
+  const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
+  const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
   const { locations, employees } = useTxnFormLookups()
   const reqs = useTxnList('requisitions')
 
@@ -166,8 +176,16 @@ export function IssueList() {
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading issues…</div>}
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={filteredRows}
         searchPlaceholder="Search issues…"
+        filters={[
+          {
+            label: 'Status',
+            value: statusFilter,
+            options: statusOptions,
+            onChange: setStatusFilter,
+          },
+        ]}
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
         onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/pick-requisition`) : undefined}
         addLabel="New Issue"
@@ -187,6 +205,8 @@ function IssueForm() {
   const issueId = id && !requisitionIdParam ? id : undefined
 
   const { locations, employees, items, units } = useTxnFormLookups()
+  const { rows: deptRows } = useMasterList('departments', mapDepartment)
+  const deptById = useMemo(() => new Map(deptRows.map((d) => [d.id, d])), [deptRows])
 
   const [form, setForm] = useState<FormState>(blankForm)
   const [lines, setLines] = useState<IssueLine[]>(() => [emptyLine()])
@@ -197,6 +217,13 @@ function IssueForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
+  /** Shown for 5s after a successful issue submit before navigating away. */
+  const [issuedPopup, setIssuedPopup] = useState<{ docId?: number; docNo?: string } | null>(null)
+  /** Mapped department location injected into To Location options when not in the user's location list. */
+  const [deptToLocationOption, setDeptToLocationOption] = useState<{
+    value: string
+    label: string
+  } | null>(null)
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }))
@@ -215,10 +242,17 @@ function IssueForm() {
     return hit ? `${hit.docNo} · ${hit.docDate || ''}` : `Req #${form.requisitionId}`
   })()
 
-  const locationOptions = useMemo(
-    () => toLocationOptions(nonSystemLocations(locations.rows)),
-    [locations.rows],
-  )
+  const locationOptions = useMemo(() => {
+    const base = toLocationOptions(nonSystemLocations(locations.rows))
+    if (deptToLocationOption && !base.some((o) => o.value === deptToLocationOption.value)) {
+      return [deptToLocationOption, ...base]
+    }
+    if (form.toLocationId && !base.some((o) => o.value === form.toLocationId)) {
+      const loc = locations.rows.find((l) => l.id === form.toLocationId)
+      if (loc) return [{ value: loc.id, label: locLabel(loc) }, ...base]
+    }
+    return base
+  }, [locations.rows, deptToLocationOption, form.toLocationId])
   const lineLocations = useMemo(() => nonSystemLocations(locations.rows), [locations.rows])
   const employeeOptions = useMemo(() => toEmployeeOptions(employees.rows), [employees.rows])
 
@@ -276,11 +310,28 @@ function IssueForm() {
           issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : '',
           toLocationId: doc.toLocationId != null ? String(doc.toLocationId) : '',
           reqSubtype: doc.docSubtype ?? '',
+          departmentId: doc.departmentId != null ? String(doc.departmentId) : '',
+          departmentName:
+            doc.departmentId != null
+              ? String(deptById.get(String(doc.departmentId))?.name ?? '')
+              : '',
           remark: doc.remarks ?? '',
           attachmentUrl: doc.attachmentUrl ?? '',
           attachmentName: doc.attachmentName ?? '',
           status: doc.status ?? '',
         })
+        if (
+          (doc.docSubtype ?? '').toUpperCase() === 'DEPARTMENT' &&
+          doc.departmentId != null
+        ) {
+          void applyDepartmentToLocation(String(doc.departmentId), doc.departmentLocationId).then(
+            (locId) => {
+              if (locId) setForm((p) => (p.toLocationId ? p : { ...p, toLocationId: locId }))
+            },
+          )
+        } else {
+          setDeptToLocationOption(null)
+        }
         const mapped = (doc.lines ?? []).map((l) => ({
           ...emptyLine(),
           detailId: l.detailId,
@@ -288,9 +339,9 @@ function IssueForm() {
           itemCode: l.itemCode ?? '',
           itemName: l.itemName ?? '',
           uomId: l.uomId != null ? String(l.uomId) : '',
-          requestedQty: l.requestedQty != null ? String(l.requestedQty) : '',
-          issueQty: l.qty != null ? String(l.qty) : '',
-          availableStock: l.availableStock != null ? String(l.availableStock) : '',
+          requestedQty: wholeQtyStr(l.requestedQty),
+          issueQty: wholeQtyStr(l.qty),
+          availableStock: wholeQtyStr(l.availableStock),
           batchLotNo: l.batchLotNo ?? '',
           serialNo: l.serialNo ?? '',
           ipAddress: l.ipAddress ?? '',
@@ -310,34 +361,90 @@ function IssueForm() {
     return () => {
       cancelled = true
     }
-  }, [issueId])
+  }, [issueId, deptById])
+
+  /** Keep To Location aligned with the department's mapped location (department master). */
+  useEffect(() => {
+    if (!isNew || !form.departmentId) return
+    if ((form.reqSubtype ?? '').toUpperCase() !== 'DEPARTMENT') return
+    let cancelled = false
+    ;(async () => {
+      const mapped = await fetchDepartmentMappedLocation(form.departmentId, deptById)
+      if (cancelled || !mapped?.locationId) return
+      const loc = locations.rows.find((l) => l.id === mapped.locationId)
+      const label =
+        loc != null
+          ? locLabel(loc)
+          : mapped.locationCode && mapped.locationName
+            ? `${mapped.locationCode} – ${mapped.locationName}`
+            : mapped.locationCode || mapped.locationName || mapped.locationId
+      setDeptToLocationOption({ value: mapped.locationId, label })
+      setForm((p) =>
+        p.toLocationId === mapped.locationId ? p : { ...p, toLocationId: mapped.locationId },
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [form.departmentId, form.reqSubtype, isNew, deptRows, deptById, locations.rows])
+
+  const applyDepartmentToLocation = async (
+    departmentId: string,
+    docDepartmentLocationId?: number | null,
+  ): Promise<string> => {
+    const mapped = await fetchDepartmentMappedLocation(departmentId, deptById)
+    const targetId =
+      mapped?.locationId ||
+      (docDepartmentLocationId != null ? String(docDepartmentLocationId) : '')
+    if (!targetId) return ''
+
+    const loc = locations.rows.find((l) => l.id === targetId)
+    const code = String(loc?.code ?? mapped?.locationCode ?? '')
+    const name = String(loc?.name ?? mapped?.locationName ?? '')
+    const label = code && name ? `${code} – ${name}` : code || name || targetId
+    setDeptToLocationOption({ value: targetId, label })
+    return targetId
+  }
 
   const onRequisitionChange = async (reqId: string) => {
     set('requisitionId', reqId)
     if (!reqId) return
     try {
       const doc = await fetchTxn('requisitions', reqId)
+      const subtype = (doc.docSubtype ?? '').toUpperCase()
+      let toLocationId = ''
+      if (subtype === 'EMPLOYEE' && doc.initiatedByEmpId != null) {
+        const emp = employees.rows.find((e) => e.id === String(doc.initiatedByEmpId))
+        toLocationId = String(emp?.baseStore ?? '')
+        setDeptToLocationOption(null)
+      }
+      const deptId = doc.departmentId != null ? String(doc.departmentId) : ''
+      if (!toLocationId && deptId && subtype !== 'EMPLOYEE') {
+        toLocationId = await applyDepartmentToLocation(deptId, doc.departmentLocationId)
+      }
+      if (!toLocationId && doc.locationId != null) {
+        toLocationId = String(doc.locationId)
+      }
+      const deptRow = deptId ? deptById.get(deptId) : undefined
       setForm((p) => ({
         ...p,
         requisitionId: reqId,
         requisitionDisplay: `${doc.docNo ?? ''} · ${doc.docDate || ''}`.trim(),
         storeId: doc.locationId != null ? String(doc.locationId) : p.storeId,
         issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : p.issuedTo,
-        reqSubtype: doc.docSubtype ?? p.reqSubtype,
-        toLocationId: (() => {
-          const subtype = (doc.docSubtype ?? '').toUpperCase()
-          if (subtype === 'EMPLOYEE' && doc.initiatedByEmpId != null) {
-            const emp = employees.rows.find((e) => e.id === String(doc.initiatedByEmpId))
-            const base = String(emp?.baseStore ?? '')
-            if (base) return base
-          }
-          return doc.locationId != null ? String(doc.locationId) : p.toLocationId
-        })(),
+        reqSubtype: subtype || p.reqSubtype,
+        departmentId: deptId || p.departmentId,
+        departmentName: deptRow?.name ? String(deptRow.name) : p.departmentName,
+        toLocationId: toLocationId || p.toLocationId,
       }))
       const storeLoc = doc.locationId != null ? String(doc.locationId) : ''
       const mapped = (doc.lines ?? []).map((l) => {
         const reqQty =
-          l.requestedQty != null ? String(l.requestedQty) : l.qty != null ? String(l.qty) : ''
+          l.requestedQty != null
+            ? wholeQtyStr(l.requestedQty)
+            : l.qty != null
+              ? wholeQtyStr(l.qty)
+              : ''
         return {
           ...emptyLine(),
           itemId: l.itemId != null ? String(l.itemId) : '',
@@ -375,17 +482,22 @@ function IssueForm() {
     )
   }, [form.storeId, readOnly])
 
-  const fieldDefs: ValidatableField[] = [
-    { name: 'issueDate', label: 'Issue Date', required: true },
-    { name: 'requisitionId', label: 'Against Requisition', required: true },
-    { name: 'storeId', label: 'Store', required: true },
-    { name: 'issuedTo', label: 'Issued To', required: true },
-    { name: 'toLocationId', label: 'To Location', required: true },
-  ]
+  const fieldDefs = useMemo<ValidatableField[]>(() => {
+    const base: ValidatableField[] = [
+      { name: 'issueDate', label: 'Issue Date', required: true },
+      { name: 'requisitionId', label: 'Against Requisition', required: true },
+      { name: 'storeId', label: 'From Location', required: true },
+      { name: 'toLocationId', label: 'To Location', required: true },
+    ]
+    if (form.reqSubtype !== 'DEPARTMENT') {
+      base.push({ name: 'issuedTo', label: 'Issued To', required: true })
+    }
+    return base
+  }, [form.reqSubtype])
 
   const headerReady = useMemo(
     () => areRequiredFieldsFilled(fieldDefs, form as unknown as Record<string, unknown>),
-    [form],
+    [form, fieldDefs],
   )
 
   const errors = useMemo(() => {
@@ -405,7 +517,7 @@ function IssueForm() {
       e.lines = 'Serial No. is required on every asset line.'
     }
     return e
-  }, [form, lines, items.rows])
+  }, [form, lines, items.rows, fieldDefs])
 
   const err = (name: string) => (submitted || touched[name] ? errors[name] : undefined)
 
@@ -417,6 +529,8 @@ function IssueForm() {
       fromLocationId: locationId,
       toLocationId: form.toLocationId ? Number(form.toLocationId) : undefined,
       initiatedByEmpId: form.issuedTo ? Number(form.issuedTo) : undefined,
+      departmentId: form.departmentId ? Number(form.departmentId) : undefined,
+      docSubtype: form.reqSubtype || undefined,
       refTxnHeaderId: form.requisitionId ? Number(form.requisitionId) : undefined,
       remarks: form.remark || undefined,
       ...attachmentPayload(form.attachmentUrl, form.attachmentName),
@@ -460,7 +574,13 @@ function IssueForm() {
       const body = buildBody(action)
       const created = await createTxn(RESOURCE, body)
       const docId = (created as { docId?: number })?.docId
-      setMessage(action === 'SUBMIT' ? 'Issue submitted — stock posted.' : 'Issue saved as draft.')
+      const docNo = (created as { docNo?: string })?.docNo
+      if (action === 'SUBMIT') {
+        setIssuedPopup({ docId, docNo })
+        setMessage('Issue submitted — stock posted.')
+        return
+      }
+      setMessage('Issue saved as draft.')
       if (docId != null) navigate(`${BASE}/${docId}`, { replace: true })
       else navigate(BASE)
     } catch (e) {
@@ -469,6 +589,17 @@ function IssueForm() {
       setSaving(false)
     }
   }
+
+  useEffect(() => {
+    if (!issuedPopup) return
+    const t = window.setTimeout(() => {
+      const id = issuedPopup.docId
+      setIssuedPopup(null)
+      if (id != null) navigate(`${BASE}/${id}`, { replace: true })
+      else navigate(BASE)
+    }, 5000)
+    return () => window.clearTimeout(t)
+  }, [issuedPopup, navigate])
 
   const saveIdentity = async () => {
     if (!issueId) return
@@ -565,58 +696,91 @@ function IssueForm() {
               <Input value={requisitionLabel} readOnly placeholder="—" />
             </Field>
 
-            <LookupSelect
-              label="Store"
-              required
-              value={form.storeId}
-              onChange={(v) => set('storeId', v)}
-              onBlur={() => touch('storeId')}
-              options={locationOptions}
-              placeholder="— Select Store —"
-              error={err('storeId')}
-              disabled={readOnly}
-              quickAdd={addLocation}
-            />
+            <Field
+              label="From Location"
+              hint="Taken from the requisition — shown on each item line"
+            >
+              <Input
+                value={(() => {
+                  const loc = locations.rows.find((l) => l.id === form.storeId)
+                  return loc ? locLabel(loc) : form.storeId || ''
+                })()}
+                readOnly
+                placeholder="From requisition"
+              />
+            </Field>
 
-            <LookupSelect
-              label="Issued To"
-              required
-              value={form.issuedTo}
-              onChange={(v) => {
-                setForm((p) => {
-                  const emp = employees.rows.find((e) => e.id === v)
-                  const next = { ...p, issuedTo: v }
-                  if (p.reqSubtype === 'EMPLOYEE' && emp?.baseStore) {
-                    next.toLocationId = String(emp.baseStore)
+            {form.reqSubtype === 'DEPARTMENT' ? (
+              <Field label="Request from Department">
+                <Input
+                  value={
+                    form.departmentName ||
+                    (form.departmentId ? String(deptById.get(form.departmentId)?.name ?? form.departmentId) : '')
                   }
-                  return next
-                })
-              }}
-              onBlur={() => touch('issuedTo')}
-              options={employeeOptions}
-              placeholder="— Select Employee —"
-              error={err('issuedTo')}
-              disabled={readOnly}
-              quickAdd={addEmployee}
-            />
+                  readOnly
+                  placeholder="From requisition"
+                />
+              </Field>
+            ) : (
+              <LookupSelect
+                label="Issued To"
+                required
+                value={form.issuedTo}
+                onChange={(v) => {
+                  setForm((p) => {
+                    const emp = employees.rows.find((e) => e.id === v)
+                    const next = { ...p, issuedTo: v }
+                    if (p.reqSubtype === 'EMPLOYEE' && emp?.baseStore) {
+                      next.toLocationId = String(emp.baseStore)
+                    }
+                    return next
+                  })
+                }}
+                onBlur={() => touch('issuedTo')}
+                options={employeeOptions}
+                placeholder="— Select Employee —"
+                error={err('issuedTo')}
+                disabled={readOnly}
+                quickAdd={addEmployee}
+              />
+            )}
 
-            <LookupSelect
-              label="To Location"
-              required
-              value={form.toLocationId}
-              onChange={(v) => set('toLocationId', v)}
-              onBlur={() => touch('toLocationId')}
-              options={locationOptions}
-              placeholder="— Select Location —"
-              error={err('toLocationId')}
-              disabled={readOnly}
-              hint={
-                form.reqSubtype === 'EMPLOYEE'
-                  ? 'Defaults to the employee’s base location'
-                  : 'Defaults to the requisition location'
-              }
-              quickAdd={addLocation}
-            />
+            {(form.reqSubtype ?? '').toUpperCase() === 'DEPARTMENT' ? (
+              <Field
+                label="To Location"
+                required
+                error={err('toLocationId')}
+                hint="Taken from the department master — cannot be changed"
+              >
+                <Input
+                  value={
+                    deptToLocationOption?.value === form.toLocationId
+                      ? deptToLocationOption.label
+                      : (() => {
+                          const loc = locations.rows.find((l) => l.id === form.toLocationId)
+                          return loc ? locLabel(loc) : form.toLocationId || ''
+                        })()
+                  }
+                  readOnly
+                  placeholder="From department mapping"
+                  invalid={Boolean(err('toLocationId'))}
+                />
+              </Field>
+            ) : (
+              <LookupSelect
+                label="To Location"
+                required
+                value={form.toLocationId}
+                onChange={(v) => set('toLocationId', v)}
+                onBlur={() => touch('toLocationId')}
+                options={locationOptions}
+                placeholder="— Select Location —"
+                error={err('toLocationId')}
+                disabled={readOnly}
+                hint="Defaults to the employee’s base location"
+                quickAdd={addLocation}
+              />
+            )}
 
             <Field label="Remark" className="md:col-span-2 xl:col-span-3">
               <Textarea
@@ -693,6 +857,45 @@ function IssueForm() {
           </Button>
         )}
       </div>
+
+      <Modal
+        open={issuedPopup != null}
+        title="Issued"
+        subtitle="Stock has been posted successfully."
+        onClose={() => {
+          const id = issuedPopup?.docId
+          setIssuedPopup(null)
+          if (id != null) navigate(`${BASE}/${id}`, { replace: true })
+          else navigate(BASE)
+        }}
+        offsetSidebar
+        footer={
+          <Button
+            onClick={() => {
+              const id = issuedPopup?.docId
+              setIssuedPopup(null)
+              if (id != null) navigate(`${BASE}/${id}`, { replace: true })
+              else navigate(BASE)
+            }}
+          >
+            OK
+          </Button>
+        }
+      >
+        <div className="space-y-2 py-1 text-center">
+          <div className="text-[15px] font-semibold text-[var(--text)]">
+            Material issued successfully
+          </div>
+          {issuedPopup?.docNo && (
+            <div className="font-mono text-[13px] font-semibold text-[var(--accent-deep)]">
+              {issuedPopup.docNo}
+            </div>
+          )}
+          <p className="text-[12.5px] text-[var(--text2)]">
+            This message will close automatically in 5 seconds.
+          </p>
+        </div>
+      </Modal>
     </FadeContent>
   )
 }

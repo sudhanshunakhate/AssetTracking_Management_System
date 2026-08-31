@@ -149,7 +149,11 @@ public class AccessScopeService {
     /** Rejects a write that targets a location outside the caller's allow-list. */
     public void requireLocationAllowed(Integer locationId) {
         if (!canAccessLocation(locationId)) {
-            throw ApiException.forbidden("You do not have access to this location");
+            OrgLocationMst loc = locationMasterRepo.findById(locationId).orElse(null);
+            String label = loc != null
+                    ? (loc.getLocLocationCode() + " – " + loc.getLocLocationName())
+                    : String.valueOf(locationId);
+            throw ApiException.forbidden("You do not have access to location " + label);
         }
     }
 

@@ -55,6 +55,14 @@ public class BlsService {
                 .toList();
     }
 
+    /** Serial units that are active, non-dummy, and not currently issued. */
+    public List<InvBlsMst> listAvailableSerials(Integer itemId, Integer locationId) {
+        if (itemId == null) {
+            return List.of();
+        }
+        return blsRepo.findAvailableSerials(itemId, locationId);
+    }
+
     @Transactional
     public InvBlsMst resolveForLine(Integer entityId, Integer locationId, LineRequest line,
                                     Integer currentHeaderId, DocType docType, Integer headerIssuedToEmpId) {

@@ -17,10 +17,11 @@ import {
   type TxnRow,
 } from '@/api/transactions'
 import { mapBusinessUnit, useMasterList, type ApiMasterRow } from '@/api/masters'
+import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { TransferItemLines, emptyTransferLine, type TransferLine } from './TransferItemLines'
-import { enrichLinesFromItems } from './lineGrid'
+import { enrichLinesFromItems, wholeQtyStr } from './lineGrid'
 import { locLabel, locationOptions as toLocationOptions, systemLocationsForOu, useTxnFormLookups } from './txnLookups'
 
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
@@ -128,10 +129,13 @@ function TransferList() {
   const navigate = useNavigate()
   const { canCreateMenu } = useAuth()
   const [view, setView] = useState<'all' | 'pending-outward'>('all')
+  const [statusFilter, setStatusFilter] = useState('')
   const { rows, loading, error } = useTxnList(
     RESOURCE,
     view === 'pending-outward' ? { status: PENDING_FOR_OUTWARD_STATUS } : undefined,
   )
+  const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
+  const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
   const { locations } = useTxnFormLookups()
   const locById = useMemo(() => new Map(locations.rows.map((l) => [l.id, l])), [locations.rows])
 
@@ -220,8 +224,16 @@ function TransferList() {
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading transfers…</div>}
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={filteredRows}
         searchPlaceholder="Search transfers…"
+        filters={[
+          {
+            label: 'Status',
+            value: statusFilter,
+            options: statusOptions,
+            onChange: setStatusFilter,
+          },
+        ]}
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
         onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/new`) : undefined}
         addLabel="New Transfer"
@@ -329,10 +341,12 @@ function TransferForm() {
           itemCode: l.itemCode ?? '',
           itemName: l.itemName ?? '',
           uomId: l.uomId != null ? String(l.uomId) : '',
-          transferQty: l.qty != null ? String(l.qty) : '',
-          availableStock: l.availableStock != null ? String(l.availableStock) : '',
+          transferQty: wholeQtyStr(l.qty),
+          availableStock: wholeQtyStr(l.availableStock),
           locationId: l.locationId != null ? String(l.locationId) : '',
           remark: l.remark ?? '',
+          serialNo: String(l.serialNo ?? '').toUpperCase(),
+          itemType: String(l.itemType ?? ''),
         }))
         setLines(mapped.length ? mapped : [emptyTransferLine()])
       } catch (e) {
@@ -348,7 +362,12 @@ function TransferForm() {
 
   useEffect(() => {
     if (!items.rows.length) return
-    setLines((prev) => enrichLinesFromItems(prev, items.rows))
+    setLines((prev) =>
+      enrichLinesFromItems(prev, items.rows).map((l) => ({
+        ...l,
+        itemType: l.itemType || String(items.rows.find((i) => i.id === l.itemId)?.itemType ?? ''),
+      })),
+    )
   }, [items.rows])
 
   const clearInvalidStores = (
@@ -478,11 +497,19 @@ function TransferForm() {
         return 'Every item line needs a positive quantity.'
       }
       if (filled.some((l) => !l.uomId)) return 'Every item line needs a Unit (pick a valid item).'
+      if (
+        filled.some((l) => {
+          const kind = l.itemType || items.rows.find((i) => i.id === l.itemId)?.itemType
+          return kind !== 'consumable' && !String(l.serialNo ?? '').trim()
+        })
+      ) {
+        return 'Every asset line needs a Serial No.'
+      }
       return ''
     })()
     if (lineErr) e.lines = lineErr
     return e
-  }, [fieldDefs, form, lines, isOu])
+  }, [fieldDefs, form, lines, isOu, items.rows])
 
   const err = (name: string) => (submitted || touched[name] ? errors[name] : undefined)
 
@@ -544,6 +571,8 @@ function TransferForm() {
             qty,
             availableStock: l.availableStock === '' ? undefined : Number(l.availableStock),
             locationId: fromId,
+            serialNo: l.serialNo || undefined,
+            batchLotNo: l.serialNo || undefined,
             remark: l.remark || undefined,
           }
         }),
@@ -774,6 +803,7 @@ function TransferForm() {
           onChange={setLines}
           items={items.rows}
           units={units.rows}
+          locations={locations.rows}
           fromStoreId={form.fromStoreId}
           readOnly={readOnly}
           headerReady={headerReady}

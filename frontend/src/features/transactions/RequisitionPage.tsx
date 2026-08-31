@@ -18,22 +18,20 @@ import {
   type DocumentRequest,
   type TxnRow,
 } from '@/api/transactions'
+import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 import { useAuth } from '@/features/auth/AuthContext'
 import { notBefore, validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { RequisitionItemLines, emptyLine, type RequisitionLine } from './RequisitionItemLines'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
-import { enrichLinesFromItems } from './lineGrid'
+import { enrichLinesFromItems, wholeQtyStr } from './lineGrid'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   empLabel,
   employeeOptions as toEmployeeOptions,
-  itemsForLocation,
   locLabel,
-  locationOptions as toLocationOptions,
   nonSystemLocations,
   quickAddEmployee,
   quickAddGenValue,
-  quickAddLocation,
   useGenLookup,
   useTxnFormLookups,
 } from './txnLookups'
@@ -108,6 +106,9 @@ function RequisitionList() {
   const navigate = useNavigate()
   const { canCreateMenu } = useAuth()
   const { rows, loading, error } = useTxnList(RESOURCE)
+  const [statusFilter, setStatusFilter] = useState('')
+  const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
+  const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
   const { locations, employees } = useTxnFormLookups()
   const mapDeptStable = useCallback(mapDepartment, [])
   const { rows: deptRows } = useMasterList('departments', mapDeptStable)
@@ -190,8 +191,16 @@ function RequisitionList() {
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading requisitions…</div>}
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={filteredRows}
         searchPlaceholder="Search requisitions…"
+        filters={[
+          {
+            label: 'Status',
+            value: statusFilter,
+            options: statusOptions,
+            onChange: setStatusFilter,
+          },
+        ]}
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
         onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/new`) : undefined}
         addLabel="New Requisition"
@@ -274,8 +283,8 @@ function RequisitionForm() {
           itemCode: l.itemCode ?? '',
           itemName: l.itemName ?? '',
           uomId: l.uomId != null ? String(l.uomId) : '',
-          requestedQty: l.requestedQty != null ? String(l.requestedQty) : '',
-          availableStock: l.availableStock != null ? String(l.availableStock) : '',
+          requestedQty: wholeQtyStr(l.requestedQty),
+          availableStock: wholeQtyStr(l.availableStock),
           locationId: l.locationId != null ? String(l.locationId) : '',
           remark: l.remark ?? '',
         }))
@@ -340,7 +349,6 @@ function RequisitionForm() {
         required: true,
         validate: notBefore('reqDate', 'Requisition Date'),
       },
-      { name: 'deliverTo', label: 'Request from Location', required: true },
     ]
     if (form.reqType === 'DEPARTMENT') {
       base.push({ name: 'departmentId', label: 'Request from Department', required: true })
@@ -359,6 +367,8 @@ function RequisitionForm() {
       found.lines = 'Add at least one item line with an item and a requested quantity.'
     } else if (filled.some((l) => !(Number(l.requestedQty) > 0))) {
       found.lines = 'Every item line needs a requested quantity greater than 0.'
+    } else if (filled.some((l) => !l.locationId)) {
+      found.lines = 'Every item line needs a location.'
     } else if (lines.some((l) => l.itemCode !== '' && l.itemId === '')) {
       found.lines = 'One or more item codes do not match an item in the Item Master.'
     }
@@ -374,7 +384,9 @@ function RequisitionForm() {
 
   /* ---- actions ---- */
   const buildBody = (action: 'SAVE_DRAFT' | 'SUBMIT'): DocumentRequest => {
-    const locationId = Number(form.deliverTo)
+    const filled = lines.filter((l) => l.itemId !== '')
+    const firstLoc = filled.find((l) => l.locationId)?.locationId
+    const locationId = firstLoc ? Number(firstLoc) : undefined
     return {
       docDate: form.reqDate,
       requiredByDate: form.requiredDate,
@@ -398,8 +410,7 @@ function RequisitionForm() {
             requestedQty: qty,
             qty,
             availableStock: l.availableStock === '' ? undefined : Number(l.availableStock),
-            // Location on every line for later issue posting.
-            locationId: l.locationId ? Number(l.locationId) : locationId,
+            locationId: l.locationId ? Number(l.locationId) : undefined,
             remark: l.remark || undefined,
           }
         }),
@@ -433,11 +444,9 @@ function RequisitionForm() {
 
   /* ---- quick-add configs ---- */
   const addEmployee = quickAddEmployee(employees.reload)
-  const addLocation = quickAddLocation(locations.reload)
   const addDesignation = quickAddGenValue('Add Designation', GEN_TYPE.DESIGNATION, designations)
 
   const employeeOptions = toEmployeeOptions(employees.rows)
-  const locationOptions = toLocationOptions(nonSystemLocations(locations.rows))
   const lineLocations = nonSystemLocations(locations.rows)
 
   if (isNew && !canCreateMenu(MENU)) return <Navigate to={BASE} replace />
@@ -588,19 +597,6 @@ function RequisitionForm() {
               </>
             )}
 
-            <LookupSelect
-              label="Request from Location"
-              required
-              value={form.deliverTo}
-              onChange={(v) => set('deliverTo', v)}
-              onBlur={() => touch('deliverTo')}
-              options={locationOptions}
-              placeholder="— Select Location —"
-              error={err('deliverTo')}
-              disabled={readOnly}
-              quickAdd={addLocation}
-            />
-
             <Field label="Remark" className="md:col-span-2 xl:col-span-3">
               <Textarea
                 value={form.remark}
@@ -625,10 +621,10 @@ function RequisitionForm() {
       <RequisitionItemLines
         lines={lines}
         onChange={setLines}
-        items={itemsForLocation(items.rows, form.deliverTo)}
+        items={items.rows}
         units={units.rows}
         locations={lineLocations}
-        deliverToLocationId={form.deliverTo}
+        allLocations={locations.rows}
         readOnly={readOnly}
         headerReady={headerReady}
         error={submitted ? errors.lines : undefined}

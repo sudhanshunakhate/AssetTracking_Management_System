@@ -17,12 +17,13 @@ import {
   type DocumentRequest,
   type TxnRow,
 } from '@/api/transactions'
+import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 import { useAuth } from '@/features/auth/AuthContext'
 import { notBefore, validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
 import { GrnItemLines, emptyGrnLine, type GrnLine } from './GrnItemLines'
 import type { ItemKind } from './OpeningStockItemLines'
-import { enrichLinesFromItems, money, toNum } from './lineGrid'
+import { enrichLinesFromItems, money, toNum, wholeQtyStr } from './lineGrid'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   employeeOptions as toEmployeeOptions,
@@ -96,6 +97,9 @@ function GrnList() {
   const navigate = useNavigate()
   const { canCreateMenu } = useAuth()
   const { rows, loading, error } = useTxnList(RESOURCE)
+  const [statusFilter, setStatusFilter] = useState('')
+  const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
+  const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
   const { locations, vendors } = useTxnFormLookups()
 
   const vendorById = useMemo(() => new Map(vendors.rows.map((v) => [v.id, v])), [vendors.rows])
@@ -154,8 +158,16 @@ function GrnList() {
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading GRNs…</div>}
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={filteredRows}
         searchPlaceholder="Search GRNs…"
+        filters={[
+          {
+            label: 'Status',
+            value: statusFilter,
+            options: statusOptions,
+            onChange: setStatusFilter,
+          },
+        ]}
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
         onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/new`) : undefined}
         addLabel="New GRN"
@@ -235,10 +247,10 @@ function GrnForm() {
           itemCode: l.itemCode ?? '',
           itemName: l.itemName ?? '',
           uomId: l.uomId != null ? String(l.uomId) : '',
-          receivedQty: l.receivedQty != null ? String(l.receivedQty) : '',
-          acceptedQty: l.acceptedQty != null ? String(l.acceptedQty) : '',
-          rejectedQty: l.rejectedQty != null ? String(l.rejectedQty) : '',
-          availableStock: l.availableStock != null ? String(l.availableStock) : '',
+          receivedQty: wholeQtyStr(l.receivedQty),
+          acceptedQty: wholeQtyStr(l.acceptedQty),
+          rejectedQty: wholeQtyStr(l.rejectedQty),
+          availableStock: wholeQtyStr(l.availableStock),
           amount: l.amount != null ? String(l.amount) : '',
           batch: l.batchLotNo ?? '',
           locationId: l.locationId != null ? String(l.locationId) : '',
@@ -444,6 +456,7 @@ function GrnForm() {
 
   const employeeOptions = toEmployeeOptions(employees.rows)
   const locationOptions = systemLocationOptions(locations.rows)
+
   const supplierOptions = toVendorOptions(vendors.rows)
   const allItemsForType = useMemo(
     () =>
@@ -642,7 +655,6 @@ function GrnForm() {
         allItems={allItemsForType}
         units={units.rows}
         locations={locations.rows}
-        storeLocationId=""
         locationOptions={locationOptions}
         readOnly={readOnly}
         headerReady={headerReady}

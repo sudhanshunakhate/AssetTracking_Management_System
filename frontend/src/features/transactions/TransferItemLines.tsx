@@ -1,28 +1,33 @@
-import { useCallback, useMemo, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Field'
 import type { ApiMasterRow } from '@/api/masters'
+import { fetchAvailableSerials, type AvailableSerialUnit } from '@/api/transactions'
 import {
+  SearchableItemSelect,
   applyItemMaster,
   baseLine,
   gridCell,
   gridHeadCell,
+  gridHeadLabel,
   gridInput,
   gridInputRight,
-  itemOptionLabel,
   toNum,
   useLocationStock,
+  wholeQtyStr,
   type BaseLine,
 } from './lineGrid'
-import { itemsForLocation } from './txnLookups'
+import { itemsForLocation, locLabel } from './txnLookups'
 
 export type TransferLine = BaseLine & {
   transferQty: string
+  serialNo: string
+  itemType: string
 }
 
 export function emptyTransferLine(): TransferLine {
-  return { ...baseLine(), transferQty: '' }
+  return { ...baseLine(), transferQty: '', serialNo: '', itemType: '' }
 }
 
 /** Multi-line Items to Transfer — item dropdown filtered by From Store. */
@@ -31,6 +36,7 @@ export function TransferItemLines({
   onChange,
   items,
   units,
+  locations = [],
   fromStoreId,
   readOnly = false,
   headerReady = true,
@@ -40,6 +46,7 @@ export function TransferItemLines({
   onChange: Dispatch<SetStateAction<TransferLine[]>>
   items: ApiMasterRow[]
   units: ApiMasterRow[]
+  locations?: ApiMasterRow[]
   fromStoreId: string
   readOnly?: boolean
   headerReady?: boolean
@@ -49,6 +56,49 @@ export function TransferItemLines({
   const itemById = useMemo(() => new Map(allowedItems.map((i) => [i.id, i])), [allowedItems])
   const { stockByItemId } = useLocationStock(fromStoreId)
   const linesLocked = readOnly || !headerReady || !fromStoreId
+  const locationByItemId = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const i of allowedItems) {
+      const loc = locations.find((l) => l.id === String(i.store ?? ''))
+      if (loc) map[i.id] = locLabel(loc)
+    }
+    return map
+  }, [allowedItems, locations])
+
+  const showSerial = lines.some((l) => {
+    if (!l.itemId) return false
+    const kind = l.itemType || itemById.get(l.itemId)?.itemType
+    return kind !== 'consumable'
+  })
+
+  const [serialOptions, setSerialOptions] = useState<Record<string, AvailableSerialUnit[]>>({})
+  const itemIdsKey = useMemo(() => lines.map((l) => `${l.key}:${l.itemId}`).join('|'), [lines])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const next: Record<string, AvailableSerialUnit[]> = {}
+      for (const line of lines) {
+        if (!line.itemId) continue
+        const kind = line.itemType || itemById.get(line.itemId)?.itemType
+        if (kind === 'consumable') continue
+        try {
+          const units = await fetchAvailableSerials(
+            Number(line.itemId),
+            fromStoreId && /^\d+$/.test(fromStoreId) ? Number(fromStoreId) : undefined,
+          )
+          if (!cancelled) next[line.key] = units
+        } catch {
+          if (!cancelled) next[line.key] = []
+        }
+      }
+      if (!cancelled) setSerialOptions(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemIdsKey, fromStoreId])
 
   const patch = useCallback(
     (key: string, changes: Partial<TransferLine>) => {
@@ -60,18 +110,38 @@ export function TransferItemLines({
   const selectItemById = (line: TransferLine, itemId: string) => {
     if (linesLocked) return
     if (!itemId) {
-      patch(line.key, { itemId: '', itemCode: '', itemName: '', uomId: '', availableStock: '' })
+      patch(line.key, {
+        itemId: '',
+        itemCode: '',
+        itemName: '',
+        uomId: '',
+        availableStock: '',
+        serialNo: '',
+        itemType: '',
+      })
       return
     }
     const item = itemById.get(itemId)
     if (!item) {
-      patch(line.key, { itemId: '', itemCode: '', itemName: '', uomId: '', availableStock: '' })
+      patch(line.key, {
+        itemId: '',
+        itemCode: '',
+        itemName: '',
+        uomId: '',
+        availableStock: '',
+        serialNo: '',
+        itemType: '',
+      })
       return
     }
     const avail = stockByItemId[item.id]
+    const kind = String(item.itemType ?? '')
     patch(line.key, {
       ...applyItemMaster(item, fromStoreId),
-      availableStock: avail != null ? String(avail) : '',
+      availableStock: avail != null ? wholeQtyStr(avail) : '',
+      itemType: kind,
+      serialNo: kind === 'consumable' ? '' : line.serialNo,
+      transferQty: kind !== 'consumable' ? '1' : line.transferQty,
     })
   }
 
@@ -100,122 +170,136 @@ export function TransferItemLines({
             <thead>
               <tr className="bg-[var(--surface2)]">
                 <th className={`${gridHeadCell} w-[40px]`}>#</th>
-                <th className={`${gridHeadCell} min-w-[240px]`}>Item / Description</th>
-                <th className={`${gridHeadCell} w-[100px]`}>Qty</th>
+                <th className={`${gridHeadCell} min-w-[260px]`}>{gridHeadLabel('Item / Description', true)}</th>
+                {showSerial && (
+                  <th className={`${gridHeadCell} w-[150px]`}>{gridHeadLabel('Serial No.', true)}</th>
+                )}
+                <th className={`${gridHeadCell} w-[100px]`}>{gridHeadLabel('Qty', true)}</th>
                 <th className={`${gridHeadCell} w-[100px]`}>Unit</th>
                 <th className={gridHeadCell}>Remarks</th>
                 <th className={`${gridHeadCell} w-[40px]`} />
               </tr>
             </thead>
             <tbody>
-              {lines.map((line, idx) => (
-                <tr key={line.key} className="border-t border-[var(--border)]">
-                  <td className={`${gridCell} text-center text-[11px] font-bold text-[var(--text3)]`}>
-                    {idx + 1}
-                  </td>
-                  <td className={gridCell}>
-                    <Select
-                      className={gridInput}
-                      value={line.itemId}
-                      disabled={linesLocked}
-                      onChange={(e) => selectItemById(line, e.target.value)}
-                    >
-                      <option value="">
-                        {!fromStoreId ? '— Select From Store first —' : '— Select Item —'}
-                      </option>
-                      {allowedItems.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {itemOptionLabel(i, stockByItemId)}
-                        </option>
-                      ))}
-                      {/* Keep current selection visible if it fell out of the filtered list (view-only). */}
-                      {line.itemId && !itemById.has(line.itemId) && (
-                        <option value={line.itemId}>
-                          {line.itemCode
-                            ? `${line.itemCode}${line.itemName ? ` – ${line.itemName}` : ''}`
-                            : `Item #${line.itemId}`}
-                        </option>
+              {lines.map((line, idx) => {
+                const kind = line.itemType || itemById.get(line.itemId)?.itemType
+                const isAsset = Boolean(line.itemId) && kind !== 'consumable'
+                const opts = serialOptions[line.key] ?? []
+                return (
+                  <tr key={line.key} className="border-t border-[var(--border)]">
+                    <td className={`${gridCell} text-center text-[11px] font-bold text-[var(--text3)]`}>
+                      {idx + 1}
+                    </td>
+                    <td className={gridCell}>
+                      <SearchableItemSelect
+                        value={line.itemId}
+                        onChange={(id) => selectItemById(line, id)}
+                        items={allowedItems}
+                        stockByItemId={stockByItemId}
+                        locationByItemId={locationByItemId}
+                        disabled={linesLocked}
+                        placeholder={!fromStoreId ? '— Select From Store first —' : '— Select Item —'}
+                      />
+                      {line.itemId && stockByItemId[line.itemId] != null && (
+                        <div className="mt-1 text-[10.5px] text-[var(--text3)]">
+                          Available at From Store: {stockByItemId[line.itemId]}
+                        </div>
                       )}
-                    </Select>
-                    {line.itemId && stockByItemId[line.itemId] != null && (
-                      <div className="mt-1 text-[10.5px] text-[var(--text3)]">
-                        Available at From Store: {stockByItemId[line.itemId]}
-                      </div>
+                    </td>
+                    {showSerial && (
+                      <td className={gridCell}>
+                        {isAsset ? (
+                          <Select
+                            className={gridInput}
+                            value={line.serialNo}
+                            disabled={linesLocked}
+                            onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
+                          >
+                            <option value="">— Select serial —</option>
+                            {line.serialNo &&
+                              !opts.some(
+                                (u) =>
+                                  String(u.serialNo ?? '').toUpperCase() === line.serialNo.toUpperCase(),
+                              ) && <option value={line.serialNo}>{line.serialNo} (current)</option>}
+                            {opts.map((u) => (
+                              <option key={u.blsId} value={String(u.serialNo ?? '')}>
+                                {u.serialNo}
+                              </option>
+                            ))}
+                          </Select>
+                        ) : (
+                          <span className="text-[11px] text-[var(--text3)]">—</span>
+                        )}
+                      </td>
                     )}
-                  </td>
-                  <td className={gridCell}>
-                    <Input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      className={gridInputRight}
-                      value={line.transferQty}
-                      placeholder="0"
-                      disabled={linesLocked}
-                      onChange={(e) => patch(line.key, { transferQty: e.target.value })}
-                    />
-                  </td>
-                  <td className={gridCell}>
-                    <Select
-                      className={gridInput}
-                      value={line.uomId}
-                      disabled={linesLocked}
-                      onChange={(e) => patch(line.key, { uomId: e.target.value })}
-                    >
-                      <option value="">—</option>
-                      {units.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.code}
-                        </option>
-                      ))}
-                    </Select>
-                  </td>
-                  <td className={gridCell}>
-                    <Input
-                      className={gridInput}
-                      value={line.remark}
-                      placeholder="Remarks…"
-                      disabled={linesLocked}
-                      maxLength={200}
-                      onChange={(e) => patch(line.key, { remark: e.target.value })}
-                    />
-                  </td>
-                  <td className={`${gridCell} text-center`}>
-                    <button
-                      type="button"
-                      aria-label={`Remove line ${idx + 1}`}
-                      onClick={() => removeLine(line.key)}
-                      disabled={linesLocked}
-                      className="rounded px-1.5 text-[14px] leading-none text-[var(--text3)] transition hover:text-[var(--danger)] disabled:opacity-40"
-                    >
-                      ×
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    <td className={gridCell}>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="1"
+                        className={gridInputRight}
+                        value={line.transferQty}
+                        placeholder="0"
+                        disabled={linesLocked || isAsset}
+                        onChange={(e) => patch(line.key, { transferQty: e.target.value })}
+                      />
+                    </td>
+                    <td className={gridCell}>
+                      <Select
+                        className={gridInput}
+                        value={line.uomId}
+                        disabled={linesLocked}
+                        onChange={(e) => patch(line.key, { uomId: e.target.value })}
+                      >
+                        <option value="">—</option>
+                        {units.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.code}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
+                    <td className={gridCell}>
+                      <Input
+                        className={gridInput}
+                        value={line.remark}
+                        placeholder="Remarks…"
+                        disabled={linesLocked}
+                        maxLength={200}
+                        onChange={(e) => patch(line.key, { remark: e.target.value })}
+                      />
+                    </td>
+                    <td className={`${gridCell} text-center`}>
+                      {!readOnly && (
+                        <Button
+                          variant="ghost"
+                          className="px-1.5 py-0.5 text-[11px]"
+                          disabled={linesLocked}
+                          onClick={() => removeLine(line.key)}
+                        >
+                          ✕
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
-          <Button variant="ghost" onClick={addLine} disabled={linesLocked}>
-            + Add Line
-          </Button>
-          {error && <span className="text-[11px] font-medium text-[var(--danger)]">{error}</span>}
-          <div className="flex-1" />
-          <span className="text-[11px] font-semibold text-[var(--text2)]">
-            Total Items: {lines.filter((l) => l.itemId !== '').length}
-          </span>
-        </div>
+        {!readOnly && (
+          <div className="flex items-center justify-between border-t border-[var(--border)] px-3 py-2">
+            <Button variant="ghost" disabled={linesLocked} onClick={addLine}>
+              + Add line
+            </Button>
+            {error && <span className="text-[11px] font-medium text-[var(--danger)]">{error}</span>}
+            <span className="text-[11px] text-[var(--text3)]">
+              Lines: {lines.filter((l) => l.itemId).length} · Qty:{' '}
+              {lines.reduce((s, l) => s + toNum(l.transferQty), 0)}
+            </span>
+          </div>
+        )}
       </CardBody>
     </Card>
   )
-}
-
-export function transferLinesValid(lines: TransferLine[]) {
-  const filled = lines.filter((l) => l.itemId)
-  if (filled.length === 0) return 'Add at least one item line.'
-  if (filled.some((l) => !(toNum(l.transferQty) > 0))) return 'Every item line needs qty greater than 0.'
-  if (filled.some((l) => !l.uomId)) return 'Unit is required on every item line.'
-  return ''
 }

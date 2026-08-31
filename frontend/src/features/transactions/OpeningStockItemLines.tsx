@@ -6,17 +6,18 @@ import { Input, Select } from '@/components/ui/Field'
 import type { ApiMasterRow } from '@/api/masters'
 import {
   ItemCodeOptions,
+  SearchableItemSelect,
   applyItemMaster,
   baseLine,
   gridCell,
   gridHeadCell,
   gridInput,
   gridInputRight,
-  itemOptionLabel,
   toNum,
   useCodeIndex,
   useLocationStock,
   gridHeadLabel,
+  wholeQtyStr,
   type BaseLine,
 } from './lineGrid'
 import {
@@ -26,6 +27,7 @@ import {
   OST_CONSUMABLE_IMPORT_SAMPLE,
   importOpeningStockLines,
 } from './lineCsvImport'
+import { locLabel } from './txnLookups'
 
 export type ItemKind = 'asset' | 'consumable'
 
@@ -130,6 +132,14 @@ export function OpeningStockItemLines({
   const unitById = useCodeIndex(units)
   const importPool = allItems ?? items
   const { stockByItemId } = useLocationStock(locationId)
+  const locationByItemId = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const i of filteredItems) {
+      const loc = locations.find((l) => l.id === String(i.store ?? ''))
+      if (loc) map[i.id] = locLabel(loc)
+    }
+    return map
+  }, [filteredItems, locations])
 
   const showIssuedTo = isAsset
 
@@ -153,7 +163,7 @@ export function OpeningStockItemLines({
   const buildLineFromItem = (item: ApiMasterRow, qty: number): OpeningStockLine => ({
     ...emptyOpeningStockLine(),
     ...applyItemMaster(item, locationId),
-    qty: String(qty),
+    qty: wholeQtyStr(qty),
   })
 
   const addUnits = () => {
@@ -263,23 +273,19 @@ export function OpeningStockItemLines({
             </label>
             <label className="flex min-w-[220px] flex-1 flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
               Item
-              <Select
+              <SearchableItemSelect
                 value={pickItemId}
-                onChange={(e) => setPickItemId(e.target.value)}
+                onChange={setPickItemId}
+                items={filteredItems}
+                stockByItemId={stockByItemId}
+                locationByItemId={locationByItemId}
                 disabled={linesLocked}
-                className={gridInput}
-              >
-                <option value="">
-                  {!headerReady
+                placeholder={
+                  !headerReady
                     ? '— Fill header first —'
-                    : `— Select ${isAsset ? 'Asset' : 'Consumable'} —`}
-                </option>
-                {filteredItems.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {itemOptionLabel(i, stockByItemId)}
-                  </option>
-                ))}
-              </Select>
+                    : `— Select ${isAsset ? 'Asset' : 'Consumable'} —`
+                }
+              />
             </label>
             <label className="flex w-[100px] flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
               Qty
@@ -494,7 +500,7 @@ export function OpeningStockItemLines({
                               <Input
                                 type="number"
                                 min={0}
-                                step="0.01"
+                                step="1"
                                 value={line.qty}
                                 onChange={(e) => patch(line.key, { qty: e.target.value })}
                                 disabled={linesLocked}
@@ -582,7 +588,12 @@ export function OpeningStockItemLines({
           </table>
         </div>
 
-        <ItemCodeOptions id={DATALIST_ID} items={filteredItems} stockByItemId={stockByItemId} />
+        <ItemCodeOptions
+          id={DATALIST_ID}
+          items={filteredItems}
+          stockByItemId={stockByItemId}
+          locationByItemId={locationByItemId}
+        />
 
         <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
           <div className="flex-1" />

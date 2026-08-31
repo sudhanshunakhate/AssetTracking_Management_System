@@ -85,6 +85,13 @@ interface SimpleMasterProps<T extends Row> {
   validateForm?: (values: Record<string, unknown>, recordId: string) => Record<string, string>
   /** Optional loader to hydrate the edit form from GET-by-id (header + lines). */
   loadRecord?: (id: string) => Promise<Record<string, unknown> | null>
+  /** Optional Status (or other) filters rendered beside the list search. */
+  filters?: {
+    label: string
+    value: string
+    options: { value: string; label: string }[]
+    onChange: (v: string) => void
+  }[]
 }
 
 function toFormValues(initial: Record<string, unknown>, fields: FieldDef[]): Record<string, unknown> {
@@ -127,6 +134,7 @@ export function SimpleMasterModule<T extends Row>({
   viewOnlyExisting = false,
   validateForm,
   loadRecord,
+  filters = [],
 }: SimpleMasterProps<T>) {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -265,6 +273,7 @@ export function SimpleMasterModule<T extends Row>({
             columns={columns}
             rows={rows}
             searchPlaceholder={searchPlaceholder}
+            filters={filters}
             onRowClick={(row) => navigate(`${basePath}/${row.id}`)}
           />
         </CardBody>

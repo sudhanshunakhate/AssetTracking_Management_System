@@ -1,24 +1,28 @@
-import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/Button'
 import { CsvImportButton } from '@/components/ui/CsvImportButton'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Field'
 import type { ApiMasterRow } from '@/api/masters'
+import { fetchItemLocationStock, type ItemLocationStock } from '@/api/transactions'
 import {
-  ItemCodeOptions,
+  RequisitionItemPickerModal,
+  buildRequisitionPickerRows,
+} from './RequisitionItemPickerModal'
+import {
   applyItemMaster,
   baseLine,
+  formatStockQty,
   gridCell,
   gridHeadCell,
   gridInput,
   gridInputRight,
-  itemOptionLabel,
   money,
   toNum,
   useCodeIndex,
-  useLocationStock,
   useStockLookup,
   gridHeadLabel,
+  wholeQtyStr,
   type BaseLine,
 } from './lineGrid'
 import {
@@ -27,7 +31,7 @@ import {
   importGrnLines,
 } from './lineCsvImport'
 import type { ItemKind } from './OpeningStockItemLines'
-import { quarantineForEntity, rejectedForEntity, systemLocations } from './txnLookups'
+import { locLabel, nonSystemLocations, quarantineForEntity, rejectedForEntity, systemLocations } from './txnLookups'
 
 export type GrnLine = BaseLine & {
   receivedQty: string
@@ -57,8 +61,6 @@ export function emptyGrnLine(): GrnLine {
     batch: '',
   }
 }
-
-const DATALIST_ID = 'grn-item-options'
 
 function orgForLocations(locations: ApiMasterRow[], locationId: string) {
   const loc = locations.find((l) => String(l.id) === String(locationId))
@@ -101,7 +103,6 @@ export function GrnItemLines({
   units,
   locations,
   vendors: _vendors,
-  storeLocationId,
   locationOptions = [],
   allItems,
   readOnly = false,
@@ -118,7 +119,6 @@ export function GrnItemLines({
   units: ApiMasterRow[]
   locations: ApiMasterRow[]
   vendors?: ApiMasterRow[]
-  storeLocationId: string
   locationOptions?: { value: string; label: string }[]
   readOnly?: boolean
   headerReady?: boolean
@@ -133,12 +133,18 @@ export function GrnItemLines({
     [items, itemType],
   )
   const unitById = useCodeIndex(units)
+  const locationById = useCodeIndex(locations)
   const importPool = allItems ?? items
-  const { stockByItemId } = useLocationStock(storeLocationId)
+  const operationalLocs = useMemo(() => nonSystemLocations(locations), [locations])
+  const allowedLocationIds = useMemo(() => new Set(operationalLocs.map((l) => l.id)), [operationalLocs])
 
   const [pickItemId, setPickItemId] = useState('')
+  const [pickLocationId, setPickLocationId] = useState('')
   const [pickQty, setPickQty] = useState('1')
   const [addError, setAddError] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [globalStock, setGlobalStock] = useState<ItemLocationStock[]>([])
+  const [stockLoading, setStockLoading] = useState(true)
 
   const patch = useCallback(
     (key: string, changes: Partial<GrnLine>) => {
@@ -148,21 +154,94 @@ export function GrnItemLines({
   )
 
   const onStock = useCallback(
-    (key: string, qty: number) => patch(key, { availableStock: String(qty) }),
+    (key: string, qty: number) => patch(key, { availableStock: wholeQtyStr(qty) }),
     [patch],
   )
-  const { loading: stockLoading, lookup } = useStockLookup(onStock)
+  const { loading: lineStockLoading, lookup } = useStockLookup(onStock)
 
-  const buildLine = (item: ApiMasterRow, qty: number): GrnLine => {
+  const refreshGlobalStock = useCallback(() => {
+    let cancelled = false
+    setStockLoading(true)
+    ;(async () => {
+      try {
+        const rows = await fetchItemLocationStock()
+        if (!cancelled) {
+          setGlobalStock(rows)
+          setStockLoading(false)
+        }
+      } catch {
+        if (!cancelled) {
+          setGlobalStock([])
+          setStockLoading(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => refreshGlobalStock(), [refreshGlobalStock])
+
+  useEffect(() => {
+    const onStockEvt = () => refreshGlobalStock()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refreshGlobalStock()
+    }
+    window.addEventListener('caits:stock-changed', onStockEvt)
+    window.addEventListener('focus', onStockEvt)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('caits:stock-changed', onStockEvt)
+      window.removeEventListener('focus', onStockEvt)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [refreshGlobalStock])
+
+  /* Keep Available Stock column in sync when line location / ledger stock changes. */
+  useEffect(() => {
+    lines.forEach((l) => {
+      if (!l.itemId || !l.locationId) return
+      void lookup(l.key, Number(l.itemId), l.locationId)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [globalStock, lookup])
+
+  const pickerRows = useMemo(
+    () =>
+      buildRequisitionPickerRows(
+        filteredItems,
+        globalStock,
+        allowedLocationIds,
+        locationById,
+        unitById,
+        { stockedOnly: false },
+      ),
+    [filteredItems, globalStock, allowedLocationIds, locationById, unitById],
+  )
+
+  const pickItem = filteredItems.find((i) => i.id === pickItemId)
+  const pickLocationLabel = pickLocationId
+    ? (() => {
+        const loc = locationById.get(pickLocationId)
+        return loc ? locLabel(loc) : pickLocationId
+      })()
+    : ''
+  const pickDisplay =
+    pickItem && pickLocationId
+      ? `${pickItem.code} – ${pickItem.name} @ ${pickLocationLabel}`
+      : ''
+
+  const buildLine = (item: ApiMasterRow, qty: number, locationId: string): GrnLine => {
     const cost = toNum(item.standardCost as number)
     const accepted = qty
     const rejected = 0
-    const locked = lockedLocationForLine(item, accepted, rejected, locations, storeLocationId)
+    const locked = lockedLocationForLine(item, accepted, rejected, locations, locationId)
     return {
       ...emptyGrnLine(),
-      ...applyItemMaster(item, locked.locationId || storeLocationId || String(item.store ?? '')),
-      receivedQty: String(qty),
-      acceptedQty: String(qty),
+      ...applyItemMaster(item, locked.locationId || locationId || String(item.store ?? '')),
+      receivedQty: wholeQtyStr(qty),
+      acceptedQty: wholeQtyStr(qty),
       rejectedQty: '0',
       amount: cost > 0 ? String(qty * cost) : '',
     }
@@ -172,8 +251,8 @@ export function GrnItemLines({
     if (linesLocked) return
     setAddError('')
     const item = filteredItems.find((i) => i.id === pickItemId)
-    if (!item) {
-      setAddError('Select an item first')
+    if (!item || !pickLocationId) {
+      setAddError('Select an item and location from the popup first')
       return
     }
     const n = Math.floor(toNum(pickQty))
@@ -186,31 +265,39 @@ export function GrnItemLines({
       return
     }
 
-    const location = storeLocationId || String(item.store ?? '')
     if (isAsset) {
-      const created = Array.from({ length: n }, () => buildLine(item, 1))
+      const created = Array.from({ length: n }, () => buildLine(item, 1, pickLocationId))
       onChange((prev) => {
         const keep = prev.filter((l) => l.itemId !== '')
         return [...keep, ...created]
       })
-      created.forEach((l) => void lookup(l.key, Number(item.id), location))
+      created.forEach((l) => void lookup(l.key, Number(item.id), pickLocationId))
     } else {
-      const line = buildLine(item, n)
+      const line = buildLine(item, n, pickLocationId)
       onChange((prev) => {
         const keep = prev.filter((l) => l.itemId !== '')
         return [...keep, line]
       })
-      void lookup(line.key, Number(item.id), location)
+      void lookup(line.key, Number(item.id), pickLocationId)
     }
     setPickQty('1')
     setPickItemId('')
+    setPickLocationId('')
   }
 
   const changeType = (next: ItemKind) => {
     onItemTypeChange(next)
     onChange([emptyGrnLine()])
     setPickItemId('')
+    setPickLocationId('')
     setPickQty('1')
+    setAddError('')
+  }
+
+  const onPickerSelect = (itemId: string, locationId: string) => {
+    setPickItemId(itemId)
+    setPickLocationId(locationId)
+    setPickerOpen(false)
     setAddError('')
   }
 
@@ -219,12 +306,15 @@ export function GrnItemLines({
     if (line.itemId) void lookup(line.key, Number(line.itemId), locationId)
   }
 
+  const defaultImportLocation =
+    pickLocationId || lines.find((l) => l.locationId)?.locationId || operationalLocs[0]?.id || ''
+
   const onImport = (rows: Record<string, string>[]) => {
     const imported = importGrnLines(rows, {
       items: importPool,
       locations,
       vendors: [],
-      defaultLocationId: storeLocationId,
+      defaultLocationId: defaultImportLocation,
       activeItemType: itemType,
       docKind: 'grn',
     }).map((l) => {
@@ -288,6 +378,7 @@ export function GrnItemLines({
   const emptyColSpan = 4 + typeColSpan + 7
 
   return (
+    <>
     <Card>
       <CardHeader
         title="Item Details"
@@ -314,25 +405,41 @@ export function GrnItemLines({
                 <option value="consumable">Consumable</option>
               </Select>
             </label>
-            <label className="flex min-w-[220px] flex-1 flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
-              Item
-              <Select
-                value={pickItemId}
-                onChange={(e) => setPickItemId(e.target.value)}
-                disabled={linesLocked}
-                className={gridInput}
-              >
-                <option value="">
-                  {!headerReady
-                    ? '— Fill header first —'
-                    : `— Select ${isAsset ? 'Asset' : 'Consumable'} —`}
-                </option>
-                {filteredItems.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {itemOptionLabel(i, stockByItemId)}
-                  </option>
-                ))}
-              </Select>
+            <label className="flex min-w-[260px] flex-1 flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
+              Item / Location
+              <div className="flex items-center gap-1">
+                <Input
+                  value={pickDisplay}
+                  readOnly
+                  placeholder={!headerReady ? '— Fill header first —' : '— Select item & location —'}
+                  title={pickDisplay}
+                  className={`${gridInput} min-w-0 flex-1 cursor-pointer`}
+                  onClick={() => !linesLocked && setPickerOpen(true)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={linesLocked}
+                  onClick={() => setPickerOpen(true)}
+                  className="shrink-0 px-2 py-1 text-[11px] font-semibold"
+                >
+                  Search
+                </Button>
+                {pickItemId && (
+                  <button
+                    type="button"
+                    aria-label="Clear selection"
+                    disabled={linesLocked}
+                    onClick={() => {
+                      setPickItemId('')
+                      setPickLocationId('')
+                    }}
+                    className="shrink-0 rounded px-1 text-[14px] text-[var(--text3)] hover:text-[var(--danger)] disabled:opacity-40"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </label>
             <label className="flex w-[100px] flex-col gap-0.5 text-[11px] font-semibold text-[var(--text2)]">
               Qty
@@ -397,8 +504,8 @@ export function GrnItemLines({
                 <tr>
                   <td colSpan={emptyColSpan} className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">
                     {isAsset
-                      ? 'No units yet — choose an asset and qty, then click Add Units.'
-                      : 'No lines yet — choose a consumable and qty, then click Add Line.'}
+                      ? 'No units yet — search an item & location, set qty, then Add Units.'
+                      : 'No lines yet — search an item & location, set qty, then Add Line.'}
                   </td>
                 </tr>
               ) : (
@@ -506,7 +613,7 @@ export function GrnItemLines({
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={line.receivedQty}
                           onChange={(e) => setReceived(line, e.target.value)}
                           disabled={linesLocked || isAsset}
@@ -517,7 +624,7 @@ export function GrnItemLines({
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={line.acceptedQty}
                           onChange={(e) => setAccepted(line, e.target.value)}
                           disabled={linesLocked}
@@ -529,7 +636,7 @@ export function GrnItemLines({
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={line.rejectedQty}
                           onChange={(e) => setRejected(line, e.target.value)}
                           disabled={linesLocked}
@@ -539,7 +646,13 @@ export function GrnItemLines({
                       </td>
                       <td className={gridCell}>
                         <Input
-                          value={stockLoading[line.key] ? '…' : line.availableStock}
+                          value={
+                            lineStockLoading[line.key]
+                              ? '…'
+                              : line.availableStock !== ''
+                                ? formatStockQty(Number(line.availableStock))
+                                : ''
+                          }
                           readOnly
                           className={gridInputRight}
                         />
@@ -548,7 +661,7 @@ export function GrnItemLines({
                         <Input
                           type="number"
                           min={0}
-                          step="0.01"
+                          step="1"
                           value={line.amount}
                           onChange={(e) => patch(line.key, { amount: e.target.value })}
                           disabled={linesLocked}
@@ -614,8 +727,6 @@ export function GrnItemLines({
           </table>
         </div>
 
-        <ItemCodeOptions id={DATALIST_ID} items={filteredItems} stockByItemId={stockByItemId} />
-
         <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
           <div className="flex-1" />
           <span className="text-[11px] font-semibold text-[var(--text2)]">
@@ -624,5 +735,18 @@ export function GrnItemLines({
         </div>
       </CardBody>
     </Card>
+
+      <RequisitionItemPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={onPickerSelect}
+        rows={pickerRows}
+        loading={stockLoading}
+        selectedItemId={pickItemId}
+        selectedLocationId={pickLocationId}
+        title="Select Item"
+        subtitle="Choose an item and the store location to receive into. Stock shown is on hand at that location."
+      />
+    </>
   )
 }

@@ -8,10 +8,12 @@ import com.caits.domain.entity.HrcDepartmentMst;
 import com.caits.domain.entity.HrcEmployeeMst;
 import com.caits.domain.entity.OrgBusinessunitMst;
 import com.caits.domain.entity.OrgEntityMst;
+import com.caits.domain.entity.OrgLocationMst;
 import com.caits.domain.repository.HrcDepartmentMstRepository;
 import com.caits.domain.repository.HrcEmployeeMstRepository;
 import com.caits.domain.repository.OrgBusinessunitMstRepository;
 import com.caits.domain.repository.OrgEntityMstRepository;
+import com.caits.domain.repository.OrgLocationMstRepository;
 import com.caits.modules.masters.dto.MasterDtos.DepartmentDto;
 import com.caits.modules.masters.dto.MasterDtos.DepartmentRequest;
 import com.caits.security.AccessScopeService;
@@ -30,6 +32,7 @@ public class DepartmentMastersService {
     private final HrcDepartmentMstRepository departmentRepo;
     private final OrgEntityMstRepository entityRepo;
     private final OrgBusinessunitMstRepository buRepo;
+    private final OrgLocationMstRepository locationRepo;
     private final HrcEmployeeMstRepository employeeRepo;
     private final AccessScopeService accessScope;
 
@@ -37,12 +40,14 @@ public class DepartmentMastersService {
             HrcDepartmentMstRepository departmentRepo,
             OrgEntityMstRepository entityRepo,
             OrgBusinessunitMstRepository buRepo,
+            OrgLocationMstRepository locationRepo,
             HrcEmployeeMstRepository employeeRepo,
             AccessScopeService accessScope
     ) {
         this.departmentRepo = departmentRepo;
         this.entityRepo = entityRepo;
         this.buRepo = buRepo;
+        this.locationRepo = locationRepo;
         this.employeeRepo = employeeRepo;
         this.accessScope = accessScope;
     }
@@ -69,8 +74,10 @@ public class DepartmentMastersService {
         require(req.departmentCode(), "departmentCode");
         require(req.departmentName(), "departmentName");
         if (req.entityId() == null) throw ApiException.badRequest("entityId is required");
+        if (req.locationId() == null) throw ApiException.badRequest("locationId is required");
         findEntity(req.entityId());
         validateBu(req.entityId(), req.buId());
+        validateLocation(req.entityId(), req.buId(), req.locationId());
         validateHead(req.headEmpId());
         if (departmentRepo.existsByDeptDepartmentCodeIgnoreCase(req.departmentCode())) {
             throw ApiException.conflict("Department code already exists");
@@ -90,7 +97,13 @@ public class DepartmentMastersService {
             throw ApiException.conflict("Department code already exists");
         }
         if (req.entityId() != null) findEntity(req.entityId());
-        validateBu(req.entityId() != null ? req.entityId() : e.getDeptEntityIdEnt(), req.buId());
+        Integer entityId = req.entityId() != null ? req.entityId() : e.getDeptEntityIdEnt();
+        Integer buId = req.buId() != null ? req.buId() : e.getDeptBuIdBu();
+        if (req.locationId() == null && e.getDeptLocationIdLoc() == null) {
+            throw ApiException.badRequest("locationId is required");
+        }
+        validateBu(entityId, buId);
+        validateLocation(entityId, buId, req.locationId() != null ? req.locationId() : e.getDeptLocationIdLoc());
         validateHead(req.headEmpId());
         apply(e, req);
         e.setDeptModifiedBy(SecurityUtils.requireLoginId());
@@ -139,11 +152,29 @@ public class DepartmentMastersService {
         }
     }
 
+    private void validateLocation(Integer entityId, Integer buId, Integer locationId) {
+        if (locationId == null) {
+            throw ApiException.badRequest("locationId is required");
+        }
+        OrgLocationMst loc = locationRepo.findById(locationId)
+                .orElseThrow(() -> ApiException.badRequest("Location not found"));
+        if (!Boolean.TRUE.equals(loc.getLocIsactive())) {
+            throw ApiException.badRequest("Location is inactive");
+        }
+        if (entityId != null && !entityId.equals(loc.getLocEntityIdEnt())) {
+            throw ApiException.badRequest("Location does not belong to the selected Organization");
+        }
+        if (buId != null && !buId.equals(loc.getLocBuIdBu())) {
+            throw ApiException.badRequest("Location does not belong to the selected Operating Unit");
+        }
+    }
+
     private void apply(HrcDepartmentMst e, DepartmentRequest req) {
         if (req.departmentCode() != null) e.setDeptDepartmentCode(req.departmentCode().trim().toUpperCase());
         if (req.departmentName() != null) e.setDeptDepartmentName(req.departmentName().trim());
         if (req.entityId() != null) e.setDeptEntityIdEnt(req.entityId());
         e.setDeptBuIdBu(req.buId());
+        if (req.locationId() != null) e.setDeptLocationIdLoc(req.locationId());
         e.setDeptHeadEmpIdEmp(req.headEmpId());
         e.setDeptDesc(req.desc());
         if (req.isActive() != null) e.setDeptIsactive(req.isActive());
@@ -166,9 +197,19 @@ public class DepartmentMastersService {
                 buName = bu.getBuBuName();
             }
         }
+        String locationCode = null;
+        String locationName = null;
+        if (e.getDeptLocationIdLoc() != null) {
+            OrgLocationMst loc = locationRepo.findById(e.getDeptLocationIdLoc()).orElse(null);
+            if (loc != null) {
+                locationCode = loc.getLocLocationCode();
+                locationName = loc.getLocLocationName();
+            }
+        }
         return new DepartmentDto(
                 e.getDeptDepartmentId(), e.getDeptDepartmentCode(), e.getDeptDepartmentName(),
                 e.getDeptEntityIdEnt(), e.getDeptBuIdBu(), buCode, buName,
+                e.getDeptLocationIdLoc(), locationCode, locationName,
                 e.getDeptHeadEmpIdEmp(), headName, e.getDeptDesc(), e.getDeptIsactive(),
                 e.getDeptCreatedBy(), e.getDeptCreatedOn(), e.getDeptModifiedBy(), e.getDeptModifiedOn(), message);
     }

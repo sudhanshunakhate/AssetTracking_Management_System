@@ -49,28 +49,21 @@ function dateKey(v: unknown): string {
 }
 
 /** True when the row was saved again after create (edit / status change). */
-function wasEdited(row: { modifiedOn?: unknown; createdOn?: unknown }): boolean {
+export function wasEdited(row: { modifiedOn?: unknown; createdOn?: unknown }): boolean {
   const created = timeMs(row.createdOn)
   const modified = timeMs(row.modifiedOn)
   return modified > 0 && created > 0 && modified - created > 1000
 }
 
 /**
- * Transaction lists: edited docs first (most recent edit on top),
- * then document date descending (today / newest dates on top), then id.
+ * Transaction lists: document date descending (today / newest first),
+ * then most recently touched, then id.
  */
 export function sortTxnListRows<T extends { id: string; docDate?: unknown; modifiedOn?: unknown; createdOn?: unknown }>(
   rows: T[],
 ): T[] {
   const copy = [...rows]
   copy.sort((a, b) => {
-    const aEdited = wasEdited(a)
-    const bEdited = wasEdited(b)
-    if (aEdited !== bEdited) return aEdited ? -1 : 1
-    if (aEdited && bEdited) {
-      const modDiff = timeMs(b.modifiedOn) - timeMs(a.modifiedOn)
-      if (modDiff !== 0) return modDiff
-    }
     const dateDiff = dateKey(b.docDate).localeCompare(dateKey(a.docDate))
     if (dateDiff !== 0) return dateDiff
     const touchDiff = timeMs(b.modifiedOn || b.createdOn) - timeMs(a.modifiedOn || a.createdOn)
@@ -78,4 +71,22 @@ export function sortTxnListRows<T extends { id: string; docDate?: unknown; modif
     return Number(b.id) - Number(a.id)
   })
   return copy
+}
+
+/** Unique status values for a Status filter beside the list search bar. */
+export function txnStatusFilterOptions(rows: { status?: unknown }[]): { value: string; label: string }[] {
+  const set = new Set<string>()
+  for (const r of rows) {
+    const s = String(r.status ?? '').trim()
+    if (s) set.add(s)
+  }
+  return [
+    { value: '', label: 'All Status' },
+    ...[...set].sort((a, b) => a.localeCompare(b)).map((s) => ({ value: s, label: s })),
+  ]
+}
+
+export function filterRowsByStatus<T extends { status?: unknown }>(rows: T[], status: string): T[] {
+  if (!status) return rows
+  return rows.filter((r) => String(r.status ?? '') === status)
 }

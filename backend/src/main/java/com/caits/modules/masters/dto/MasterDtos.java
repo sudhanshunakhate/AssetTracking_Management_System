@@ -35,11 +35,12 @@ public final class MasterDtos {
 
     public record DepartmentDto(Integer departmentId, String departmentCode, String departmentName, Integer entityId,
                                 Integer buId, String buCode, String buName,
+                                Integer locationId, String locationCode, String locationName,
                                 Integer headEmpId, String headEmpName, String desc, Boolean isActive,
                                 String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn,
                                 String message) {}
     public record DepartmentRequest(Integer departmentId, String departmentCode, String departmentName, Integer entityId,
-                                    Integer buId, Integer headEmpId, String desc, Boolean isActive) {}
+                                    Integer buId, Integer locationId, Integer headEmpId, String desc, Boolean isActive) {}
 
     public record EntityDto(Integer entityId, String entityCode, String entityName, String shortName, String gstin, String panNo,
                             String city, String state, Boolean isActive, String createdBy, LocalDateTime createdOn,

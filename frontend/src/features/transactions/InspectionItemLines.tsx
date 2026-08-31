@@ -14,6 +14,8 @@ import {
   useCodeIndex,
   useItemIndex,
   useStockLookup,
+  wholeQtyStr,
+  formatStockQty,
   type BaseLine,
 } from './lineGrid'
 import { locLabel } from './txnLookups'
@@ -67,7 +69,7 @@ export function InspectionItemLines({
   )
 
   const onStock = useCallback(
-    (key: string, qty: number) => patch(key, { availableStock: String(qty) }),
+    (key: string, qty: number) => patch(key, { availableStock: wholeQtyStr(qty) }),
     [patch],
   )
   const { loading: stockLoading, lookup } = useStockLookup(onStock)
@@ -171,12 +173,16 @@ export function InspectionItemLines({
                   <td className={gridCell}>{uomLabel(line.uomId)}</td>
                   <td className={gridCell}>
                     <span className="tabular-nums">
-                      {stockLoading[line.key] && line.itemId ? '…' : line.availableStock || '0'}
+                      {stockLoading[line.key] && line.itemId
+                        ? '…'
+                        : formatStockQty(Number(line.availableStock || 0))}
                     </span>
                   </td>
                   <td className={gridCell}>
                     <Input
                       className={gridInputRight}
+                      type="number"
+                      step="1"
                       value={line.approveQty}
                       disabled={linesLocked}
                       onChange={(e) => patch(line.key, { approveQty: e.target.value })}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchItemLedger } from '@/api/transactions'
 import { mapItem, mapLocation, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { formatStockQty } from '@/features/transactions/lineGrid'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 
@@ -22,7 +23,6 @@ type LedgerRow = {
   docNo: string
   batch: string
   uom: string
-  location: string
   receipt: string
   issue: string
   balance: number
@@ -35,10 +35,17 @@ const emptyFilters = {
   to: '',
 }
 
+const formatLedgerDate = (iso: string) => {
+  if (!iso) return '—'
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  return iso
+}
+
 const qtyCell = (v: string | number | null | undefined) => {
   if (v === null || v === undefined || v === '') return '—'
   const n = Number(v)
-  return Number.isFinite(n) ? String(n) : '—'
+  return Number.isFinite(n) ? formatStockQty(n) : '—'
 }
 
 export function ItemRegisterPage() {
@@ -57,7 +64,6 @@ export function ItemRegisterPage() {
   const mapLoc = useCallback(mapLocation, [])
   const { rows: items } = useMasterList('items', mapItm)
   const { rows: stores } = useMasterList('locations', mapLoc)
-  const storeById = useMemo(() => Object.fromEntries(stores.map((s) => [s.id, s])), [stores])
 
   const showItemCols = !applied.itemId
 
@@ -74,17 +80,10 @@ export function ItemRegisterPage() {
         toDate: applied.to || undefined,
       })
       setRows(
-        (page.data ?? []).map((r, idx) => {
-          const locId = String(r.locationId ?? '')
-          const locName =
-            storeById[locId]?.name ||
-            String(r.locationName ?? '').trim() ||
-            String(r.locationCode ?? '').trim() ||
-            '—'
-          return {
+        (page.data ?? []).map((r, idx) => ({
           id: String(r.id ?? `${r.docNo}-${r.itemId}-${idx}`),
           docId: String(r.docId ?? ''),
-          date: String(r.date ?? ''),
+          date: formatLedgerDate(String(r.date ?? '')),
           itemCode: String(r.itemCode ?? ''),
           itemName: String(r.itemName ?? ''),
           docType: String(r.docType ?? ''),
@@ -92,12 +91,10 @@ export function ItemRegisterPage() {
           docNo: String(r.docNo ?? ''),
           batch: String(r.batch ?? '').trim() || '—',
           uom: String(r.uomCode ?? '—'),
-          location: locName,
           receipt: qtyCell(r.receipt as string | number | null),
           issue: qtyCell(r.issue as string | number | null),
           balance: Number(r.balance ?? 0),
-          }
-        }),
+        })),
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load item ledger')
@@ -105,7 +102,7 @@ export function ItemRegisterPage() {
     } finally {
       setLoading(false)
     }
-  }, [applied, storeById])
+  }, [applied])
 
   useEffect(() => {
     void reload()
@@ -118,6 +115,8 @@ export function ItemRegisterPage() {
     setApplied(emptyFilters)
   }
 
+  const numericHeaders = new Set(['Receipt', 'Issue', 'Balance'])
+
   const headers = showItemCols
     ? [
         'Date',
@@ -127,12 +126,11 @@ export function ItemRegisterPage() {
         'Doc. No.',
         'Batch',
         'UOM',
-        'Location',
         'Receipt',
         'Issue',
         'Balance',
       ]
-    : ['Date', 'Doc. Type', 'Doc. No.', 'Batch', 'UOM', 'Location', 'Receipt', 'Issue', 'Balance']
+    : ['Date', 'Doc. Type', 'Doc. No.', 'Batch', 'UOM', 'Receipt', 'Issue', 'Balance']
 
   return (
     <FadeContent>
@@ -157,10 +155,9 @@ export function ItemRegisterPage() {
                         r.docNo,
                         r.batch,
                         r.uom,
-                        r.location,
                         r.receipt,
                         r.issue,
-                        r.balance,
+                        formatStockQty(r.balance),
                       ]
                     : [
                         r.date,
@@ -168,10 +165,9 @@ export function ItemRegisterPage() {
                         r.docNo,
                         r.batch,
                         r.uom,
-                        r.location,
                         r.receipt,
                         r.issue,
-                        r.balance,
+                        formatStockQty(r.balance),
                       ],
                 ),
               )
@@ -231,7 +227,9 @@ export function ItemRegisterPage() {
                   {headers.map((h) => (
                     <th
                       key={h}
-                      className="border-b-2 border-[var(--border)] px-[11px] py-[7px] text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase whitespace-nowrap"
+                      className={`border-b-2 border-[var(--border)] px-[11px] py-[7px] text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase whitespace-nowrap ${
+                        numericHeaders.has(h) ? 'text-right' : 'text-left'
+                      }`}
                     >
                       {h}
                     </th>
@@ -260,13 +258,29 @@ export function ItemRegisterPage() {
                         </>
                       )}
                       <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.docType}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.docNo}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">
+                        {detailPath ? (
+                          <button
+                            type="button"
+                            className="text-[var(--primary)] underline decoration-[var(--primary)]/40 underline-offset-2 hover:decoration-[var(--primary)]"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigate(detailPath)
+                            }}
+                          >
+                            {r.docNo || '—'}
+                          </button>
+                        ) : (
+                          r.docNo || '—'
+                        )}
+                      </td>
                       <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.batch}</td>
                       <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.location}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.receipt}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.issue}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{r.balance}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 text-right tabular-nums">{r.receipt}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 text-right tabular-nums">{r.issue}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 text-right font-semibold tabular-nums">
+                        {formatStockQty(r.balance)}
+                      </td>
                     </tr>
                   )
                 })}

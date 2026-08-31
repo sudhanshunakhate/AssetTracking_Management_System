@@ -18,11 +18,12 @@ import {
   type TxnRow,
 } from '@/api/transactions'
 import { useGenValues, GEN_TYPE } from '@/api/masters'
+import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
-import { enrichLinesFromItems, toNum } from './lineGrid'
+import { enrichLinesFromItems, toNum, wholeQtyStr } from './lineGrid'
 import {
   emptyOpeningStockLine,
   isIssuedCondition,
@@ -31,6 +32,7 @@ import {
   type OpeningStockLine,
 } from './OpeningStockItemLines'
 import {
+  locLabel,
   locationOptions as toLocationOptions,
   nonSystemLocations,
   resolveTxnHeaderFromLines,
@@ -77,6 +79,9 @@ function OpeningStockList() {
   const navigate = useNavigate()
   const { canCreateMenu } = useAuth()
   const { rows, loading, error } = useTxnList(RESOURCE)
+  const [statusFilter, setStatusFilter] = useState('')
+  const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
+  const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
   const { locations, vendors } = useTxnFormLookups()
 
   const locById = useMemo(() => new Map(locations.rows.map((l) => [l.id, l])), [locations.rows])
@@ -85,7 +90,7 @@ function OpeningStockList() {
   const text = {
     location: (r: TxnRow) => {
       const loc = locById.get(String(r.locationId ?? ''))
-      return loc ? String(loc.code) : String(r.locationId || '—')
+      return loc ? locLabel(loc) : String(r.locationId || '—')
     },
     supplier: (r: TxnRow) => {
       const v = vendorById.get(String(r.partyId ?? ''))
@@ -127,9 +132,17 @@ function OpeningStockList() {
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading opening stock…</div>}
       <DataTable
-        rows={rows}
+        rows={filteredRows}
         columns={columns}
         searchPlaceholder="Search opening stock entries…"
+        filters={[
+          {
+            label: 'Status',
+            value: statusFilter,
+            options: statusOptions,
+            onChange: setStatusFilter,
+          },
+        ]}
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
         onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/new`) : undefined}
         addLabel="Add Opening Stock"
@@ -190,7 +203,7 @@ function OpeningStockForm() {
           itemCode: l.itemCode ?? '',
           itemName: l.itemName ?? '',
           uomId: l.uomId != null ? String(l.uomId) : '',
-          qty: l.qty != null ? String(l.qty) : '',
+          qty: wholeQtyStr(l.qty),
           batch: l.batchLotNo ?? '',
           supplierId: headerSupplier,
           mfgDate: l.mfgDate ?? '',

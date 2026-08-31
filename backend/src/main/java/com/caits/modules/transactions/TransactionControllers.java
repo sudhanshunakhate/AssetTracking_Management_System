@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * Shared request handlers for all transaction document types.
@@ -299,6 +300,14 @@ public class TransactionControllers {
     @GetMapping("/returns/allotted-items")
     public AllottedItemsResponse allottedItems(@RequestParam Integer employeeId) {
         return service.listAllottedItems(employeeId);
+    }
+
+    @GetMapping("/issues/available-serials")
+    public List<AvailableSerialUnit> availableSerials(
+            @RequestParam Integer itemId,
+            @RequestParam(required = false) Integer locationId
+    ) {
+        return service.listAvailableSerials(itemId, locationId);
     }
 
     @GetMapping("/returns")

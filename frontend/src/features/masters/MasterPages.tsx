@@ -667,13 +667,21 @@ export function DepartmentsMaster() {
   const mapEntityStable = useCallback(mapEntity, [])
   const mapBuStable = useCallback(mapBusinessUnit, [])
   const mapEmpStable = useCallback(mapEmployee, [])
+  const mapLocStable = useCallback(mapLocation, [])
   const { rows, loading, error, reload } = useMasterList('departments', mapDeptStable)
   const { rows: orgs } = useMasterList('entities', mapEntityStable)
   const { rows: ous } = useMasterList('business-units', mapBuStable)
   const { rows: employees } = useMasterList('employees', mapEmpStable)
+  const { rows: locations } = useMasterList('locations', mapLocStable)
 
   const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
   const ouById = useMemo(() => Object.fromEntries(ous.map((o) => [o.id, o])), [ous])
+  const locById = useMemo(() => Object.fromEntries(locations.map((l) => [l.id, l])), [locations])
+
+  const activeLocations = useMemo(
+    () => locations.filter((l) => l.status === 'Active'),
+    [locations],
+  )
 
   const columns: Column<Department>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
@@ -689,6 +697,17 @@ export function DepartmentsMaster() {
       header: 'Operating Unit',
       searchText: (r) => ouById[r.ouCode]?.name ?? r.ouName ?? r.ouCode,
       render: (r) => ouById[r.ouCode]?.name ?? r.ouName ?? (r.ouCode ? r.ouCode : '—'),
+    },
+    {
+      key: 'location',
+      header: 'Location',
+      searchText: (r) => locById[r.locationId]?.name ?? r.locationName ?? r.locationCode,
+      render: (r) => {
+        const loc = locById[r.locationId]
+        if (loc) return `${loc.code} · ${loc.name}`
+        if (r.locationName) return `${r.locationCode ? `${r.locationCode} · ` : ''}${r.locationName}`
+        return '—'
+      },
     },
     { key: 'head', header: 'Head of Department', searchText: (r) => r.headEmpName, render: (r) => r.headEmpName || '—' },
     { key: 'description', header: 'Description', searchText: (r) => r.description, render: (r) => r.description },
@@ -709,6 +728,24 @@ export function DepartmentsMaster() {
         return opt(filtered)
       },
       placeholder: '— Optional —',
+    },
+    {
+      name: 'locationId',
+      label: 'Location',
+      type: 'select',
+      options: (values) => {
+        const org = String(values.orgCode ?? '')
+        const ou = String(values.ouCode ?? '')
+        let filtered = activeLocations
+        if (org) filtered = filtered.filter((l) => String(l.orgCode) === org)
+        if (ou) filtered = filtered.filter((l) => String(l.ouCode) === ou)
+        return filtered.map((l) => ({
+          value: l.id,
+          label: `${l.code} · ${l.name}`,
+        }))
+      },
+      placeholder: '— Select Location —',
+      ...RULES.select(),
     },
     {
       name: 'headEmpId',
@@ -733,18 +770,24 @@ export function DepartmentsMaster() {
         base="/masters/departments"
         menuCode="DEPM"
         title="Department Master"
-        description="Departments with an optional Head of Department for approvals and HR linkage."
+        description="Departments mapped to a location with an optional Head of Department for approvals and HR linkage."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
         saveLabel="Save Department"
         formTitle="Department Details"
+        onFieldChange={(name) => {
+          if (name === 'orgCode') return { ouCode: '', locationId: '' }
+          if (name === 'ouCode') return { locationId: '' }
+          return {}
+        }}
         onSave={async (id, values) => {
           const body = {
             departmentCode: String(values.code ?? ''),
             departmentName: String(values.name ?? ''),
             entityId: numOrUndef(values.orgCode),
             buId: numOrUndef(values.ouCode),
+            locationId: numOrUndef(values.locationId),
             headEmpId: numOrUndef(values.headEmpId),
             desc: String(values.description ?? ''),
             isActive: isActiveFromForm(values.status),

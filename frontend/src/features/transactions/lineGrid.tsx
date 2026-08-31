@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiMasterRow } from '@/api/masters'
-import { fetchAvailableStock, fetchStockMapForLocation } from '@/api/transactions'
+import { fetchAvailableStock, fetchStockMap } from '@/api/transactions'
+import { Input, Select } from '@/components/ui/Field'
 
 /** Fields every document line grid shares. */
 export type BaseLine = {
@@ -137,25 +138,31 @@ export function enrichLinesFromItems<T extends BaseLine>(lines: T[], items: ApiM
   return changed ? next : lines
 }
 
-/** Loads available stock for every item at a store; used to annotate item pickers. */
-export function useLocationStock(locationId: string | undefined | null) {
+/** Loads available stock for item pickers; refreshes on store change, focus, and after stock posts. */
+export function useLocationStock(locationId: string | undefined | null, refreshMs = 20_000) {
   const [stockByItemId, setStockByItemId] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
+  const [ready, setReady] = useState(false)
+  const [tick, setTick] = useState(0)
+
+  const refresh = useCallback(() => setTick((n) => n + 1), [])
 
   useEffect(() => {
-    if (!locationId || !/^\d+$/.test(locationId)) {
-      setStockByItemId({})
-      setLoading(false)
-      return
-    }
     let cancelled = false
     setLoading(true)
     ;(async () => {
       try {
-        const map = await fetchStockMapForLocation(Number(locationId))
-        if (!cancelled) setStockByItemId(map)
+        const scoped = locationId && /^\d+$/.test(locationId) ? Number(locationId) : undefined
+        const map = await fetchStockMap(scoped != null ? { locationId: scoped } : {})
+        if (!cancelled) {
+          setStockByItemId(map)
+          setReady(true)
+        }
       } catch {
-        if (!cancelled) setStockByItemId({})
+        if (!cancelled) {
+          setStockByItemId({})
+          setReady(true)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -163,21 +170,54 @@ export function useLocationStock(locationId: string | undefined | null) {
     return () => {
       cancelled = true
     }
-  }, [locationId])
+  }, [locationId, tick])
 
-  return { stockByItemId, loading }
+  useEffect(() => {
+    const onStock = () => refresh()
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    window.addEventListener('caits:stock-changed', onStock)
+    window.addEventListener('focus', onStock)
+    document.addEventListener('visibilitychange', onVis)
+    const id = window.setInterval(refresh, refreshMs)
+    return () => {
+      window.removeEventListener('caits:stock-changed', onStock)
+      window.removeEventListener('focus', onStock)
+      document.removeEventListener('visibilitychange', onVis)
+      window.clearInterval(id)
+    }
+  }, [refresh, refreshMs])
+
+  return { stockByItemId, loading, ready, refresh }
 }
 
+/** Item / stock counts are always whole units — never show decimals. */
 export function formatStockQty(qty: number) {
-  return qty.toLocaleString('en-IN', { maximumFractionDigits: 3 })
+  if (!Number.isFinite(qty)) return '0'
+  return Math.round(qty).toLocaleString('en-IN', { maximumFractionDigits: 0 })
 }
 
-/** Label for item selects / datalist entries with on-hand at the chosen location. */
-export function itemOptionLabel(item: ApiMasterRow, stockByItemId?: Record<string, number>) {
+/** Plain whole-number string for form state / number inputs (no grouping). */
+export function wholeQtyStr(qty: number | string | null | undefined): string {
+  if (qty === '' || qty == null) return ''
+  const n = Number(qty)
+  if (!Number.isFinite(n)) return ''
+  return String(Math.round(n))
+}
+
+/** Label for item selects / datalist entries with on-hand and home location. */
+export function itemOptionLabel(
+  item: ApiMasterRow,
+  stockByItemId?: Record<string, number>,
+  ready = true,
+  locationLabel?: string,
+) {
   const code = String(item.code ?? '')
   const name = String(item.name ?? '')
-  const base = name ? `${code} – ${name}` : code
-  if (!stockByItemId) return base
+  let base = name ? `${code} – ${name}` : code
+  if (locationLabel) base = `${base} @ ${locationLabel}`
+  if (!stockByItemId || !ready) return base
   const qty = stockByItemId[item.id]
   const shown = qty == null ? 0 : qty
   return `${base} (Stock: ${formatStockQty(shown)})`
@@ -188,18 +228,235 @@ export function ItemCodeOptions({
   id,
   items,
   stockByItemId,
+  locationByItemId,
 }: {
   id: string
   items: ApiMasterRow[]
   stockByItemId?: Record<string, number>
+  locationByItemId?: Record<string, string>
 }) {
   return (
     <datalist id={id}>
       {items.map((i) => (
         <option key={i.id} value={String(i.code ?? '')}>
-          {itemOptionLabel(i, stockByItemId).replace(`${String(i.code ?? '')} – `, '')}
+          {itemOptionLabel(i, stockByItemId, true, locationByItemId?.[i.id]).replace(
+            `${String(i.code ?? '')} – `,
+            '',
+          )}
         </option>
       ))}
     </datalist>
+  )
+}
+
+/**
+ * Filterable item `<Select>` for pick bars (GRN / Opening / Gatepass / Transfer).
+ * Search matches code, name, and optional home-location label.
+ */
+export function SearchableItemSelect({
+  value,
+  onChange,
+  items,
+  options,
+  stockByItemId,
+  stockReady = true,
+  locationByItemId,
+  disabled,
+  invalid,
+  placeholder = '— Select Item —',
+  className,
+}: {
+  value: string
+  onChange: (itemId: string) => void
+  items?: ApiMasterRow[]
+  /** When set, drives the dropdown instead of building labels from `items`. */
+  options?: { value: string; label: string }[]
+  stockByItemId?: Record<string, number>
+  stockReady?: boolean
+  locationByItemId?: Record<string, string>
+  disabled?: boolean
+  invalid?: boolean
+  placeholder?: string
+  className?: string
+}) {
+  const [filter, setFilter] = useState('')
+  const catalog = useMemo(() => {
+    if (options) return options
+    return (items ?? []).map((i) => ({
+      value: i.id,
+      label: itemOptionLabel(i, stockByItemId, stockReady, locationByItemId?.[i.id]),
+    }))
+  }, [options, items, stockByItemId, stockReady, locationByItemId])
+  const filtered = useMemo(() => {
+    const term = filter.trim().toLowerCase()
+    if (!term) return catalog
+    return catalog.filter((o) => o.label.toLowerCase().includes(term))
+  }, [catalog, filter])
+  const selected = catalog.find((o) => o.value === value)
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <Input
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Search item / location…"
+        disabled={disabled}
+        className={className ?? gridInput}
+      />
+      <Select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        invalid={invalid}
+        className={className ?? gridInput}
+      >
+        <option value="">{placeholder}</option>
+        {filtered.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+        {value && selected && !filtered.some((o) => o.value === value) && (
+          <option value={value}>{selected.label}</option>
+        )}
+      </Select>
+    </div>
+  )
+}
+
+export type FilterableOption = {
+  value: string
+  label: string
+  /** Extra text included in search matching (defaults to label). */
+  searchText?: string
+}
+
+/**
+ * Compact searchable dropdown — one control with a filterable panel (works inside table cells).
+ */
+export function FilterableLookup({
+  value,
+  onChange,
+  options,
+  disabled,
+  invalid,
+  placeholder = '— Select —',
+  searchPlaceholder = 'Search…',
+  className,
+  maxVisible = 80,
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: FilterableOption[]
+  disabled?: boolean
+  invalid?: boolean
+  placeholder?: string
+  searchPlaceholder?: string
+  className?: string
+  maxVisible?: number
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+
+  const selected = options.find((o) => o.value === value)
+
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase()
+    const list = term
+      ? options.filter((o) => (o.searchText ?? o.label).toLowerCase().includes(term))
+      : options
+    return list.slice(0, maxVisible)
+  }, [options, query, maxVisible])
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  useEffect(() => {
+    if (open) setQuery('')
+  }, [open])
+
+  const pick = (next: string) => {
+    onChange(next)
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <div ref={rootRef} className="relative min-w-[200px]">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => {
+          if (!disabled) setOpen((v) => !v)
+        }}
+        className={`flex w-full items-center justify-between gap-1 rounded border bg-[var(--surface)] px-2 py-1 text-left text-[12px] truncate ${
+          invalid ? 'border-[var(--danger)]' : 'border-[var(--border)]'
+        } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-[var(--accent)]'} ${className ?? ''}`}
+      >
+        <span className={`truncate ${selected ? 'text-[var(--text)]' : 'text-[var(--text3)]'}`}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <span className="shrink-0 text-[10px] text-[var(--text3)]">{open ? '▴' : '▾'}</span>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 z-50 mt-0.5 w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+          <div className="border-b border-[var(--border)] p-1.5">
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={searchPlaceholder}
+              autoFocus
+              className="px-2 py-1 text-[12px]"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setOpen(false)
+                if (e.key === 'Enter' && filtered[0]) pick(filtered[0].value)
+              }}
+            />
+          </div>
+          <ul
+            role="listbox"
+            className="max-h-[220px] overflow-y-auto py-0.5 text-[12px]"
+          >
+            {filtered.length === 0 ? (
+              <li className="px-2.5 py-2 text-[var(--text3)]">No matches</li>
+            ) : (
+              filtered.map((o) => (
+                <li key={o.value} role="option" aria-selected={o.value === value}>
+                  <button
+                    type="button"
+                    className={`block w-full truncate px-2.5 py-1.5 text-left hover:bg-[var(--surface2)] ${
+                      o.value === value ? 'bg-[#f0f5ff] font-medium text-[var(--accent)]' : ''
+                    }`}
+                    onClick={() => pick(o.value)}
+                  >
+                    {o.label}
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+          {options.length > maxVisible && !query.trim() && (
+            <div className="border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+              Showing {filtered.length} of {options.length} — type to search
+            </div>
+          )}
+          {query.trim() && filtered.length >= maxVisible && (
+            <div className="border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+              First {maxVisible} matches — refine your search
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

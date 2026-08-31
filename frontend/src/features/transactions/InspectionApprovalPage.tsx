@@ -22,11 +22,12 @@ import {
   type TxnDocument,
   type TxnRow,
 } from '@/api/transactions'
+import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
-import { enrichLinesFromItems, toNum } from './lineGrid'
+import { enrichLinesFromItems, toNum, wholeQtyStr } from './lineGrid'
 import type { ApiMasterRow } from '@/api/masters'
 import {
   emptyInspectionLine,
@@ -113,10 +114,10 @@ function mapLoadedInspectionLines(
     itemName: line.itemName ?? '',
     uomId: line.uomId != null ? String(line.uomId) : '',
     locationId: line.locationId != null ? String(line.locationId) : '',
-    approveQty: line.qty != null ? String(line.qty) : '',
+    approveQty: wholeQtyStr(line.qty),
     batchLotNo: line.batchLotNo ?? '',
     serialNo: line.serialNo ?? '',
-    availableStock: line.availableStock != null ? String(line.availableStock) : '',
+    availableStock: wholeQtyStr(line.availableStock),
   }))
 }
 
@@ -139,6 +140,9 @@ function InspectionApprovalList() {
     initiatedByEmpId: view === 'my-pending' && myEmployeeId ? myEmployeeId : undefined,
   }
   const { rows, loading, error, reload } = useTxnList(RESOURCE, listOptions)
+  const [statusFilter, setStatusFilter] = useState('')
+  const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
+  const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
   const { locations, employees } = useTxnFormLookups()
 
   const onSyncFromGrn = async () => {
@@ -247,8 +251,16 @@ function InspectionApprovalList() {
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading approvals…</div>}
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={filteredRows}
         searchPlaceholder="Search approvals…"
+        filters={[
+          {
+            label: 'Status',
+            value: statusFilter,
+            options: statusOptions,
+            onChange: setStatusFilter,
+          },
+        ]}
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
         emptyMessage={
           view === 'my-pending'

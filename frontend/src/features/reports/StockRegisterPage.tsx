@@ -9,6 +9,7 @@ import { fetchStockRegister, invalidateReportCache } from '@/api/transactions'
 import { mapLocation, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { downloadCsv } from '@/lib/csvExport'
+import { formatStockQty } from '@/features/transactions/lineGrid'
 
 type UnitRow = {
   blsId: string
@@ -75,9 +76,17 @@ export function StockRegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [unitsHistoricalNote, setUnitsHistoricalNote] = useState(false)
+  /** Debounced free-text filter over every visible column + unit sub-row. */
+  const [columnSearch, setColumnSearch] = useState('')
+  const [columnSearchDebounced, setColumnSearchDebounced] = useState('')
 
   const mapLoc = useCallback(mapLocation, [])
   const { rows: stores } = useMasterList('locations', mapLoc)
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setColumnSearchDebounced(columnSearch.trim().toLowerCase()), 250)
+    return () => window.clearTimeout(t)
+  }, [columnSearch])
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -131,21 +140,60 @@ export function StockRegisterPage() {
   const clearFilters = () => {
     setDraft(emptyFilters)
     setApplied(emptyFilters)
+    setColumnSearch('')
+    setColumnSearchDebounced('')
   }
 
   const toggleExpand = (id: string) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
+  const visibleRows = useMemo(() => {
+    if (!columnSearchDebounced) return rows
+    const q = columnSearchDebounced
+    return rows.filter((r) => {
+      const mainHit = [
+        r.srNo,
+        r.itemName,
+        r.itemType,
+        r.uom,
+        r.openingBalance,
+        r.receiptDuringPeriod,
+        r.issueDuringPeriod,
+        r.closingBalance,
+        r.ownerName,
+      ]
+        .map((v) => String(v).toLowerCase())
+        .some((s) => s.includes(q))
+      if (mainHit) return true
+      return r.units.some((u) =>
+        [
+          u.serialNo,
+          u.batchLotNo,
+          u.ipAddress,
+          u.macAddress,
+          u.hostname,
+          u.itemCondition,
+          u.locationCode,
+          u.locationName,
+          u.custodian,
+          u.custodyMode,
+        ]
+          .map((v) => String(v).toLowerCase())
+          .some((s) => s.includes(q)),
+      )
+    })
+  }, [rows, columnSearchDebounced])
+
   const totals = useMemo(
     () => ({
-      items: rows.length,
-      opening: rows.reduce((s, r) => s + r.openingBalance, 0),
-      receipt: rows.reduce((s, r) => s + r.receiptDuringPeriod, 0),
-      issue: rows.reduce((s, r) => s + r.issueDuringPeriod, 0),
-      closing: rows.reduce((s, r) => s + r.closingBalance, 0),
+      items: visibleRows.length,
+      opening: visibleRows.reduce((s, r) => s + r.openingBalance, 0),
+      receipt: visibleRows.reduce((s, r) => s + r.receiptDuringPeriod, 0),
+      issue: visibleRows.reduce((s, r) => s + r.issueDuringPeriod, 0),
+      closing: visibleRows.reduce((s, r) => s + r.closingBalance, 0),
     }),
-    [rows],
+    [visibleRows],
   )
 
   const headers = [
@@ -168,7 +216,7 @@ export function StockRegisterPage() {
         actions={
           <Button
             variant="ghost"
-            disabled={rows.length === 0}
+            disabled={visibleRows.length === 0}
             onClick={() =>
               downloadCsv(
                 `stock-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -182,14 +230,14 @@ export function StockRegisterPage() {
                   'Closing Balance for the Period',
                   'Owner Name for Individual Asset',
                 ],
-                rows.map((r) => [
+                visibleRows.map((r) => [
                   r.srNo,
                   r.itemName,
                   r.uom,
-                  r.openingBalance,
-                  r.receiptDuringPeriod,
-                  r.issueDuringPeriod,
-                  r.closingBalance,
+                  formatStockQty(r.openingBalance),
+                  formatStockQty(r.receiptDuringPeriod),
+                  formatStockQty(r.issueDuringPeriod),
+                  formatStockQty(r.closingBalance),
                   r.ownerName,
                 ]),
               )
@@ -209,14 +257,21 @@ export function StockRegisterPage() {
       )}
 
       <Card className="mb-3">
-        <CardHeader title="Filters" subtitle="Narrow by item, date range, or store" />
+        <CardHeader title="Filters" subtitle="Narrow by item, date range, or location" />
         <CardBody>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
-            <Field label="Search">
+            <Field label="Search (server)">
               <Input
                 value={draft.search}
                 onChange={(e) => set('search', e.target.value)}
                 placeholder="Item name / code…"
+              />
+            </Field>
+            <Field label="Search all columns">
+              <Input
+                value={columnSearch}
+                onChange={(e) => setColumnSearch(e.target.value)}
+                placeholder="Serial, location, custodian, batch…"
               />
             </Field>
             <Field label="From Date">
@@ -225,9 +280,9 @@ export function StockRegisterPage() {
             <Field label="To Date">
               <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
             </Field>
-            <Field label="Store">
+            <Field label="Location">
               <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
-                <option value="">{seesAllLocations ? 'All Stores' : 'My Stores'}</option>
+                <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.code} – {s.name}
@@ -260,10 +315,21 @@ export function StockRegisterPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {visibleRows.map((r) => {
                   const isOpen = Boolean(expanded[r.id])
                   const canExpand = r.units.length > 0
                   const issuedUnits = r.units.filter((u) => u.custodyMode === 'ISSUED_TO').length
+                  const isConsumable = r.itemType.toLowerCase() === 'consumable'
+                  const unitHeaders = [
+                    'Serial No.',
+                    'Location',
+                    'Custodian',
+                    'Condition',
+                    'IP Address',
+                    'MAC Address',
+                    'Hostname',
+                    ...(isConsumable ? (['Batch / Lot'] as const) : []),
+                  ]
                   return (
                     <Fragment key={r.id}>
                       <tr className="hover:bg-[#f0f5ff]">
@@ -305,10 +371,10 @@ export function StockRegisterPage() {
                           )}
                         </td>
                         <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.openingBalance}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.receiptDuringPeriod}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.issueDuringPeriod}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{r.closingBalance}</td>
+                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.openingBalance)}</td>
+                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.receiptDuringPeriod)}</td>
+                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.issueDuringPeriod)}</td>
+                        <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{formatStockQty(r.closingBalance)}</td>
                         <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.ownerName}</td>
                       </tr>
                       {isOpen && (
@@ -321,16 +387,7 @@ export function StockRegisterPage() {
                             <table className="w-full border-collapse text-[11px]">
                               <thead>
                                 <tr>
-                                  {[
-                                    'Serial No.',
-                                    'Store',
-                                    'Custodian',
-                                    'Condition',
-                                    'IP Address',
-                                    'MAC Address',
-                                    'Hostname',
-                                    'Batch / Lot',
-                                  ].map((h) => (
+                                  {unitHeaders.map((h) => (
                                     <th
                                       key={h}
                                       className="border-b border-[var(--border)] px-2 py-1 text-left text-[9px] font-bold uppercase tracking-[0.4px] text-[var(--text3)]"
@@ -376,9 +433,11 @@ export function StockRegisterPage() {
                                     <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
                                       {dash(u.hostname)}
                                     </td>
-                                    <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
-                                      {dash(u.batchLotNo)}
-                                    </td>
+                                    {isConsumable && (
+                                      <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
+                                        {dash(u.batchLotNo)}
+                                      </td>
+                                    )}
                                   </tr>
                                 ))}
                               </tbody>
@@ -389,7 +448,7 @@ export function StockRegisterPage() {
                     </Fragment>
                   )
                 })}
-                {!loading && rows.length === 0 && (
+                {!loading && visibleRows.length === 0 && (
                   <tr>
                     <td colSpan={9} className="px-[11px] py-8 text-center text-[var(--text3)]">
                       No stock ledger rows for the selected filters.
@@ -405,16 +464,16 @@ export function StockRegisterPage() {
               Items: <strong>{totals.items}</strong>
             </div>
             <div>
-              Opening: <strong>{totals.opening}</strong>
+              Opening: <strong>{formatStockQty(totals.opening)}</strong>
             </div>
             <div>
-              Receipt: <strong className="text-[var(--success)]">{totals.receipt}</strong>
+              Receipt: <strong className="text-[var(--success)]">{formatStockQty(totals.receipt)}</strong>
             </div>
             <div>
-              Issue: <strong className="text-[var(--danger)]">{totals.issue}</strong>
+              Issue: <strong className="text-[var(--danger)]">{formatStockQty(totals.issue)}</strong>
             </div>
             <div>
-              Closing: <strong>{totals.closing}</strong>
+              Closing: <strong>{formatStockQty(totals.closing)}</strong>
             </div>
           </div>
         </CardBody>

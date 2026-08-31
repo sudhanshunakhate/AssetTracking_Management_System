@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
-import { Input } from '@/components/ui/Field'
+import { Input, Select } from '@/components/ui/Field'
 import type { ApiMasterRow } from '@/api/masters'
+import { fetchAvailableSerials, type AvailableSerialUnit } from '@/api/transactions'
+import { locLabel } from './txnLookups'
 import {
   ItemCodeOptions,
   applyItemMaster,
@@ -16,6 +18,7 @@ import {
   useItemIndex,
   useLocationStock,
   useStockLookup,
+  wholeQtyStr,
   type BaseLine,
 } from './lineGrid'
 
@@ -94,10 +97,11 @@ export function IssueItemLines({
   )
 
   const onStock = useCallback(
-    (key: string, qty: number) => patch(key, { availableStock: String(qty) }),
+    (key: string, qty: number) => patch(key, { availableStock: wholeQtyStr(qty) }),
     [patch],
   )
   const { loading: stockLoading, lookup } = useStockLookup(onStock)
+  const [serialOptions, setSerialOptions] = useState<Record<string, AvailableSerialUnit[]>>({})
 
   /** Re-fetch available qty whenever store or line items change (e.g. after requisition load). */
   const itemIdsKey = useMemo(() => lines.map((l) => `${l.key}:${l.itemId}`).join('|'), [lines])
@@ -110,6 +114,47 @@ export function IssueItemLines({
     // lines intentionally omitted — itemIdsKey covers item identity without looping on stock patches
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeLocationId, itemIdsKey, linesLocked, lookup])
+
+  /* Load non-issued serials for asset lines. */
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const next: Record<string, AvailableSerialUnit[]> = {}
+      for (const line of lines) {
+        if (!line.itemId) continue
+        const kind = line.itemType || items.find((i) => i.id === line.itemId)?.itemType
+        if (kind === 'consumable') continue
+        try {
+          const loc = line.locationId || storeLocationId
+          const units = await fetchAvailableSerials(
+            Number(line.itemId),
+            loc && /^\d+$/.test(loc) ? Number(loc) : undefined,
+          )
+          if (!cancelled) next[line.key] = units
+        } catch {
+          if (!cancelled) next[line.key] = []
+        }
+      }
+      if (!cancelled) setSerialOptions(next)
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemIdsKey, storeLocationId, items])
+
+  const applySerial = (line: IssueLine, serialNo: string) => {
+    const hit = (serialOptions[line.key] ?? []).find(
+      (u) => String(u.serialNo ?? '').toUpperCase() === serialNo.toUpperCase(),
+    )
+    patch(line.key, {
+      serialNo,
+      ipAddress: hit?.ipAddress ?? line.ipAddress,
+      macAddress: hit?.macAddress ?? line.macAddress,
+      hostname: hit?.hostname ?? line.hostname,
+      batchLotNo: hit?.batchLotNo ?? line.batchLotNo,
+    })
+  }
 
   const selectItem = (line: IssueLine, rawCode: string) => {
     if (linesLocked) return
@@ -124,7 +169,7 @@ export function IssueItemLines({
     patch(line.key, {
       ...applyItemMaster(item, stockLocation),
       itemType: String(item.itemType ?? ''),
-      availableStock: cached != null ? String(cached) : '',
+      availableStock: cached != null ? wholeQtyStr(cached) : '',
     })
     void lookup(line.key, Number(item.id), stockLocation)
   }
@@ -227,14 +272,25 @@ export function IssueItemLines({
                       <>
                         <td className={gridCell}>
                           {isAsset ? (
-                            <Input
+                            <Select
                               value={line.serialNo}
-                              onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
+                              onChange={(e) => applySerial(line, e.target.value)}
                               disabled={assetFieldsLocked}
-                              maxLength={100}
-                              placeholder="SN-…"
                               className={gridInput}
-                            />
+                            >
+                              <option value="">— Select serial —</option>
+                              {line.serialNo &&
+                                !(serialOptions[line.key] ?? []).some(
+                                  (u) =>
+                                    String(u.serialNo ?? '').toUpperCase() ===
+                                    line.serialNo.toUpperCase(),
+                                ) && <option value={line.serialNo}>{line.serialNo} (current)</option>}
+                              {(serialOptions[line.key] ?? []).map((u) => (
+                                <option key={u.blsId} value={String(u.serialNo ?? '')}>
+                                  {u.serialNo}
+                                </option>
+                              ))}
+                            </Select>
                           ) : (
                             <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
                           )}
@@ -292,7 +348,7 @@ export function IssueItemLines({
                       <Input
                         type="number"
                         min={0}
-                        step="0.01"
+                        step="1"
                         value={line.issueQty}
                         onChange={(e) => patch(line.key, { issueQty: e.target.value })}
                         disabled={lineFieldsLocked}
@@ -328,7 +384,7 @@ export function IssueItemLines({
                     </td>
                     <td className={gridCell}>
                       <Input
-                        value={location ? String(location.code ?? '') : ''}
+                        value={location ? locLabel(location) : ''}
                         readOnly
                         placeholder="—"
                         className={gridInput}
@@ -336,7 +392,7 @@ export function IssueItemLines({
                     </td>
                     <td className={gridCell}>
                       <Input
-                        value={toLoc ? String(toLoc.code ?? '') : ''}
+                        value={toLoc ? locLabel(toLoc) : ''}
                         readOnly
                         placeholder="—"
                         className={gridInput}

@@ -7,11 +7,12 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchFullReport } from '@/api/transactions'
-import { mapEmployee, mapEntity, mapLocation, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
+import { mapEmployee, mapEntity, mapLocation, mapDepartment, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { FullReportRow } from '@/types/transactions'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
+import { formatStockQty } from '@/features/transactions/lineGrid'
 
 const emptyFilters = {
   search: '',
@@ -34,15 +35,18 @@ export function FullReportPage() {
   const mapLoc = useCallback(mapLocation, [])
   const mapEnt = useCallback(mapEntity, [])
   const mapEmp = useCallback(mapEmployee, [])
+  const mapDept = useCallback(mapDepartment, [])
   const { rows: stores } = useMasterList('locations', mapLoc)
   const { rows: orgs } = useMasterList('entities', mapEnt)
   const { rows: employees } = useMasterList('employees', mapEmp)
+  const { rows: departments } = useMasterList('departments', mapDept)
   const { options: docTypeOpts } = useGenValues(GEN_TYPE.DOC_TYPE, 'code')
   const { options: docStatusOpts } = useGenValues(GEN_TYPE.DOC_STATUS)
 
   const storeById = useMemo(() => Object.fromEntries(stores.map((s) => [s.id, s])), [stores])
   const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
   const empById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
+  const deptById = useMemo(() => Object.fromEntries(departments.map((d) => [d.id, d])), [departments])
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -62,7 +66,9 @@ export function FullReportPage() {
           const toId = String(r.toLocationId ?? '')
           const entityId = String(r.entityId ?? '')
           const employeeId = String(r.employeeId ?? '')
+          const deptId = String(r.departmentId ?? '')
           const emp = empById[employeeId]
+          const dept = deptById[deptId]
           return {
             id: String(r.id ?? `${r.txnNo}-${r.itemId}`),
             docId: String(r.docId ?? ''),
@@ -77,6 +83,7 @@ export function FullReportPage() {
             toLocation: storeById[toId]?.name ?? storeById[toId]?.code ?? (toId || '—'),
             organization: orgById[entityId]?.name ?? orgById[entityId]?.code ?? (entityId || '—'),
             operatingUnit: '—',
+            department: dept ? String(dept.name ?? dept.code ?? '—') : '—',
             employee: emp ? `${emp.firstName} ${emp.lastName}` : employeeId || '—',
             user: '—',
             status: String(r.status ?? ''),
@@ -90,7 +97,7 @@ export function FullReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [f.txnType, f.from, f.to, f.loc, storeById, orgById, empById])
+  }, [f.txnType, f.from, f.to, f.loc, storeById, orgById, empById, deptById])
 
   useEffect(() => {
     void reload()
@@ -99,7 +106,7 @@ export function FullReportPage() {
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       const term = f.search.trim().toLowerCase()
-      if (term && !`${r.txnNo} ${r.item} ${r.status}`.toLowerCase().includes(term)) return false
+      if (term && !`${r.txnNo} ${r.item} ${r.status} ${r.department} ${r.fromLocation} ${r.toLocation}`.toLowerCase().includes(term)) return false
       if (f.status && r.status !== f.status) return false
       return true
     })
@@ -139,9 +146,10 @@ export function FullReportPage() {
                   'From',
                   'To',
                   'Organization',
+                  'Department',
                   'Employee',
                   'Status',
-                  'Value',
+                  'Amount',
                 ],
                 filtered.map((r) => [
                   r.date,
@@ -149,11 +157,12 @@ export function FullReportPage() {
                   r.txnNo,
                   r.item,
                   r.category,
-                  r.qty,
+                  formatStockQty(r.qty),
                   r.uom,
                   r.fromLocation,
                   r.toLocation,
                   r.organization,
+                  r.department,
                   r.employee,
                   r.status,
                   r.value,
@@ -237,7 +246,7 @@ export function FullReportPage() {
           Locations: <strong>{summary.locs}</strong>
         </div>
         <div>
-          Value:{' '}
+          Amount:{' '}
           <strong className="text-[var(--accent)]">
             ₹ {summary.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </strong>
@@ -249,7 +258,7 @@ export function FullReportPage() {
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="bg-[var(--surface2)]">
-                {['Date', 'Type', 'Txn No', 'Item', 'Qty', 'From', 'To', 'Org', 'Employee', 'Status', 'Value'].map((h) => (
+                {['Date', 'Type', 'Txn No', 'Item', 'Qty', 'From', 'To', 'Org', 'Dept', 'Employee', 'Status', 'Amount'].map((h) => (
                   <th
                     key={h}
                     className="border-b-2 border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
@@ -279,10 +288,13 @@ export function FullReportPage() {
                     </td>
                     <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.txnNo}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{r.item}</td>
-                    <td className="border-b border-[var(--border)] px-3 py-2">{r.qty}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2">{formatStockQty(r.qty)}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{r.fromLocation}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{r.toLocation}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{r.organization}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2" title={r.department}>
+                      {r.department}
+                    </td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{r.employee}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">
                       <StatusPill status={r.status} />

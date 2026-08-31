@@ -120,6 +120,7 @@ export interface FullReportRow {
   toLocation: string
   organization: string
   operatingUnit: string
+  department: string
   employee: string
   user: string
   status: string

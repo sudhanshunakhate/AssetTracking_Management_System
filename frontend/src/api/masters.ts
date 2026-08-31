@@ -542,6 +542,9 @@ export type DepartmentApi = {
   buId?: number
   buCode?: string
   buName?: string
+  locationId?: number
+  locationCode?: string
+  locationName?: string
   headEmpId?: number
   headEmpName?: string
   desc?: string
@@ -555,11 +558,47 @@ export const mapDepartment = (d: DepartmentApi): ApiMasterRow => ({
   orgCode: d.entityId != null ? String(d.entityId) : '',
   ouCode: d.buId != null ? String(d.buId) : '',
   ouName: d.buName ?? '',
+  locationId: d.locationId != null ? String(d.locationId) : '',
+  locationCode: d.locationCode ?? '',
+  locationName: d.locationName ?? '',
   headEmpId: d.headEmpId != null ? String(d.headEmpId) : '',
   headEmpName: d.headEmpName ?? '',
   description: d.desc ?? '',
   status: activeStatus(d.isActive),
 })
+
+/** Department mapped location — prefers live API, falls back to cached master row. */
+export async function fetchDepartmentMappedLocation(
+  departmentId: string,
+  deptById?: ReadonlyMap<string, ApiMasterRow>,
+): Promise<{ locationId: string; locationCode: string; locationName: string } | null> {
+  if (!departmentId) return null
+  try {
+    const d = await http.get<DepartmentApi>(`/departments/${departmentId}`)
+    if (d.locationId == null) return null
+    return {
+      locationId: String(d.locationId),
+      locationCode: d.locationCode ?? '',
+      locationName: d.locationName ?? '',
+    }
+  } catch {
+    const cached = deptById?.get(departmentId)
+    if (!cached?.locationId) return null
+    return {
+      locationId: String(cached.locationId),
+      locationCode: String(cached.locationCode ?? ''),
+      locationName: String(cached.locationName ?? ''),
+    }
+  }
+}
+
+export async function fetchDepartmentLocationId(
+  departmentId: string,
+  deptById?: ReadonlyMap<string, ApiMasterRow>,
+): Promise<string> {
+  const mapped = await fetchDepartmentMappedLocation(departmentId, deptById)
+  return mapped?.locationId ?? ''
+}
 
 export type EmployeeApi = {
   employeeId: number

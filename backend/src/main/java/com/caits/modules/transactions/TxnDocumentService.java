@@ -3,6 +3,7 @@ package com.caits.modules.transactions;
 import com.caits.common.ApiException;
 import com.caits.common.MessageResponse;
 import com.caits.common.PageResponse;
+import com.caits.domain.entity.HrcDepartmentMst;
 import com.caits.domain.entity.HrcEmployeeMst;
 import com.caits.domain.entity.InvBlsMst;
 import com.caits.domain.entity.InvItemMst;
@@ -11,6 +12,7 @@ import com.caits.domain.entity.OrgLocationMst;
 import com.caits.domain.entity.TxnDetailDtl;
 import com.caits.domain.entity.TxnHeaderMst;
 import com.caits.domain.entity.UnitMst;
+import com.caits.domain.repository.HrcDepartmentMstRepository;
 import com.caits.domain.repository.HrcEmployeeMstRepository;
 import com.caits.domain.repository.InvItemMstRepository;
 import com.caits.domain.repository.InvStockMstRepository;
@@ -63,6 +65,7 @@ public class TxnDocumentService {
     private final OrgLocationMstRepository locationRepo;
     private final ApplicationEventPublisher events;
     private final HrcEmployeeMstRepository employeeRepo;
+    private final HrcDepartmentMstRepository departmentRepo;
 
     public TxnDocumentService(
             TxnHeaderMstRepository headerRepo,
@@ -75,7 +78,8 @@ public class TxnDocumentService {
             SystemLocationService systemLocations,
             OrgLocationMstRepository locationRepo,
             ApplicationEventPublisher events,
-            HrcEmployeeMstRepository employeeRepo
+            HrcEmployeeMstRepository employeeRepo,
+            HrcDepartmentMstRepository departmentRepo
     ) {
         this.headerRepo = headerRepo;
         this.detailRepo = detailRepo;
@@ -88,6 +92,7 @@ public class TxnDocumentService {
         this.locationRepo = locationRepo;
         this.events = events;
         this.employeeRepo = employeeRepo;
+        this.departmentRepo = departmentRepo;
     }
 
     public PageResponse<ListItem> list(
@@ -320,6 +325,28 @@ public class TxnDocumentService {
             ));
         }
         return new AllottedItemsResponse(ids, units);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AvailableSerialUnit> listAvailableSerials(Integer itemId, Integer locationId) {
+        if (itemId == null) {
+            return List.of();
+        }
+        List<AvailableSerialUnit> out = new ArrayList<>();
+        for (InvBlsMst bls : blsService.listAvailableSerials(itemId, locationId)) {
+            out.add(new AvailableSerialUnit(
+                    bls.getIbmBlsId(),
+                    bls.getIbmItemIdItm(),
+                    bls.getIbmCurrentLocationIdLoc(),
+                    bls.getIbmSerialNo(),
+                    bls.getIbmIpAddress(),
+                    bls.getIbmMacAddress(),
+                    bls.getIbmHostname(),
+                    bls.getIbmBatchNo(),
+                    bls.getIbmItemCondition()
+            ));
+        }
+        return out;
     }
 
     @Transactional
@@ -663,14 +690,36 @@ public class TxnDocumentService {
     /**
      * Inspection approval moves stock from quarantine to each item's home store (line location).
      * Assigned inspectors are not limited to their location mapping for those targets.
+     * Store Issue to a department destination uses the department's mapped location — the issuer
+     * only needs access to the issuing (from) store, not the destination.
      */
     private void requireWriteLocations(DocType docType, DocumentRequest req) {
         if (docType == DocType.INSPECTION_APPROVAL) {
             return;
         }
-        accessScope.requireLocationAllowed(req.locationId());
-        accessScope.requireLocationAllowed(req.fromLocationId());
-        accessScope.requireLocationAllowed(req.toLocationId());
+        requireNamedLocationAllowed(req.locationId(), "document location");
+        requireNamedLocationAllowed(req.fromLocationId(), "From Location");
+        boolean departmentIssueDestination = docType == DocType.MATERIAL_ISSUE
+                && req.docSubtype() != null
+                && "DEPARTMENT".equalsIgnoreCase(req.docSubtype().trim());
+        if (!departmentIssueDestination) {
+            requireNamedLocationAllowed(req.toLocationId(), "To Location");
+        }
+    }
+
+    private void requireNamedLocationAllowed(Integer locationId, String role) {
+        if (accessScope.canAccessLocation(locationId)) {
+            return;
+        }
+        // Reuse AccessScopeService message which includes location code/name.
+        try {
+            accessScope.requireLocationAllowed(locationId);
+        } catch (ApiException ex) {
+            String detail = ex.getMessage() != null ? ex.getMessage() : "You do not have access to this location";
+            throw ApiException.forbidden(detail.replace(
+                    "You do not have access to location ",
+                    "You do not have access to " + role + " "));
+        }
     }
 
     private void validateLines(DocType docType, List<LineRequest> lines) {
@@ -1689,6 +1738,15 @@ public class TxnDocumentService {
         return URLDecoder.decode(stored.substring(hash + 1), StandardCharsets.UTF_8);
     }
 
+    private Integer resolveDepartmentLocationId(Integer departmentId) {
+        if (departmentId == null) {
+            return null;
+        }
+        return departmentRepo.findById(departmentId)
+                .map(HrcDepartmentMst::getDeptLocationIdLoc)
+                .orElse(null);
+    }
+
     private ListItem toListItem(TxnHeaderMst h, int totalItems) {
         String storedAttachment = h.getTxhAttachmentUrl();
         return new ListItem(
@@ -1704,6 +1762,7 @@ public class TxnDocumentService {
                 h.getTxhToLocationIdLoc(),
                 h.getTxhPartyIdVnd(),
                 h.getTxhDepartmentIdDept(),
+                resolveDepartmentLocationId(h.getTxhDepartmentIdDept()),
                 h.getTxhInitiatedByEmpIdEmp(),
                 h.getTxhRefTxnHeaderIdTxh(),
                 h.getTxhReferenceNo(),
@@ -1740,6 +1799,7 @@ public class TxnDocumentService {
                 h.getTxhPartyGstin(),
                 h.getTxhShipTo(),
                 h.getTxhDepartmentIdDept(),
+                resolveDepartmentLocationId(h.getTxhDepartmentIdDept()),
                 h.getTxhInitiatedByEmpIdEmp(),
                 h.getTxhEmployeeRefCode(),
                 h.getTxhDesignation(),

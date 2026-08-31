@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { StatusPill } from '@/components/ui/Badge'
 import { type Column } from '@/components/ui/DataTable'
@@ -24,8 +24,9 @@ import {
 import type { MaterialReturn } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
-import { itemOptionLabel, useLocationStock } from './lineGrid'
+import { itemOptionLabel, useLocationStock, wholeQtyStr } from './lineGrid'
 import { operationalLocations } from './txnLookups'
+import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 
 function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} – ${r.name}`) {
   return rows.map((r) => ({ value: r.id, label: label(r) }))
@@ -61,6 +62,7 @@ function TxnRoutes({
   readOnlyFields,
   viewOnlyExisting = false,
   renderExtraForm,
+  filters,
 }: {
   base: string
   title: string
@@ -94,6 +96,12 @@ function TxnRoutes({
     set: (k: string, v: unknown) => void,
     recordId: string,
   ) => ReactNode
+  filters?: {
+    label: string
+    value: string
+    options: { value: string; label: string }[]
+    onChange: (v: string) => void
+  }[]
 }) {
   const shared = {
     title,
@@ -116,6 +124,7 @@ function TxnRoutes({
     readOnlyFields,
     viewOnlyExisting,
     renderExtraForm,
+    filters,
   }
   return (
     <Routes>
@@ -220,9 +229,14 @@ function mapDocToFlatForm(doc: TxnDocument, extras: Record<string, unknown> = {}
     itemName: line?.itemName ?? '',
     itemType: line?.itemType ?? '',
     uom: line?.uomId != null ? String(line.uomId) : '',
-    qty: line?.qty != null ? String(line.qty) : line?.requestedQty != null ? String(line.requestedQty) : '1',
+    qty:
+      line?.qty != null
+        ? wholeQtyStr(line.qty)
+        : line?.requestedQty != null
+          ? wholeQtyStr(line.requestedQty)
+          : '1',
     batch: line?.batchLotNo ?? '',
-    availableStock: line?.availableStock != null ? String(line.availableStock) : '',
+    availableStock: wholeQtyStr(line?.availableStock),
     serialNo: line?.serialNo ?? '',
     ipAddress: line?.ipAddress ?? '',
     macAddress: line?.macAddress ?? '',
@@ -240,6 +254,9 @@ export function ReturnsPages() {
   const { stockByItemId } = useLocationStock(stockLoc)
   const [allottedByEmp, setAllottedByEmp] = useState<Record<string, string[]>>({})
   const [allottedUnitsByEmp, setAllottedUnitsByEmp] = useState<Record<string, AllottedUnit[]>>({})
+  const [statusFilter, setStatusFilter] = useState('')
+  const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
+  const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
 
   const clearItemFields = (): Record<string, unknown> => {
     setStockLoc('')
@@ -294,10 +311,14 @@ export function ReturnsPages() {
         if (!loaded && !current) return []
         return items.rows
           .filter((i) => allowed.has(i.id))
-          .map((i) => ({
-            value: i.id,
-            label: itemOptionLabel(i, stockByItemId),
-          }))
+          .map((i) => {
+            const loc = locations.rows.find((l) => l.id === String(i.store ?? ''))
+            const locLbl = loc ? `${loc.code} – ${loc.name}` : undefined
+            return {
+              value: i.id,
+              label: itemOptionLabel(i, stockByItemId, true, locLbl),
+            }
+          })
       },
       placeholder: '— Select allotted item —',
       hint: 'Pick Returned By first. Only items currently allotted to that employee appear here.',
@@ -341,7 +362,7 @@ export function ReturnsPages() {
         menuCode="RTN"
         title="Material Return"
         description="Return unused or excess material back into a store — from an employee, department, or another store."
-        rows={rows as never}
+        rows={filteredRows as never}
         columns={columns as never}
         fields={fields}
         searchPlaceholder="Search returns…"
@@ -350,6 +371,14 @@ export function ReturnsPages() {
         formTitle="Return Details"
         addLabel="New Return"
         viewOnlyExisting
+        filters={[
+          {
+            label: 'Status',
+            value: statusFilter,
+            options: statusOptions,
+            onChange: setStatusFilter,
+          },
+        ]}
         getDefaults={() => ({ date: todayIso(), qty: 1, attachmentUrl: '', attachmentName: '' })}
         readOnlyFields={['itemName']}
         renderExtraForm={(values, set, recordId) => (

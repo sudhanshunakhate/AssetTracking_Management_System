@@ -16,6 +16,7 @@ export type TxnListItem = {
   toLocationId?: number
   partyId?: number
   departmentId?: number
+  departmentLocationId?: number
   initiatedByEmpId?: number
   refTxnHeaderId?: number
   referenceNo?: string
@@ -90,6 +91,7 @@ export type DocumentRequest = {
   toLocationId?: number
   partyId?: number
   departmentId?: number
+  departmentLocationId?: number
   initiatedByEmpId?: number
   employeeRefCode?: string
   designation?: string
@@ -140,6 +142,7 @@ export function mapTxnListItem(item: TxnListItem): TxnRow {
     refTxnHeaderId: item.refTxnHeaderId != null ? String(item.refTxnHeaderId) : '',
     referenceNo: item.referenceNo ?? '',
     departmentId: item.departmentId != null ? String(item.departmentId) : '',
+    departmentLocationId: item.departmentLocationId != null ? String(item.departmentLocationId) : '',
     requiredByDate: item.requiredByDate ?? '',
     invoiceNo: item.invoiceNo ?? '',
     totalAmount: Number(item.totalAmount ?? 0),
@@ -214,6 +217,7 @@ export type TxnDocument = {
   toLocationId?: number
   partyId?: number
   departmentId?: number
+  departmentLocationId?: number
   initiatedByEmpId?: number
   employeeRefCode?: string
   designation?: string
@@ -326,6 +330,7 @@ export async function createTxn(resource: string, body: DocumentRequest) {
   invalidateReportCache()
   const res = await http.post<TxnDocument>(`/${resource}`, body)
   invalidateDashboardSummary()
+  notifyStockChanged()
   return res
 }
 
@@ -335,6 +340,7 @@ export async function updateTxn(resource: string, id: string, body: DocumentRequ
   invalidateReportCache()
   const res = await http.put(`/${resource}/${id}`, body)
   invalidateDashboardSummary()
+  notifyStockChanged()
   return res
 }
 
@@ -372,6 +378,25 @@ export async function fetchAllottedItems(employeeId: string | number): Promise<A
     itemIds: (res.itemIds ?? []).map(String),
     units: res.units ?? [],
   }
+}
+
+export type AvailableSerialUnit = {
+  blsId: number
+  itemId: number
+  locationId?: number
+  serialNo?: string
+  ipAddress?: string
+  macAddress?: string
+  hostname?: string
+  batchLotNo?: string
+  itemCondition?: string
+}
+
+/** Non-issued serial units for Issue / Transfer pickers. */
+export async function fetchAvailableSerials(itemId: number, locationId?: number) {
+  const qs = new URLSearchParams({ itemId: String(itemId) })
+  if (locationId != null && Number.isFinite(locationId)) qs.set('locationId', String(locationId))
+  return http.get<AvailableSerialUnit[]>(`/issues/available-serials?${qs}`)
 }
 
 export async function syncInspectionApprovalsFromGrn() {
@@ -431,20 +456,76 @@ export async function fetchAvailableStock(
   return rows.reduce((sum, r) => sum + Number(r.availableQty ?? r.currentQty ?? 0), 0)
 }
 
-/** All available qty by itemId for one store (sums batches). */
+/** All available qty by itemId for one store (sums batches). Paginates so large stores stay accurate. */
 export async function fetchStockMapForLocation(locationId: number): Promise<Record<string, number>> {
-  const qs = new URLSearchParams({
-    locationId: String(locationId),
-    page: '1',
-    pageSize: '500',
+  return fetchStockMap({ locationId })
+}
+
+export type ItemLocationStock = {
+  itemId: string
+  locationId: string
+  qty: number
+}
+
+/** Available qty per item and location (sums batches). Scoped to one item when itemId is passed. */
+export async function fetchItemLocationStock(itemId?: number): Promise<ItemLocationStock[]> {
+  const map = new Map<string, number>()
+  let pageNo = 1
+  const pageSize = 500
+  for (;;) {
+    const qs = new URLSearchParams({
+      page: String(pageNo),
+      pageSize: String(pageSize),
+    })
+    if (itemId != null) qs.set('itemId', String(itemId))
+    const page = await http.get<PageResponse<StockRow>>(`/stock?${qs}`)
+    for (const r of page.data ?? []) {
+      const key = `${r.itemId}|${r.locationId}`
+      map.set(key, (map.get(key) ?? 0) + Number(r.availableQty ?? r.currentQty ?? 0))
+    }
+    const total = Number(page.total ?? 0)
+    if ((page.data?.length ?? 0) < pageSize || pageNo * pageSize >= total) break
+    pageNo += 1
+    if (pageNo > 50) break
+  }
+  return [...map.entries()].map(([key, qty]) => {
+    const [iid, lid] = key.split('|')
+    return { itemId: iid, locationId: lid, qty }
   })
-  const page = await http.get<PageResponse<StockRow>>(`/stock?${qs}`)
+}
+
+/**
+ * Available qty by itemId.
+ * Pass locationId to scope to one store; omit it to sum across accessible locations.
+ */
+export async function fetchStockMap(opts: { locationId?: number } = {}): Promise<Record<string, number>> {
   const map: Record<string, number> = {}
-  for (const r of page.data ?? []) {
-    const id = String(r.itemId)
-    map[id] = (map[id] ?? 0) + Number(r.availableQty ?? r.currentQty ?? 0)
+  let pageNo = 1
+  const pageSize = 500
+  for (;;) {
+    const qs = new URLSearchParams({
+      page: String(pageNo),
+      pageSize: String(pageSize),
+    })
+    if (opts.locationId != null) qs.set('locationId', String(opts.locationId))
+    const page = await http.get<PageResponse<StockRow>>(`/stock?${qs}`)
+    for (const r of page.data ?? []) {
+      const id = String(r.itemId)
+      map[id] = (map[id] ?? 0) + Number(r.availableQty ?? r.currentQty ?? 0)
+    }
+    const total = Number(page.total ?? 0)
+    if ((page.data?.length ?? 0) < pageSize || pageNo * pageSize >= total) break
+    pageNo += 1
+    if (pageNo > 50) break
   }
   return map
+}
+
+/** Tell open screens to reload on-hand quantities (GRN/Issue/etc.). */
+export function notifyStockChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('caits:stock-changed'))
+  }
 }
 
 export type UploadedFile = {

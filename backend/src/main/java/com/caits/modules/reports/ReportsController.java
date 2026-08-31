@@ -58,7 +58,8 @@ public class ReportsController {
             "GATEPASS_OUTWARD",
             "MATERIAL_ISSUE",
             "MATERIAL_TRANSFER",
-            "MATERIAL_RETURN"
+            "MATERIAL_RETURN",
+            "INSPECTION_APPROVAL"
     );
 
     private static final Set<String> RECEIPT_DOC_TYPES = Set.of(
@@ -292,9 +293,9 @@ public class ReportsController {
             Integer blsEmp = blsIssuedTo.get(bucketKey);
             if (blsEmp != null) {
                 if (issued == null) {
-                    issued = new IssueCustody(blsEmp, null, null, null);
+                    issued = new IssueCustody(blsEmp, null, null, null, null);
                 } else if (issued.empId == null) {
-                    issued = new IssueCustody(blsEmp, issued.docNo, issued.docDate, issued.docId);
+                    issued = new IssueCustody(blsEmp, issued.docNo, issued.docDate, issued.docId, issued.toLocationId);
                 }
             }
 
@@ -426,6 +427,24 @@ public class ReportsController {
                     ? h.getTxhToLocationIdLoc()
                     : ("IN".equals(dir) ? h.getTxhLocationIdLoc() : null);
 
+            // Inspection approval posts stock Quarantine → home store (or Rejected).
+            if ("INSPECTION_APPROVAL".equals(h.getTxhDocType())) {
+                Map<Integer, TxnHeaderMst> grnById = Map.of();
+                if (h.getTxhRefTxnHeaderIdTxh() != null) {
+                    TxnHeaderMst grn = headerRepo.findById(h.getTxhRefTxnHeaderIdTxh()).orElse(null);
+                    if (grn != null) {
+                        grnById = Map.of(grn.getTxhTxnHeaderId(), grn);
+                    }
+                }
+                fromLoc = inspectionQuarantineForHeader(h, grnById);
+                boolean rejected = h.getTxhStatus() != null && h.getTxhStatus().toLowerCase().contains("reject");
+                if (rejected) {
+                    toLoc = rejectedLocForGrnRef(h.getTxhRefTxnHeaderIdTxh(), grnById);
+                } else {
+                    toLoc = null; // filled per-line from home store below
+                }
+            }
+
             Integer fromEmpId = h.getTxhInitiatedByEmpIdEmp();
             Integer toEmpId = h.getTxhHandedOverToEmpIdEmp() != null
                     ? h.getTxhHandedOverToEmpIdEmp()
@@ -481,6 +500,11 @@ public class ReportsController {
                 Integer lineFrom = fromLoc;
                 Integer lineTo = toLoc;
                 Integer lineLoc = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : h.getTxhLocationIdLoc();
+                if ("INSPECTION_APPROVAL".equals(h.getTxhDocType()) && lineTo == null) {
+                    lineTo = d.getTxdLocationIdLoc() != null
+                            ? d.getTxdLocationIdLoc()
+                            : (item == null ? null : item.getItmCurrentLocationIdLoc());
+                }
                 if (lineTo == null && "IN".equals(dir) && lineLoc != null) lineTo = lineLoc;
                 if (lineFrom == null && ("OUT".equals(dir) || "TRANSFER".equals(dir)) && lineLoc != null) lineFrom = lineLoc;
                 // Opening / GRN: destination is the document location
@@ -830,6 +854,14 @@ public class ReportsController {
         Integer toLoc = header.getTxhToLocationIdLoc() != null
                 ? header.getTxhToLocationIdLoc()
                 : header.getTxhLocationIdLoc();
+        // Requisitions store the request-from / deliver-to location on header (and line), not fromLocationId.
+        if ("MATERIAL_REQUISITION".equals(docType)) {
+            Integer reqLoc = line.getTxdLocationIdLoc() != null
+                    ? line.getTxdLocationIdLoc()
+                    : header.getTxhLocationIdLoc();
+            fromLoc = reqLoc;
+            toLoc = reqLoc;
+        }
         return List.of(buildFullReportRow(header, line, item, qty, fromLoc, toLoc, header.getTxhStatus(), null));
     }
 
@@ -922,6 +954,7 @@ public class ReportsController {
         row.put("toLocationId", toLocationId);
         row.put("entityId", header.getTxhEntityIdEnt());
         row.put("employeeId", header.getTxhInitiatedByEmpIdEmp());
+        row.put("departmentId", header.getTxhDepartmentIdDept());
         row.put("status", status);
         row.put("value", lineValueForQty(line, qty));
         return row;
@@ -1053,15 +1086,13 @@ public class ReportsController {
                         rejectedLoc, locations, "rej-in", 2);
             } else if ("Approved".equalsIgnoreCase(header.getTxhStatus())
                     || isMovementEligibleStatus(header.getTxhStatus())) {
-                if (locationFilter != null) {
-                    Integer homeLoc = line.getTxdLocationIdLoc() != null
-                            ? line.getTxdLocationIdLoc()
-                            : item.getItmCurrentLocationIdLoc();
-                    addLedgerIssue(events, header, line, item, qty, "Inspection", batch, uomCode,
-                            quarantineLoc, locations, "out", 1);
-                    addLedgerReceipt(events, header, line, item, qty, "Inspection", batch, uomCode,
-                            homeLoc, locations, "in", 2);
-                }
+                Integer homeLoc = line.getTxdLocationIdLoc() != null
+                        ? line.getTxdLocationIdLoc()
+                        : item.getItmCurrentLocationIdLoc();
+                addLedgerIssue(events, header, line, item, qty, "Inspection", batch, uomCode,
+                        quarantineLoc, locations, "out", 1);
+                addLedgerReceipt(events, header, line, item, qty, "Inspection", batch, uomCode,
+                        homeLoc, locations, "in", 2);
             }
             return filterLedgerEventsByLocation(events, locationFilter);
         }
@@ -1303,6 +1334,41 @@ public class ReportsController {
                 continue;
             }
 
+            if ("INSPECTION_APPROVAL".equals(docType)) {
+                Map<Integer, TxnHeaderMst> grnById = Map.of();
+                if (h.getTxhRefTxnHeaderIdTxh() != null) {
+                    TxnHeaderMst grn = headerRepo.findById(h.getTxhRefTxnHeaderIdTxh()).orElse(null);
+                    if (grn != null) {
+                        grnById = Map.of(grn.getTxhTxnHeaderId(), grn);
+                    }
+                }
+                Integer quarantineLoc = inspectionQuarantineForHeader(h, grnById);
+                boolean rejected = h.getTxhStatus() != null && h.getTxhStatus().toLowerCase().contains("reject");
+                for (TxnDetailDtl d : lines) {
+                    if (d.getTxdItemIdItm() == null) continue;
+                    BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
+                    if (qty.compareTo(BigDecimal.ZERO) <= 0) continue;
+                    Integer homeOrRejected;
+                    if (rejected) {
+                        homeOrRejected = rejectedLocForGrnRef(h.getTxhRefTxnHeaderIdTxh(), grnById);
+                    } else {
+                        InvItemMst item = items.get(d.getTxdItemIdItm());
+                        homeOrRejected = d.getTxdLocationIdLoc() != null
+                                ? d.getTxdLocationIdLoc()
+                                : (item == null ? null : item.getItmCurrentLocationIdLoc());
+                    }
+                    if (quarantineLoc != null) {
+                        PeriodQty fromPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), quarantineLoc), k -> new PeriodQty());
+                        fromPq.issue = fromPq.issue.add(qty);
+                    }
+                    if (homeOrRejected != null) {
+                        PeriodQty toPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), homeOrRejected), k -> new PeriodQty());
+                        toPq.receipt = toPq.receipt.add(qty);
+                    }
+                }
+                continue;
+            }
+
             boolean receipt = RECEIPT_DOC_TYPES.contains(docType);
             boolean issue = ISSUE_DOC_TYPES.contains(docType);
             if (!receipt && !issue) continue;
@@ -1350,6 +1416,9 @@ public class ReportsController {
             }
         }
 
+        Map<String, IssueCustody> lastIssueByBucket = latestIssueCustodyByBucket();
+        Map<String, IssueCustody> lastIssueByItemSerial = latestIssueCustodyByItemSerial();
+
         Map<Integer, List<Map<String, Object>>> byItem = new HashMap<>();
         for (InvStockMst s : stocks) {
             Integer itemId = s.getStkItemIdItm();
@@ -1373,6 +1442,22 @@ public class ReportsController {
             Integer custodianEmpId = bls == null ? null : bls.getIbmIssuedToEmpIdEmp();
             HrcEmployeeMst custodian = custodianEmpId == null ? null : employees.get(custodianEmpId);
 
+            // Issued units: show Issue "To" location (target), not only current stock bucket.
+            Integer displayLocId = locId;
+            if (custodianEmpId != null) {
+                IssueCustody issued = null;
+                if (batch != null && !batch.isBlank()) {
+                    issued = lastIssueByItemSerial.get(itemId + "|" + batch.trim().toUpperCase());
+                }
+                if (issued == null) {
+                    issued = lastIssueByBucket.get(bucketKey);
+                }
+                if (issued != null && issued.toLocationId() != null) {
+                    displayLocId = issued.toLocationId();
+                }
+            }
+            OrgLocationMst displayLoc = displayLocId.equals(locId) ? loc : locations.get(displayLocId);
+
             Map<String, Object> unit = new LinkedHashMap<>();
             unit.put("blsId", bls == null ? null : bls.getIbmBlsId());
             unit.put("serialNo", firstNonBlank(bls == null ? null : bls.getIbmSerialNo(), batch));
@@ -1384,9 +1469,9 @@ public class ReportsController {
             unit.put("hostname", bls == null ? null : bls.getIbmHostname());
             unit.put("itemCondition", bls == null ? null : bls.getIbmItemCondition());
             unit.put("qty", onHand);
-            unit.put("locationId", locId);
-            unit.put("locationCode", loc == null ? null : loc.getLocLocationCode());
-            unit.put("locationName", loc == null ? null : loc.getLocLocationName());
+            unit.put("locationId", displayLocId);
+            unit.put("locationCode", displayLoc == null ? null : displayLoc.getLocLocationCode());
+            unit.put("locationName", displayLoc == null ? null : displayLoc.getLocLocationName());
             unit.put("custodianEmpId", custodianEmpId);
             unit.put("custodian", empLabel(custodian));
             unit.put("custodyMode", custodianEmpId != null ? "ISSUED_TO" : "IN_STORE");
@@ -1461,12 +1546,16 @@ public class ReportsController {
                     ? h.getTxhFromLocationIdLoc()
                     : h.getTxhLocationIdLoc();
             if (locId == null) continue;
+            Integer toLoc = h.getTxhToLocationIdLoc() != null
+                    ? h.getTxhToLocationIdLoc()
+                    : locId;
             List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 if (d.getTxdItemIdItm() == null) continue;
                 Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
+                Integer lineTo = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : toLoc;
                 String key = custodyKey(d.getTxdItemIdItm(), locId);
-                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId()));
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId(), lineTo));
             }
         }
         return latest;
@@ -1492,13 +1581,51 @@ public class ReportsController {
                     ? h.getTxhFromLocationIdLoc()
                     : h.getTxhLocationIdLoc();
             if (locId == null) continue;
+            Integer toLoc = h.getTxhToLocationIdLoc() != null
+                    ? h.getTxhToLocationIdLoc()
+                    : locId;
             List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
                 if (d.getTxdItemIdItm() == null) continue;
                 Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
+                Integer lineTo = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : toLoc;
                 String batch = firstNonBlank(d.getTxdSerialNo(), d.getTxdBatchLotNo());
                 String key = stockCustodyKey(d.getTxdItemIdItm(), locId, batch);
-                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId()));
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId(), lineTo));
+            }
+        }
+        return latest;
+    }
+
+    /** Latest material issue per item + serial/batch (for issued units whose stock loc may already be To). */
+    private Map<String, IssueCustody> latestIssueCustodyByItemSerial() {
+        var headers = headerRepo.findAll((root, query, cb) -> cb.and(
+                cb.equal(root.get("txhDocType"), "MATERIAL_ISSUE"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%draft%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%reject%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%cancel%")
+        ), PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+        Map<String, IssueCustody> latest = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            Integer empId = h.getTxhHandedOverToEmpIdEmp() != null
+                    ? h.getTxhHandedOverToEmpIdEmp()
+                    : h.getTxhInitiatedByEmpIdEmp();
+            Integer fromLoc = h.getTxhFromLocationIdLoc() != null
+                    ? h.getTxhFromLocationIdLoc()
+                    : h.getTxhLocationIdLoc();
+            Integer toLoc = h.getTxhToLocationIdLoc() != null ? h.getTxhToLocationIdLoc() : fromLoc;
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+            for (TxnDetailDtl d : lines) {
+                if (d.getTxdItemIdItm() == null) continue;
+                String batch = firstNonBlank(d.getTxdSerialNo(), d.getTxdBatchLotNo());
+                if (batch == null || batch.isBlank()) continue;
+                Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
+                Integer lineTo = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : toLoc;
+                String key = d.getTxdItemIdItm() + "|" + batch.trim().toUpperCase();
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId(), lineTo));
             }
         }
         return latest;
@@ -1542,18 +1669,21 @@ public class ReportsController {
     private static PeriodQty sumPeriodForItem(
             Map<String, PeriodQty> period,
             Integer itemId,
-            Set<Integer> locationIds
+            @SuppressWarnings("unused") Set<Integer> locationIds
     ) {
         if (period == null || period.isEmpty() || itemId == null) {
             return PeriodQty.ZERO;
         }
+        // Sum every location bucket for the item. Emptied stores (e.g. quarantine after
+        // inspection) must still contribute to period Issue/Receipt. When the report is
+        // location-scoped, periodReceiptIssue already filtered the map.
         PeriodQty pq = PeriodQty.ZERO;
-        if (locationIds != null) {
-            for (Integer locId : locationIds) {
-                pq = pq.add(period.getOrDefault(periodKey(itemId, locId), PeriodQty.ZERO));
+        String prefix = itemId + "|";
+        for (Map.Entry<String, PeriodQty> e : period.entrySet()) {
+            if (e.getKey().startsWith(prefix)) {
+                pq = pq.add(e.getValue());
             }
         }
-        pq = pq.add(period.getOrDefault(periodKey(itemId, null), PeriodQty.ZERO));
         return pq;
     }
 
@@ -1565,7 +1695,7 @@ public class ReportsController {
         if (docType == null) return "IN";
         return switch (docType) {
             case "MATERIAL_ISSUE", "GATEPASS_OUTWARD" -> "OUT";
-            case "MATERIAL_TRANSFER" -> "TRANSFER";
+            case "MATERIAL_TRANSFER", "INSPECTION_APPROVAL" -> "TRANSFER";
             default -> "IN";
         };
     }
@@ -1684,7 +1814,7 @@ public class ReportsController {
         return PageResponse.of(p, size, rows.size(), rows.subList(from, to));
     }
 
-    private record IssueCustody(Integer empId, String docNo, LocalDate docDate, Integer docId) {}
+    private record IssueCustody(Integer empId, String docNo, LocalDate docDate, Integer docId, Integer toLocationId) {}
 
     private record LedgerEvent(
             LocalDate date,

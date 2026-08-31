@@ -12,6 +12,7 @@ import {
   type TxnRow,
 } from '@/api/transactions'
 import { mapDepartment, useMasterList } from '@/api/masters'
+import { formatStockQty } from './lineGrid'
 import { empLabel, locLabel, useTxnFormLookups } from './txnLookups'
 
 function DetailField({ label, children }: { label: string; children: ReactNode }) {
@@ -247,7 +248,7 @@ export function RequisitionPickerModal({
                             <td className="px-3 py-1.5 font-mono text-[11.5px]">{l.itemCode ?? '—'}</td>
                             <td className="px-3 py-1.5">{l.itemName ?? '—'}</td>
                             <td className="px-3 py-1.5 text-right tabular-nums font-medium">
-                              {l.requestedQty ?? l.qty ?? '—'}
+                              {formatStockQty(Number(l.requestedQty ?? l.qty ?? 0))}
                             </td>
                           </tr>
                         ))}

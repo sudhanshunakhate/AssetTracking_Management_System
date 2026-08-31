@@ -382,7 +382,16 @@
                                            "local":  null,
                                            "dev":  "2026-08-26"
                                        }
+                       },
+                       {
+                           "id":  "042-department-location",
+                           "file":  "db_approach/042_department_location.sql",
+                           "description":  "Map each department to a mandatory operational location (store).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-08-28"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-26"
+    "updated":  "2026-08-28"
 }

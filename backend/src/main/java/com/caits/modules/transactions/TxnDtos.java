@@ -144,6 +144,7 @@ public final class TxnDtos {
             String partyGstin,
             String shipTo,
             Integer departmentId,
+            Integer departmentLocationId,
             Integer initiatedByEmpId,
             String employeeRefCode,
             String designation,
@@ -200,6 +201,7 @@ public final class TxnDtos {
             Integer toLocationId,
             Integer partyId,
             Integer departmentId,
+            Integer departmentLocationId,
             Integer initiatedByEmpId,
             Integer refTxnHeaderId,
             String referenceNo,
@@ -230,4 +232,17 @@ public final class TxnDtos {
     ) {}
 
     public record AllottedItemsResponse(List<Integer> itemIds, List<AllottedUnit> units) {}
+
+    /** Serial units in store (not currently issued) for Issue / Transfer pickers. */
+    public record AvailableSerialUnit(
+            Integer blsId,
+            Integer itemId,
+            Integer locationId,
+            String serialNo,
+            String ipAddress,
+            String macAddress,
+            String hostname,
+            String batchLotNo,
+            String itemCondition
+    ) {}
 }

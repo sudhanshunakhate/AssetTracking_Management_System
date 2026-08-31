@@ -1,6 +1,7 @@
 import type { ApiMasterRow } from '@/api/masters'
 import type { TxnDocument } from '@/api/transactions'
 import type { TransferLine } from './TransferItemLines'
+import { wholeQtyStr } from './lineGrid'
 
 export type TransferType = 'INTERNAL' | 'OU'
 
@@ -120,8 +121,8 @@ export function buildGatepassPrefillFromTxnDoc(doc: TxnDocument, locations: ApiM
     itemCode: l.itemCode ?? '',
     itemName: l.itemName ?? '',
     uomId: l.uomId != null ? String(l.uomId) : '',
-    transferQty: l.qty != null ? String(l.qty) : '',
-    availableStock: l.availableStock != null ? String(l.availableStock) : '',
+    transferQty: wholeQtyStr(l.qty),
+    availableStock: wholeQtyStr(l.availableStock),
     locationId: l.locationId != null ? String(l.locationId) : '',
     remark: l.remark ?? '',
   }))

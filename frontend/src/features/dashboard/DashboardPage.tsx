@@ -11,6 +11,7 @@ import {
   type DashboardHome,
   type DashboardWidget,
 } from '@/api/transactions'
+import { formatStockQty } from '@/features/transactions/lineGrid'
 
 type KpiTone = 'sky' | 'blue' | 'warm' | 'danger' | 'success'
 
@@ -233,7 +234,7 @@ function ActivityList({ rows }: { rows: { id: string | number; txnType: string; 
             </div>
           </div>
           <div className="shrink-0 text-right">
-            <div className="font-mono text-[12.5px] font-bold">{r.qty}</div>
+            <div className="font-mono text-[12.5px] font-bold">{formatStockQty(r.qty)}</div>
             <div className="text-[10px] text-[var(--text3)]">{r.status}</div>
           </div>
         </li>

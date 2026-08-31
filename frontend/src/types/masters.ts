@@ -119,6 +119,9 @@ export interface Department {
   orgCode: string
   ouCode: string
   ouName: string
+  locationId: string
+  locationCode: string
+  locationName: string
   headEmpId: string
   headEmpName: string
   description: string
