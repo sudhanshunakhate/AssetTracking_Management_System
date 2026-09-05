@@ -27,6 +27,8 @@ export type FieldDef = ValidationRules & {
    * (without this flag) is filled — used for item / line fields on txn forms.
    */
   lockedUntilHeader?: boolean
+  /** When set and returns false, the field is hidden and skipped for required validation. */
+  visibleWhen?: (values: Record<string, unknown>) => boolean
 }
 
 type Row = { id: string; [key: string]: unknown }
@@ -371,19 +373,24 @@ function MasterForm({
     [readOnlyFields, values, recordId],
   )
 
+  const visibleFields = useMemo(
+    () => fields.filter((f) => !f.visibleWhen || f.visibleWhen(values)),
+    [fields, values],
+  )
+
   const errors = useMemo(() => {
     if (readOnly) return {}
     return {
-      ...validateFields(fields, values, siblings, recordId),
+      ...validateFields(visibleFields, values, siblings, recordId),
       ...(validateForm?.(values, recordId) ?? {}),
     }
-  }, [fields, values, siblings, recordId, readOnly, validateForm])
+  }, [visibleFields, values, siblings, recordId, readOnly, validateForm])
 
   const headerReady = useMemo(() => {
-    const headerFields = fields.filter((f) => f.required && !f.lockedUntilHeader)
+    const headerFields = visibleFields.filter((f) => f.required && !f.lockedUntilHeader)
     if (headerFields.length === 0) return true
     return areRequiredFieldsFilled(headerFields, values)
-  }, [fields, values])
+  }, [visibleFields, values])
 
   /** Errors stay hidden until the field is visited or the user tries to save. */
   const errorFor = (name: string) => (submitted || touched[name] ? (errors[name] ?? '') : '')
@@ -447,7 +454,7 @@ function MasterForm({
         <CardHeader title={formTitle} />
         <CardBody>
           <div className={gridClass}>
-            {fields.map((f) => {
+            {visibleFields.map((f) => {
               const span =
                 f.span === 4
                   ? 'xl:col-span-4 md:col-span-2'
@@ -458,10 +465,11 @@ function MasterForm({
                       : ''
               // loginId stays locked even on Add when listed (auto-filled identity)
               const lockedByHeader = Boolean(f.lockedUntilHeader) && !headerReady
-              const fieldReadOnly =
-                readOnly ||
-                lockedByHeader ||
-                (resolvedReadOnlyFields.includes(f.name) && (!isNew || f.name === 'loginId'))
+              // Array readOnlyFields stay edit-on-create (except loginId). Function form always applies.
+              const lockedByList =
+                resolvedReadOnlyFields.includes(f.name) &&
+                (typeof readOnlyFields === 'function' || !isNew || f.name === 'loginId')
+              const fieldReadOnly = readOnly || lockedByHeader || lockedByList
               if (f.type === 'switch') {
                 return (
                   <div key={f.name} className={`pt-1 ${span}`}>

@@ -1,19 +1,13 @@
 package com.caits.modules.transactions;
 
-import java.util.Set;
-
 /**
- * When a material transfer needs an outward gatepass at the source store, it stays
- * {@link #PENDING_FOR_OUTWARD} until that gatepass is submitted against the transfer.
+ * Outward gatepass is required only for OU (cross operating-unit) material transfers.
+ * Internal transfers complete immediately as {@link #TRANSFERRED} with no gatepass step.
  */
 public final class TransferGatepassRules {
 
     public static final String PENDING_FOR_OUTWARD = "Pending for Outward";
     public static final String TRANSFERRED = "Transferred";
-
-    private static final Set<String> SPECIAL_TO_ROLES = Set.of(
-            "DAMAGED", "REJECTED", "QUARANTINE", "SCRAP"
-    );
 
     private TransferGatepassRules() {}
 
@@ -28,20 +22,9 @@ public final class TransferGatepassRules {
         if (fromLocationId == null || toLocationId == null || fromLocationId.equals(toLocationId)) {
             return false;
         }
+        // Destination role / name args kept for call-site compatibility; only OU subtype matters.
         String subtype = docSubtype == null ? "" : docSubtype.trim().toUpperCase();
-        if ("OU".equals(subtype) || "OPR".equals(subtype)) {
-            return true;
-        }
-        String role = toSystemRole == null ? "" : toSystemRole.trim().toUpperCase();
-        if (SPECIAL_TO_ROLES.contains(role)) {
-            return true;
-        }
-        String blob = ((toLocationCode == null ? "" : toLocationCode) + " " + (toLocationName == null ? "" : toLocationName))
-                .toLowerCase();
-        return blob.contains("damaged")
-                || blob.contains("reject")
-                || blob.contains("quarantine")
-                || blob.contains("scrap");
+        return "OU".equals(subtype) || "OPR".equals(subtype);
     }
 
     public static String transferStatusAfterSubmit(boolean needsGatepass) {

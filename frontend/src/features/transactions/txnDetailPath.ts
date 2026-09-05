@@ -25,8 +25,8 @@ export function txnDetailPath(docType: string, docId: string | number | null | u
     MATERIAL_RETURN: '/transactions/returns',
     MATERIAL_REQUISITION: '/transactions/requisitions',
     INSPECTION_APPROVAL: '/transactions/inspection-approvals',
-    GATEPASS_INWARD: '/transactions/gatepass',
-    GATEPASS_OUTWARD: '/transactions/gatepass',
+    GATEPASS_INWARD: '/transactions/gatepass/inward',
+    GATEPASS_OUTWARD: '/transactions/gatepass/outward',
   }
 
   const base = baseByType[code]

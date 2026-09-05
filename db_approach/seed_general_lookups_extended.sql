@@ -51,7 +51,9 @@ FROM (VALUES
     ('GTY-GPIN',     'Gatepass Inward Type',
      'Gatepass inward entry mode'),
     ('GTY-RETFLAG',  'Returnable Flag',
-     'Returnable / Non-Returnable flag for outward / issue')
+     'Returnable / Non-Returnable flag for outward / issue'),
+    ('GTY-TRFTYPE',  'Transfer Type',
+     'Internal vs OU transfer for Material Transfer and Gatepass Outward')
 ) AS v(code, name, descr)
 WHERE NOT EXISTS (
     SELECT 1 FROM gentype_mst t WHERE UPPER(t.gtyp_type_code) = UPPER(v.code)
@@ -196,7 +198,11 @@ FROM (VALUES
 
     -- Returnable Flag (valueCode Y/N)
     ('GTY-RETFLAG', 'N', 'Non Returnable', 1, 'Returnable flag'),
-    ('GTY-RETFLAG', 'Y', 'Returnable',     2, 'Returnable flag')
+    ('GTY-RETFLAG', 'Y', 'Returnable',     2, 'Returnable flag'),
+
+    -- Transfer Type (valueCode stored on txh_doc_subtype)
+    ('GTY-TRFTYPE', 'INTERNAL', 'Internal Transfer', 1, 'Same-OU store-to-store transfer'),
+    ('GTY-TRFTYPE', 'OU',       'OU Transfer',       2, 'Cross-OU transfer — requires outward gatepass')
 ) AS v(type_code, code, name, sort_no, descr)
 JOIN gentype_mst t ON UPPER(t.gtyp_type_code) = UPPER(v.type_code)
 WHERE NOT EXISTS (

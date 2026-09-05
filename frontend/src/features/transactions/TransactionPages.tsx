@@ -1,6 +1,8 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { StatusPill } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Card, CardBody } from '@/components/ui/Card'
 import { type Column } from '@/components/ui/DataTable'
 import {
   createTxn,
@@ -18,15 +20,18 @@ import {
   mapItem,
   mapLocation,
   mapUnit,
+  mapDepartment,
   useMasterList,
   type ApiMasterRow,
+  type LocationApi,
 } from '@/api/masters'
+import { http } from '@/api/client'
 import type { MaterialReturn } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
-import { itemOptionLabel, useLocationStock, wholeQtyStr } from './lineGrid'
-import { operationalLocations } from './txnLookups'
+import { itemOptionLabel, wholeQtyStr } from './lineGrid'
 import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
+import { ReturnAllottedPickerModal } from './ReturnAllottedPickerModal'
 
 function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} – ${r.name}`) {
   return rows.map((r) => ({ value: r.id, label: label(r) }))
@@ -89,7 +94,7 @@ function TxnRoutes({
   menuCode?: string
   listLoading?: boolean
   loadRecord?: (id: string) => Promise<Record<string, unknown> | null>
-  readOnlyFields?: string[]
+  readOnlyFields?: string[] | ((values: Record<string, unknown>, recordId: string) => string[])
   viewOnlyExisting?: boolean
   renderExtraForm?: (
     values: Record<string, unknown>,
@@ -139,21 +144,99 @@ function useTxnLookups() {
   const mapEmp = useCallback(mapEmployee, [])
   const mapItm = useCallback(mapItem, [])
   const mapUnt = useCallback(mapUnit, [])
+  const mapDept = useCallback(mapDepartment, [])
   const locations = useMasterList('locations', mapLoc)
   const employees = useMasterList('employees', mapEmp)
   const items = useMasterList('items', mapItm)
   const units = useMasterList('units', mapUnt)
-  return { locations, employees, items, units }
+  const departments = useMasterList('departments', mapDept)
+  return { locations, employees, items, units, departments }
 }
 
 function locLabel(locations: ApiMasterRow[], id: string) {
-  const loc = locations.find((l) => l.id === id)
+  const loc = locations.find((l) => String(l.id) === String(id))
   return loc ? `${loc.code}` : id || '—'
 }
 
 function empLabel(employees: ApiMasterRow[], id: string) {
   const e = employees.find((x) => x.id === id)
   return e ? `${e.code} – ${e.firstName} ${e.lastName}` : id || '—'
+}
+
+function deptLabel(departments: ApiMasterRow[], id: string) {
+  const d = departments.find((x) => x.id === id)
+  return d ? `${d.code} – ${d.name}` : id || '—'
+}
+
+function returnPartyKey(returnType: string, empId: string, deptId: string) {
+  if (returnType === 'DEPARTMENT') return deptId ? `dept:${deptId}` : ''
+  return empId ? `emp:${empId}` : ''
+}
+
+/** Keeps Return-to-Store / Unit text fields showing names after location masters load. */
+function ReturnDisplayLabelSync({
+  storeId,
+  storeLabel,
+  uomId,
+  uomLabel,
+  locations,
+  units,
+  set,
+}: {
+  storeId: string
+  storeLabel: string
+  uomId: string
+  uomLabel: string
+  locations: ApiMasterRow[]
+  units: ApiMasterRow[]
+  set: (k: string, v: unknown) => void
+}) {
+  useEffect(() => {
+    const sid = String(storeId ?? '').trim()
+    if (!sid) return
+
+    const formatLoc = (code: string, name: string) => {
+      const c = code.trim()
+      const n = name.trim()
+      if (c && n) return `${c} – ${n}`
+      return c || n
+    }
+
+    const loc = locations.find((l) => String(l.id) === sid)
+    if (loc) {
+      const next = formatLoc(String(loc.code ?? ''), String(loc.name ?? ''))
+      if (next && next !== storeLabel) set('store', next)
+      return
+    }
+
+    // List may omit this location (scope / paging); resolve by id so we never leave a bare number.
+    if (storeLabel && !/^\d+$/.test(storeLabel.trim())) return
+
+    let cancelled = false
+    void http
+      .get<LocationApi>(`/locations/${sid}`)
+      .then((row) => {
+        if (cancelled) return
+        const next = formatLoc(String(row.locationCode ?? ''), String(row.locationName ?? ''))
+        if (next) set('store', next)
+      })
+      .catch(() => {
+        /* keep current label */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [storeId, storeLabel, locations, set])
+
+  useEffect(() => {
+    const uid = String(uomId ?? '').trim()
+    if (!uid) return
+    const u = units.find((x) => String(x.id) === uid)
+    const next = u ? String(u.code ?? '').trim() : ''
+    if (next && next !== uomLabel) set('uom', next)
+  }, [uomId, uomLabel, units, set])
+
+  return null
 }
 
 /** When Item changes, patch UOM (and clear stale stock) from the item master. */
@@ -248,29 +331,145 @@ function mapDocToFlatForm(doc: TxnDocument, extras: Record<string, unknown> = {}
 
 export function ReturnsPages() {
   const { rows, loading, error, reload } = useTxnList('returns')
-  const { locations, employees, items, units } = useTxnLookups()
+  const { locations, employees, items, units, departments } = useTxnLookups()
   const patchItem = itemFieldPatch(items.rows)
-  const [stockLoc, setStockLoc] = useState('')
-  const { stockByItemId } = useLocationStock(stockLoc)
-  const [allottedByEmp, setAllottedByEmp] = useState<Record<string, string[]>>({})
-  const [allottedUnitsByEmp, setAllottedUnitsByEmp] = useState<Record<string, AllottedUnit[]>>({})
+  const [allottedByParty, setAllottedByParty] = useState<Record<string, string[]>>({})
+  const [allottedUnitsByParty, setAllottedUnitsByParty] = useState<Record<string, AllottedUnit[]>>({})
+  const [allottedQtyByParty, setAllottedQtyByParty] = useState<Record<string, Record<string, number>>>({})
+  const [allottedLoading, setAllottedLoading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerPartyKey, setPickerPartyKey] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
   const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
 
-  const clearItemFields = (): Record<string, unknown> => {
-    setStockLoc('')
-    return { item: '', itemName: '', itemCode: '', itemType: '', uom: '', store: '', availableStock: '' }
+  const clearItemFields = (): Record<string, unknown> => ({
+    item: '',
+    itemName: '',
+    itemCode: '',
+    itemType: '',
+    uom: '',
+    uomId: '',
+    store: '',
+    storeId: '',
+    availableStock: '',
+    qty: '1',
+    serialNo: '',
+    batch: '',
+    ipAddress: '',
+    macAddress: '',
+    hostname: '',
+  })
+
+  /** Resolve location id → "CODE – Name" for read-only display (never show bare id). */
+  const storeDisplay = (storeId: string | number | null | undefined) => {
+    const sid = String(storeId ?? '').trim()
+    if (!sid) return ''
+    const loc = locations.rows.find((l) => String(l.id) === sid)
+    if (!loc) return ''
+    const code = String(loc.code ?? '').trim()
+    const name = String(loc.name ?? '').trim()
+    if (code && name) return `${code} – ${name}`
+    return code || name || ''
+  }
+
+  const uomDisplay = (uomId: string | number | null | undefined) => {
+    const uid = String(uomId ?? '').trim()
+    if (!uid) return ''
+    const u = units.rows.find((x) => String(x.id) === uid)
+    return u ? String(u.code ?? '').trim() || uid : ''
+  }
+
+  const applyStoreFields = (storeIdRaw: string | number | null | undefined) => {
+    const storeId = String(storeIdRaw ?? '').trim()
+    return {
+      storeId,
+      store: storeDisplay(storeId),
+    }
+  }
+
+  const applyUomFields = (uomIdRaw: string | number | null | undefined) => {
+    const uomId = String(uomIdRaw ?? '').trim()
+    return {
+      uomId,
+      uom: uomDisplay(uomId),
+    }
+  }
+
+  const loadAllottedFor = async (returnType: string, empId: string, deptId: string) => {
+    const key = returnPartyKey(returnType, empId, deptId)
+    if (!key) {
+      return { itemIds: [] as string[], units: [] as AllottedUnit[], qtyByItemId: {} as Record<string, number> }
+    }
+    setAllottedLoading(true)
+    try {
+      const allotted =
+        returnType === 'DEPARTMENT'
+          ? await fetchAllottedItems({ departmentId: deptId })
+          : await fetchAllottedItems({ employeeId: empId })
+      setAllottedByParty((prev) => ({ ...prev, [key]: allotted.itemIds }))
+      setAllottedUnitsByParty((prev) => ({ ...prev, [key]: allotted.units }))
+      setAllottedQtyByParty((prev) => ({ ...prev, [key]: allotted.qtyByItemId }))
+      return allotted
+    } catch {
+      setAllottedByParty((prev) => ({ ...prev, [key]: [] }))
+      setAllottedUnitsByParty((prev) => ({ ...prev, [key]: [] }))
+      setAllottedQtyByParty((prev) => ({ ...prev, [key]: {} }))
+      return { itemIds: [] as string[], units: [] as AllottedUnit[], qtyByItemId: {} as Record<string, number> }
+    } finally {
+      setAllottedLoading(false)
+    }
+  }
+
+  const partyFromValues = (values: Record<string, unknown>) => {
+    const returnType = String(values.returnType ?? 'EMPLOYEE')
+    const empId = String(values.returnedBy ?? '')
+    const deptId = String(values.departmentId ?? '')
+    const key = returnPartyKey(returnType, empId, deptId)
+    return { returnType, empId, deptId, key }
+  }
+
+  const applySingleUnitPatch = (
+    allotted: { units: AllottedUnit[]; qtyByItemId: Record<string, number> },
+  ): Record<string, unknown> => {
+    if (allotted.units.length !== 1) return {}
+    const u = allotted.units[0]
+    const itemId = String(u.itemId)
+    const item = items.rows.find((i) => i.id === itemId)
+    const homeStore = String(item?.store ?? '')
+    return {
+      item: itemId,
+      ...applyUomFields(item?.uom as string | number | null | undefined),
+      itemCode: String(item?.code ?? ''),
+      itemName: String(item?.name ?? ''),
+      itemType: String(item?.itemType ?? ''),
+      ...applyStoreFields(homeStore),
+      qty: '1',
+      serialNo: String(u.serialNo ?? '').trim().toUpperCase(),
+      ipAddress: u.ipAddress ?? '',
+      macAddress: u.macAddress ?? '',
+      hostname: u.hostname ?? '',
+      batch: u.batchLotNo ?? '',
+      availableStock: String(allotted.qtyByItemId[itemId] ?? 1),
+    }
   }
 
   const columns: Column<MaterialReturn>[] = [
     { key: 'no', header: 'Return No.', searchText: (r) => r.returnNo, render: (r) => <b className="font-mono">{r.returnNo}</b> },
     { key: 'date', header: 'Date', searchText: (r) => r.date, render: (r) => r.date },
     {
-      key: 'by',
-      header: 'Returned By',
-      searchText: (r) => empLabel(employees.rows, String((r as { initiatedByEmpId?: string }).initiatedByEmpId ?? '')),
-      render: (r) => empLabel(employees.rows, String((r as { initiatedByEmpId?: string }).initiatedByEmpId ?? '')),
+      key: 'party',
+      header: 'From',
+      searchText: (r) => {
+        const deptId = String((r as { departmentId?: string }).departmentId ?? '')
+        if (deptId) return deptLabel(departments.rows, deptId)
+        return empLabel(employees.rows, String((r as { initiatedByEmpId?: string }).initiatedByEmpId ?? ''))
+      },
+      render: (r) => {
+        const deptId = String((r as { departmentId?: string }).departmentId ?? '')
+        if (deptId) return deptLabel(departments.rows, deptId)
+        return empLabel(employees.rows, String((r as { initiatedByEmpId?: string }).initiatedByEmpId ?? ''))
+      },
     },
     {
       key: 'store',
@@ -291,9 +490,40 @@ export function ReturnsPages() {
       ),
     },
   ]
+
   const fields: FieldDef[] = [
     { name: 'date', label: 'Return Date', required: true },
-    { name: 'returnedBy', label: 'Returned By', type: 'select', required: true, span: 2, options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`) },
+    {
+      name: 'returnType',
+      label: 'Return From',
+      type: 'select',
+      required: true,
+      options: [
+        { value: 'EMPLOYEE', label: 'Employee' },
+        { value: 'DEPARTMENT', label: 'Department' },
+      ],
+      hint: 'Employee returns custody from Issue / Opening Stock. Department returns what was issued to that department.',
+    },
+    {
+      name: 'returnedBy',
+      label: 'Returned By (Employee)',
+      type: 'select',
+      required: true,
+      span: 2,
+      options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`),
+      hint: 'Loads items currently allotted to this employee from Issue / Opening Stock / BLS.',
+      visibleWhen: (v) => String(v.returnType ?? 'EMPLOYEE') !== 'DEPARTMENT',
+    },
+    {
+      name: 'departmentId',
+      label: 'Return From Department',
+      type: 'select',
+      required: true,
+      span: 2,
+      options: opt(departments.rows.filter((d) => d.status !== 'Inactive')),
+      hint: 'Loads items still allotted from department Issues (Issue − prior Returns).',
+      visibleWhen: (v) => String(v.returnType ?? '') === 'DEPARTMENT',
+    },
     {
       name: 'item',
       label: 'Item',
@@ -302,10 +532,11 @@ export function ReturnsPages() {
       span: 2,
       lockedUntilHeader: true,
       options: (values) => {
-        const empId = String(values.returnedBy ?? '')
+        const { key } = partyFromValues(values)
         const current = String(values.item ?? '')
-        if (!empId) return []
-        const loaded = allottedByEmp[empId]
+        if (!key) return []
+        const loaded = allottedByParty[key]
+        const qtyMap = allottedQtyByParty[key] ?? {}
         const allowed = new Set(loaded ?? [])
         if (current) allowed.add(current)
         if (!loaded && !current) return []
@@ -314,42 +545,79 @@ export function ReturnsPages() {
           .map((i) => {
             const loc = locations.rows.find((l) => l.id === String(i.store ?? ''))
             const locLbl = loc ? `${loc.code} – ${loc.name}` : undefined
+            const allottedQty = qtyMap[i.id]
+            const stockMap =
+              allottedQty != null && Number.isFinite(allottedQty)
+                ? { [i.id]: allottedQty }
+                : undefined
             return {
               value: i.id,
-              label: itemOptionLabel(i, stockByItemId, true, locLbl),
+              label: itemOptionLabel(i, stockMap, true, locLbl).replace(
+                '(Stock:',
+                '(Allotted:',
+              ),
             }
           })
       },
       placeholder: '— Select allotted item —',
-      hint: 'Pick Returned By first. Only items currently allotted to that employee appear here.',
+      hint: 'Choose an allotted item, or use Select Allotted Item… for serial pick.',
     },
-    { name: 'itemName', label: 'Item Name', hint: 'Filled from item master' },
+    {
+      name: 'itemName',
+      label: 'Item Name',
+      hint: 'Filled from item master (read-only)',
+    },
     {
       name: 'store',
       label: 'Return to Store',
-      type: 'select',
+      type: 'text',
       required: true,
       lockedUntilHeader: true,
-      options: opt(operationalLocations(locations.rows)),
-      placeholder: '— Select Item first —',
-      hint: 'Auto-filled from Item Master — change only if returning to a different store',
+      hint: 'Auto-filled from Item Master (read-only after selection)',
     },
-    { name: 'qty', label: 'Return Qty', type: 'number', required: true, lockedUntilHeader: true },
+    {
+      name: 'qty',
+      label: 'Return Qty',
+      type: 'number',
+      required: true,
+      lockedUntilHeader: true,
+      hint: 'Set in allotted picker (read-only after selection)',
+    },
     {
       name: 'uom',
       label: 'Unit',
-      type: 'select',
+      type: 'text',
       required: true,
-      options: opt(units.rows, (u) => String(u.code)),
       lockedUntilHeader: true,
+      hint: 'From item master (read-only)',
     },
     {
       name: 'serialNo',
       label: 'Serial No.',
+      type: 'select',
       lockedUntilHeader: true,
-      hint: 'Imported from units in this employee’s custody when you pick Returned By / Item. Required for assets.',
+      options: (values) => {
+        const { key } = partyFromValues(values)
+        const itemId = String(values.item ?? '')
+        if (!key || !itemId) return []
+        const list = (allottedUnitsByParty[key] ?? []).filter((u) => String(u.itemId) === itemId)
+        return list.map((u, idx) => ({
+          value: String(u.serialNo ?? '').trim().toUpperCase(),
+          label:
+            [u.serialNo, u.batchLotNo ? `Batch ${u.batchLotNo}` : '']
+              .filter(Boolean)
+              .join(' · ') || `Unit ${idx + 1}`,
+        }))
+      },
+      placeholder: '— Select serial in custody —',
+      hint: 'Select the serial currently allotted for the selected item. Required for assets.',
     },
-    { name: 'batch', label: 'Batch / Lot (optional)', lockedUntilHeader: true },
+    {
+      name: 'batch',
+      label: 'Batch / Lot (optional)',
+      lockedUntilHeader: true,
+      hint: 'Filled from the selected serial when available',
+    },
     { name: 'remarks', label: 'Remarks', span: 2 },
   ]
 
@@ -361,7 +629,7 @@ export function ReturnsPages() {
         base="/transactions/returns"
         menuCode="RTN"
         title="Material Return"
-        description="Return unused or excess material back into a store — from an employee, department, or another store."
+        description="Return unused or excess material back into a store — from an employee or a department."
         rows={filteredRows as never}
         columns={columns as never}
         fields={fields}
@@ -379,128 +647,283 @@ export function ReturnsPages() {
             onChange: setStatusFilter,
           },
         ]}
-        getDefaults={() => ({ date: todayIso(), qty: 1, attachmentUrl: '', attachmentName: '' })}
-        readOnlyFields={['itemName']}
-        renderExtraForm={(values, set, recordId) => (
-          <AttachmentSection
-            url={String(values.attachmentUrl ?? '')}
-            name={String(values.attachmentName ?? '')}
-            readOnly={recordId !== 'new'}
-            onChange={({ url, name }) => {
-              set('attachmentUrl', url)
-              set('attachmentName', name)
-            }}
-          />
-        )}
+        getDefaults={() => ({
+          date: todayIso(),
+          returnType: 'EMPLOYEE',
+          qty: 1,
+          attachmentUrl: '',
+          attachmentName: '',
+        })}
+        readOnlyFields={(values) => {
+          const locked = ['itemName']
+          if (String(values.item ?? '').trim()) {
+            locked.push('store', 'qty', 'uom', 'batch')
+          }
+          return locked
+        }}
+        renderExtraForm={(values, set, recordId) => {
+          const { returnType, empId, deptId, key } = partyFromValues(values)
+          const partyLabel =
+            returnType === 'DEPARTMENT'
+              ? deptLabel(departments.rows, deptId)
+              : empLabel(employees.rows, empId)
+          const readOnly = recordId !== 'new'
+          const hasSelection = Boolean(String(values.item ?? '').trim())
+          const partyReady = Boolean(key)
+          return (
+            <>
+              <ReturnDisplayLabelSync
+                storeId={String(values.storeId ?? '')}
+                storeLabel={String(values.store ?? '')}
+                uomId={String(values.uomId ?? '')}
+                uomLabel={String(values.uom ?? '')}
+                locations={locations.rows}
+                units={units.rows}
+                set={set}
+              />
+              {!readOnly && (
+                <Card className="mt-3">
+                  <CardBody className="flex flex-wrap items-center gap-2.5 py-3">
+                    <Button
+                      type="button"
+                      disabled={!partyReady || allottedLoading}
+                      onClick={() => {
+                        setPickerPartyKey(key)
+                        setPickerOpen(true)
+                        void loadAllottedFor(returnType, empId, deptId)
+                      }}
+                    >
+                      {allottedLoading
+                        ? 'Loading…'
+                        : hasSelection
+                          ? 'Change Allotted Item…'
+                          : 'Select Allotted Item…'}
+                    </Button>
+                    <span className="text-[12.5px] text-[var(--text3)]">
+                      {partyReady
+                        ? hasSelection
+                          ? 'Store / qty / unit stay locked. Change Item here or use this button for serial pick.'
+                          : returnType === 'DEPARTMENT'
+                            ? 'Opens items still allotted from department Issues.'
+                            : 'Opens allotted items with correct qty and serials in this employee’s custody.'
+                        : returnType === 'DEPARTMENT'
+                          ? 'Pick a department first, then open the allotted-item popup.'
+                          : 'Pick Returned By first, then open the allotted-item popup.'}
+                    </span>
+                  </CardBody>
+                </Card>
+              )}
+              <AttachmentSection
+                url={String(values.attachmentUrl ?? '')}
+                name={String(values.attachmentName ?? '')}
+                readOnly={readOnly}
+                onChange={({ url, name }) => {
+                  set('attachmentUrl', url)
+                  set('attachmentName', name)
+                }}
+              />
+              <ReturnAllottedPickerModal
+                open={pickerOpen && pickerPartyKey === key}
+                onClose={() => setPickerOpen(false)}
+                partyLabel={partyLabel}
+                partyKind={returnType === 'DEPARTMENT' ? 'department' : 'employee'}
+                loading={allottedLoading}
+                items={items.rows}
+                units={units.rows}
+                locations={locations.rows}
+                itemIds={allottedByParty[key] ?? []}
+                unitsAllotted={allottedUnitsByParty[key] ?? []}
+                qtyByItemId={allottedQtyByParty[key] ?? {}}
+                onSelect={(sel) => {
+                  const storeId = String(sel.storeId ?? '').trim()
+                  const storeLabel =
+                    String(sel.storeLabel ?? '').trim() &&
+                    !/^\d+$/.test(String(sel.storeLabel ?? '').trim())
+                      ? String(sel.storeLabel).trim()
+                      : storeDisplay(storeId)
+                  const uomId = String(sel.uomId ?? '').trim()
+                  const uomLabel =
+                    String(sel.uomLabel ?? '').trim() || uomDisplay(uomId)
+                  set('item', sel.itemId)
+                  set('itemCode', sel.itemCode)
+                  set('itemName', sel.itemName)
+                  set('itemType', sel.itemType)
+                  set('qty', sel.qty)
+                  set('serialNo', sel.serialNo)
+                  set('batch', sel.batchLotNo)
+                  set('ipAddress', sel.ipAddress)
+                  set('macAddress', sel.macAddress)
+                  set('hostname', sel.hostname)
+                  set('availableStock', String(sel.allottedQty))
+                  set('storeId', storeId)
+                  set('store', storeLabel)
+                  set('uomId', uomId)
+                  set('uom', uomLabel)
+                  window.setTimeout(() => {
+                    set('storeId', storeId)
+                    set('store', storeLabel || storeDisplay(storeId))
+                    set('uomId', uomId)
+                    set('uom', uomLabel || uomDisplay(uomId))
+                  }, 0)
+                }}
+              />
+            </>
+          )
+        }}
         onFieldChange={async (name, value, values) => {
-          if (name === 'returnedBy') {
-            const empId = String(value ?? '')
-            const currentItem = String(values.item ?? '')
-            if (!empId) return { ...clearItemFields(), serialNo: '', ipAddress: '', macAddress: '', hostname: '' }
-            let ids = allottedByEmp[empId]
-            let units = allottedUnitsByEmp[empId]
-            if (ids === undefined || units === undefined) {
-              try {
-                const allotted = await fetchAllottedItems(empId)
-                ids = allotted.itemIds
-                units = allotted.units
-              } catch {
-                ids = []
-                units = []
-              }
-              setAllottedByEmp((prev) => ({ ...prev, [empId]: ids }))
-              setAllottedUnitsByEmp((prev) => ({ ...prev, [empId]: units ?? [] }))
+          if (name === 'returnType') {
+            const nextType = String(value ?? 'EMPLOYEE')
+            return {
+              ...clearItemFields(),
+              returnedBy: '',
+              departmentId: '',
+              returnType: nextType,
             }
-            const patch: Record<string, unknown> = { serialNo: '', ipAddress: '', macAddress: '', hostname: '' }
-            if (currentItem && !ids.includes(currentItem)) {
-              Object.assign(patch, clearItemFields())
+          }
+          if (name === 'returnedBy' || name === 'departmentId') {
+            const returnType =
+              name === 'departmentId' ? 'DEPARTMENT' : String(values.returnType ?? 'EMPLOYEE')
+            const empId = name === 'returnedBy' ? String(value ?? '') : String(values.returnedBy ?? '')
+            const deptId = name === 'departmentId' ? String(value ?? '') : String(values.departmentId ?? '')
+            const partyId = returnType === 'DEPARTMENT' ? deptId : empId
+            if (!partyId) return clearItemFields()
+            const allotted = await loadAllottedFor(returnType, empId, deptId)
+            return {
+              ...clearItemFields(),
+              ...applySingleUnitPatch(allotted),
             }
-            const empUnits = units ?? []
-            if (empUnits.length === 1) {
-              const u = empUnits[0]
-              const itemId = String(u.itemId)
-              const item = items.rows.find((i) => i.id === itemId)
-              const homeStore = String(item?.store ?? '')
-              const storeOk = operationalLocations(locations.rows).some((l) => l.id === homeStore)
-              setStockLoc(storeOk ? homeStore : '')
-              Object.assign(patch, {
-                item: itemId,
-                uom: String(item?.uom ?? ''),
-                itemCode: String(item?.code ?? ''),
-                itemName: String(item?.name ?? ''),
-                itemType: String(item?.itemType ?? ''),
-                store: storeOk ? homeStore : '',
-                serialNo: u.serialNo ?? '',
-                ipAddress: u.ipAddress ?? '',
-                macAddress: u.macAddress ?? '',
-                hostname: u.hostname ?? '',
-                batch: u.batchLotNo ?? '',
-              })
-            }
-            return patch
           }
           if (name === 'item') {
             const item = items.rows.find((i) => i.id === String(value ?? ''))
-            if (!item) {
-              setStockLoc('')
-              return { uom: '', availableStock: '', itemCode: '', itemName: '', itemType: '', store: '', serialNo: '' }
-            }
+            if (!item) return clearItemFields()
             const homeStore = String(item.store ?? '')
-            const storeOk = operationalLocations(locations.rows).some((l) => l.id === homeStore)
-            const store = storeOk ? homeStore : ''
-            setStockLoc(store)
-            const empId = String(values.returnedBy ?? '')
-            const match = (allottedUnitsByEmp[empId] ?? []).filter((u) => String(u.itemId) === item.id)
+            const { key } = partyFromValues(values)
+            const match = (allottedUnitsByParty[key] ?? []).filter(
+              (u) => String(u.itemId) === item.id,
+            )
+            const qtyMap = allottedQtyByParty[key] ?? {}
+            const allottedQty = qtyMap[item.id]
+            const isAsset = Boolean(item.isSerialized || item.itemType === 'asset')
             const serialPatch =
               match.length === 1
                 ? {
-                    serialNo: match[0].serialNo ?? '',
+                    serialNo: String(match[0].serialNo ?? '').trim().toUpperCase(),
                     ipAddress: match[0].ipAddress ?? '',
                     macAddress: match[0].macAddress ?? '',
                     hostname: match[0].hostname ?? '',
                     batch: match[0].batchLotNo ?? values.batch,
+                    qty: '1',
                   }
-                : { serialNo: '', ipAddress: '', macAddress: '', hostname: '' }
+                : {
+                    serialNo: '',
+                    ipAddress: '',
+                    macAddress: '',
+                    hostname: '',
+                    qty: isAsset ? '1' : String(values.qty ?? '1'),
+                  }
             return {
-              uom: String(item.uom ?? ''),
-              availableStock: '',
+              ...applyUomFields(item.uom as string | number | null | undefined),
+              availableStock: allottedQty != null ? String(allottedQty) : '',
               itemCode: String(item.code ?? ''),
               itemName: String(item.name ?? ''),
               itemType: String(item.itemType ?? ''),
-              store,
+              ...applyStoreFields(homeStore),
               ...serialPatch,
             }
           }
+          if (name === 'serialNo') {
+            const { key } = partyFromValues(values)
+            const itemId = String(values.item ?? '')
+            const serial = String(value ?? '').trim().toUpperCase()
+            const match = (allottedUnitsByParty[key] ?? []).find(
+              (u) =>
+                String(u.itemId) === itemId &&
+                String(u.serialNo ?? '').trim().toUpperCase() === serial,
+            )
+            if (!match) return { serialNo: serial }
+            return {
+              serialNo: serial,
+              ipAddress: match.ipAddress ?? '',
+              macAddress: match.macAddress ?? '',
+              hostname: match.hostname ?? '',
+              batch: match.batchLotNo ?? values.batch,
+              qty: '1',
+            }
+          }
           if (name === 'store') {
-            setStockLoc(String(value ?? ''))
             return patchItem(name, value) ?? {}
           }
           return patchItem(name, value) ?? {}
         }}
         loadRecord={async (id) => {
           const doc = await fetchTxn('returns', id)
-          const store = doc.locationId != null ? String(doc.locationId) : ''
-          setStockLoc(store)
+          const storeId = doc.locationId != null ? String(doc.locationId) : ''
+          const line = doc.lines?.[0]
+          const uomId = line?.uomId != null ? String(line.uomId) : ''
+          const isDept = doc.departmentId != null
           return mapDocToFlatForm(doc, {
-            store,
+            ...applyStoreFields(storeId),
+            ...applyUomFields(uomId),
+            returnType: isDept ? 'DEPARTMENT' : 'EMPLOYEE',
+            departmentId: isDept ? String(doc.departmentId) : '',
             returnedBy: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : '',
           })
         }}
         onSave={async (id, values, action = 'SUBMIT') => {
           const itemType = String(values.itemType ?? '')
-          if (itemType !== 'consumable' && !String(values.serialNo ?? '').trim()) {
+          const item = items.rows.find((i) => i.id === String(values.item ?? ''))
+          const isAsset = Boolean(
+            itemType === 'asset' || item?.isSerialized || item?.itemType === 'asset',
+          )
+          if (isAsset && !String(values.serialNo ?? '').trim()) {
             throw new Error('Serial No. is required when returning an asset')
           }
-          const emp = employees.rows.find((e) => e.id === String(values.returnedBy ?? ''))
+          const { returnType, empId, deptId, key } = partyFromValues(values)
+          const itemId = String(values.item ?? '')
+          const allottedQty = allottedQtyByParty[key]?.[itemId]
+          const qty = Number(values.qty ?? 0)
+          if (allottedQty != null && qty > allottedQty) {
+            throw new Error(
+              `Return qty (${qty}) exceeds allotted qty (${allottedQty}) for this ${
+                returnType === 'DEPARTMENT' ? 'department' : 'employee'
+              }`,
+            )
+          }
+          let storeId = String(values.storeId ?? '').trim()
+          if (!storeId || !/^\d+$/.test(storeId)) {
+            storeId = String(item?.store ?? '').trim()
+          }
+          let uomId = String(values.uomId ?? '').trim()
+          if (!uomId || !/^\d+$/.test(uomId)) {
+            uomId = String(item?.uom ?? '').trim()
+          }
+          if (!storeId) {
+            throw new Error('Return to Store could not be resolved from Item Master')
+          }
+
+          const isDept = returnType === 'DEPARTMENT'
+          const dept = departments.rows.find((d) => d.id === deptId)
+          const emp = employees.rows.find((e) => e.id === empId)
+          const fromLocationId = isDept
+            ? numOrUndef(dept?.locationId)
+            : numOrUndef(emp?.baseStore)
+          if (isDept && fromLocationId == null) {
+            throw new Error(
+              'Selected department has no mapped location. Set Location on the Department master first.',
+            )
+          }
+
           const body: DocumentRequest = {
             docDate: String(values.date || todayIso()),
-            locationId: numOrUndef(values.store),
-            fromLocationId: numOrUndef(emp?.baseStore),
-            initiatedByEmpId: numOrUndef(values.returnedBy),
+            locationId: numOrUndef(storeId),
+            fromLocationId,
+            docSubtype: isDept ? 'DEPARTMENT' : 'EMPLOYEE',
+            departmentId: isDept ? numOrUndef(deptId) : undefined,
+            initiatedByEmpId: isDept ? undefined : numOrUndef(empId),
             remarks: String(values.remarks ?? ''),
             ...attachmentPayload(String(values.attachmentUrl ?? ''), String(values.attachmentName ?? '')),
             docSubmitAction: action,
-            lines: lineFromForm(values, items.rows),
+            lines: lineFromForm({ ...values, store: storeId, uom: uomId }, items.rows),
           }
           if (id === 'new') await createTxn('returns', body)
           else throw new Error('Return update is not supported by API')

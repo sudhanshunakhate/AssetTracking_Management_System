@@ -231,6 +231,7 @@ export type TxnDocument = {
   purpose?: string
   attachmentUrl?: string
   attachmentName?: string
+  returnFlag?: string
   inspectedByEmpId?: number
   inspectionDate?: string
   preparedByEmpId?: number
@@ -360,24 +361,69 @@ export type AllottedUnit = {
 export type AllottedItems = {
   itemIds: string[]
   units: AllottedUnit[]
+  /** Allotted qty still with the employee/department, keyed by item id (not store free stock). */
+  qtyByItemId: Record<string, number>
+}
+
+export type AllottedParty =
+  | { employeeId: string | number }
+  | { departmentId: string | number }
+
+function parseAllottedResponse(res: {
+  itemIds?: number[]
+  units?: AllottedUnit[]
+  quantities?: { itemId: number; qty: number }[]
+}): AllottedItems {
+  const qtyByItemId: Record<string, number> = {}
+  for (const q of res.quantities ?? []) {
+    if (q.itemId != null) qtyByItemId[String(q.itemId)] = Number(q.qty ?? 0)
+  }
+  if (Object.keys(qtyByItemId).length === 0) {
+    for (const u of res.units ?? []) {
+      const key = String(u.itemId)
+      qtyByItemId[key] = (qtyByItemId[key] ?? 0) + 1
+    }
+  }
+  return {
+    itemIds: (res.itemIds ?? []).map(String),
+    units: res.units ?? [],
+    qtyByItemId,
+  }
 }
 
 /** Item IDs still allotted to this employee (Issue / Opening Stock minus Return). */
 export async function fetchAllottedItemIds(employeeId: string | number): Promise<string[]> {
-  const data = await fetchAllottedItems(employeeId)
+  const data = await fetchAllottedItems({ employeeId })
   return data.itemIds
 }
 
-export async function fetchAllottedItems(employeeId: string | number): Promise<AllottedItems> {
-  const id = Number(employeeId)
-  if (!Number.isFinite(id) || id <= 0) return { itemIds: [], units: [] }
-  const res = await http.get<{ itemIds?: number[]; units?: AllottedUnit[] }>(
-    `/returns/allotted-items?employeeId=${id}`,
-  )
-  return {
-    itemIds: (res.itemIds ?? []).map(String),
-    units: res.units ?? [],
+/** Allotted items for Material Return — employee custody or department issue net. */
+export async function fetchAllottedItems(party: AllottedParty | string | number): Promise<AllottedItems> {
+  // Backward compatible: bare id = employee.
+  const normalized: AllottedParty =
+    typeof party === 'object' && party != null
+      ? party
+      : { employeeId: party as string | number }
+
+  if ('departmentId' in normalized) {
+    const id = Number(normalized.departmentId)
+    if (!Number.isFinite(id) || id <= 0) return { itemIds: [], units: [], qtyByItemId: {} }
+    const res = await http.get<{
+      itemIds?: number[]
+      units?: AllottedUnit[]
+      quantities?: { itemId: number; qty: number }[]
+    }>(`/returns/allotted-items?departmentId=${id}`)
+    return parseAllottedResponse(res)
   }
+
+  const id = Number(normalized.employeeId)
+  if (!Number.isFinite(id) || id <= 0) return { itemIds: [], units: [], qtyByItemId: {} }
+  const res = await http.get<{
+    itemIds?: number[]
+    units?: AllottedUnit[]
+    quantities?: { itemId: number; qty: number }[]
+  }>(`/returns/allotted-items?employeeId=${id}`)
+  return parseAllottedResponse(res)
 }
 
 export type AvailableSerialUnit = {
@@ -392,7 +438,10 @@ export type AvailableSerialUnit = {
   itemCondition?: string
 }
 
-/** Non-issued serial units for Issue / Transfer pickers. */
+/**
+ * Serial units for Issue / Transfer pickers.
+ * When locationId is set: not issued AND positive on-hand stock at that store only.
+ */
 export async function fetchAvailableSerials(itemId: number, locationId?: number) {
   const qs = new URLSearchParams({ itemId: String(itemId) })
   if (locationId != null && Number.isFinite(locationId)) qs.set('locationId', String(locationId))
@@ -440,18 +489,21 @@ export type StockRow = {
 /**
  * Available quantity for an item, optionally narrowed to one location.
  * Sums every batch row and returns 0 when the item has never been stocked.
+ * Pass freeOnly to exclude allotted/issued asset serials (transferable qty).
  */
 export async function fetchAvailableStock(
   itemId: number,
   locationId?: number,
   batchLotNo?: string,
+  opts?: { freeOnly?: boolean },
 ): Promise<number> {
   const qs = new URLSearchParams({ itemId: String(itemId), page: '1', pageSize: '200' })
   if (locationId != null) qs.set('locationId', String(locationId))
+  if (opts?.freeOnly) qs.set('freeOnly', 'true')
   const page = await http.get<PageResponse<StockRow>>(`/stock?${qs}`)
   const batch = batchLotNo?.trim()
   const rows = (page.data ?? []).filter((r) =>
-    !batch ? true : String(r.batchLotNo ?? '') === batch,
+    !batch ? true : String(r.batchLotNo ?? '').toUpperCase() === batch.toUpperCase(),
   )
   return rows.reduce((sum, r) => sum + Number(r.availableQty ?? r.currentQty ?? 0), 0)
 }
@@ -467,8 +519,12 @@ export type ItemLocationStock = {
   qty: number
 }
 
-/** Available qty per item and location (sums batches). Scoped to one item when itemId is passed. */
-export async function fetchItemLocationStock(itemId?: number): Promise<ItemLocationStock[]> {
+/** Available qty per item and location (sums batches). Scoped to one item when itemId is passed.
+ * freeOnly excludes allotted/issued asset serials so Transfer shows only free stock. */
+export async function fetchItemLocationStock(
+  itemId?: number,
+  opts?: { freeOnly?: boolean },
+): Promise<ItemLocationStock[]> {
   const map = new Map<string, number>()
   let pageNo = 1
   const pageSize = 500
@@ -478,12 +534,13 @@ export async function fetchItemLocationStock(itemId?: number): Promise<ItemLocat
       pageSize: String(pageSize),
     })
     if (itemId != null) qs.set('itemId', String(itemId))
+    if (opts?.freeOnly) qs.set('freeOnly', 'true')
     const page = await http.get<PageResponse<StockRow>>(`/stock?${qs}`)
     for (const r of page.data ?? []) {
       const key = `${r.itemId}|${r.locationId}`
       map.set(key, (map.get(key) ?? 0) + Number(r.availableQty ?? r.currentQty ?? 0))
     }
-    const total = Number(page.total ?? 0)
+    const total = Number(page.totalRecords ?? 0)
     if ((page.data?.length ?? 0) < pageSize || pageNo * pageSize >= total) break
     pageNo += 1
     if (pageNo > 50) break
@@ -492,6 +549,35 @@ export async function fetchItemLocationStock(itemId?: number): Promise<ItemLocat
     const [iid, lid] = key.split('|')
     return { itemId: iid, locationId: lid, qty }
   })
+}
+
+/**
+ * Fast free/transferable stock for Transfer picker — one request, optional location scope.
+ */
+export async function fetchFreeStockSummary(locationIds?: number[]): Promise<ItemLocationStock[]> {
+  const qs = new URLSearchParams()
+  if (locationIds?.length) {
+    for (const id of locationIds) {
+      if (Number.isFinite(id)) qs.append('locationIds', String(id))
+    }
+  }
+  const suffix = qs.toString() ? `?${qs}` : ''
+  const rows = await http.get<{ itemId: number; locationId: number; qty: number }[]>(
+    `/stock/free-summary${suffix}`,
+  )
+  return (rows ?? [])
+    .map((r) => ({
+      itemId: String(r.itemId),
+      locationId: String(r.locationId),
+      qty: Number(r.qty ?? 0),
+    }))
+    .filter((r) => r.qty > 0)
+}
+
+/** All free serials at one From location (single round-trip). */
+export async function fetchAvailableSerialsAtLocation(locationId: number) {
+  const qs = new URLSearchParams({ locationId: String(locationId) })
+  return http.get<AvailableSerialUnit[]>(`/issues/available-serials-at-location?${qs}`)
 }
 
 /**
@@ -513,7 +599,7 @@ export async function fetchStockMap(opts: { locationId?: number } = {}): Promise
       const id = String(r.itemId)
       map[id] = (map[id] ?? 0) + Number(r.availableQty ?? r.currentQty ?? 0)
     }
-    const total = Number(page.total ?? 0)
+    const total = Number(page.totalRecords ?? 0)
     if ((page.data?.length ?? 0) < pageSize || pageNo * pageSize >= total) break
     pageNo += 1
     if (pageNo > 50) break

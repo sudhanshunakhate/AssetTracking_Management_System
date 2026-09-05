@@ -1,5 +1,6 @@
 package com.caits.modules.transactions;
 
+import com.caits.common.ApiException;
 import com.caits.common.MessageResponse;
 import com.caits.common.PageResponse;
 import com.caits.modules.transactions.TxnDtos.*;
@@ -298,7 +299,19 @@ public class TransactionControllers {
 
     // ---------- Returns ----------
     @GetMapping("/returns/allotted-items")
-    public AllottedItemsResponse allottedItems(@RequestParam Integer employeeId) {
+    public AllottedItemsResponse allottedItems(
+            @RequestParam(required = false) Integer employeeId,
+            @RequestParam(required = false) Integer departmentId
+    ) {
+        if (employeeId != null && departmentId != null) {
+            throw ApiException.badRequest("Pass either employeeId or departmentId, not both");
+        }
+        if (departmentId != null) {
+            return service.listAllottedItemsForDepartment(departmentId);
+        }
+        if (employeeId == null) {
+            throw ApiException.badRequest("employeeId or departmentId is required");
+        }
         return service.listAllottedItems(employeeId);
     }
 
@@ -308,6 +321,12 @@ public class TransactionControllers {
             @RequestParam(required = false) Integer locationId
     ) {
         return service.listAvailableSerials(itemId, locationId);
+    }
+
+    /** All free serials at one From location (one round-trip for Transfer item step). */
+    @GetMapping("/issues/available-serials-at-location")
+    public List<AvailableSerialUnit> availableSerialsAtLocation(@RequestParam Integer locationId) {
+        return service.listAvailableSerialsAtLocation(locationId);
     }
 
     @GetMapping("/returns")

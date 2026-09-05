@@ -243,6 +243,8 @@ export function Icon({
   size = 17,
   ...props
 }: { name: IconName; size?: number } & Omit<SVGProps<SVGSVGElement>, 'name'>) {
+  const paths = PATHS[name]
+  if (!paths) return null
   return (
     <svg
       viewBox="0 0 20 20"
@@ -257,7 +259,7 @@ export function Icon({
       focusable="false"
       {...props}
     >
-      {PATHS[name]}
+      {paths}
     </svg>
   )
 }

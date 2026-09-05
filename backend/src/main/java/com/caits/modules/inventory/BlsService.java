@@ -44,6 +44,18 @@ public class BlsService {
         return blsRepo.findByIbmIssuedToEmpIdEmpAndIbmIsDummyFalseAndIbmIsactiveTrue(employeeId);
     }
 
+    /**
+     * Units at a department's mapped location that are not issued to an employee —
+     * used for Material Return from a department (issue destination stock / serials).
+     */
+    public List<InvBlsMst> listUnitsAtLocationNotIssued(Integer locationId) {
+        if (locationId == null) {
+            return List.of();
+        }
+        return blsRepo.findByIbmCurrentLocationIdLocAndIbmIsDummyFalseAndIbmIsactiveTrueAndIbmIssuedToEmpIdEmpIsNull(
+                locationId);
+    }
+
     public List<Integer> listItemIdsIssuedTo(Integer employeeId) {
         if (employeeId == null) {
             return List.of();
@@ -61,6 +73,14 @@ public class BlsService {
             return List.of();
         }
         return blsRepo.findAvailableSerials(itemId, locationId);
+    }
+
+    /** All non-issued serial units currently at one location. */
+    public List<InvBlsMst> listAvailableSerialsAtLocation(Integer locationId) {
+        if (locationId == null) {
+            return List.of();
+        }
+        return blsRepo.findAvailableSerialsAtLocation(locationId);
     }
 
     @Transactional
@@ -180,6 +200,47 @@ public class BlsService {
             bls.setIbmModifiedOn(LocalDateTime.now());
             blsRepo.save(bls);
         });
+    }
+
+    /** After a stock transfer, keep BLS custody location aligned with the destination store. */
+    @Transactional
+    public void moveUnitToLocation(Integer blsId, Integer toLocationId) {
+        if (blsId == null || toLocationId == null) {
+            return;
+        }
+        blsRepo.findById(blsId).ifPresent(bls -> applyLocation(bls, toLocationId));
+    }
+
+    /**
+     * Move active non-dummy BLS whose serial or batch matches the stock batch key
+     * to the destination (covers FIFO transfer buckets).
+     */
+    @Transactional
+    public void moveMatchingUnitsToLocation(Integer itemId, String stockBatchKey, Integer toLocationId) {
+        if (itemId == null || toLocationId == null) {
+            return;
+        }
+        String key = blankToNull(stockBatchKey);
+        if (key == null) {
+            return;
+        }
+        blsRepo.findFirstByIbmSerialNoIgnoreCaseAndIbmIsactiveTrue(key).ifPresent(bls -> {
+            if (itemId.equals(bls.getIbmItemIdItm()) && !Boolean.TRUE.equals(bls.getIbmIsDummy())) {
+                applyLocation(bls, toLocationId);
+            }
+        });
+        blsRepo.findFirstByIbmItemIdItmAndIbmBatchNoIgnoreCaseAndIbmIsDummyFalseAndIbmIsactiveTrue(itemId, key)
+                .ifPresent(bls -> applyLocation(bls, toLocationId));
+    }
+
+    private void applyLocation(InvBlsMst bls, Integer toLocationId) {
+        if (toLocationId.equals(bls.getIbmCurrentLocationIdLoc())) {
+            return;
+        }
+        bls.setIbmCurrentLocationIdLoc(toLocationId);
+        bls.setIbmModifiedBy(SecurityUtils.loginIdOrSystem());
+        bls.setIbmModifiedOn(LocalDateTime.now());
+        blsRepo.save(bls);
     }
 
     /** Serial/batch units only — shared dummy BLS is never tied to one employee. */

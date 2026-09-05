@@ -2,55 +2,52 @@ import type { ApiMasterRow } from '@/api/masters'
 import type { TxnDocument } from '@/api/transactions'
 import type { TransferLine } from './TransferItemLines'
 import { wholeQtyStr } from './lineGrid'
+import {
+  normalizeTransferType,
+  type TransferType,
+} from './transferTypes'
 
-export type TransferType = 'INTERNAL' | 'OU'
+export type { TransferType }
+export { normalizeTransferType, transferTypeLabel, isOuTransferType, TRANSFER_TYPE_OPTIONS } from './transferTypes'
 
 export type GatepassOutwardPrefillLine = {
   itemId: string
   qty: string
   uomId: string
   batch?: string
+  serialNo?: string
+  itemCode?: string
+  itemName?: string
 }
 
-/** Navigation payload from Material Transfer — UI shows only transfer type + returnable; lines are applied on submit. */
+/** Navigation payload from Material Transfer — form fields are filled for display; lines are applied on submit. */
 export type GatepassOutwardPrefill = {
   transferDocId: string
   transferType: TransferType
   returnFlag: string
   date: string
+  /** Source / from store (gate location). */
   storeId: string
+  /** Destination store — shown as Customer / Party. */
+  toStoreId: string
+  party: string
+  transferNo?: string
   lines: GatepassOutwardPrefillLine[]
 }
 
-import {
-  SPECIAL_SYSTEM_LOCATION_ROLES,
-  isSpecialSystemLocation,
-} from './txnLookups'
-
-const SPECIAL_TO_ROLES = SPECIAL_SYSTEM_LOCATION_ROLES
+import { locLabel } from './txnLookups'
 
 export const PENDING_FOR_OUTWARD_STATUS = 'Pending for Outward'
 
-/** Outward gatepass is required for OU moves and certain internal target stores. */
+/** Outward gatepass is required only for OU (cross–operating-unit) transfers. */
 export function needsGatepassOutward(
   transferType: TransferType,
   fromStoreId: string,
   toStoreId: string,
-  locations: ApiMasterRow[],
+  _locations: ApiMasterRow[],
 ): boolean {
   if (!fromStoreId || !toStoreId || fromStoreId === toStoreId) return false
-
-  if (transferType === 'OU') return true
-
-  const toLoc = locations.find((l) => l.id === toStoreId)
-  if (!toLoc) return false
-
-  const role = String(toLoc.systemRole ?? '').toUpperCase()
-  if (SPECIAL_TO_ROLES.has(role)) return true
-
-  if (isSpecialSystemLocation(toLoc)) return true
-
-  return false
+  return transferType === 'OU'
 }
 
 export function gatepassOutwardHint(
@@ -66,11 +63,9 @@ export function gatepassOutwardHint(
     return 'From and To store must differ.'
   }
   if (needsGatepassOutward(transferType, fromStoreId, toStoreId, locations)) {
-    return transferType === 'OU'
-      ? 'OU transfers require an outward gatepass at the source store gate. Transfer stays Pending for Outward until gatepass is submitted.'
-      : 'This target store requires an outward gatepass. Transfer stays Pending for Outward until gatepass is submitted.'
+    return 'OU transfers require an outward gatepass at the source store gate. Transfer stays Pending for Outward until gatepass is submitted.'
   }
-  return 'Outward gatepass is only needed for OU transfers or transfers to damaged / rejected system stores.'
+  return 'Internal transfers do not need an outward gatepass — stock moves on submit.'
 }
 
 export function buildGatepassPrefillFromTransfer(
@@ -80,7 +75,7 @@ export function buildGatepassPrefillFromTransfer(
   fromStoreId: string,
   toStoreId: string,
   _remarks: string,
-  _transferNo: string,
+  transferNo: string,
   lines: TransferLine[],
   locations: ApiMasterRow[],
 ): GatepassOutwardPrefill | null {
@@ -91,12 +86,18 @@ export function buildGatepassPrefillFromTransfer(
   const returnFlag =
     toRole === 'REJECTED' || String(toLoc?.name ?? '').toLowerCase().includes('reject') ? 'Y' : 'N'
 
+  const party = toLoc != null ? locLabel(toLoc) : ''
+
   const prefillLines = lines
     .filter((l) => l.itemId)
     .map((l) => ({
       itemId: l.itemId,
       qty: l.transferQty || '1',
       uomId: l.uomId ?? '',
+      serialNo: l.serialNo || undefined,
+      batch: l.serialNo || undefined,
+      itemCode: l.itemCode || undefined,
+      itemName: l.itemName || undefined,
     }))
 
   if (prefillLines.length === 0) return null
@@ -105,6 +106,9 @@ export function buildGatepassPrefillFromTransfer(
     transferDocId,
     date: transferDate,
     storeId: fromStoreId,
+    toStoreId,
+    party,
+    transferNo: transferNo || undefined,
     transferType,
     returnFlag,
     lines: prefillLines,
@@ -114,7 +118,7 @@ export function buildGatepassPrefillFromTransfer(
 /** Build outward prefill from a saved transfer document (list / view actions). */
 export function buildGatepassPrefillFromTxnDoc(doc: TxnDocument, locations: ApiMasterRow[]): GatepassOutwardPrefill | null {
   const subtype = String(doc.docSubtype ?? '').toUpperCase()
-  const transferType: TransferType = subtype === 'OU' || subtype === 'OPR' ? 'OU' : 'INTERNAL'
+  const transferType = normalizeTransferType(subtype)
   const lines: TransferLine[] = (doc.lines ?? []).map((l) => ({
     key: String(l.srNo ?? 0),
     itemId: l.itemId != null ? String(l.itemId) : '',
@@ -125,6 +129,8 @@ export function buildGatepassPrefillFromTxnDoc(doc: TxnDocument, locations: ApiM
     availableStock: wholeQtyStr(l.availableStock),
     locationId: l.locationId != null ? String(l.locationId) : '',
     remark: l.remark ?? '',
+    serialNo: String(l.serialNo ?? l.batchLotNo ?? '').trim(),
+    itemType: '',
   }))
   return buildGatepassPrefillFromTransfer(
     String(doc.docId),

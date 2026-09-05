@@ -170,7 +170,7 @@ function InspectionApprovalList() {
     { key: 'date', header: 'Date', searchText: (r) => r.docDate, render: (r) => r.docDate || '—' },
     {
       key: 'grn',
-      header: 'GRN Ref.',
+      header: 'Source Ref.',
       searchText: (r) => String((r as { referenceNo?: string }).referenceNo ?? ''),
       render: (r) => String((r as { referenceNo?: string }).referenceNo ?? '') || '—',
     },
@@ -219,7 +219,7 @@ function InspectionApprovalList() {
     <FadeContent>
       <PageHeader
         title="Inspection Approval"
-        description="GRN items flagged for inspection are posted to Quarantine on submit. A pending approval is auto-created for the GRN inspector — approve here to move stock to each item's home store."
+        description="Items flagged for inspection (from GRN or Gatepass Inward) are posted to Quarantine on submit. Approve here to move stock to each item's home store."
       />
       <div className="mb-3 flex flex-wrap gap-2">
         <Button
@@ -581,7 +581,7 @@ function InspectionApprovalForm() {
               error={err('orgId')}
               disabled={readOnly || !isNew}
             />
-            <Field label="GRN Reference">
+            <Field label="Source Reference">
               <Input value={form.referenceNo || '—'} readOnly />
             </Field>
             <Field label="Quarantine Store">

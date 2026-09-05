@@ -22,7 +22,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { validateFields, areRequiredFieldsFilled, type ValidatableField } from '@/features/masters/validation'
 import { TransferItemLines, emptyTransferLine, type TransferLine } from './TransferItemLines'
 import { enrichLinesFromItems, wholeQtyStr } from './lineGrid'
-import { locLabel, locationOptions as toLocationOptions, systemLocationsForOu, useTxnFormLookups } from './txnLookups'
+import { locLabel, transferFromLocationsForOu, transferToLocationsForOu, useTxnFormLookups } from './txnLookups'
 
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
@@ -33,16 +33,18 @@ import {
   needsGatepassOutward,
   PENDING_FOR_OUTWARD_STATUS,
 } from './transferGatepassBridge'
-import { GATEPASS_OUTWARD_PREFILL_KEY } from './gatepassNavigation'
-
-const GATEPASS_BASE = '/transactions/gatepass'
+import { GATEPASS_OUTWARD_PATH, GATEPASS_OUTWARD_PREFILL_KEY } from './gatepassNavigation'
+import {
+  TRANSFER_TYPE_OPTIONS,
+  normalizeTransferType,
+  transferTypeLabel,
+  type TransferType,
+} from './transferTypes'
 const BASE = '/transactions/transfers'
 const MENU = 'TRF'
 const RESOURCE = 'transfers'
 
 const EDITABLE_STATUSES = ['', 'Pending', 'Draft']
-
-type TransferType = 'INTERNAL' | 'OU'
 
 type FormState = {
   transferNo: string
@@ -79,20 +81,20 @@ function blankForm(): FormState {
   }
 }
 
-/** Prefer a "general" store under the OU; otherwise the first location mapped to it. */
+/** Prefer a main/general operational store under the OU; otherwise the first location. */
 function defaultStoreForOu(locations: ApiMasterRow[], ouId: string, ous: ApiMasterRow[]): string {
-  const underOu = systemStoresForOu(locations, ouId, ous)
+  const underOu = transferFromLocationsForOu(locations, ouId, ous)
   if (!underOu.length) return ''
-  const main = underOu.find((l) => String(l.systemRole ?? '').toUpperCase() === 'MAIN_STORE')
+  const main = underOu.find((l) => /main|general|fm\b/i.test(`${l.code ?? ''} ${l.name ?? ''}`))
   return (main ?? underOu[0]).id
 }
 
-function systemStoresForOu(
-  locations: ApiMasterRow[],
-  ouId: string,
-  ous: ApiMasterRow[],
-) {
-  return systemLocationsForOu(locations, ouId, ous)
+function storesForFromOu(locations: ApiMasterRow[], ouId: string, ous: ApiMasterRow[]) {
+  return transferFromLocationsForOu(locations, ouId, ous)
+}
+
+function storesForToOu(locations: ApiMasterRow[], ouId: string, ous: ApiMasterRow[]) {
+  return transferToLocationsForOu(locations, ouId, ous)
 }
 
 /** Persist OU context on the header `purpose` field. */
@@ -147,19 +149,14 @@ function TransferList() {
     const l = locById.get(String(r.toLocationId ?? ''))
     return l ? locLabel(l) : '—'
   }
-  const typeLabel = (r: TxnRow) => {
-    const t = String(r.docSubtype ?? '').toUpperCase()
-    if (t === 'OU' || t === 'OPR') return 'OU Transfer'
-    if (t === 'INTERNAL' || t === '') return 'Internal Transfer'
-    return t
-  }
+  const typeLabel = (r: TxnRow) => transferTypeLabel(String(r.docSubtype ?? ''))
 
   const openOutwardForRow = async (r: TxnRow) => {
     try {
       const doc = await fetchTxn(RESOURCE, r.id)
       const prefill = buildGatepassPrefillFromTxnDoc(doc, locations.rows)
       if (!prefill) return
-      navigate(GATEPASS_BASE, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
+      navigate(GATEPASS_OUTWARD_PATH, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
     } catch (e) {
       console.error(e)
     }
@@ -210,7 +207,7 @@ function TransferList() {
     <FadeContent>
       <PageHeader
         title="Material Transfer"
-        description="Store-to-store stock movement. Transfers needing a gatepass stay Pending for Outward until outward is submitted."
+        description="Store-to-store stock movement. OU transfers stay Pending for Outward until outward gatepass is submitted; internal transfers complete immediately."
       />
       <div className="mb-3 flex gap-2">
         <Button variant={view === 'all' ? 'primary' : 'ghost'} onClick={() => setView('all')}>
@@ -286,19 +283,33 @@ function TransferForm() {
   const isInternal = form.transferType === 'INTERNAL'
 
   /** Internal: both store lists = selected OU. OU transfer: From list = From OU, To list = To OU. */
-  const fromStoreOptions = useMemo(() => {
-    if (isInternal) {
-      return toLocationOptions(systemStoresForOu(locations.rows, form.operatingUnitId, ous.rows))
-    }
-    return toLocationOptions(systemStoresForOu(locations.rows, form.fromOuId, ous.rows))
+  const fromLocationRows = useMemo(() => {
+    if (isInternal) return storesForFromOu(locations.rows, form.operatingUnitId, ous.rows)
+    return storesForFromOu(locations.rows, form.fromOuId, ous.rows)
   }, [isInternal, locations.rows, form.operatingUnitId, form.fromOuId, ous.rows])
 
-  const toStoreOptions = useMemo(() => {
-    if (isInternal) {
-      return toLocationOptions(systemStoresForOu(locations.rows, form.operatingUnitId, ous.rows))
-    }
-    return toLocationOptions(systemStoresForOu(locations.rows, form.toOuId, ous.rows))
+  const toLocationRows = useMemo(() => {
+    if (isInternal) return storesForToOu(locations.rows, form.operatingUnitId, ous.rows)
+    return storesForToOu(locations.rows, form.toOuId, ous.rows)
   }, [isInternal, locations.rows, form.operatingUnitId, form.toOuId, ous.rows])
+
+  const detailsFieldDefs: ValidatableField[] = useMemo(() => {
+    const defs: ValidatableField[] = [
+      { name: 'transferDate', label: 'Date', required: true },
+      { name: 'transferType', label: 'Transfer Type', required: true },
+    ]
+    if (isInternal) defs.push({ name: 'operatingUnitId', label: 'Operating Unit', required: true })
+    if (isOu) {
+      defs.push({ name: 'fromOuId', label: 'From Operating Unit', required: true })
+      defs.push({ name: 'toOuId', label: 'To Operating Unit', required: true })
+    }
+    return defs
+  }, [isInternal, isOu])
+
+  const detailsReady = useMemo(
+    () => areRequiredFieldsFilled(detailsFieldDefs, form as unknown as Record<string, unknown>),
+    [detailsFieldDefs, form],
+  )
 
   /* ---- load existing ---- */
   useEffect(() => {
@@ -310,8 +321,7 @@ function TransferForm() {
         const doc = await fetchTxn(RESOURCE, id)
         if (cancelled) return
         const subtype = String(doc.docSubtype ?? '').toUpperCase()
-        const transferType: TransferType =
-          subtype === 'OU' || subtype === 'OPR' ? 'OU' : 'INTERNAL'
+        const transferType = normalizeTransferType(subtype)
         const ousDecoded = decodePurpose(transferType, doc.purpose)
         // Fallback: infer OUs from store → location.ouCode when purpose blank
         const fromLoc = locations.rows.find((l) => l.id === String(doc.fromLocationId ?? ''))
@@ -375,8 +385,8 @@ function TransferForm() {
     fromOu: string,
     toOu: string,
   ): Pick<FormState, 'fromStoreId' | 'toStoreId'> => {
-    const fromOk = fromOu && systemStoresForOu(locations.rows, fromOu, ous.rows).some((l) => l.id === p.fromStoreId)
-    const toOk = toOu && systemStoresForOu(locations.rows, toOu, ous.rows).some((l) => l.id === p.toStoreId)
+    const fromOk = fromOu && storesForFromOu(locations.rows, fromOu, ous.rows).some((l) => l.id === p.fromStoreId)
+    const toOk = toOu && storesForToOu(locations.rows, toOu, ous.rows).some((l) => l.id === p.toStoreId)
     return {
       fromStoreId: fromOk ? p.fromStoreId : '',
       toStoreId: toOk ? p.toStoreId : '',
@@ -384,7 +394,7 @@ function TransferForm() {
   }
 
   const onTransferTypeChange = (value: string) => {
-    const transferType: TransferType = value === 'OU' ? 'OU' : 'INTERNAL'
+    const transferType = normalizeTransferType(value)
     setForm((p) => ({
       ...blankForm(),
       transferNo: p.transferNo,
@@ -411,20 +421,10 @@ function TransferForm() {
   const onFromOuChange = (ouId: string) => {
     const defaultFrom = ouId ? defaultStoreForOu(locations.rows, ouId, ous.rows) : ''
     setForm((p) => {
-      const fromOk = ouId && systemStoresForOu(locations.rows, ouId, ous.rows).some((l) => l.id === p.fromStoreId)
+      const fromOk = ouId && storesForFromOu(locations.rows, ouId, ous.rows).some((l) => l.id === p.fromStoreId)
       const nextFrom = fromOk ? p.fromStoreId : defaultFrom
       if (nextFrom !== p.fromStoreId) {
-        const allowed = new Set(
-          items.rows
-            .filter((i) => !nextFrom || String(i.store ?? '') === nextFrom)
-            .map((i) => i.id),
-        )
-        setLines((prev) => {
-          const next = prev.map((l) =>
-            l.itemId && !allowed.has(l.itemId) ? { ...emptyTransferLine(), key: l.key } : l,
-          )
-          return next.length ? next : [emptyTransferLine()]
-        })
+        setLines([emptyTransferLine()])
       }
       return {
         ...p,
@@ -438,7 +438,7 @@ function TransferForm() {
   const onToOuChange = (ouId: string) => {
     const defaultTo = ouId ? defaultStoreForOu(locations.rows, ouId, ous.rows) : ''
     setForm((p) => {
-      const toOk = ouId && systemStoresForOu(locations.rows, ouId, ous.rows).some((l) => l.id === p.toStoreId)
+      const toOk = ouId && storesForToOu(locations.rows, ouId, ous.rows).some((l) => l.id === p.toStoreId)
       return {
         ...p,
         toOuId: ouId,
@@ -448,15 +448,14 @@ function TransferForm() {
   }
 
   const onFromStoreChange = (fromStoreId: string) => {
-    setForm((p) => ({ ...p, fromStoreId }))
+    setForm((p) => ({
+      ...p,
+      fromStoreId,
+      toStoreId: p.toStoreId === fromStoreId ? '' : p.toStoreId,
+    }))
     setLines((prev) => {
-      const allowed = new Set(
-        items.rows
-          .filter((i) => !fromStoreId || String(i.store ?? '') === fromStoreId)
-          .map((i) => i.id),
-      )
       const next = prev.map((l) =>
-        l.itemId && !allowed.has(l.itemId) ? { ...emptyTransferLine(), key: l.key } : l,
+        l.itemId ? { ...emptyTransferLine(), key: l.key } : l,
       )
       return next.length ? next : [emptyTransferLine()]
     })
@@ -464,18 +463,12 @@ function TransferForm() {
 
   const fieldDefs: ValidatableField[] = useMemo(() => {
     const defs: ValidatableField[] = [
-      { name: 'transferDate', label: 'Date', required: true },
-      { name: 'transferType', label: 'Transfer Type', required: true },
+      ...detailsFieldDefs,
       { name: 'fromStoreId', label: 'From Store', required: true },
       { name: 'toStoreId', label: 'To Store', required: true },
     ]
-    if (isInternal) defs.push({ name: 'operatingUnitId', label: 'Operating Unit', required: true })
-    if (isOu) {
-      defs.push({ name: 'fromOuId', label: 'From Operating Unit', required: true })
-      defs.push({ name: 'toOuId', label: 'To Operating Unit', required: true })
-    }
     return defs
-  }, [isInternal, isOu])
+  }, [detailsFieldDefs])
 
   const headerReady = useMemo(
     () => areRequiredFieldsFilled(fieldDefs, form as unknown as Record<string, unknown>),
@@ -495,6 +488,14 @@ function TransferForm() {
       if (filled.length === 0) return 'Add at least one item line.'
       if (filled.some((l) => !l.transferQty || Number(l.transferQty) <= 0)) {
         return 'Every item line needs a positive quantity.'
+      }
+      if (
+        filled.some((l) => {
+          const avail = Number(l.availableStock)
+          return Number.isFinite(avail) && avail >= 0 && Number(l.transferQty) > avail
+        })
+      ) {
+        return 'Transfer qty cannot exceed available stock on any line.'
       }
       if (filled.some((l) => !l.uomId)) return 'Every item line needs a Unit (pick a valid item).'
       if (
@@ -543,7 +544,7 @@ function TransferForm() {
       locations.rows,
     )
     if (!prefill) return
-    navigate(GATEPASS_BASE, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
+    navigate(GATEPASS_OUTWARD_PATH, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
   }
 
   const isPendingOutward = form.status === PENDING_FOR_OUTWARD_STATUS
@@ -600,7 +601,7 @@ function TransferForm() {
         const prefill = buildGatepassPrefillFromTxnDoc(doc, locations.rows)
         if (prefill) {
           setMessage('Transfer saved — complete outward gatepass at the gate.')
-          navigate(GATEPASS_BASE, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
+          navigate(GATEPASS_OUTWARD_PATH, { state: { [GATEPASS_OUTWARD_PREFILL_KEY]: prefill } })
           return
         }
       }
@@ -672,8 +673,11 @@ function TransferForm() {
                 disabled={readOnly}
                 invalid={Boolean(err('transferType'))}
               >
-                <option value="INTERNAL">Internal Transfer</option>
-                <option value="OU">OU Transfer</option>
+                {TRANSFER_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </Select>
             </Field>
 
@@ -737,46 +741,6 @@ function TransferForm() {
               />
             </Field>
 
-            <LookupSelect
-              label="From Store"
-              required
-              value={form.fromStoreId}
-              onChange={onFromStoreChange}
-              onBlur={() => touch('fromStoreId')}
-              options={fromStoreOptions}
-              placeholder={
-                isInternal
-                  ? form.operatingUnitId
-                    ? '— Select Store —'
-                    : '— Select Operating Unit first —'
-                  : form.fromOuId
-                    ? '— Select Store —'
-                    : '— Select From OU first —'
-              }
-              error={err('fromStoreId')}
-              disabled={readOnly || (isInternal ? !form.operatingUnitId : !form.fromOuId)}
-            />
-
-            <LookupSelect
-              label="To Store"
-              required
-              value={form.toStoreId}
-              onChange={(v) => set('toStoreId', v)}
-              onBlur={() => touch('toStoreId')}
-              options={toStoreOptions}
-              placeholder={
-                isInternal
-                  ? form.operatingUnitId
-                    ? '— Select Store —'
-                    : '— Select Operating Unit first —'
-                  : form.toOuId
-                    ? '— Select Store —'
-                    : '— Select To OU first —'
-              }
-              error={err('toStoreId')}
-              disabled={readOnly || (isInternal ? !form.operatingUnitId : !form.toOuId)}
-            />
-
             <Field label="Remarks" className="md:col-span-2 xl:col-span-4">
               <Input
                 value={form.remarks}
@@ -790,13 +754,6 @@ function TransferForm() {
         </CardBody>
       </Card>
 
-      <AttachmentSection
-        url={form.attachmentUrl}
-        name={form.attachmentName}
-        readOnly={readOnly}
-        onChange={({ url, name }) => setForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))}
-      />
-
       <div className="mt-3">
         <TransferItemLines
           lines={lines}
@@ -805,10 +762,37 @@ function TransferForm() {
           units={units.rows}
           locations={locations.rows}
           fromStoreId={form.fromStoreId}
+          toStoreId={form.toStoreId}
+          onFromStoreChange={onFromStoreChange}
+          onToStoreChange={(v) => set('toStoreId', v)}
+          fromLocationRows={fromLocationRows}
+          toLocationRows={toLocationRows}
+          fromStoreError={err('fromStoreId')}
+          toStoreError={err('toStoreId')}
+          detailsReady={detailsReady}
           readOnly={readOnly}
-          headerReady={headerReady}
           error={submitted ? errors.lines : undefined}
         />
+      </div>
+
+      <div className="mt-3">
+        <AttachmentSection
+          url={form.attachmentUrl}
+          name={form.attachmentName}
+          readOnly={readOnly}
+          onChange={({ url, name }) => setForm((p) => ({ ...p, attachmentUrl: url, attachmentName: name }))}
+        />
+        {!readOnly && (
+          <div className="mt-1.5 text-[11px] text-[var(--text3)]">
+            Optional supporting document for this transfer
+            {lines.filter((l) => l.itemId).length > 0
+              ? ` · currently ${lines.filter((l) => l.itemId).length} selected line${
+                  lines.filter((l) => l.itemId).length === 1 ? '' : 's'
+                } · ${lines.reduce((s, l) => s + (Number(l.transferQty) || 0), 0)} total qty`
+              : ''}
+            .
+          </div>
+        )}
       </div>
 
       {error && <div className="mt-2 text-[12.5px] font-medium text-[var(--danger)]">{error}</div>}

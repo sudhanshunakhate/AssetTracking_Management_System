@@ -221,7 +221,7 @@ public final class TxnDtos {
 
     public record RejectRequest(String reason) {}
 
-    /** Item IDs and serial units currently allotted to an employee (Material Return picker). */
+    /** Item IDs and serial units currently allotted to an employee or department (Material Return picker). */
     public record AllottedUnit(
             Integer itemId,
             String serialNo,
@@ -231,9 +231,19 @@ public final class TxnDtos {
             String batchLotNo
     ) {}
 
-    public record AllottedItemsResponse(List<Integer> itemIds, List<AllottedUnit> units) {}
+    /** Allotted quantity still with the employee or department for one item (Issue − Return + custody). */
+    public record AllottedItemQty(Integer itemId, java.math.BigDecimal qty) {}
 
-    /** Serial units in store (not currently issued) for Issue / Transfer pickers. */
+    public record AllottedItemsResponse(
+            List<Integer> itemIds,
+            List<AllottedUnit> units,
+            List<AllottedItemQty> quantities
+    ) {}
+
+    /**
+     * Serial units for Issue / Transfer pickers: not issued, and (when scoped to a location)
+     * only those with positive on-hand stock at that store.
+     */
     public record AvailableSerialUnit(
             Integer blsId,
             Integer itemId,

@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Field'
+import { Input, Select } from '@/components/ui/Field'
 import { Modal } from '@/components/ui/Modal'
 import type { ApiMasterRow } from '@/api/masters'
-import type { ItemLocationStock } from '@/api/transactions'
+import {
+  fetchAvailableSerials,
+  type AvailableSerialUnit,
+  type ItemLocationStock,
+} from '@/api/transactions'
 import { locLabel } from './txnLookups'
 import { formatStockQty } from './lineGrid'
 
@@ -16,6 +20,7 @@ export type RequisitionPickerRow = {
   locationLabel: string
   stock: number
   uomCode: string
+  itemType?: string
 }
 
 function locationLabel(locationId: string, locationById: Map<string, ApiMasterRow>) {
@@ -94,6 +99,7 @@ export function buildRequisitionPickerRows(
         locationLabel: locationLabel(loc.locationId, locationById),
         stock: loc.qty,
         uomCode: uom ? String(uom.code ?? '—') : '—',
+        itemType: String(item.itemType ?? ''),
       })
     }
   }
@@ -109,6 +115,10 @@ const headCell =
   'sticky top-0 z-10 border-b-2 border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase whitespace-nowrap'
 const bodyCell = 'border-b border-[var(--border)] px-3 py-2 text-[12px] align-middle'
 
+function isAssetRow(row: RequisitionPickerRow) {
+  return String(row.itemType ?? '').toLowerCase() === 'asset'
+}
+
 export function RequisitionItemPickerModal({
   open,
   onClose,
@@ -119,34 +129,102 @@ export function RequisitionItemPickerModal({
   selectedLocationId = '',
   title = 'Select Item',
   subtitle = 'Choose an item and store location. Only locations with available stock are listed.',
+  showSerialColumn = false,
 }: {
   open: boolean
   onClose: () => void
-  onSelect: (itemId: string, locationId: string) => void
+  onSelect: (itemId: string, locationId: string, serial?: AvailableSerialUnit) => void
   rows: RequisitionPickerRow[]
   loading?: boolean
   selectedItemId?: string
   selectedLocationId?: string
   title?: string
   subtitle?: string
+  /** Issue picker: show Serial No. dropdown for asset rows. */
+  showSerialColumn?: boolean
 }) {
   const [search, setSearch] = useState('')
+  const [serialByKey, setSerialByKey] = useState<Record<string, AvailableSerialUnit[]>>({})
+  const [serialLoading, setSerialLoading] = useState(false)
+  const [pickedSerialByKey, setPickedSerialByKey] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    if (open) setSearch('')
+    if (open) {
+      setSearch('')
+      setPickedSerialByKey({})
+    }
   }, [open])
+
+  useEffect(() => {
+    if (!open || !showSerialColumn) return
+    let cancelled = false
+    const assetKeys = [
+      ...new Map(
+        rows.filter(isAssetRow).map((r) => [r.key, r] as const),
+      ).values(),
+    ]
+    if (assetKeys.length === 0) {
+      setSerialByKey({})
+      setSerialLoading(false)
+      return
+    }
+    setSerialLoading(true)
+    ;(async () => {
+      const next: Record<string, AvailableSerialUnit[]> = {}
+      // Load in small batches to avoid flooding the API when many assets are listed.
+      const batchSize = 8
+      for (let i = 0; i < assetKeys.length; i += batchSize) {
+        if (cancelled) return
+        const batch = assetKeys.slice(i, i + batchSize)
+        await Promise.all(
+          batch.map(async (r) => {
+            try {
+              const units = await fetchAvailableSerials(
+                Number(r.itemId),
+                /^\d+$/.test(r.locationId) ? Number(r.locationId) : undefined,
+              )
+              if (!cancelled) next[r.key] = units
+            } catch {
+              if (!cancelled) next[r.key] = []
+            }
+          }),
+        )
+      }
+      if (!cancelled) {
+        setSerialByKey(next)
+        setSerialLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // Re-fetch when the set of asset item/location keys changes, not on every rows array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    showSerialColumn,
+    rows
+      .filter(isAssetRow)
+      .map((r) => r.key)
+      .sort()
+      .join('|'),
+  ])
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     if (!term) return rows
-    return rows.filter((r) =>
-      `${r.itemCode} ${r.itemName} ${r.locationLabel} ${r.uomCode}`.toLowerCase().includes(term),
-    )
-  }, [rows, search])
+    return rows.filter((r) => {
+      const serials = (serialByKey[r.key] ?? []).map((u) => String(u.serialNo ?? '')).join(' ')
+      return `${r.itemCode} ${r.itemName} ${r.locationLabel} ${r.uomCode} ${serials}`
+        .toLowerCase()
+        .includes(term)
+    })
+  }, [rows, search, serialByKey])
 
   const selectedKey =
     selectedItemId && selectedLocationId ? `${selectedItemId}|${selectedLocationId}` : ''
 
+  const colCount = showSerialColumn ? 6 : 5
   const totalRows = rows.length
   const showingRows = filtered.length
   const rowCountLabel = loading
@@ -154,6 +232,20 @@ export function RequisitionItemPickerModal({
     : search.trim()
       ? `${showingRows} of ${totalRows} row${totalRows === 1 ? '' : 's'}`
       : `${totalRows} row${totalRows === 1 ? '' : 's'}`
+
+  const applyRow = (r: RequisitionPickerRow, serialNo?: string) => {
+    if (!showSerialColumn || !isAssetRow(r)) {
+      onSelect(r.itemId, r.locationId)
+      return
+    }
+    const want = (serialNo ?? pickedSerialByKey[r.key] ?? '').trim()
+    const hit = want
+      ? (serialByKey[r.key] ?? []).find(
+          (u) => String(u.serialNo ?? '').toUpperCase() === want.toUpperCase(),
+        )
+      : undefined
+    onSelect(r.itemId, r.locationId, hit)
+  }
 
   return (
     <Modal
@@ -178,7 +270,11 @@ export function RequisitionItemPickerModal({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by item code, name, or location…"
+          placeholder={
+            showSerialColumn
+              ? 'Search by item code, name, location, or serial…'
+              : 'Search by item code, name, or location…'
+          }
           autoFocus
           className="text-[12.5px]"
         />
@@ -188,36 +284,39 @@ export function RequisitionItemPickerModal({
         <table className="w-full table-fixed border-collapse">
           <thead>
             <tr>
-              <th className={`${headCell} w-[13%]`}>Item Code</th>
-              <th className={`${headCell} w-[24%]`}>Item Name</th>
-              <th className={`${headCell} w-[35%]`}>Location</th>
-              <th className={`${headCell} w-[16%] text-right`}>Available Stock</th>
-              <th className={`${headCell} w-[12%]`}>UOM</th>
+              <th className={`${headCell} w-[12%]`}>Item Code</th>
+              <th className={`${headCell} ${showSerialColumn ? 'w-[20%]' : 'w-[24%]'}`}>Item Name</th>
+              <th className={`${headCell} ${showSerialColumn ? 'w-[22%]' : 'w-[35%]'}`}>Location</th>
+              {showSerialColumn && <th className={`${headCell} w-[18%]`}>Serial No.</th>}
+              <th className={`${headCell} w-[14%] text-right`}>Available Stock</th>
+              <th className={`${headCell} w-[10%]`}>UOM</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="h-[468px] px-3 text-center align-middle text-[12px] text-[var(--text3)]">
+                <td colSpan={colCount} className="h-[468px] px-3 text-center align-middle text-[12px] text-[var(--text3)]">
                   Loading items and stock…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="h-[468px] px-3 text-center align-middle text-[12px] text-[var(--text3)]">
+                <td colSpan={colCount} className="h-[468px] px-3 text-center align-middle text-[12px] text-[var(--text3)]">
                   {search.trim() ? 'No items match your search.' : 'No items available at operational locations.'}
                 </td>
               </tr>
             ) : (
               filtered.map((r) => {
                 const isSelected = r.key === selectedKey
+                const asset = showSerialColumn && isAssetRow(r)
+                const serials = serialByKey[r.key] ?? []
                 return (
                   <tr
                     key={r.key}
                     className={`cursor-pointer transition hover:bg-[#f0f5ff] ${
                       isSelected ? 'bg-[#e8efff]' : ''
                     }`}
-                    onClick={() => onSelect(r.itemId, r.locationId)}
+                    onClick={() => applyRow(r)}
                   >
                     <td className={`${bodyCell} truncate font-mono font-medium`}>{r.itemCode || '—'}</td>
                     <td className={`${bodyCell} truncate`} title={r.itemName}>
@@ -226,6 +325,38 @@ export function RequisitionItemPickerModal({
                     <td className={`${bodyCell} truncate`} title={r.locationLabel}>
                       {r.locationLabel}
                     </td>
+                    {showSerialColumn && (
+                      <td className={bodyCell} onClick={(e) => e.stopPropagation()}>
+                        {asset ? (
+                          <Select
+                            value={pickedSerialByKey[r.key] ?? ''}
+                            disabled={serialLoading}
+                            title={pickedSerialByKey[r.key] || undefined}
+                            className="w-full min-w-0 text-[11.5px]"
+                            onChange={(e) => {
+                              const serialNo = e.target.value
+                              setPickedSerialByKey((prev) => ({ ...prev, [r.key]: serialNo }))
+                              if (serialNo) applyRow(r, serialNo)
+                            }}
+                          >
+                            <option value="">
+                              {serialLoading
+                                ? 'Loading…'
+                                : serials.length
+                                  ? '— Select serial —'
+                                  : 'No serials'}
+                            </option>
+                            {serials.map((u) => (
+                              <option key={u.blsId} value={String(u.serialNo ?? '')}>
+                                {u.serialNo}
+                              </option>
+                            ))}
+                          </Select>
+                        ) : (
+                          <span className="text-[11px] text-[var(--text3)]">—</span>
+                        )}
+                      </td>
+                    )}
                     <td
                       className={`${bodyCell} text-right tabular-nums font-medium ${
                         r.stock <= 0 ? 'text-[var(--text3)]' : 'text-[var(--text)]'

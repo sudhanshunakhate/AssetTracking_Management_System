@@ -104,6 +104,91 @@ export function systemLocationsForOu(
   return systemLocationsForOrg(rows, String(ou.orgCode))
 }
 
+/** All locations belonging to an Operating Unit (operational + system stores for that org). */
+export function locationsForOu(
+  rows: ApiMasterRow[],
+  ouId: string,
+  ous: ApiMasterRow[] = [],
+): ApiMasterRow[] {
+  if (!ouId) return []
+  const sortLocs = (list: ApiMasterRow[]) =>
+    [...list].sort((a, b) =>
+      String(a.code ?? '').localeCompare(String(b.code ?? ''), undefined, { sensitivity: 'base' }),
+    )
+
+  const ou = ous.find((o) => o.id === ouId)
+  const orgId = ou?.orgCode != null && String(ou.orgCode) !== '' ? String(ou.orgCode) : ''
+
+  // User stores tagged to this OU
+  const operational = rows.filter(
+    (l) =>
+      !l.isSystemLocation &&
+      l.status !== 'Inactive' &&
+      String(l.ouCode ?? '') === String(ouId),
+  )
+
+  // Current model: system stores are org-wide (buId null). Include active ones for this OU's entity.
+  let system = orgId
+    ? rows.filter(
+        (l) =>
+          Boolean(l.isSystemLocation) &&
+          l.status !== 'Inactive' &&
+          String(l.orgCode ?? '') === orgId &&
+          !String(l.ouCode ?? ''),
+      )
+    : []
+
+  // Fallback: older OU-scoped system rows (may be inactive in DB but still the only system set)
+  if (system.length === 0) {
+    system = rows.filter(
+      (l) => Boolean(l.isSystemLocation) && String(l.ouCode ?? '') === String(ouId),
+    )
+  }
+
+  // If operational list empty (locations not tagged with buId), fall back to org operational
+  let ops = operational
+  if (ops.length === 0 && orgId) {
+    ops = rows.filter(
+      (l) =>
+        !l.isSystemLocation &&
+        l.status !== 'Inactive' &&
+        String(l.orgCode ?? '') === orgId,
+    )
+  }
+
+  const map = new Map<string, ApiMasterRow>()
+  for (const l of [...ops, ...system]) map.set(l.id, l)
+  return sortLocs([...map.values()])
+}
+
+/** @deprecated Prefer locationsForOu — kept for call sites that need ops-only. */
+export function operationalLocationsForOu(
+  rows: ApiMasterRow[],
+  ouId: string,
+  ous: ApiMasterRow[] = [],
+): ApiMasterRow[] {
+  return locationsForOu(rows, ouId, ous).filter((l) => !l.isSystemLocation)
+}
+
+/**
+ * Transfer From/To lists: every location mapped to the OU (LOC-* and that OU's SYS-* stores).
+ */
+export function transferFromLocationsForOu(
+  rows: ApiMasterRow[],
+  ouId: string,
+  ous: ApiMasterRow[] = [],
+): ApiMasterRow[] {
+  return locationsForOu(rows, ouId, ous)
+}
+
+export function transferToLocationsForOu(
+  rows: ApiMasterRow[],
+  ouId: string,
+  ous: ApiMasterRow[],
+): ApiMasterRow[] {
+  return locationsForOu(rows, ouId, ous)
+}
+
 export const systemLocationOptions = (rows: ApiMasterRow[]) =>
   locationOptions(systemLocations(rows))
 

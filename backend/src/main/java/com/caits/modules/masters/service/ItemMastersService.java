@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +35,7 @@ public class ItemMastersService {
     private final OrgLocationMstRepository locationRepo;
     private final OrgBusinessunitMstRepository buRepo;
     private final OrgEntityMstRepository entityRepo;
+    private final InvBlsMstRepository blsRepo;
     private final AccessScopeService accessScope;
 
     public ItemMastersService(
@@ -46,6 +49,7 @@ public class ItemMastersService {
             OrgLocationMstRepository locationRepo,
             OrgBusinessunitMstRepository buRepo,
             OrgEntityMstRepository entityRepo,
+            InvBlsMstRepository blsRepo,
             AccessScopeService accessScope
     ) {
         this.itemRepo = itemRepo;
@@ -58,6 +62,7 @@ public class ItemMastersService {
         this.locationRepo = locationRepo;
         this.buRepo = buRepo;
         this.entityRepo = entityRepo;
+        this.blsRepo = blsRepo;
         this.accessScope = accessScope;
     }
 
@@ -426,14 +431,27 @@ public class ItemMastersService {
 
     // ---- Stock (read-only) ----
     @Transactional(readOnly = true)
-    public PageResponse<StockDto> listStock(int page, int pageSize, String search, Boolean isActive, Integer itemId, Integer locationId) {
+    public PageResponse<StockDto> listStock(
+            int page,
+            int pageSize,
+            String search,
+            Boolean isActive,
+            Integer itemId,
+            Integer locationId,
+            Boolean freeOnly
+    ) {
         Specification<InvStockMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("stkIsactive", isActive),
                 SpecUtils.eq("stkItemIdItm", itemId),
                 SpecUtils.in("stkLocationIdLoc", accessScope.resolveLocationFilter(locationId)));
         Page<InvStockMst> result = stockRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
+        Set<String> issuedKeys = Boolean.TRUE.equals(freeOnly)
+                ? issuedSerialKeys(result.getContent())
+                : Set.of();
         return PageResponse.of(page, pageSize, result.getTotalElements(),
-                result.getContent().stream().map(this::toStockDto).toList());
+                result.getContent().stream()
+                        .map(e -> toStockDto(e, Boolean.TRUE.equals(freeOnly), issuedKeys))
+                        .toList());
     }
 
     @Transactional(readOnly = true)
@@ -445,9 +463,87 @@ public class ItemMastersService {
                 e.getStkReservedQty(), e.getStkAvailableQty(), e.getStkBatchLotNo());
     }
 
-    private StockDto toStockDto(InvStockMst e) {
-        return new StockDto(e.getStkStockId(), e.getStkItemIdItm(), e.getStkLocationIdLoc(), e.getStkCurrentQty(),
-                e.getStkReservedQty(), e.getStkAvailableQty(), e.getStkBatchLotNo(), e.getStkIsactive());
+    /**
+     * Aggregated free/transferable stock for Transfer / Issue pickers — one query.
+     * When locationIds is null/empty, uses the caller's accessible locations.
+     */
+    @Transactional(readOnly = true)
+    public List<FreeStockRow> listFreeStockSummary(List<Integer> locationIds) {
+        List<Integer> allowed = accessScope.resolveLocationFilter(null);
+        Collection<Integer> ids;
+        if (locationIds == null || locationIds.isEmpty()) {
+            if (allowed == null) {
+                ids = locationRepo.findAll().stream()
+                        .map(OrgLocationMst::getLocLocationId)
+                        .filter(id -> id != null)
+                        .toList();
+            } else {
+                ids = allowed;
+            }
+        } else if (allowed == null) {
+            ids = locationIds;
+        } else {
+            Set<Integer> allow = new HashSet<>(allowed);
+            ids = locationIds.stream().filter(allow::contains).toList();
+        }
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        List<FreeStockRow> out = new ArrayList<>();
+        for (Object[] row : stockRepo.freeStockByLocations(ids)) {
+            if (row == null || row.length < 3 || row[0] == null || row[1] == null) {
+                continue;
+            }
+            java.math.BigDecimal qty = row[2] instanceof java.math.BigDecimal bd
+                    ? bd
+                    : new java.math.BigDecimal(String.valueOf(row[2]));
+            if (qty.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            out.add(new FreeStockRow(
+                    ((Number) row[0]).intValue(),
+                    ((Number) row[1]).intValue(),
+                    qty
+            ));
+        }
+        return out;
+    }
+
+    private Set<String> issuedSerialKeys(List<InvStockMst> rows) {
+        Set<Integer> itemIds = new HashSet<>();
+        for (InvStockMst row : rows) {
+            if (row.getStkItemIdItm() != null) {
+                itemIds.add(row.getStkItemIdItm());
+            }
+        }
+        if (itemIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> keys = new HashSet<>();
+        for (Object[] pair : blsRepo.findIssuedSerialKeysByItemIds(itemIds)) {
+            if (pair[0] == null || pair[1] == null) {
+                continue;
+            }
+            keys.add(pair[0] + "|" + String.valueOf(pair[1]).trim().toUpperCase());
+        }
+        return keys;
+    }
+
+    private StockDto toStockDto(InvStockMst e, boolean freeOnly, Set<String> issuedKeys) {
+        var current = e.getStkCurrentQty();
+        var reserved = e.getStkReservedQty();
+        var available = e.getStkAvailableQty();
+        if (freeOnly) {
+            String batch = e.getStkBatchLotNo();
+            if (batch != null && !batch.isBlank()
+                    && issuedKeys.contains(e.getStkItemIdItm() + "|" + batch.trim().toUpperCase())) {
+                // Allotted/issued assets remain on stock rows but are not free to transfer.
+                current = java.math.BigDecimal.ZERO;
+                available = java.math.BigDecimal.ZERO;
+            }
+        }
+        return new StockDto(e.getStkStockId(), e.getStkItemIdItm(), e.getStkLocationIdLoc(), current,
+                reserved, available, e.getStkBatchLotNo(), e.getStkIsactive());
     }
 
     private static void require(String v, String field) {

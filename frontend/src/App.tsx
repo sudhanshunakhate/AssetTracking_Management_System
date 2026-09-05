@@ -26,7 +26,7 @@ import { ItemRegisterPage } from '@/features/reports/ItemRegisterPage'
 import { StockMovementReportPage } from '@/features/reports/StockMovementReportPage'
 import { StockOwnerReportPage } from '@/features/reports/StockOwnerReportPage'
 import { StockRegisterPage } from '@/features/reports/StockRegisterPage'
-import { GatepassPage } from '@/features/transactions/GatepassPage'
+import { GatepassPages } from '@/features/transactions/GatepassPage'
 import { GrnPages } from '@/features/transactions/GrnPage'
 import { OpeningStockPages } from '@/features/transactions/OpeningStockPage'
 import { IssuesPages } from '@/features/transactions/IssuePage'
@@ -73,7 +73,7 @@ export default function App() {
           <Route path="/transactions/opening-stock/*" element={<OpeningStockPages />} />
           <Route path="/transactions/requisitions/*" element={<RequisitionsPages />} />
           <Route path="/transactions/grn/*" element={<GrnPages />} />
-          <Route path="/transactions/gatepass" element={<GatepassPage />} />
+          <Route path="/transactions/gatepass/*" element={<GatepassPages />} />
           <Route path="/transactions/issues/*" element={<IssuesPages />} />
           <Route path="/transactions/transfers/*" element={<TransfersPages />} />
           <Route path="/transactions/returns/*" element={<ReturnsPages />} />

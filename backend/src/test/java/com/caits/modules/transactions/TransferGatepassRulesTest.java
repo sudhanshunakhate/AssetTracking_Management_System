@@ -15,15 +15,33 @@ class TransferGatepassRulesTest {
     }
 
     @Test
-    void internalToRejectedNeedsGatepass() {
+    void oprAliasNeedsGatepass() {
         assertTrue(TransferGatepassRules.needsGatepassOutward(
+                "OPR", 1, 2, null, "STORE-A", "Main Store"));
+    }
+
+    @Test
+    void internalToRejectedDoesNotNeedGatepass() {
+        assertFalse(TransferGatepassRules.needsGatepassOutward(
                 "INTERNAL", 1, 2, "REJECTED", "SYS-1-REJ", "Rejected Store"));
+    }
+
+    @Test
+    void internalToDamagedDoesNotNeedGatepass() {
+        assertFalse(TransferGatepassRules.needsGatepassOutward(
+                "INTERNAL", 1, 2, "DAMAGED", "SYS-1-DMG", "Damaged"));
     }
 
     @Test
     void internalMainToMainDoesNotNeedGatepass() {
         assertFalse(TransferGatepassRules.needsGatepassOutward(
                 "INTERNAL", 1, 2, null, "GEN-01", "General Store"));
+    }
+
+    @Test
+    void sameLocationNeverNeedsGatepass() {
+        assertFalse(TransferGatepassRules.needsGatepassOutward(
+                "OU", 1, 1, null, "A", "A"));
     }
 
     @Test

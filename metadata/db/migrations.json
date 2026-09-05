@@ -391,7 +391,16 @@
                                            "local":  null,
                                            "dev":  "2026-08-28"
                                        }
+                       },
+                       {
+                           "id":  "043-sync-bls-location-to-stock",
+                           "file":  "db_approach/sync_bls_location_to_stock.sql",
+                           "description":  "Repair BLS current location to match the store holding on-hand stock for that serial (transfer custody sync).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-03"
+                                       }
                        }
                    ],
-    "updated":  "2026-08-28"
+    "updated":  "2026-09-03"
 }

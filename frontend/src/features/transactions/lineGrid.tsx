@@ -74,10 +74,15 @@ export function useCodeIndex(rows: ApiMasterRow[]) {
 /**
  * Per-line available-stock lookup. Each line keeps its own request token so a
  * slow response cannot overwrite a newer item selection on the same row.
+ * Pass freeOnly for Transfer so allotted/issued assets are excluded.
  */
-export function useStockLookup(onResolved: (key: string, qty: number) => void) {
+export function useStockLookup(
+  onResolved: (key: string, qty: number) => void,
+  opts?: { freeOnly?: boolean },
+) {
   const [loading, setLoading] = useState<Record<string, boolean>>({})
   const tokens = useRef<Record<string, number>>({})
+  const freeOnly = opts?.freeOnly === true
 
   const lookup = useCallback(
     async (key: string, itemId: number, locationId: string, batchLotNo?: string) => {
@@ -89,6 +94,7 @@ export function useStockLookup(onResolved: (key: string, qty: number) => void) {
           itemId,
           locationId ? Number(locationId) : undefined,
           batchLotNo,
+          freeOnly ? { freeOnly: true } : undefined,
         )
         if (tokens.current[key] === token) onResolved(key, qty)
       } catch {
@@ -97,7 +103,7 @@ export function useStockLookup(onResolved: (key: string, qty: number) => void) {
         setLoading((p) => ({ ...p, [key]: false }))
       }
     },
-    [onResolved],
+    [onResolved, freeOnly],
   )
 
   return { loading, lookup }
@@ -146,14 +152,22 @@ export function useLocationStock(locationId: string | undefined | null, refreshM
   const [tick, setTick] = useState(0)
 
   const refresh = useCallback(() => setTick((n) => n + 1), [])
+  const scopedId =
+    locationId && /^\d+$/.test(String(locationId)) ? Number(locationId) : undefined
 
   useEffect(() => {
+    // Never pull the full stock table — only fetch when a store is selected.
+    if (scopedId == null) {
+      setStockByItemId({})
+      setReady(false)
+      setLoading(false)
+      return
+    }
     let cancelled = false
     setLoading(true)
     ;(async () => {
       try {
-        const scoped = locationId && /^\d+$/.test(locationId) ? Number(locationId) : undefined
-        const map = await fetchStockMap(scoped != null ? { locationId: scoped } : {})
+        const map = await fetchStockMap({ locationId: scopedId })
         if (!cancelled) {
           setStockByItemId(map)
           setReady(true)
@@ -170,9 +184,10 @@ export function useLocationStock(locationId: string | undefined | null, refreshM
     return () => {
       cancelled = true
     }
-  }, [locationId, tick])
+  }, [scopedId, tick])
 
   useEffect(() => {
+    if (scopedId == null) return
     const onStock = () => refresh()
     const onVis = () => {
       if (document.visibilityState === 'visible') refresh()
@@ -187,7 +202,7 @@ export function useLocationStock(locationId: string | undefined | null, refreshM
       document.removeEventListener('visibilitychange', onVis)
       window.clearInterval(id)
     }
-  }, [refresh, refreshMs])
+  }, [refresh, refreshMs, scopedId])
 
   return { stockByItemId, loading, ready, refresh }
 }

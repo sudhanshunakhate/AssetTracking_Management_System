@@ -102,6 +102,9 @@ public final class MasterDtos {
     public record StockDetailDto(Integer itemId, Integer locationId, BigDecimal currentQty, BigDecimal reservedQty,
                                  BigDecimal availableQty, String batchLotNo) {}
 
+    /** Aggregated free/transferable qty for one item at one location. */
+    public record FreeStockRow(Integer itemId, Integer locationId, BigDecimal qty) {}
+
     public record MenuDto(Integer menuId, String menuCode, String menuLabel, String menuGroup, Integer sortOrder,
                           Integer groupSortOrder,
                           String docType, Boolean supportsView, Boolean supportsCreate, Boolean supportsEdit,

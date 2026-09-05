@@ -224,6 +224,8 @@ function IssueForm() {
     value: string
     label: string
   } | null>(null)
+  /** Item IDs from the selected requisition — Issue picker only lists these. */
+  const [requestedItemIds, setRequestedItemIds] = useState<string[]>([])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }))
@@ -274,6 +276,18 @@ function IssueForm() {
       cancelled = true
     }
   }, [])
+
+  const issueItems = useMemo(() => {
+    const atStore = itemsForLocation(items.rows, form.storeId)
+    if (requestedItemIds.length === 0) return atStore
+    const idSet = new Set(requestedItemIds)
+    const matched = atStore.filter((i) => idSet.has(i.id))
+    const missing = requestedItemIds
+      .filter((id) => !matched.some((i) => i.id === id))
+      .map((id) => items.rows.find((i) => i.id === id))
+      .filter((row): row is (typeof items.rows)[number] => Boolean(row))
+    return [...matched, ...missing]
+  }, [items.rows, form.storeId, requestedItemIds])
 
   /* ---- load requisition for new issue from route ---- */
   useEffect(() => {
@@ -352,6 +366,9 @@ function IssueForm() {
           remark: l.remark ?? '',
         }))
         setLines(mapped.length ? mapped : [emptyLine()])
+        setRequestedItemIds(
+          mapped.map((l) => l.itemId).filter((id): id is string => Boolean(id)),
+        )
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
@@ -459,6 +476,9 @@ function IssueForm() {
           remark: l.remark ?? '',
         }
       })
+      setRequestedItemIds(
+        mapped.map((l) => l.itemId).filter((id): id is string => Boolean(id)),
+      )
       setLines(mapped.length ? enrichLinesFromItems(mapped, items.rows) : [emptyLine()])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load requisition')
@@ -807,7 +827,7 @@ function IssueForm() {
         <IssueItemLines
           lines={lines}
           onChange={setLines}
-          items={itemsForLocation(items.rows, form.storeId)}
+          items={issueItems}
           units={units.rows}
           locations={lineLocations}
           storeLocationId={form.storeId}
@@ -815,6 +835,7 @@ function IssueForm() {
           readOnly={assetReadOnly}
           lockStockFields={lockStockFields}
           headerReady={headerReady}
+          requestedItemIds={requestedItemIds}
           error={submitted ? errors.lines : undefined}
         />
       </div>
@@ -830,6 +851,7 @@ function IssueForm() {
             onClick={() => {
               setForm(blankForm())
               setLines([emptyLine()])
+              setRequestedItemIds([])
               setSubmitted(false)
               setTouched({})
             }}

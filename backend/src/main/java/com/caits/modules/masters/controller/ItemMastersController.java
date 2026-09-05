@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1")
 public class ItemMastersController {
@@ -83,8 +85,16 @@ public class ItemMastersController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean isActive,
             @RequestParam(required = false) Integer itemId,
-            @RequestParam(required = false) Integer locationId) {
-        return service.listStock(page, pageSize, search, isActive, itemId, locationId);
+            @RequestParam(required = false) Integer locationId,
+            @RequestParam(required = false) Boolean freeOnly) {
+        return service.listStock(page, pageSize, search, isActive, itemId, locationId, freeOnly);
+    }
+
+    /** One-shot free/transferable qty by item+location (excludes allotted assets). */
+    @GetMapping("/stock/free-summary")
+    public List<FreeStockRow> freeStockSummary(
+            @RequestParam(required = false) List<Integer> locationIds) {
+        return service.listFreeStockSummary(locationIds);
     }
 
     @GetMapping("/stock/{itemId}/{locationId}")

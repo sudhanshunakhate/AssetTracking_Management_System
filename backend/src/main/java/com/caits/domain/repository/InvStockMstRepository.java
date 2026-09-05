@@ -179,4 +179,68 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
             """, nativeQuery = true)
     List<Object[]> stockTopRowsByLocations(@Param("locationIds") Collection<Integer> locationIds,
                                            @Param("limit") int limit);
+
+    /**
+     * Free (transferable) qty per item+location.
+     * Excludes batches whose serial is currently allotted/issued, and asset batches
+     * whose BLS custody is at a different location than the stock row.
+     * Columns: itemId, locationId, qty
+     */
+    @Query(value = """
+            SELECT s.stk_item_id_itm,
+                   s.stk_location_id_loc,
+                   COALESCE(SUM(
+                     CASE
+                       WHEN COALESCE(s.stk_available_qty, s.stk_current_qty, 0) <= 0 THEN 0
+                       WHEN s.stk_batch_lot_no IS NULL OR TRIM(s.stk_batch_lot_no) = '' THEN
+                         COALESCE(s.stk_available_qty, s.stk_current_qty, 0)
+                       WHEN EXISTS (
+                         SELECT 1 FROM caits_local.inv_bls_mst b
+                         WHERE b.ibm_item_id_itm = s.stk_item_id_itm
+                           AND UPPER(TRIM(b.ibm_serial_no)) = UPPER(TRIM(s.stk_batch_lot_no))
+                           AND COALESCE(b.ibm_isactive, true) = true
+                           AND COALESCE(b.ibm_is_dummy, false) = false
+                           AND b.ibm_issued_to_emp_id_emp IS NOT NULL
+                       ) THEN 0
+                       WHEN EXISTS (
+                         SELECT 1 FROM caits_local.inv_bls_mst b
+                         WHERE b.ibm_item_id_itm = s.stk_item_id_itm
+                           AND UPPER(TRIM(b.ibm_serial_no)) = UPPER(TRIM(s.stk_batch_lot_no))
+                           AND COALESCE(b.ibm_isactive, true) = true
+                           AND COALESCE(b.ibm_is_dummy, false) = false
+                           AND b.ibm_current_location_id_loc IS DISTINCT FROM s.stk_location_id_loc
+                       ) THEN 0
+                       ELSE COALESCE(s.stk_available_qty, s.stk_current_qty, 0)
+                     END
+                   ), 0)
+            FROM caits_local.inv_stock_mst s
+            WHERE COALESCE(s.stk_isactive, true) = true
+              AND s.stk_location_id_loc IN (:locationIds)
+            GROUP BY s.stk_item_id_itm, s.stk_location_id_loc
+            HAVING COALESCE(SUM(
+                     CASE
+                       WHEN COALESCE(s.stk_available_qty, s.stk_current_qty, 0) <= 0 THEN 0
+                       WHEN s.stk_batch_lot_no IS NULL OR TRIM(s.stk_batch_lot_no) = '' THEN
+                         COALESCE(s.stk_available_qty, s.stk_current_qty, 0)
+                       WHEN EXISTS (
+                         SELECT 1 FROM caits_local.inv_bls_mst b
+                         WHERE b.ibm_item_id_itm = s.stk_item_id_itm
+                           AND UPPER(TRIM(b.ibm_serial_no)) = UPPER(TRIM(s.stk_batch_lot_no))
+                           AND COALESCE(b.ibm_isactive, true) = true
+                           AND COALESCE(b.ibm_is_dummy, false) = false
+                           AND b.ibm_issued_to_emp_id_emp IS NOT NULL
+                       ) THEN 0
+                       WHEN EXISTS (
+                         SELECT 1 FROM caits_local.inv_bls_mst b
+                         WHERE b.ibm_item_id_itm = s.stk_item_id_itm
+                           AND UPPER(TRIM(b.ibm_serial_no)) = UPPER(TRIM(s.stk_batch_lot_no))
+                           AND COALESCE(b.ibm_isactive, true) = true
+                           AND COALESCE(b.ibm_is_dummy, false) = false
+                           AND b.ibm_current_location_id_loc IS DISTINCT FROM s.stk_location_id_loc
+                       ) THEN 0
+                       ELSE COALESCE(s.stk_available_qty, s.stk_current_qty, 0)
+                     END
+                   ), 0) > 0
+            """, nativeQuery = true)
+    List<Object[]> freeStockByLocations(@Param("locationIds") Collection<Integer> locationIds);
 }
