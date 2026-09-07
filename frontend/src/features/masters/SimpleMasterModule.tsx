@@ -29,6 +29,8 @@ export type FieldDef = ValidationRules & {
   lockedUntilHeader?: boolean
   /** When set and returns false, the field is hidden and skipped for required validation. */
   visibleWhen?: (values: Record<string, unknown>) => boolean
+  /** Overlay on the closed select (e.g. location pill). Native options stay plain text. */
+  selectSelectedContent?: (values: Record<string, unknown>) => ReactNode | null
 }
 
 type Row = { id: string; [key: string]: unknown }
@@ -503,23 +505,37 @@ function MasterForm({
                       disabled={fieldReadOnly}
                     />
                   ) : f.type === 'select' ? (
-                    <Select
-                      value={String(values[f.name] ?? '')}
-                      onChange={(e) => {
-                        markTouched(f.name)
-                        set(f.name, e.target.value)
-                      }}
-                      onBlur={() => markTouched(f.name)}
-                      invalid={Boolean(fieldError)}
-                      disabled={fieldReadOnly}
-                    >
-                      <option value="">{f.placeholder ?? '— Select —'}</option>
-                      {(typeof f.options === 'function' ? f.options(values) : f.options ?? []).map((o) => (
-                        <option key={o.value} value={String(o.value)}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </Select>
+                    (() => {
+                      const overlay = f.selectSelectedContent?.(values) ?? null
+                      const hideNativeText = Boolean(overlay) && String(values[f.name] ?? '') !== ''
+                      return (
+                        <div className="relative min-w-0">
+                          <Select
+                            value={String(values[f.name] ?? '')}
+                            onChange={(e) => {
+                              markTouched(f.name)
+                              set(f.name, e.target.value)
+                            }}
+                            onBlur={() => markTouched(f.name)}
+                            invalid={Boolean(fieldError)}
+                            disabled={fieldReadOnly}
+                            className={hideNativeText ? 'text-transparent' : undefined}
+                          >
+                            <option value="">{f.placeholder ?? '— Select —'}</option>
+                            {(typeof f.options === 'function' ? f.options(values) : f.options ?? []).map((o) => (
+                              <option key={o.value} value={String(o.value)}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </Select>
+                          {hideNativeText && overlay && (
+                            <div className="pointer-events-none absolute inset-y-0 left-0 right-7 flex items-center gap-1.5 px-2.5">
+                              {overlay}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()
                   ) : (
                     <Input
                       type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}

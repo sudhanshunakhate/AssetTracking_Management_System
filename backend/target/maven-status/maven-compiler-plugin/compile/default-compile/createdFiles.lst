@@ -27,6 +27,7 @@ com\caits\domain\entity\DashRoleWidgetDtl.class
 com\caits\modules\transactions\StockPostingRules$1.class
 com\caits\domain\repository\SysmUserLocationMappingDtlRepository.class
 com\caits\modules\transactions\TxnDtos$AllottedUnit.class
+com\caits\modules\transactions\TxnDtos$InboundPartyInfo.class
 com\caits\modules\inventory\BlsService.class
 com\caits\modules\notifications\TxnNotificationListener$1.class
 com\caits\domain\entity\HrcDepartmentMst.class

@@ -256,10 +256,12 @@ export function GatepassNormalOutwardPickerModal({
         }
         setSerialByKey(next)
         setSerialsLoaded(true)
-      } catch {
+      } catch (err) {
         if (!cancelled) {
           setSerialByKey({})
           setSerialsLoaded(true)
+          // Surface API failure — silent empty map shows "No free serials" with free stock > 0.
+          console.error('Failed to load free serials', err)
         }
       }
     })()

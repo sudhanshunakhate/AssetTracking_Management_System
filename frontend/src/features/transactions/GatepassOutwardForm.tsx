@@ -9,6 +9,7 @@ import { Field, Input, Select } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import {
   createTxn,
+  fetchInboundParty,
   fetchTxn,
   numOrUndef,
   todayIso,
@@ -210,15 +211,49 @@ export function GatepassOutwardForm() {
 
   const applyNormalPicker = (batch: OutwardPickerBatch) => {
     const mapped = linesFromOutwardPicker(batch, items)
-    setOutwardForm((p) => ({ ...p, store: batch.locationId }))
-    setNormalLines(mapped.length ? mapped : [emptyGatepassOutwardLine()])
-    setPickerOpen(false)
-    setError('')
-    setMessage(
-      mapped.length
-        ? `Selected ${mapped.length} line(s) from system location — confirm Returnable flag, then submit.`
-        : '',
-    )
+    void (async () => {
+      let party = ''
+      for (const line of batch.lines) {
+        const fromSerial = String(line.serial?.partyName ?? '').trim()
+        if (fromSerial) {
+          party = fromSerial
+          break
+        }
+      }
+      if (!party) {
+        for (const line of batch.lines) {
+          try {
+            const info = await fetchInboundParty({
+              blsId: line.serial?.blsId,
+              itemId: numOrUndef(line.itemId),
+              locationId: numOrUndef(line.locationId || batch.locationId),
+            })
+            const name = String(info?.partyName ?? '').trim()
+            if (name) {
+              party = name
+              break
+            }
+          } catch {
+            // Keep party blank if inbound lookup fails; user can type it.
+          }
+        }
+      }
+      setOutwardForm((p) => ({
+        ...p,
+        store: batch.locationId,
+        party: party || p.party,
+      }))
+      setNormalLines(mapped.length ? mapped : [emptyGatepassOutwardLine()])
+      setPickerOpen(false)
+      setError('')
+      setMessage(
+        mapped.length
+          ? party
+            ? `Selected ${mapped.length} line(s). Vendor / Party filled from GRN or Opening Stock.`
+            : `Selected ${mapped.length} line(s) from system location — confirm Returnable flag, then submit.`
+          : '',
+      )
+    })()
   }
 
   const resetNormalForm = useCallback(() => {
@@ -287,6 +322,10 @@ export function GatepassOutwardForm() {
       setError('Returnable / Non Returnable is required')
       return
     }
+    if (!outwardForm.party.trim()) {
+      setError('Vendor / Party / Customer is required')
+      return
+    }
     if (!outwardForm.store) {
       setError('Select items from a system location first')
       return
@@ -339,7 +378,8 @@ export function GatepassOutwardForm() {
         initiatedByEmpId: numOrUndef(outwardForm.preparedBy),
         returnFlag: outwardForm.returnFlag,
         // Normal outward has no transfer subtype — leave blank (linked transfer still sends subtype).
-        remarks: outwardForm.remarks || outwardForm.party || undefined,
+        partyAdd: outwardForm.party.trim(),
+        remarks: outwardForm.remarks || undefined,
         ...attachmentPayload(outwardForm.attachmentUrl, outwardForm.attachmentName),
         docSubmitAction: action,
         lines,
@@ -371,6 +411,10 @@ export function GatepassOutwardForm() {
       setError('Returnable / Non Returnable is required')
       return
     }
+    if (!outwardForm.party.trim()) {
+      setError('Vendor / Party / Customer is required')
+      return
+    }
     setSaving(true)
     setError('')
     setMessage('')
@@ -396,6 +440,8 @@ export function GatepassOutwardForm() {
         returnFlag: outwardForm.returnFlag,
         docSubtype: normalizeTransferType(outwardForm.transferType),
         refTxnHeaderId: numOrUndef(linkedTransferId),
+        partyAdd: outwardForm.party.trim(),
+        remarks: outwardForm.remarks || undefined,
         ...attachmentPayload(outwardForm.attachmentUrl, outwardForm.attachmentName),
         docSubmitAction: action,
         lines,
@@ -575,9 +621,9 @@ export function GatepassOutwardForm() {
                 <Field label="Prepared By" required hint="Logged-in user">
                   <Input value={preparedByLabel} readOnly disabled />
                 </Field>
-                <Field label="Customer / Party" className="md:col-span-2">
+                <Field label="Vendor / Party / Customer" required className="md:col-span-2">
                   <Input
-                    placeholder="Customer or receiving party"
+                    placeholder="Vendor, party or customer name"
                     value={outwardForm.party}
                     onChange={(e) => setOut('party', e.target.value)}
                   />
@@ -712,8 +758,12 @@ export function GatepassOutwardForm() {
                 <Field label="Store (From)" required>
                   <Input value={linkedStoreLabel} readOnly disabled />
                 </Field>
-                <Field label="Customer / Party (To)" className="md:col-span-2">
-                  <Input value={outwardForm.party} readOnly disabled />
+                <Field label="Vendor / Party / Customer" required className="md:col-span-2">
+                  <Input
+                    placeholder="Vendor, party or customer name"
+                    value={outwardForm.party}
+                    onChange={(e) => setOut('party', e.target.value)}
+                  />
                 </Field>
                 <div className="md:col-span-4 overflow-x-auto rounded-md border border-[var(--border)]">
                   <div className="border-b border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-[11px] font-semibold text-[var(--text2)]">

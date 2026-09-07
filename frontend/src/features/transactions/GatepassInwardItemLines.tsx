@@ -223,12 +223,13 @@ export function GatepassInwardItemLines({
   const showAddBar = !locked && allowAddItems && !itemFirst
   const showPickerBar = !locked && allowAddItems && itemFirst
   const storeReady = Boolean(storeLocationId)
-  const showLocationCol = itemFirst || filled.some((l) => l.locationId)
+  const showInspectionCol = itemFirst || locked
+  const showLocationCol = itemFirst || locked || filled.some((l) => l.locationId)
 
   const subtitle = (() => {
     if (locked) {
       return filled.length
-        ? `${filled.length} line(s) from returnable outward`
+        ? `${filled.length} line(s) from returnable outward. Inspection-needed items receive into Quarantine.`
         : 'Select a returnable outward to load item lines.'
     }
     if (itemFirst) {
@@ -255,7 +256,7 @@ export function GatepassInwardItemLines({
     return 'Select a system store above, then add items.'
   })()
 
-  const colCount = (locked ? 6 : 7) + (showLocationCol ? 1 : 0) + (itemFirst ? 1 : 0)
+  const colCount = (locked ? 6 : 7) + (showLocationCol ? 1 : 0) + (showInspectionCol ? 1 : 0)
 
   return (
     <Card>
@@ -374,7 +375,7 @@ export function GatepassInwardItemLines({
               <tr className="bg-[var(--surface2)]">
                 <th className={`${gridHeadCell} w-[40px]`}>#</th>
                 <th className={gridHeadCell}>{gridHeadLabel('Item', true)}</th>
-                {itemFirst && (
+                {showInspectionCol && (
                   <th className={`${gridHeadCell} w-[100px]`}>Inspection</th>
                 )}
                 {showLocationCol && (
@@ -382,7 +383,7 @@ export function GatepassInwardItemLines({
                 )}
                 <th className={`${gridHeadCell} w-[80px]`}>{gridHeadLabel('Qty', true)}</th>
                 <th className={`${gridHeadCell} w-[70px]`}>Unit</th>
-                <th className={`${gridHeadCell} w-[160px]`}>Serial / Batch</th>
+                <th className={`${gridHeadCell} w-[160px]`}>{gridHeadLabel('Serial No.', true)}</th>
                 <th className={gridHeadCell}>Remark</th>
                 {!locked && <th className={`${gridHeadCell} w-[56px] text-center`}>Action</th>}
               </tr>
@@ -418,7 +419,7 @@ export function GatepassInwardItemLines({
                           className={gridInput}
                         />
                       </td>
-                      {itemFirst && (
+                      {showInspectionCol && (
                         <td className={gridCell}>
                           <span
                             className={
@@ -471,6 +472,7 @@ export function GatepassInwardItemLines({
                               patch(line.key, { serialNo: e.target.value.toUpperCase() })
                             }
                             placeholder="Serial number"
+                            required={asset}
                             className={`${gridInput} font-mono`}
                           />
                         ) : (

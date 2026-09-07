@@ -14,6 +14,7 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
   return (
     <NavLink
       to={item.path}
+      end={false}
       title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         `relative mx-2 my-px flex w-[calc(100%-16px)] items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium transition ${

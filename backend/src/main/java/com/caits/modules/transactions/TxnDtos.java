@@ -253,6 +253,15 @@ public final class TxnDtos {
             String macAddress,
             String hostname,
             String batchLotNo,
-            String itemCondition
+            String itemCondition,
+            Integer partyId,
+            String partyName
+    ) {}
+
+    /** Vendor / party from the inbound GRN or Opening Stock that brought the stock in. */
+    public record InboundPartyInfo(
+            Integer partyId,
+            String partyName,
+            String sourceDocType
     ) {}
 }

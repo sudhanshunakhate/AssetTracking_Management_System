@@ -353,7 +353,7 @@ export function RequisitionItemLines({
                           <option value="">— Select Location —</option>
                           {locOpts.map((loc) => (
                             <option key={loc.locationId} value={loc.locationId}>
-                              {`${locationLabel(loc.locationId, locationById)} (Stock: ${formatStockQty(loc.qty)})`}
+                              {locationLabel(loc.locationId, locationById)}
                             </option>
                           ))}
                           {line.locationId && !locOpts.some((l) => l.locationId === line.locationId) && (
@@ -410,6 +410,7 @@ export function RequisitionItemLines({
         loading={stockLoading}
         selectedItemId={pickerLine?.itemId ?? ''}
         selectedLocationId={pickerLine?.locationId ?? ''}
+        subtitle="Choose an item from the list, then pick the store location. Each item is shown once."
       />
     </>
   )

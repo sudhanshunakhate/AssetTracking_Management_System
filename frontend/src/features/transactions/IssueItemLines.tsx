@@ -331,25 +331,25 @@ export function IssueItemLines({
         />
         <CardBody className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-max min-w-full border-collapse">
               <thead>
                 <tr className="bg-[var(--surface2)]">
-                  <th className={`${gridHeadCell} w-[52px]`}>Sr No.</th>
-                  <th className={`${gridHeadCell} min-w-[220px]`}>Item Code</th>
-                  <th className={gridHeadCell}>Item Name</th>
-                  <th className={`${gridHeadCell} w-[90px]`}>UOM</th>
-                  <th className={`${gridHeadCell} w-[150px]`}>Serial No.</th>
-                  <th className={`${gridHeadCell} w-[120px]`}>IP Address</th>
-                  <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
-                  <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
-                  <th className={`${gridHeadCell} w-[110px]`}>Requested Qty</th>
-                  <th className={`${gridHeadCell} w-[110px]`}>Issue Qty</th>
-                  <th className={`${gridHeadCell} w-[110px]`}>Available Stock</th>
-                  <th className={`${gridHeadCell} w-[120px]`}>Batch / Lot</th>
-                  <th className={`${gridHeadCell} w-[150px]`}>From Location</th>
-                  <th className={`${gridHeadCell} w-[150px]`}>To Location</th>
-                  <th className={`${gridHeadCell} w-[150px]`}>Remark</th>
-                  <th className={`${gridHeadCell} w-[56px] text-center`}>Action</th>
+                  <th className={`${gridHeadCell} min-w-[52px] whitespace-nowrap`}>Sr No.</th>
+                  <th className={`${gridHeadCell} min-w-[260px] whitespace-nowrap`}>Item Code</th>
+                  <th className={`${gridHeadCell} min-w-[180px] whitespace-nowrap`}>Item Name</th>
+                  <th className={`${gridHeadCell} min-w-[90px] whitespace-nowrap`}>UOM</th>
+                  <th className={`${gridHeadCell} min-w-[150px] whitespace-nowrap`}>Serial No.</th>
+                  <th className={`${gridHeadCell} min-w-[130px] whitespace-nowrap`}>IP Address</th>
+                  <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>MAC Address</th>
+                  <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>Hostname</th>
+                  <th className={`${gridHeadCell} min-w-[110px] whitespace-nowrap`}>Requested Qty</th>
+                  <th className={`${gridHeadCell} min-w-[100px] whitespace-nowrap`}>Issue Qty</th>
+                  <th className={`${gridHeadCell} min-w-[120px] whitespace-nowrap`}>Available Stock</th>
+                  <th className={`${gridHeadCell} min-w-[130px] whitespace-nowrap`}>Batch / Lot</th>
+                  <th className={`${gridHeadCell} min-w-[170px] whitespace-nowrap`}>From Location</th>
+                  <th className={`${gridHeadCell} min-w-[170px] whitespace-nowrap`}>To Location</th>
+                  <th className={`${gridHeadCell} min-w-[160px] whitespace-nowrap`}>Remark</th>
+                  <th className={`${gridHeadCell} min-w-[56px] whitespace-nowrap text-center`}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -376,13 +376,13 @@ export function IssueItemLines({
                         {readOnly || lockStockFields ? (
                           <Input value={line.itemCode} readOnly className={gridInput} />
                         ) : (
-                          <div className="flex min-w-[200px] items-center gap-1">
+                          <div className="flex min-w-[240px] items-center gap-1">
                             <Input
                               value={itemDisplay}
                               readOnly
                               placeholder={!headerReady ? 'Fill header first' : '— Select Item —'}
                               title={itemDisplay}
-                              className={`${gridInput} min-w-0 flex-1 cursor-pointer`}
+                              className={`${gridInput} min-w-[140px] flex-1 cursor-pointer !overflow-visible !text-clip`}
                               onClick={() => !linesLocked && setPickerLineKey(line.key)}
                             />
                             <Button
@@ -409,14 +409,21 @@ export function IssueItemLines({
                         )}
                       </td>
                       <td className={gridCell}>
-                        <Input value={line.itemName} readOnly placeholder="—" className={gridInput} />
+                        <Input
+                          value={line.itemName}
+                          readOnly
+                          placeholder="—"
+                          title={line.itemName || undefined}
+                          className={`${gridInput} min-w-[160px]`}
+                        />
                       </td>
                       <td className={gridCell}>
                         <Input
                           value={unit ? String(unit.code ?? '') : ''}
                           readOnly
                           placeholder="—"
-                          className={gridInput}
+                          title={unit ? String(unit.code ?? '') : undefined}
+                          className={`${gridInput} min-w-[72px]`}
                         />
                       </td>
                       <td className={gridCell}>
@@ -537,7 +544,8 @@ export function IssueItemLines({
                           value={location ? locLabel(location) : ''}
                           readOnly
                           placeholder="—"
-                          className={gridInput}
+                          title={location ? locLabel(location) : undefined}
+                          className={`${gridInput} min-w-[150px]`}
                         />
                       </td>
                       <td className={gridCell}>
@@ -545,7 +553,8 @@ export function IssueItemLines({
                           value={toLoc ? locLabel(toLoc) : ''}
                           readOnly
                           placeholder="—"
-                          className={gridInput}
+                          title={toLoc ? locLabel(toLoc) : undefined}
+                          className={`${gridInput} min-w-[150px]`}
                         />
                       </td>
                       <td className={gridCell}>
@@ -555,7 +564,8 @@ export function IssueItemLines({
                           disabled={lineFieldsLocked}
                           maxLength={200}
                           placeholder="Remark…"
-                          className={gridInput}
+                          title={line.remark || undefined}
+                          className={`${gridInput} min-w-[140px]`}
                         />
                       </td>
                       <td className={`${gridCell} text-center`}>
@@ -604,7 +614,7 @@ export function IssueItemLines({
             ? requestedItemIds && requestedItemIds.length > 0
               ? `Only items from the selected requisition with stock at ${fromStoreLabel}. For assets, pick a Serial No.`
               : `Items with stock at ${fromStoreLabel}. For assets, pick a Serial No. from the dropdown.`
-            : 'Choose an item and store location with available stock.'
+            : 'Choose an item, then pick a store location with available stock.'
         }
       />
     </>

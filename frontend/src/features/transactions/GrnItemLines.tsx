@@ -745,7 +745,7 @@ export function GrnItemLines({
         selectedItemId={pickItemId}
         selectedLocationId={pickLocationId}
         title="Select Item"
-        subtitle="Choose an item and the store location to receive into. Stock shown is on hand at that location."
+        subtitle="Choose an item, then pick the store location to receive into. Stock shown is on hand at that location."
       />
     </>
   )

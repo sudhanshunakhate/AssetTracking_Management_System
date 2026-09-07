@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Pill, toneForLabel } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Field'
 import { Modal } from '@/components/ui/Modal'
@@ -282,7 +283,13 @@ export function ReturnAllottedPickerModal({
                     <td className={`${bodyCell} text-right tabular-nums font-medium`}>
                       {formatStockQty(r.allottedQty)}
                     </td>
-                    <td className={bodyCell}>{r.homeLabel}</td>
+                    <td className={bodyCell}>
+                      {r.homeLabel && r.homeLabel !== '-' ? (
+                        <Pill tone={toneForLabel(r.homeLabel)}>{r.homeLabel}</Pill>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                   </tr>
                 )
               })}

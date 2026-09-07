@@ -90,6 +90,7 @@ export type DocumentRequest = {
   fromLocationId?: number
   toLocationId?: number
   partyId?: number
+  partyAdd?: string
   departmentId?: number
   departmentLocationId?: number
   initiatedByEmpId?: number
@@ -216,6 +217,7 @@ export type TxnDocument = {
   fromLocationId?: number
   toLocationId?: number
   partyId?: number
+  partyAdd?: string
   departmentId?: number
   departmentLocationId?: number
   initiatedByEmpId?: number
@@ -436,6 +438,14 @@ export type AvailableSerialUnit = {
   hostname?: string
   batchLotNo?: string
   itemCondition?: string
+  partyId?: number
+  partyName?: string
+}
+
+export type InboundPartyInfo = {
+  partyId?: number
+  partyName?: string
+  sourceDocType?: string
 }
 
 /**
@@ -446,6 +456,21 @@ export async function fetchAvailableSerials(itemId: number, locationId?: number)
   const qs = new URLSearchParams({ itemId: String(itemId) })
   if (locationId != null && Number.isFinite(locationId)) qs.set('locationId', String(locationId))
   return http.get<AvailableSerialUnit[]>(`/issues/available-serials?${qs}`)
+}
+
+/** Vendor / party from GRN or Opening Stock for Gatepass Outward item selection. */
+export async function fetchInboundParty(opts: {
+  blsId?: number
+  itemId?: number
+  locationId?: number
+}) {
+  const qs = new URLSearchParams()
+  if (opts.blsId != null && Number.isFinite(opts.blsId)) qs.set('blsId', String(opts.blsId))
+  if (opts.itemId != null && Number.isFinite(opts.itemId)) qs.set('itemId', String(opts.itemId))
+  if (opts.locationId != null && Number.isFinite(opts.locationId)) {
+    qs.set('locationId', String(opts.locationId))
+  }
+  return http.get<InboundPartyInfo | null>(`/gatepass/outward/inbound-party?${qs}`)
 }
 
 export async function syncInspectionApprovalsFromGrn() {

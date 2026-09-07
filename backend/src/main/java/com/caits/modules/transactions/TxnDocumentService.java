@@ -8,6 +8,7 @@ import com.caits.domain.entity.HrcEmployeeMst;
 import com.caits.domain.entity.InvBlsMst;
 import com.caits.domain.entity.InvItemMst;
 import com.caits.domain.entity.InvStockMst;
+import com.caits.domain.entity.InvVendorMst;
 import com.caits.domain.entity.OrgLocationMst;
 import com.caits.domain.entity.TxnDetailDtl;
 import com.caits.domain.entity.TxnHeaderMst;
@@ -16,6 +17,7 @@ import com.caits.domain.repository.HrcDepartmentMstRepository;
 import com.caits.domain.repository.HrcEmployeeMstRepository;
 import com.caits.domain.repository.InvItemMstRepository;
 import com.caits.domain.repository.InvStockMstRepository;
+import com.caits.domain.repository.InvVendorMstRepository;
 import com.caits.domain.repository.OrgLocationMstRepository;
 import com.caits.domain.repository.TxnDetailDtlRepository;
 import com.caits.domain.repository.TxnHeaderMstRepository;
@@ -67,6 +69,7 @@ public class TxnDocumentService {
     private final ApplicationEventPublisher events;
     private final HrcEmployeeMstRepository employeeRepo;
     private final HrcDepartmentMstRepository departmentRepo;
+    private final InvVendorMstRepository vendorRepo;
 
     public TxnDocumentService(
             TxnHeaderMstRepository headerRepo,
@@ -80,7 +83,8 @@ public class TxnDocumentService {
             OrgLocationMstRepository locationRepo,
             ApplicationEventPublisher events,
             HrcEmployeeMstRepository employeeRepo,
-            HrcDepartmentMstRepository departmentRepo
+            HrcDepartmentMstRepository departmentRepo,
+            InvVendorMstRepository vendorRepo
     ) {
         this.headerRepo = headerRepo;
         this.detailRepo = detailRepo;
@@ -94,6 +98,7 @@ public class TxnDocumentService {
         this.events = events;
         this.employeeRepo = employeeRepo;
         this.departmentRepo = departmentRepo;
+        this.vendorRepo = vendorRepo;
     }
 
     public PageResponse<ListItem> list(
@@ -480,7 +485,10 @@ public class TxnDocumentService {
             return List.of();
         }
         List<AvailableSerialUnit> out = new ArrayList<>();
-        for (InvBlsMst bls : blsService.listAvailableSerials(itemId, locationId)) {
+        List<InvBlsMst> units = blsService.listAvailableSerials(itemId, locationId);
+        Map<Integer, InboundPartyInfo> partyByBls = safeInboundPartiesForBlsIds(
+                units.stream().map(InvBlsMst::getIbmBlsId).filter(id -> id != null).toList());
+        for (InvBlsMst bls : units) {
             String serial = bls.getIbmSerialNo();
             if (inStockBatches != null) {
                 if (serial == null || serial.isBlank()) {
@@ -490,17 +498,8 @@ public class TxnDocumentService {
                     continue;
                 }
             }
-            out.add(new AvailableSerialUnit(
-                    bls.getIbmBlsId(),
-                    bls.getIbmItemIdItm(),
-                    bls.getIbmCurrentLocationIdLoc(),
-                    bls.getIbmSerialNo(),
-                    bls.getIbmIpAddress(),
-                    bls.getIbmMacAddress(),
-                    bls.getIbmHostname(),
-                    bls.getIbmBatchNo(),
-                    bls.getIbmItemCondition()
-            ));
+            InboundPartyInfo party = partyByBls.get(bls.getIbmBlsId());
+            out.add(toAvailableSerialUnit(bls, party));
         }
         return out;
     }
@@ -558,7 +557,10 @@ public class TxnDocumentService {
             return List.of();
         }
         List<AvailableSerialUnit> out = new ArrayList<>();
-        for (InvBlsMst bls : blsService.listAvailableSerialsAtLocation(locationId)) {
+        List<InvBlsMst> units = blsService.listAvailableSerialsAtLocation(locationId);
+        Map<Integer, InboundPartyInfo> partyByBls = safeInboundPartiesForBlsIds(
+                units.stream().map(InvBlsMst::getIbmBlsId).filter(id -> id != null).toList());
+        for (InvBlsMst bls : units) {
             String serial = bls.getIbmSerialNo();
             if (serial == null || serial.isBlank()) {
                 continue;
@@ -567,19 +569,132 @@ public class TxnDocumentService {
             if (!inStock.contains(key)) {
                 continue;
             }
-            out.add(new AvailableSerialUnit(
-                    bls.getIbmBlsId(),
-                    bls.getIbmItemIdItm(),
-                    bls.getIbmCurrentLocationIdLoc(),
-                    bls.getIbmSerialNo(),
-                    bls.getIbmIpAddress(),
-                    bls.getIbmMacAddress(),
-                    bls.getIbmHostname(),
-                    bls.getIbmBatchNo(),
-                    bls.getIbmItemCondition()
-            ));
+            InboundPartyInfo party = partyByBls.get(bls.getIbmBlsId());
+            out.add(toAvailableSerialUnit(bls, party));
         }
         return out;
+    }
+
+    private AvailableSerialUnit toAvailableSerialUnit(InvBlsMst bls, InboundPartyInfo party) {
+        return new AvailableSerialUnit(
+                bls.getIbmBlsId(),
+                bls.getIbmItemIdItm(),
+                bls.getIbmCurrentLocationIdLoc(),
+                bls.getIbmSerialNo(),
+                bls.getIbmIpAddress(),
+                bls.getIbmMacAddress(),
+                bls.getIbmHostname(),
+                bls.getIbmBatchNo(),
+                bls.getIbmItemCondition(),
+                party != null ? party.partyId() : null,
+                party != null ? party.partyName() : null
+        );
+    }
+
+    /** Never fail serial listing because inbound party lookup failed. */
+    private Map<Integer, InboundPartyInfo> safeInboundPartiesForBlsIds(List<Integer> blsIds) {
+        try {
+            return inboundPartiesForBlsIds(blsIds);
+        } catch (Exception ignored) {
+            return Map.of();
+        }
+    }
+
+    /**
+     * Vendor / party from the GRN or Opening Stock that received the unit (or item at store).
+     * Used by Gatepass Outward to prefill Customer / Party after item selection.
+     */
+    @Transactional(readOnly = true)
+    public InboundPartyInfo resolveInboundParty(Integer blsId, Integer itemId, Integer locationId) {
+        if (blsId != null) {
+            InboundPartyInfo fromBls = inboundPartiesForBlsIds(List.of(blsId)).get(blsId);
+            if (fromBls != null) {
+                return fromBls;
+            }
+        }
+        if (itemId == null || locationId == null) {
+            return new InboundPartyInfo(null, null, null);
+        }
+        List<Object[]> rows = detailRepo.findInboundPartiesByItemAndLocation(itemId, locationId);
+        if (rows == null || rows.isEmpty()) {
+            return new InboundPartyInfo(null, null, null);
+        }
+        Object[] row = rows.get(0);
+        Integer partyId = (Integer) row[0];
+        InboundPartyInfo info = toInboundParty(partyId, null);
+        return info != null ? info : new InboundPartyInfo(null, null, null);
+    }
+
+    private Map<Integer, InboundPartyInfo> inboundPartiesForBlsIds(List<Integer> blsIds) {
+        Map<Integer, InboundPartyInfo> out = new HashMap<>();
+        if (blsIds == null || blsIds.isEmpty()) {
+            return out;
+        }
+        List<Object[]> rows = detailRepo.findInboundPartiesByBlsIds(blsIds);
+        // Prefer earliest inbound document per BLS (original receipt).
+        Map<Integer, Object[]> best = new HashMap<>();
+        for (Object[] row : rows) {
+            Integer blsId = (Integer) row[0];
+            if (blsId == null) {
+                continue;
+            }
+            Object[] prev = best.get(blsId);
+            if (prev == null) {
+                best.put(blsId, row);
+                continue;
+            }
+            LocalDate prevDate = (LocalDate) prev[2];
+            LocalDate curDate = (LocalDate) row[2];
+            Integer prevHeader = (Integer) prev[3];
+            Integer curHeader = (Integer) row[3];
+            boolean earlier = curDate != null && (prevDate == null || curDate.isBefore(prevDate)
+                    || (curDate.equals(prevDate) && curHeader != null && prevHeader != null && curHeader < prevHeader));
+            if (earlier) {
+                best.put(blsId, row);
+            }
+        }
+        Set<Integer> partyIds = new HashSet<>();
+        for (Object[] row : best.values()) {
+            if (row[1] instanceof Integer partyId) {
+                partyIds.add(partyId);
+            }
+        }
+        Map<Integer, String> names = vendorNames(partyIds);
+        for (Map.Entry<Integer, Object[]> e : best.entrySet()) {
+            Integer partyId = (Integer) e.getValue()[1];
+            out.put(e.getKey(), toInboundParty(partyId, names.get(partyId)));
+        }
+        return out;
+    }
+
+    private Map<Integer, String> vendorNames(Set<Integer> partyIds) {
+        Map<Integer, String> names = new HashMap<>();
+        if (partyIds == null || partyIds.isEmpty()) {
+            return names;
+        }
+        for (InvVendorMst v : vendorRepo.findAllById(partyIds)) {
+            if (v.getVndVendorId() == null) {
+                continue;
+            }
+            String code = v.getVndVendorCode() != null ? v.getVndVendorCode().trim() : "";
+            String name = v.getVndVendorName() != null ? v.getVndVendorName().trim() : "";
+            names.put(v.getVndVendorId(), code.isEmpty() ? name : (name.isEmpty() ? code : code + " - " + name));
+        }
+        return names;
+    }
+
+    private InboundPartyInfo toInboundParty(Integer partyId, String knownName) {
+        if (partyId == null) {
+            return null;
+        }
+        String name = knownName;
+        if (name == null || name.isBlank()) {
+            name = vendorNames(Set.of(partyId)).get(partyId);
+        }
+        if (name == null || name.isBlank()) {
+            name = String.valueOf(partyId);
+        }
+        return new InboundPartyInfo(partyId, name, null);
     }
 
     @Transactional
@@ -588,6 +703,7 @@ public class TxnDocumentService {
             throw ApiException.badRequest("Inspection approval must be linked to a source document (GRN or Gatepass Inward)");
         }
         validateLines(docType, req.lines());
+        validateGatepassParty(docType, req);
         validateNormalGatepassOutwardSystemLocation(docType, req);
         validateInspectionRouting(docType, req);
         requireWriteLocations(docType, req);
@@ -607,7 +723,7 @@ public class TxnDocumentService {
             ensureInspectionQuarantineOnHeader(header, savedLines);
             header = headerRepo.save(header);
         }
-        if (docType == DocType.GATEPASS_INWARD && header.getTxhRefTxnHeaderIdTxh() == null) {
+        if (docType == DocType.GATEPASS_INWARD) {
             syncNewGatepassInwardHeaderFromLines(header, savedLines);
             header = headerRepo.save(header);
         }
@@ -618,8 +734,7 @@ public class TxnDocumentService {
             if (docType == DocType.GRN && "SUBMIT".equals(action)) {
                 validateGrnInspectionRequirements(header, savedLines);
             }
-            if (docType == DocType.GATEPASS_INWARD && "SUBMIT".equals(action)
-                    && header.getTxhRefTxnHeaderIdTxh() == null) {
+            if (docType == DocType.GATEPASS_INWARD && "SUBMIT".equals(action)) {
                 validateGrnInspectionRequirements(header, savedLines);
             }
             if ("SUBMIT".equals(action) && shouldPostStockOnSubmit(docType, header)) {
@@ -631,8 +746,7 @@ public class TxnDocumentService {
                 header.setTxhPostingDate(header.getTxhPostingDate() != null ? header.getTxhPostingDate() : LocalDate.now());
                 header = headerRepo.save(header);
                 markLinkedRequisitionIssued(docType, header);
-                if (docType == DocType.GRN
-                        || (docType == DocType.GATEPASS_INWARD && header.getTxhRefTxnHeaderIdTxh() == null)) {
+                if (docType == DocType.GRN || docType == DocType.GATEPASS_INWARD) {
                     createPendingInspectionApproval(header, savedLines);
                 }
             } else if ("SUBMIT".equals(action) && docType == DocType.GATEPASS_OUTWARD
@@ -663,6 +777,7 @@ public class TxnDocumentService {
             throw ApiException.conflict("Only draft / pending documents can be updated");
         }
         validateLines(docType, req.lines());
+        validateGatepassParty(docType, req);
         validateNormalGatepassOutwardSystemLocation(docType, req);
         validateInspectionRouting(docType, req);
         requireWriteLocations(docType, req);
@@ -687,7 +802,7 @@ public class TxnDocumentService {
             ensureInspectionQuarantineOnHeader(header, savedLines);
             header = headerRepo.save(header);
         }
-        if (docType == DocType.GATEPASS_INWARD && header.getTxhRefTxnHeaderIdTxh() == null) {
+        if (docType == DocType.GATEPASS_INWARD) {
             syncNewGatepassInwardHeaderFromLines(header, savedLines);
             header = headerRepo.save(header);
         }
@@ -699,8 +814,7 @@ public class TxnDocumentService {
             if (docType == DocType.GRN && "SUBMIT".equals(action)) {
                 validateGrnInspectionRequirements(header, savedLines);
             }
-            if (docType == DocType.GATEPASS_INWARD && "SUBMIT".equals(action)
-                    && header.getTxhRefTxnHeaderIdTxh() == null) {
+            if (docType == DocType.GATEPASS_INWARD && "SUBMIT".equals(action)) {
                 validateGrnInspectionRequirements(header, savedLines);
             }
             if ("SUBMIT".equals(action) && shouldPostStockOnSubmit(docType, header)) {
@@ -712,8 +826,7 @@ public class TxnDocumentService {
                 header.setTxhPostingDate(LocalDate.now());
                 header = headerRepo.save(header);
                 markLinkedRequisitionIssued(docType, header);
-                if (docType == DocType.GRN
-                        || (docType == DocType.GATEPASS_INWARD && header.getTxhRefTxnHeaderIdTxh() == null)) {
+                if (docType == DocType.GRN || docType == DocType.GATEPASS_INWARD) {
                     createPendingInspectionApproval(header, savedLines);
                 }
             } else if ("SUBMIT".equals(action) && docType == DocType.GATEPASS_OUTWARD
@@ -957,6 +1070,11 @@ public class TxnDocumentService {
             requireNewGatepassInwardLocationsAllowed(req);
             return;
         }
+        if (docType == DocType.GATEPASS_INWARD) {
+            requireNamedLocationAllowed(req.locationId(), "document location");
+            requireGatepassInwardInspectionLocationsAllowed(req);
+            return;
+        }
         requireNamedLocationAllowed(req.locationId(), "document location");
         requireNamedLocationAllowed(req.fromLocationId(), "From Location");
         boolean departmentIssueDestination = docType == DocType.MATERIAL_ISSUE
@@ -984,17 +1102,39 @@ public class TxnDocumentService {
                 throw ApiException.badRequest("Item " + code + " needs a home store in Item Master");
             }
             requireNamedLocationAllowed(home, "item home store");
-            if (Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
-                Integer entityId = systemLocations.resolveEntityId(item.getItmEntityIdEnt(), home);
-                if (entityId == null) {
-                    String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(item.getItmItemId());
-                    throw ApiException.badRequest("Organization could not be resolved for item " + code);
-                }
-                Integer quarantine = systemLocations
-                        .requireSystemLocationForEntity(entityId, SystemLocationRole.QUARANTINE)
-                        .getLocLocationId();
-                requireNamedLocationAllowed(quarantine, "quarantine location");
+        }
+        requireGatepassInwardInspectionLocationsAllowed(req);
+    }
+
+    /** Inspection-needed inward lines (new or returnable) land in Quarantine. */
+    private void requireGatepassInwardInspectionLocationsAllowed(DocumentRequest req) {
+        if (req.lines() == null) {
+            return;
+        }
+        for (LineRequest line : req.lines()) {
+            if (line.itemId() == null) {
+                continue;
             }
+            InvItemMst item = itemRepo.findById(line.itemId())
+                    .orElseThrow(() -> ApiException.badRequest("Item not found: " + line.itemId()));
+            if (!Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
+                continue;
+            }
+            Integer home = item.getItmCurrentLocationIdLoc();
+            if (home == null) {
+                String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(item.getItmItemId());
+                throw ApiException.badRequest("Item " + code + " needs a home store in Item Master");
+            }
+            requireNamedLocationAllowed(home, "item home store");
+            Integer entityId = systemLocations.resolveEntityId(item.getItmEntityIdEnt(), home);
+            if (entityId == null) {
+                String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(item.getItmItemId());
+                throw ApiException.badRequest("Organization could not be resolved for item " + code);
+            }
+            Integer quarantine = systemLocations
+                    .requireSystemLocationForEntity(entityId, SystemLocationRole.QUARANTINE)
+                    .getLocLocationId();
+            requireNamedLocationAllowed(quarantine, "quarantine location");
         }
     }
 
@@ -1035,7 +1175,8 @@ public class TxnDocumentService {
             boolean mustHaveSerial = serialized
                     || ((docType == DocType.MATERIAL_ISSUE
                             || docType == DocType.MATERIAL_RETURN
-                            || docType == DocType.GATEPASS_OUTWARD) && asset);
+                            || docType == DocType.GATEPASS_OUTWARD
+                            || docType == DocType.GATEPASS_INWARD) && asset);
             if (!mustHaveSerial) continue;
             String serial = line.serialNo() == null ? "" : line.serialNo().trim();
             if (serial.isEmpty()) {
@@ -1046,10 +1187,21 @@ public class TxnDocumentService {
         }
     }
 
+    private void validateGatepassParty(DocType docType, DocumentRequest req) {
+        if (docType != DocType.GATEPASS_INWARD && docType != DocType.GATEPASS_OUTWARD) {
+            return;
+        }
+        String party = req.partyAdd() == null ? "" : req.partyAdd().trim();
+        if (party.isEmpty()) {
+            throw ApiException.badRequest("Vendor / Party / Customer is required");
+        }
+    }
+
     /**
      * Standalone (non-transfer-linked) outward gatepass may only leave system-derived locations.
      * Linked transfer outward keeps the transfer's from-location (may be operational).
-     * Returnable inward receives into a system-derived location.
+     * Returnable inward receives into a system-derived location (Quarantine when the item
+     * needs inspection, otherwise the linked outward store).
      * New inward: location from Item Master (home store) or Quarantine when inspection is needed.
      */
     private void validateNormalGatepassOutwardSystemLocation(DocType docType, DocumentRequest req) {
@@ -1530,8 +1682,11 @@ public class TxnDocumentService {
             d.setTxdMfgDate(line.mfgDate());
             d.setTxdExpiryDate(line.expiryDate());
             Integer resolvedLineLoc = line.locationId() != null ? line.locationId() : header.getTxhLocationIdLoc();
-            if (docType == DocType.GATEPASS_INWARD && header.getTxhRefTxnHeaderIdTxh() == null) {
-                resolvedLineLoc = resolveNewGatepassInwardLineLocation(catalog);
+            if (docType == DocType.GATEPASS_INWARD) {
+                boolean newInward = header.getTxhRefTxnHeaderIdTxh() == null;
+                if (newInward || Boolean.TRUE.equals(catalog.getItmInspectionNeeded())) {
+                    resolvedLineLoc = resolveNewGatepassInwardLineLocation(catalog);
+                }
             }
             d.setTxdLocationIdLoc(resolvedLineLoc);
             d.setTxdLocationBin(line.locationBin());
@@ -1773,7 +1928,7 @@ public class TxnDocumentService {
     }
 
     /**
-     * When a GRN or new gatepass inward is submitted, inspection-needed items are posted to Quarantine.
+     * When a GRN or gatepass inward is submitted, inspection-needed items are posted to Quarantine.
      * Create a Pending inspection approval assigned to the inspector so they can
      * approve and move stock to each item's home store.
      */

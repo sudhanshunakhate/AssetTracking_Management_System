@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router-dom'
-import { StatusPill } from '@/components/ui/Badge'
+import { Pill, StatusPill, toneForLabel } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
 import { type Column } from '@/components/ui/DataTable'
@@ -29,7 +29,7 @@ import { http } from '@/api/client'
 import type { MaterialReturn } from '@/types/transactions'
 import { SimpleMasterModule, type FieldDef } from '@/features/masters/SimpleMasterModule'
 import { AttachmentLink, AttachmentSection, attachmentPayload } from './AttachmentSection'
-import { itemOptionLabel, wholeQtyStr } from './lineGrid'
+import { wholeQtyStr } from './lineGrid'
 import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 import { ReturnAllottedPickerModal } from './ReturnAllottedPickerModal'
 
@@ -536,31 +536,36 @@ export function ReturnsPages() {
         const current = String(values.item ?? '')
         if (!key) return []
         const loaded = allottedByParty[key]
-        const qtyMap = allottedQtyByParty[key] ?? {}
         const allowed = new Set(loaded ?? [])
         if (current) allowed.add(current)
         if (!loaded && !current) return []
         return items.rows
           .filter((i) => allowed.has(i.id))
-          .map((i) => {
-            const loc = locations.rows.find((l) => l.id === String(i.store ?? ''))
-            const locLbl = loc ? `${loc.code} – ${loc.name}` : undefined
-            const allottedQty = qtyMap[i.id]
-            const stockMap =
-              allottedQty != null && Number.isFinite(allottedQty)
-                ? { [i.id]: allottedQty }
-                : undefined
-            return {
-              value: i.id,
-              label: itemOptionLabel(i, stockMap, true, locLbl).replace(
-                '(Stock:',
-                '(Allotted:',
-              ),
-            }
-          })
+          .map((i) => ({
+            value: i.id,
+            label: `${i.code} – ${i.name}`,
+          }))
       },
       placeholder: '— Select allotted item —',
       hint: 'Choose an allotted item, or use Select Allotted Item… for serial pick.',
+      selectSelectedContent: (values) => {
+        const id = String(values.item ?? '')
+        if (!id) return null
+        const item = items.rows.find((i) => i.id === id)
+        if (!item) return null
+        const loc = locations.rows.find((l) => l.id === String(item.store ?? ''))
+        const locLbl = loc ? `${loc.code} – ${loc.name}` : ''
+        return (
+          <>
+            <span className="min-w-0 truncate text-[12.5px] text-[var(--text)]">
+              {`${item.code} – ${item.name}`}
+            </span>
+            {locLbl ? (
+              <Pill tone={toneForLabel(loc?.code ?? locLbl)}>{locLbl}</Pill>
+            ) : null}
+          </>
+        )
+      },
     },
     {
       name: 'itemName',

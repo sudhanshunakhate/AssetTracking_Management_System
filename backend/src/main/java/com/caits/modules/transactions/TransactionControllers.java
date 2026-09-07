@@ -120,6 +120,20 @@ public class TransactionControllers {
         return service.list(DocType.GATEPASS_OUTWARD, status, fromDate, toDate, locationId, null, null, null, null, null, null, returnFlag, null, page, pageSize);
     }
 
+    /**
+     * Vendor / party from GRN or Opening Stock for a selected outward unit/item.
+     * Prefills Customer / Party on Gatepass Outward after item selection.
+     * Declared before /{docId} so "inbound-party" is not parsed as an id.
+     */
+    @GetMapping("/gatepass/outward/inbound-party")
+    public InboundPartyInfo inboundParty(
+            @RequestParam(required = false) Integer blsId,
+            @RequestParam(required = false) Integer itemId,
+            @RequestParam(required = false) Integer locationId
+    ) {
+        return service.resolveInboundParty(blsId, itemId, locationId);
+    }
+
     @GetMapping("/gatepass/outward/{docId}")
     public DocumentResponse getGpo(@PathVariable Integer docId) {
         return service.get(DocType.GATEPASS_OUTWARD, docId);

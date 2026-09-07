@@ -65,6 +65,19 @@ export function GatepassInwardForm() {
 
   const sessionEmpId = user?.employeeId != null ? String(user.employeeId) : ''
 
+  /** Inspectors must have a role assigned in Employee Master. */
+  const inspectors = useMemo(
+    () =>
+      employees.filter(
+        (e) => e.status !== 'Inactive' && String(e.role ?? '').trim() !== '',
+      ),
+    [employees],
+  )
+  const defaultInspectorId = useMemo(() => {
+    if (sessionEmpId && inspectors.some((e) => e.id === sessionEmpId)) return sessionEmpId
+    return inspectors[0]?.id ?? ''
+  }, [inspectors, sessionEmpId])
+
   const returnableOutwards = useMemo(() => {
     const inwardLinkedOutwardIds = new Set(
       inward.rows.map((r) => r.refTxnHeaderId).filter((id) => Boolean(id)),
@@ -81,7 +94,8 @@ export function GatepassInwardForm() {
     date: todayIso(),
     store: '',
     preparedBy: sessionEmpId,
-    inspectedBy: sessionEmpId,
+    inspectedBy: '',
+    party: '',
     remarks: '',
     returnableOutwardId: '',
     attachmentUrl: '',
@@ -90,21 +104,30 @@ export function GatepassInwardForm() {
   const [lines, setLines] = useState<GatepassInwardLine[]>([emptyGatepassInwardLine()])
 
   useEffect(() => {
-    if (!sessionEmpId) return
+    if (!sessionEmpId && !defaultInspectorId) return
     setInwardForm((p) => ({
       ...p,
       preparedBy: p.preparedBy || sessionEmpId,
-      inspectedBy: p.inspectedBy || sessionEmpId,
+      inspectedBy: p.inspectedBy || defaultInspectorId,
       date: p.date || todayIso(),
     }))
-  }, [sessionEmpId])
+  }, [sessionEmpId, defaultInspectorId])
+
+  useEffect(() => {
+    setInwardForm((p) => {
+      if (!p.inspectedBy) return p
+      if (inspectors.some((e) => e.id === p.inspectedBy)) return p
+      return { ...p, inspectedBy: defaultInspectorId }
+    })
+  }, [inspectors, defaultInspectorId])
 
   const resetInwardForm = useCallback(() => {
     setInwardForm({
       date: todayIso(),
       store: '',
       preparedBy: sessionEmpId,
-      inspectedBy: sessionEmpId,
+      inspectedBy: defaultInspectorId,
+      party: '',
       remarks: '',
       returnableOutwardId: '',
       attachmentUrl: '',
@@ -113,7 +136,7 @@ export function GatepassInwardForm() {
     setLines([emptyGatepassInwardLine()])
     setError('')
     setMessage('')
-  }, [sessionEmpId])
+  }, [sessionEmpId, defaultInspectorId])
 
   const switchInwardType = (next: 'returnable' | 'new') => {
     setInwardType(next)
@@ -147,6 +170,7 @@ export function GatepassInwardForm() {
         ...p,
         returnableOutwardId: '',
         store: '',
+        party: '',
         remarks: '',
       }))
       setLines([emptyGatepassInwardLine()])
@@ -160,6 +184,20 @@ export function GatepassInwardForm() {
         .map((l, idx) => {
           const itemId = String(l.itemId)
           const item = items.find((i) => i.id === itemId)
+          const outwardLoc =
+            doc.locationId != null
+              ? String(doc.locationId)
+              : l.locationId != null
+                ? String(l.locationId)
+                : ''
+          const resolved = item
+            ? resolveInwardReceiveLocation(item, stores)
+            : {
+                locationId: outwardLoc,
+                homeStoreId: '',
+                inspectionNeeded: false,
+              }
+          const inspectionNeeded = Boolean(item?.inspectionNeeded || resolved.inspectionNeeded)
           return {
             key: `ret-${docId}-${l.detailId ?? idx}`,
             itemId,
@@ -172,22 +210,21 @@ export function GatepassInwardForm() {
               .toUpperCase(),
             remark: String(l.remark ?? ''),
             itemType: String(item?.itemType ?? ''),
-            locationId:
-              doc.locationId != null
-                ? String(doc.locationId)
-                : l.locationId != null
-                  ? String(l.locationId)
-                  : '',
-            homeStoreId: String(item?.store ?? ''),
-            inspectionNeeded: Boolean(item?.inspectionNeeded),
+            locationId: inspectionNeeded
+              ? resolved.locationId || outwardLoc
+              : outwardLoc,
+            homeStoreId: resolved.homeStoreId || String(item?.store ?? ''),
+            inspectionNeeded,
           }
         })
       setInwardForm((p) => ({
         ...p,
         returnableOutwardId: docId,
         store: doc.locationId != null ? String(doc.locationId) : p.store,
+        party: (doc.partyAdd ?? doc.remarks ?? p.party).trim(),
         remarks: doc.remarks ?? p.remarks,
         preparedBy: p.preparedBy || sessionEmpId,
+        inspectedBy: p.inspectedBy || defaultInspectorId,
       }))
       setLines(mapped.length ? mapped : [emptyGatepassInwardLine()])
     } catch (err) {
@@ -204,14 +241,21 @@ export function GatepassInwardForm() {
 
   const needsInspection = useMemo(
     () =>
-      inwardType === 'new' &&
-      lines.some((l) => l.itemId && (l.inspectionNeeded || Boolean(items.find((i) => i.id === l.itemId)?.inspectionNeeded))),
-    [inwardType, lines, items],
+      lines.some(
+        (l) =>
+          l.itemId &&
+          (l.inspectionNeeded || Boolean(items.find((i) => i.id === l.itemId)?.inspectionNeeded)),
+      ),
+    [lines, items],
   )
 
   const saveInward = async (action: 'SAVE_DRAFT' | 'SUBMIT') => {
     if (!canSaveGp) {
       setError('You do not have Create/Edit permission for Gatepass')
+      return
+    }
+    if (!inwardForm.party.trim()) {
+      setError('Vendor / Party / Customer is required')
       return
     }
     if (inwardType === 'returnable') {
@@ -238,24 +282,25 @@ export function GatepassInwardForm() {
       setError('Add at least one item line')
       return
     }
-    if (inwardType === 'new') {
-      for (let i = 0; i < filled.length; i++) {
-        const l = filled[i]
-        const item = items.find((it) => it.id === l.itemId)
-        if (!item) {
-          setError(`Line ${i + 1}: Item not found in Item Master`)
-          return
-        }
+    for (let i = 0; i < filled.length; i++) {
+      const l = filled[i]
+      const item = items.find((it) => it.id === l.itemId)
+      if (!item) {
+        setError(`Line ${i + 1}: Item not found in Item Master`)
+        return
+      }
+      const inspectionNeeded = l.inspectionNeeded || Boolean(item.inspectionNeeded)
+      if (inwardType === 'new' || inspectionNeeded) {
         const resolved = resolveInwardReceiveLocation(item, stores)
         if (resolved.error) {
           setError(`Line ${i + 1}: ${resolved.error}`)
           return
         }
       }
-      if (needsInspection && !inwardForm.inspectedBy) {
-        setError('To Be Inspected By is required when any item needs inspection')
-        return
-      }
+    }
+    if (needsInspection && !inwardForm.inspectedBy) {
+      setError('To Be Inspected By is required when any item needs inspection')
+      return
     }
     setSaving(true)
     setError('')
@@ -275,10 +320,12 @@ export function GatepassInwardForm() {
         }
         // Preview/resolve from masters; backend re-resolves from DB on save/post.
         let lineLoc = numOrUndef(inwardForm.store) ?? numOrUndef(l.locationId)
-        if (inwardType === 'new' && item) {
+        if (item && (inwardType === 'new' || item.inspectionNeeded || l.inspectionNeeded)) {
           const resolved = resolveInwardReceiveLocation(item, stores)
           if (resolved.error) throw new Error(`Line ${i + 1}: ${resolved.error}`)
-          lineLoc = numOrUndef(resolved.locationId)
+          if (inwardType === 'new' || resolved.inspectionNeeded) {
+            lineLoc = numOrUndef(resolved.locationId)
+          }
           if (entityId == null) {
             entityId =
               numOrUndef(String(item.orgCode ?? '')) ??
@@ -301,23 +348,20 @@ export function GatepassInwardForm() {
         }
       })
 
-      const headerLoc =
-        inwardType === 'new'
-          ? payloadLines.find((l) => {
-              const item = items.find((it) => it.id === String(l.itemId))
-              return Boolean(item?.inspectionNeeded)
-            })?.locationId ?? payloadLines[0]?.locationId
-          : numOrUndef(inwardForm.store)
+      const headerLoc = needsInspection
+        ? payloadLines.find((l) => {
+            const item = items.find((it) => it.id === String(l.itemId))
+            return Boolean(item?.inspectionNeeded)
+          })?.locationId ?? payloadLines[0]?.locationId
+        : numOrUndef(inwardForm.store) ?? payloadLines[0]?.locationId
 
       await createTxn('gatepass/inward', {
         docDate: inwardForm.date || todayIso(),
-        entityId: inwardType === 'new' ? entityId : undefined,
+        entityId,
         locationId: headerLoc ?? undefined,
+        partyAdd: inwardForm.party.trim(),
         initiatedByEmpId: numOrUndef(inwardForm.preparedBy),
-        inspectedByEmpId:
-          inwardType === 'new' && needsInspection
-            ? numOrUndef(inwardForm.inspectedBy)
-            : undefined,
+        inspectedByEmpId: needsInspection ? numOrUndef(inwardForm.inspectedBy) : undefined,
         refTxnHeaderId:
           inwardType === 'returnable' ? numOrUndef(inwardForm.returnableOutwardId) : undefined,
         remarks: inwardForm.remarks,
@@ -390,8 +434,8 @@ export function GatepassInwardForm() {
           subtitle={
             inwardType === 'returnable'
               ? returnableInwardLocked
-                ? 'Lines come from the outward document. Confirm Received By, then submit.'
-                : 'Choose an Outward Form marked Returnable, then confirm who received it.'
+                ? 'Lines come from the outward document. Confirm vendor, Received By, and inspector when inspection is needed.'
+                : 'Choose an Outward Form marked Returnable, then confirm vendor and who received it.'
               : 'Header details — use Select Items… to add lines from Item Master.'
           }
         />
@@ -453,6 +497,25 @@ export function GatepassInwardForm() {
                     ))}
                   </Select>
                 </Field>
+                {needsInspection && (
+                  <Field
+                    label="To Be Inspected By"
+                    required
+                    hint="Assigned on the pending Inspection Approval"
+                  >
+                    <Select
+                      value={inwardForm.inspectedBy}
+                      onChange={(e) => setIn('inspectedBy', e.target.value)}
+                    >
+                      <option value="">- Select Inspector -</option>
+                      {inspectors.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.code} - {String(e.firstName ?? '')} {String(e.lastName ?? '')}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
               </>
             ) : (
               <>
@@ -470,7 +533,7 @@ export function GatepassInwardForm() {
                       onChange={(e) => setIn('inspectedBy', e.target.value)}
                     >
                       <option value="">- Select Inspector -</option>
-                      {employees.map((e) => (
+                      {inspectors.map((e) => (
                         <option key={e.id} value={e.id}>
                           {e.code} - {String(e.firstName ?? '')} {String(e.lastName ?? '')}
                         </option>
@@ -480,6 +543,13 @@ export function GatepassInwardForm() {
                 )}
               </>
             )}
+            <Field label="Vendor / Party / Customer" required className="md:col-span-2">
+              <Input
+                placeholder="Vendor, party or customer name"
+                value={inwardForm.party}
+                onChange={(e) => setIn('party', e.target.value)}
+              />
+            </Field>
             <Field label="Remarks" className="md:col-span-2 xl:col-span-4">
               <Input
                 placeholder="Remarks..."
