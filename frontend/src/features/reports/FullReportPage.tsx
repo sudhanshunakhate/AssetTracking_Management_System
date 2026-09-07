@@ -16,6 +16,7 @@ import { formatStockQty } from '@/features/transactions/lineGrid'
 
 const emptyFilters = {
   search: '',
+  serialNo: '',
   txnType: '',
   status: '',
   loc: '',
@@ -59,6 +60,7 @@ export function FullReportPage() {
         fromDate: f.from || undefined,
         toDate: f.to || undefined,
         locationId: f.loc || undefined,
+        serialNo: f.serialNo || undefined,
       })
       setRows(
         (page.data ?? []).map((r) => {
@@ -79,8 +81,14 @@ export function FullReportPage() {
             category: String(r.categoryId ?? '—'),
             qty: Number(r.qty ?? 0),
             uom: String(r.uomId ?? '—'),
-            fromLocation: storeById[fromId]?.name ?? storeById[fromId]?.code ?? (fromId || '—'),
-            toLocation: storeById[toId]?.name ?? storeById[toId]?.code ?? (toId || '—'),
+            fromLocation: String(r.fromLocation ?? '').trim()
+              || storeById[fromId]?.name
+              || storeById[fromId]?.code
+              || (fromId || '—'),
+            toLocation: String(r.toLocation ?? '').trim()
+              || storeById[toId]?.name
+              || storeById[toId]?.code
+              || (toId || '—'),
             organization: orgById[entityId]?.name ?? orgById[entityId]?.code ?? (entityId || '—'),
             operatingUnit: '—',
             department: dept ? String(dept.name ?? dept.code ?? '—') : '—',
@@ -88,16 +96,17 @@ export function FullReportPage() {
             user: '—',
             status: String(r.status ?? ''),
             value: Number(r.value ?? 0),
+            serialNo: String(r.serialNo ?? '').trim(),
           }
         }),
       )
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load full report')
+      setError(err instanceof Error ? err.message : 'Failed to load log report')
       setRows([])
     } finally {
       setLoading(false)
     }
-  }, [f.txnType, f.from, f.to, f.loc, storeById, orgById, empById, deptById])
+  }, [f.txnType, f.from, f.to, f.loc, f.serialNo, storeById, orgById, empById, deptById])
 
   useEffect(() => {
     void reload()
@@ -106,7 +115,7 @@ export function FullReportPage() {
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       const term = f.search.trim().toLowerCase()
-      if (term && !`${r.txnNo} ${r.item} ${r.status} ${r.department} ${r.fromLocation} ${r.toLocation}`.toLowerCase().includes(term)) return false
+      if (term && !`${r.txnNo} ${r.item} ${r.status} ${r.department} ${r.fromLocation} ${r.toLocation} ${r.serialNo}`.toLowerCase().includes(term)) return false
       if (f.status && r.status !== f.status) return false
       return true
     })
@@ -126,20 +135,21 @@ export function FullReportPage() {
   return (
     <FadeContent>
       <PageHeader
-        title="Full Report"
-        description="Every transaction across items, locations, organizations, operating units, employees, users and assets — one consolidated trail for management to track."
+        title="Log Report"
+        description="Transaction log across items, locations, organizations, employees and assets — including gatepass from/to store and vendor / party."
         actions={
           <Button
             variant="ghost"
             disabled={filtered.length === 0}
             onClick={() =>
               downloadCsv(
-                `full-report-${new Date().toISOString().slice(0, 10)}.csv`,
+                `log-report-${new Date().toISOString().slice(0, 10)}.csv`,
                 [
                   'Date',
                   'Txn Type',
                   'Txn No',
                   'Item',
+                  'Serial No.',
                   'Category',
                   'Qty',
                   'UOM',
@@ -156,6 +166,7 @@ export function FullReportPage() {
                   r.txnType,
                   r.txnNo,
                   r.item,
+                  r.serialNo,
                   r.category,
                   formatStockQty(r.qty),
                   r.uom,
@@ -176,7 +187,7 @@ export function FullReportPage() {
       />
 
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
-      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading full report…</div>}
+      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading log report…</div>}
 
       <Card>
         <CardHeader title="Filters" subtitle="Narrow the report down to exactly what you need to see" />
@@ -187,6 +198,13 @@ export function FullReportPage() {
                 value={f.search}
                 onChange={(e) => set('search', e.target.value)}
                 placeholder="Txn no., item, remarks…"
+              />
+            </Field>
+            <Field label="Serial No.">
+              <Input
+                value={f.serialNo}
+                onChange={(e) => set('serialNo', e.target.value)}
+                placeholder="Track serial…"
               />
             </Field>
             <Field label="Transaction Type">
@@ -258,7 +276,7 @@ export function FullReportPage() {
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="bg-[var(--surface2)]">
-                {['Date', 'Type', 'Txn No', 'Item', 'Qty', 'From', 'To', 'Org', 'Dept', 'Employee', 'Status', 'Amount'].map((h) => (
+                {['Date', 'Type', 'Txn No', 'Item', 'Serial No.', 'Qty', 'From', 'To', 'Org', 'Dept', 'Employee', 'Status', 'Amount'].map((h) => (
                   <th
                     key={h}
                     className="border-b-2 border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
@@ -288,6 +306,7 @@ export function FullReportPage() {
                     </td>
                     <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.txnNo}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{r.item}</td>
+                    <td className="border-b border-[var(--border)] px-3 py-2 font-mono">{r.serialNo || '—'}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{formatStockQty(r.qty)}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{r.fromLocation}</td>
                     <td className="border-b border-[var(--border)] px-3 py-2">{r.toLocation}</td>

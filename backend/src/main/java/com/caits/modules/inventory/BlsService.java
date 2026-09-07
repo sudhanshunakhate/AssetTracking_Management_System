@@ -115,7 +115,7 @@ public class BlsService {
             if (!existing.getIbmItemIdItm().equals(item.getItmItemId())) {
                 throw ApiException.conflict("Serial No. " + serial + " is already registered to another item");
             }
-            if (StockPostingRules.isInboundStock(docType)
+            if (StockPostingRules.rejectsDuplicateInboundSerial(docType)
                     && currentHeaderId != null
                     && detailRepo.existsByTxdBlsIdIbmAndTxdTxnHeaderIdTxhNot(existing.getIbmBlsId(), currentHeaderId)) {
                 throw ApiException.conflict("Serial No. " + serial + " is already registered");

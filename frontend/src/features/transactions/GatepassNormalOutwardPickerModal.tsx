@@ -9,7 +9,7 @@ import {
   type AvailableSerialUnit,
   type ItemLocationStock,
 } from '@/api/transactions'
-import { locLabel } from './txnLookups'
+import { locLabel, blocksInspectionItemNewOutwardFrom, itemNeedsInspection } from './txnLookups'
 import {
   buildRequisitionPickerRows,
   type RequisitionPickerRow,
@@ -154,6 +154,7 @@ export function GatepassNormalOutwardPickerModal({
       const [locId, itemId] = key.split('|')
       const item = itemById.get(itemId)
       if (!item || item.status === 'Inactive') continue
+      if (itemNeedsInspection(item) && blocksInspectionItemNewOutwardFrom(locationById.get(locId))) continue
       const label = String(item.name ?? item.code ?? itemId).trim() || itemId
       const withQty = `${label} (${formatStockQty(qty)})`
       const cur = map.get(locId) ?? { names: [], count: 0 }
@@ -165,12 +166,14 @@ export function GatepassNormalOutwardPickerModal({
       entry.names.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
     }
     return map
-  }, [allStock, itemById])
+  }, [allStock, itemById, locationById])
 
-  const locationStock = useMemo(
-    () => (locationId ? allStock.filter((r) => r.locationId === locationId) : []),
-    [allStock, locationId],
-  )
+  const locationStock = useMemo(() => {
+    const rows = locationId ? allStock.filter((r) => r.locationId === locationId) : []
+    const loc = locationId ? locationById.get(locationId) : undefined
+    if (!blocksInspectionItemNewOutwardFrom(loc)) return rows
+    return rows.filter((r) => !itemNeedsInspection(itemById.get(r.itemId)))
+  }, [allStock, locationId, locationById, itemById])
 
   const typeStockSummary = useMemo(() => {
     const assetIds = new Set<string>()
@@ -371,7 +374,23 @@ export function GatepassNormalOutwardPickerModal({
         return next
       }
       const existing = prev[row.key]
-      const serials = (existing?.serials ?? []).slice(0, qty)
+      let serials = existing?.serials ?? []
+      if (kind === 'asset') {
+        const pool = serialByKey[row.key] ?? []
+        if (serials.length > qty) {
+          serials = serials.slice(0, qty)
+        } else if (serials.length < qty) {
+          const taken = new Set(serials.map((s) => String(s.serialNo ?? '')))
+          for (const u of pool) {
+            if (serials.length >= qty) break
+            const sn = String(u.serialNo ?? '')
+            if (!taken.has(sn)) {
+              serials = [...serials, u]
+              taken.add(sn)
+            }
+          }
+        }
+      }
       next[row.key] = { row, kind, qty, serials }
       return next
     })
@@ -392,23 +411,15 @@ export function GatepassNormalOutwardPickerModal({
         serials = existing.serials.filter((s) => String(s.serialNo ?? '') !== sn)
       } else {
         if (existing.serials.length >= stock) return prev
-        const maxQty = existing.qty > 0 ? existing.qty : stock
-        if (existing.serials.length >= maxQty && existing.qty > 0) {
-          if (existing.qty >= stock) return prev
-          serials = [...existing.serials, serial]
-          return { ...prev, [row.key]: { row, kind, qty: serials.length, serials } }
-        }
         serials = [...existing.serials, serial]
       }
-      const qty = Math.max(serials.length, existing.qty > 0 && !has ? existing.qty : serials.length)
-      const cappedQty = clampQty(qty, stock)
-      const cappedSerials = serials.slice(0, cappedQty)
-      if (cappedQty <= 0) {
+      const qty = clampQty(serials.length, stock)
+      if (qty <= 0) {
         const next = { ...prev }
         delete next[row.key]
         return next
       }
-      return { ...prev, [row.key]: { row, kind, qty: cappedQty, serials: cappedSerials } }
+      return { ...prev, [row.key]: { row, kind, qty, serials: serials.slice(0, qty) } }
     })
   }
 
@@ -431,7 +442,7 @@ export function GatepassNormalOutwardPickerModal({
       ? `From: ${locationLabel}. Choose All, Asset, or Consumable.`
       : 'Choose which item types to send outward.',
     item: locationLabel
-      ? `From: ${locationLabel}. Only free stock and serials at this system location.`
+      ? `From: ${locationLabel}. Type how many to send (1 or more). Asset serials fill in automatically.`
       : 'Enter quantity for each item (max = available free stock).',
   }
 
@@ -650,7 +661,7 @@ export function GatepassNormalOutwardPickerModal({
                       colSpan={7}
                       className="h-[360px] px-3 text-center align-middle text-[12px] text-[var(--text3)]"
                     >
-                      No free stock at this system location for the selected type.
+                      No free stock here for New Outward. Inspection-needed items cannot leave from Damaged, Scrap, or Quarantine — transfer them to Quarantine and complete Inspection Approval first.
                     </td>
                   </tr>
                 ) : (
@@ -700,10 +711,9 @@ export function GatepassNormalOutwardPickerModal({
                             invalid={over}
                             className="w-full text-right text-[12px]"
                             onChange={(e) => setRowQty(r, kind, e.target.value)}
-                            disabled={kind === 'asset'}
                             title={
                               kind === 'asset'
-                                ? 'Set qty by selecting serials'
+                                ? `Type 1 or more (max ${formatStockQty(stock)}). Serials are selected automatically.`
                                 : `Max ${formatStockQty(stock)}`
                             }
                           />

@@ -32,6 +32,7 @@ type OwnerRow = {
   lastIssueDocId: string
   lastIssueDate: string
   status: string
+  serialNo: string
 }
 
 const CUSTODY_LABEL: Record<string, string> = {
@@ -48,6 +49,7 @@ export function StockOwnerReportPage() {
   const [store, setStore] = useState('')
   const [employee, setEmployee] = useState('')
   const [custody, setCustody] = useState('')
+  const [serialNo, setSerialNo] = useState('')
   const [rows, setRows] = useState<OwnerRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -76,6 +78,7 @@ export function StockOwnerReportPage() {
         locationId: store || undefined,
         employeeId: employee || undefined,
         custody: custody || undefined,
+        serialNo: serialNo || undefined,
       })
       setRows(
         (page.data ?? []).map((r) => {
@@ -101,6 +104,7 @@ export function StockOwnerReportPage() {
             lastIssueDocId: String(r.lastIssueDocId ?? ''),
             lastIssueDate: String(r.lastIssueDate ?? '—'),
             status: String(r.status ?? ''),
+            serialNo: String(r.batchLotNo ?? r.serialNo ?? '').trim(),
           }
         }),
       )
@@ -110,7 +114,7 @@ export function StockOwnerReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [q, cat, store, employee, custody, catById, uomById])
+  }, [q, cat, store, employee, custody, serialNo, catById, uomById])
 
   useEffect(() => {
     void reload()
@@ -144,6 +148,7 @@ export function StockOwnerReportPage() {
                   'Manager',
                   'Item Code',
                   'Item Name',
+                  'Serial No.',
                   'Category',
                   'Qty',
                   'Available',
@@ -161,6 +166,7 @@ export function StockOwnerReportPage() {
                   r.storeManager,
                   r.itemCode,
                   r.itemName,
+                  r.serialNo,
                   r.category,
                   formatStockQty(r.currentQty),
                   formatStockQty(r.availableQty),
@@ -189,6 +195,12 @@ export function StockOwnerReportPage() {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search item code / name…"
               className="min-w-[180px] flex-1 rounded-[7px] border border-[var(--border2)] bg-[var(--surface)] px-2.5 py-1.5 text-[12.5px] outline-none focus:border-[var(--accent)]"
+            />
+            <input
+              value={serialNo}
+              onChange={(e) => setSerialNo(e.target.value)}
+              placeholder="Serial no…"
+              className="min-w-[140px] rounded-[7px] border border-[var(--border2)] bg-[var(--surface)] px-2.5 py-1.5 text-[12.5px] outline-none focus:border-[var(--accent)]"
             />
             <select
               value={store}
@@ -244,6 +256,7 @@ export function StockOwnerReportPage() {
                 setStore('')
                 setEmployee('')
                 setCustody('')
+                setSerialNo('')
               }}
             >
               Clear
@@ -260,6 +273,7 @@ export function StockOwnerReportPage() {
                     'Manager',
                     'Item Code',
                     'Item Name',
+                    'Serial No.',
                     'Category',
                     'Qty',
                     'Available',
@@ -289,6 +303,7 @@ export function StockOwnerReportPage() {
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.storeManager}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.itemCode}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.itemName}</td>
+                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.serialNo || '—'}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.category}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{formatStockQty(r.currentQty)}</td>
                     <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.availableQty)}</td>
@@ -338,7 +353,7 @@ export function StockOwnerReportPage() {
                 ))}
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="px-[11px] py-8 text-center text-[var(--text3)]">
+                    <td colSpan={15} className="px-[11px] py-8 text-center text-[var(--text3)]">
                       No stock ownership rows for the selected filters.
                     </td>
                   </tr>

@@ -589,6 +589,7 @@ public class TxnDocumentService {
         }
         validateLines(docType, req.lines());
         validateNormalGatepassOutwardSystemLocation(docType, req);
+        validateInspectionRouting(docType, req);
         requireWriteLocations(docType, req);
         String action = normalizeAction(req.docSubmitAction());
         String status = resolveStatusOnSave(docType, action);
@@ -663,6 +664,7 @@ public class TxnDocumentService {
         }
         validateLines(docType, req.lines());
         validateNormalGatepassOutwardSystemLocation(docType, req);
+        validateInspectionRouting(docType, req);
         requireWriteLocations(docType, req);
 
         applyHeader(header, docType, req, true);
@@ -1093,13 +1095,13 @@ public class TxnDocumentService {
         }
         Integer locId = req.locationId() != null ? req.locationId() : req.fromLocationId();
         if (locId == null) {
-            throw ApiException.badRequest("System location is required for normal outward gatepass");
+            throw ApiException.badRequest("System location is required for new outward gatepass");
         }
         OrgLocationMst loc = locationRepo.findById(locId)
                 .orElseThrow(() -> ApiException.badRequest("Location not found: " + locId));
         if (!Boolean.TRUE.equals(loc.getLocIsSystemLocation())) {
             throw ApiException.badRequest(
-                    "Normal outward gatepass can only issue stock from system-derived locations");
+                    "New outward gatepass can only issue stock from system-derived locations");
         }
         if (req.lines() != null) {
             for (int i = 0; i < req.lines().size(); i++) {
@@ -1109,6 +1111,66 @@ public class TxnDocumentService {
                     throw ApiException.badRequest(
                             "Line " + (i + 1) + " location must match the outward system location");
                 }
+            }
+        }
+    }
+
+    /**
+     * Inspection-needed items cannot transfer into Damaged/Scrap, or leave on New Outward
+     * from Damaged/Scrap/Quarantine — they must go to Quarantine for Inspection Approval.
+     */
+    private void validateInspectionRouting(DocType docType, DocumentRequest req) {
+        if (req.lines() == null || req.lines().isEmpty()) {
+            return;
+        }
+        if (docType == DocType.MATERIAL_TRANSFER) {
+            Integer toId = req.toLocationId();
+            if (toId == null) {
+                return;
+            }
+            OrgLocationMst to = locationRepo.findById(toId).orElse(null);
+            String toRole = to == null ? null : to.getLocSystemRole();
+            if (!InspectionRoutingRules.blocksTransferToRole(toRole)) {
+                return;
+            }
+            for (int i = 0; i < req.lines().size(); i++) {
+                LineRequest line = req.lines().get(i);
+                if (line.itemId() == null) {
+                    continue;
+                }
+                InvItemMst item = itemRepo.findById(line.itemId()).orElse(null);
+                if (item == null || !InspectionRoutingRules.inspectionRequired(item.getItmInspectionNeeded())) {
+                    continue;
+                }
+                String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(item.getItmItemId());
+                throw ApiException.badRequest(
+                        "Item " + code + " needs inspection. Transfer it to Quarantine and complete Inspection Approval — it cannot go directly to Damaged or Scrap.");
+            }
+            return;
+        }
+        if (docType != DocType.GATEPASS_OUTWARD || req.refTxnHeaderId() != null) {
+            return;
+        }
+        Integer locId = req.locationId() != null ? req.locationId() : req.fromLocationId();
+        for (int i = 0; i < req.lines().size(); i++) {
+            LineRequest line = req.lines().get(i);
+            if (line.itemId() == null) {
+                continue;
+            }
+            InvItemMst item = itemRepo.findById(line.itemId()).orElse(null);
+            if (item == null || !InspectionRoutingRules.inspectionRequired(item.getItmInspectionNeeded())) {
+                continue;
+            }
+            Integer lineLoc = line.locationId() != null ? line.locationId() : locId;
+            if (lineLoc == null) {
+                continue;
+            }
+            OrgLocationMst loc = locationRepo.findById(lineLoc).orElse(null);
+            String role = loc == null ? null : loc.getLocSystemRole();
+            if (InspectionRoutingRules.blocksNewOutwardFromRole(role)) {
+                String code = item.getItmItemCode() != null ? item.getItmItemCode() : String.valueOf(item.getItmItemId());
+                throw ApiException.badRequest(
+                        "Item " + code + " needs inspection. Move it to Quarantine and complete Inspection Approval before New Outward. It cannot leave from Damaged, Scrap, or Quarantine.");
             }
         }
     }

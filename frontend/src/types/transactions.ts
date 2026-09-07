@@ -125,4 +125,5 @@ export interface FullReportRow {
   user: string
   status: string
   value: number
+  serialNo: string
 }

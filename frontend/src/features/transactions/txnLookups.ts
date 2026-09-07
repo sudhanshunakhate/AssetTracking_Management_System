@@ -74,6 +74,29 @@ export function isSpecialSystemLocation(loc: ApiMasterRow): boolean {
   )
 }
 
+export function locationSystemRole(loc: ApiMasterRow | undefined | null): string {
+  return String(loc?.systemRole ?? '').trim().toUpperCase()
+}
+
+/** Inspection-needed items cannot transfer into Damaged / Scrap — send to Quarantine first. */
+export function blocksInspectionItemTransferTo(loc: ApiMasterRow | undefined | null): boolean {
+  const role = locationSystemRole(loc)
+  return role === 'DAMAGED' || role === 'SCRAP'
+}
+
+/**
+ * Inspection-needed items cannot leave on New Outward from Damaged, Scrap, or Quarantine.
+ * Complete Inspection Approval first; failed units may leave from Rejected.
+ */
+export function blocksInspectionItemNewOutwardFrom(loc: ApiMasterRow | undefined | null): boolean {
+  const role = locationSystemRole(loc)
+  return role === 'DAMAGED' || role === 'SCRAP' || role === 'QUARANTINE'
+}
+
+export function itemNeedsInspection(item: ApiMasterRow | undefined | null): boolean {
+  return Boolean(item?.inspectionNeeded)
+}
+
 /** System-derived locations (global per Organization). */
 export function systemLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
   return rows.filter((l) => Boolean(l.isSystemLocation))

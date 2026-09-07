@@ -31,6 +31,7 @@ type LedgerRow = {
   itemType: string
   srNo: number
   itemName: string
+  itemDescription: string
   uom: string
   openingBalance: number
   receiptDuringPeriod: number
@@ -108,6 +109,7 @@ export function StockRegisterPage() {
           itemType: String(r.itemType ?? ''),
           srNo: Number(r.srNo ?? idx + 1),
           itemName: String(r.itemName ?? ''),
+          itemDescription: String(r.itemDescription ?? r.description ?? '').trim(),
           uom: String(r.uomCode ?? '—'),
           openingBalance: Number(r.openingBalance ?? 0),
           receiptDuringPeriod: Number(r.receiptDuringPeriod ?? 0),
@@ -155,6 +157,7 @@ export function StockRegisterPage() {
       const mainHit = [
         r.srNo,
         r.itemName,
+        r.itemDescription,
         r.itemType,
         r.uom,
         r.openingBalance,
@@ -197,7 +200,6 @@ export function StockRegisterPage() {
   )
 
   const headers = [
-    '',
     'Sr No',
     'Item Name',
     'UOM',
@@ -212,7 +214,7 @@ export function StockRegisterPage() {
     <FadeContent>
       <PageHeader
         title="Stock Ledger"
-        description="Opening / Receipt / Issue / Closing follow the date filter. Unit serials expand only when Closing is live stock (clear To Date, or set it to today). Issue is period stock movement — not current allotment."
+        description="Opening / Receipt / Issue / Closing follow the date filter. Click Opening or Issue to expand live unit serials (clear To Date, or set it to today). Issue is period stock movement — not current allotment."
         actions={
           <Button
             variant="ghost"
@@ -223,6 +225,7 @@ export function StockRegisterPage() {
                 [
                   'Sr No',
                   'Item Name',
+                  'Description',
                   'UOM',
                   'Opening Balance',
                   'Receipt During the Period',
@@ -233,6 +236,7 @@ export function StockRegisterPage() {
                 visibleRows.map((r) => [
                   r.srNo,
                   r.itemName,
+                  r.itemDescription,
                   r.uom,
                   formatStockQty(r.openingBalance),
                   formatStockQty(r.receiptDuringPeriod),
@@ -306,7 +310,7 @@ export function StockRegisterPage() {
                 <tr className="bg-[var(--surface2)]">
                   {headers.map((h) => (
                     <th
-                      key={h || 'expand'}
+                      key={h}
                       className="border-b-2 border-[var(--border)] px-[11px] py-[7px] text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
                     >
                       {h}
@@ -333,21 +337,6 @@ export function StockRegisterPage() {
                   return (
                     <Fragment key={r.id}>
                       <tr className="hover:bg-[#f0f5ff]">
-                        <td className="border-b border-[var(--border)] px-[6px] py-1.5 w-8">
-                          {canExpand ? (
-                            <button
-                              type="button"
-                              aria-label={isOpen ? `Collapse ${r.itemName}` : `Expand ${r.itemName}`}
-                              aria-expanded={isOpen}
-                              onClick={() => toggleExpand(r.id)}
-                              className="inline-flex h-6 w-6 items-center justify-center rounded text-[11px] font-bold text-[var(--accent-deep)] hover:bg-[#e8effc]"
-                            >
-                              {isOpen ? '▾' : '▸'}
-                            </button>
-                          ) : (
-                            <span className="inline-block w-6 text-center text-[var(--text3)]">·</span>
-                          )}
-                        </td>
                         <td className="border-b border-[var(--border)] px-[11px] py-1.5 text-[var(--text3)]">{r.srNo}</td>
                         <td className="border-b border-[var(--border)] px-[11px] py-1.5">
                           {r.itemId ? (
@@ -363,23 +352,50 @@ export function StockRegisterPage() {
                           ) : (
                             r.itemName
                           )}
-                          {canExpand && (
-                            <span className="ml-1.5 text-[10px] text-[var(--text3)]">
-                              ({r.units.length} on hand
-                              {issuedUnits > 0 ? ` · ${issuedUnits} issued` : ''})
-                            </span>
-                          )}
+                          {r.itemDescription ? (
+                            <div className="mt-0.5 text-[10px] leading-snug text-[var(--text3)]">
+                              {r.itemDescription}
+                            </div>
+                          ) : null}
                         </td>
                         <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.openingBalance)}</td>
+                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">
+                          {canExpand ? (
+                            <button
+                              type="button"
+                              aria-expanded={isOpen}
+                              aria-label={`Show units for ${r.itemName} (opening)`}
+                              onClick={() => toggleExpand(r.id)}
+                              className="font-medium text-[var(--accent-deep)] hover:underline"
+                            >
+                              {formatStockQty(r.openingBalance)}
+                            </button>
+                          ) : (
+                            formatStockQty(r.openingBalance)
+                          )}
+                        </td>
                         <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.receiptDuringPeriod)}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.issueDuringPeriod)}</td>
+                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">
+                          {canExpand ? (
+                            <button
+                              type="button"
+                              aria-expanded={isOpen}
+                              aria-label={`Show units for ${r.itemName} (issue)`}
+                              onClick={() => toggleExpand(r.id)}
+                              className="font-medium text-[var(--accent-deep)] hover:underline"
+                            >
+                              {formatStockQty(r.issueDuringPeriod)}
+                            </button>
+                          ) : (
+                            formatStockQty(r.issueDuringPeriod)
+                          )}
+                        </td>
                         <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{formatStockQty(r.closingBalance)}</td>
                         <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.ownerName}</td>
                       </tr>
                       {isOpen && (
                         <tr className="bg-[#f7f9fc]">
-                          <td colSpan={9} className="border-b border-[var(--border)] px-3 py-2.5">
+                          <td colSpan={8} className="border-b border-[var(--border)] px-3 py-2.5">
                             <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.5px] text-[var(--text3)]">
                               Units on hand — serial, custody and network details
                               {issuedUnits > 0 ? ` (${issuedUnits} issued to staff)` : ''}
@@ -450,7 +466,7 @@ export function StockRegisterPage() {
                 })}
                 {!loading && visibleRows.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-[11px] py-8 text-center text-[var(--text3)]">
+                    <td colSpan={8} className="px-[11px] py-8 text-center text-[var(--text3)]">
                       No stock ledger rows for the selected filters.
                     </td>
                   </tr>

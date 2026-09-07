@@ -30,6 +30,7 @@ type LedgerRow = {
 
 const emptyFilters = {
   itemId: '',
+  serialNo: '',
   loc: '',
   from: '',
   to: '',
@@ -75,6 +76,7 @@ export function ItemRegisterPage() {
         page: 1,
         pageSize: 200,
         itemId: applied.itemId || undefined,
+        serialNo: applied.serialNo || undefined,
         locationId: applied.loc || undefined,
         fromDate: applied.from || undefined,
         toDate: applied.to || undefined,
@@ -181,7 +183,7 @@ export function ItemRegisterPage() {
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading item ledger…</div>}
 
       <Card className="mb-3">
-        <CardHeader title="Filters" subtitle="Narrow by item, date range, or store" />
+        <CardHeader title="Filters" subtitle="Narrow by item, serial no., date range, or store" />
         <CardBody>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2.5">
             <Field label="Item">
@@ -193,6 +195,13 @@ export function ItemRegisterPage() {
                   </option>
                 ))}
               </Select>
+            </Field>
+            <Field label="Serial No.">
+              <Input
+                value={draft.serialNo}
+                onChange={(e) => set('serialNo', e.target.value)}
+                placeholder="Track serial…"
+              />
             </Field>
             <Field label="From Date">
               <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />

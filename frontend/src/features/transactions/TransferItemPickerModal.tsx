@@ -9,7 +9,7 @@ import {
   type AvailableSerialUnit,
   type ItemLocationStock,
 } from '@/api/transactions'
-import { locLabel } from './txnLookups'
+import { locLabel, blocksInspectionItemTransferTo, itemNeedsInspection } from './txnLookups'
 import {
   buildRequisitionPickerRows,
   type RequisitionPickerRow,
@@ -288,13 +288,20 @@ export function TransferItemPickerModal({
 
   const filteredLocations = useMemo(() => {
     const list = step === 'to' ? toLocations.filter((l) => l.id !== fromId) : fromLocations
+    const needsInspection = Object.values(picks).some(
+      (p) => p.qty > 0 && itemNeedsInspection(itemById.get(p.row.itemId)),
+    )
+    const scoped =
+      step === 'to' && needsInspection
+        ? list.filter((l) => !blocksInspectionItemTransferTo(l))
+        : list
     const term = search.trim().toLowerCase()
-    if (!term) return list
-    return list.filter((l) => {
+    if (!term) return scoped
+    return scoped.filter((l) => {
       const itemsLabel = (itemsByLocationId.get(l.id)?.names ?? []).join(' ')
       return `${l.code ?? ''} ${l.name ?? ''} ${itemsLabel}`.toLowerCase().includes(term)
     })
-  }, [step, fromLocations, toLocations, fromId, search, itemsByLocationId])
+  }, [step, fromLocations, toLocations, fromId, search, itemsByLocationId, picks, itemById])
 
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -477,7 +484,7 @@ export function TransferItemPickerModal({
     item: fromLabel
       ? `From: ${fromLabel}. Only free (not allotted/issued) stock and serials at this location. Qty cannot exceed Available.`
       : 'Enter quantity for each item (max = available free stock).',
-    to: `Transfer ${selectedUnitCount} unit${selectedUnitCount === 1 ? '' : 's'} from ${fromLabel}. Pick destination location.`,
+    to: `Transfer ${selectedUnitCount} unit${selectedUnitCount === 1 ? '' : 's'} from ${fromLabel}. Inspection-needed items cannot go directly to Damaged or Scrap — send those to Quarantine.`,
   }
 
   return (

@@ -210,7 +210,7 @@ export function useLocationStock(locationId: string | undefined | null, refreshM
 /** Item / stock counts are always whole units — never show decimals. */
 export function formatStockQty(qty: number) {
   if (!Number.isFinite(qty)) return '0'
-  return Math.round(qty).toLocaleString('en-IN', { maximumFractionDigits: 0 })
+  return Math.max(0, Math.round(qty)).toLocaleString('en-IN', { maximumFractionDigits: 0 })
 }
 
 /** Plain whole-number string for form state / number inputs (no grouping). */

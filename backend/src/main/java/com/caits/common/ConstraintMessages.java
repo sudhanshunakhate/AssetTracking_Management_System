@@ -2,6 +2,8 @@ package com.caits.common;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Turns a database constraint violation into wording a user can act on.
@@ -31,6 +33,12 @@ public final class ConstraintMessages {
                     Map.entry("uq_bls_item_batch", "This batch is already registered for the item")
             );
 
+    private static final Pattern NULL_COLUMN = Pattern.compile("null value in column \"([^\"]+)\"", Pattern.CASE_INSENSITIVE);
+
+    private static final Map<String, String> BY_COLUMN = Map.of(
+            "usr_location_access_scope", "Location access"
+    );
+
     private ConstraintMessages() {
     }
 
@@ -43,11 +51,24 @@ public final class ConstraintMessages {
             return "This record is linked to other data and cannot be saved or removed as requested";
         }
         if (text.contains("not-null") || text.contains("null value in column")) {
+            String named = columnFromNullMessage(rootMessage);
+            if (named != null) {
+                return named + " is required";
+            }
             return "A required field was left empty";
         }
         if (text.contains("duplicate key")) {
             return "A record with these details already exists";
         }
         return "The change conflicts with existing data";
+    }
+
+    private static String columnFromNullMessage(String rootMessage) {
+        if (rootMessage == null) return null;
+        Matcher m = NULL_COLUMN.matcher(rootMessage);
+        if (!m.find()) return null;
+        String col = m.group(1);
+        String label = BY_COLUMN.get(col);
+        return label != null ? label : col.replace('_', ' ');
     }
 }

@@ -293,7 +293,7 @@ export function GatepassOutwardForm() {
     }
     const storeMeta = stores.find((s) => s.id === outwardForm.store)
     if (!storeMeta?.isSystemLocation) {
-      setError('Normal outward can only issue from system-derived locations')
+      setError('New outward can only issue from system-derived locations')
       return
     }
     const filled = normalLines.filter((l) => l.itemId)
@@ -505,7 +505,7 @@ export function GatepassOutwardForm() {
     <FadeContent>
       <PageHeader
         title="Outward Form"
-        description="Issue material out of the store gate — against a pending material transfer, or as a normal outward."
+        description="Issue material out of the store gate — against a pending material transfer, or as a new outward."
       />
 
       <div className="mb-4 flex flex-wrap gap-2.5 border-b border-[var(--border)] pb-3.5">
@@ -528,7 +528,7 @@ export function GatepassOutwardForm() {
             setError('')
           }}
         >
-          Normal Outward Form
+          New Outward Form
         </Button>
       </div>
 

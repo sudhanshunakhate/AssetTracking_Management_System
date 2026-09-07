@@ -1,4 +1,4 @@
-{
+﻿{
     "purpose":  "Ledger of every SQL change made to the CAITS schema, and which database has it. Keeps the local Postgres and the shared dev server in step.",
     "environments":  {
                          "local":  {
@@ -13,7 +13,7 @@
                                  }
                      },
     "rules":  [
-                  "Every schema or seed change goes in a file under db_approach/ Ã¢â‚¬â€ never as an ad-hoc psql statement.",
+                  "Every schema or seed change goes in a file under db_approach/ ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â never as an ad-hoc psql statement.",
                   "Scripts must be re-runnable: use IF NOT EXISTS / ON CONFLICT / guarded DO blocks.",
                   "Apply to local first, set applied.local, and leave applied.dev null.",
                   "Never run anything against dev without asking the user first."
@@ -344,7 +344,7 @@
                            "description":  "Indexes on txn headers/details, stock, BLS, and auth tables for faster API list and report queries.",
                            "applied":  {
                                            "local":  "2026-08-19",
-                                           "dev":  null
+                                           "dev":  "2026-09-07"
                                        }
                        },
                        {
@@ -370,7 +370,7 @@
                            "file":  "db_approach/040_repair_same_loc_issue_stock.sql",
                            "description":  "Restore on-hand qty for assets issued at the same store after a bug depleted stock while BLS still showed issued-to.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-09-07",
                                            "dev":  "2026-08-26"
                                        }
                        },
@@ -379,7 +379,7 @@
                            "file":  "db_approach/041_repair_negative_ledger_opening.sql",
                            "description":  "Restore zeroed issued/Acer stock and add recon batches so Stock Ledger Opening is non-negative.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-09-07",
                                            "dev":  "2026-08-26"
                                        }
                        },
@@ -388,7 +388,7 @@
                            "file":  "db_approach/042_department_location.sql",
                            "description":  "Map each department to a mandatory operational location (store).",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-09-07",
                                            "dev":  "2026-08-28"
                                        }
                        },
@@ -397,10 +397,28 @@
                            "file":  "db_approach/sync_bls_location_to_stock.sql",
                            "description":  "Repair BLS current location to match the store holding on-hand stock for that serial (transfer custody sync).",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-09-07",
                                            "dev":  "2026-09-03"
+                                       }
+                       },
+                       {
+                           "id":  "044-non-negative-stock",
+                           "file":  "db_approach/044_non_negative_stock.sql",
+                           "description":  "Restore zeroed asset serials, remove ledger recon batches, and CHECK stock qty cannot go negative.",
+                           "applied":  {
+                                           "local":  "2026-09-06",
+                                           "dev":  "2026-09-07"
+                                       }
+                       },
+                       {
+                           "id":  "045-rename-full-report-to-log-report",
+                           "file":  "db_approach/045_rename_full_report_to_log_report.sql",
+                           "description":  "Rename FULLRPT menu label from Full Report to Log Report.",
+                           "applied":  {
+                                           "local":  "2026-09-06",
+                                           "dev":  "2026-09-07"
                                        }
                        }
                    ],
-    "updated":  "2026-09-03"
+    "updated":  "2026-09-07"
 }

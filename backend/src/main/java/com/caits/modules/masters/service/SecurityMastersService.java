@@ -410,6 +410,7 @@ public class SecurityMastersService {
         user.setUsrEntityIdEnt(entityId);
         user.setUsrBuAccessScope("ALL");
         user.setUsrLocationIdLoc(emp.getEmpBaseLocationIdLoc());
+        user.setUsrLocationAccessScope("ALL");
         user.setUsrForcePasswordReset(false);
         user.setUsrIsactive(true);
         user.setUsrFailedAttempts(0);

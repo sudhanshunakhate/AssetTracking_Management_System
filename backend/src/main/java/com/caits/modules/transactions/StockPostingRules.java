@@ -68,4 +68,15 @@ public final class StockPostingRules {
             default -> false;
         };
     }
+
+    /**
+     * Only first-time inbound (GRN / Opening) rejects an existing serial.
+     * Return and inward gatepass reuse the BLS row and clear issued-to.
+     */
+    public static boolean rejectsDuplicateInboundSerial(DocType docType) {
+        return switch (docType) {
+            case GRN, OPENING_STOCK -> true;
+            default -> false;
+        };
+    }
 }

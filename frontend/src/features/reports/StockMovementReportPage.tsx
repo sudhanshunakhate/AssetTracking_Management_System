@@ -30,6 +30,7 @@ type MovementRow = {
 
 const emptyFilters = {
   search: '',
+  serialNo: '',
   itemId: '',
   employeeId: '',
   loc: '',
@@ -69,6 +70,7 @@ export function StockMovementReportPage() {
         page: 1,
         pageSize: 200,
         search: applied.search || undefined,
+        serialNo: applied.serialNo || undefined,
         itemId: applied.itemId || undefined,
         employeeId: applied.employeeId || undefined,
         locationId: applied.loc || undefined,
@@ -172,7 +174,7 @@ export function StockMovementReportPage() {
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading asset movements…</div>}
 
       <Card className="mb-3">
-        <CardHeader title="Filters" subtitle="Narrow by date range, asset, owner, or location" />
+        <CardHeader title="Filters" subtitle="Narrow by date range, serial no., asset, owner, or location" />
         <CardBody>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
             <Field label="From Date">
@@ -180,6 +182,13 @@ export function StockMovementReportPage() {
             </Field>
             <Field label="To Date">
               <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
+            </Field>
+            <Field label="Serial No.">
+              <Input
+                value={draft.serialNo}
+                onChange={(e) => set('serialNo', e.target.value)}
+                placeholder="Track serial…"
+              />
             </Field>
             <Field label="Item">
               <Select value={draft.itemId} onChange={(e) => set('itemId', e.target.value)}>

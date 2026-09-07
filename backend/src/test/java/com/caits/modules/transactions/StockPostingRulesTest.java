@@ -61,4 +61,13 @@ class StockPostingRulesTest {
         assertEquals(-1, StockPostingRules.stockSign(DocType.INSPECTION_APPROVAL));
         assertEquals(0, StockPostingRules.stockSign(DocType.MATERIAL_REQUISITION));
     }
+
+    @Test
+    void rejectsDuplicateInboundSerialOnlyOnFirstReceive() {
+        assertTrue(StockPostingRules.rejectsDuplicateInboundSerial(DocType.GRN));
+        assertTrue(StockPostingRules.rejectsDuplicateInboundSerial(DocType.OPENING_STOCK));
+        assertFalse(StockPostingRules.rejectsDuplicateInboundSerial(DocType.MATERIAL_RETURN));
+        assertFalse(StockPostingRules.rejectsDuplicateInboundSerial(DocType.GATEPASS_INWARD));
+        assertFalse(StockPostingRules.rejectsDuplicateInboundSerial(DocType.MATERIAL_ISSUE));
+    }
 }
