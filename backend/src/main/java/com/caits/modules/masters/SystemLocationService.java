@@ -59,10 +59,24 @@ public class SystemLocationService {
 
     @Transactional(readOnly = true)
     public OrgLocationMst requireSystemLocationForEntity(Integer entityId, SystemLocationRole role) {
-        return locationRepo.findByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocIsactiveTrue(
-                        entityId, role.code())
-                .orElseThrow(() -> ApiException.badRequest(
-                        "System location \"" + role.defaultName() + "\" is not configured for this Organization"));
+        List<OrgLocationMst> matches = locationRepo
+                .findByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocIsactiveTrue(
+                        entityId, role.code());
+        if (matches.isEmpty()) {
+            throw ApiException.badRequest(
+                    "System location \"" + role.defaultName() + "\" is not configured for this Organization");
+        }
+        // Prefer org-global (bu_id null), then SYS-ENT-* codes. Legacy SYS-{buId}-* can coexist.
+        return matches.stream()
+                .filter(l -> l.getLocBuIdBu() == null)
+                .findFirst()
+                .or(() -> matches.stream()
+                        .filter(l -> {
+                            String code = l.getLocLocationCode();
+                            return code != null && code.toUpperCase().startsWith("SYS-ENT-");
+                        })
+                        .findFirst())
+                .orElse(matches.get(0));
     }
 
     @Transactional(readOnly = true)

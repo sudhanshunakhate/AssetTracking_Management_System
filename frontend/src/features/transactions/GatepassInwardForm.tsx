@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
+import { LookupSelect } from '@/components/form/LookupSelect'
 import { createTxn, fetchTxn, numOrUndef, todayIso, useTxnList } from '@/api/transactions'
 import {
   mapEmployee,
   mapItem,
   mapLocation,
   mapUnit,
+  mapVendor,
   GEN_TYPE,
   useGenValues,
   useMasterList,
@@ -19,7 +21,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { wholeQtyStr } from './lineGrid'
 import { AttachmentFields, attachmentPayload } from './AttachmentSection'
 import { GATEPASS_BASE } from './gatepassNavigation'
-import { systemLocations } from './txnLookups'
+import { quickAddVendor, systemLocations, vendorOptions as toVendorOptions } from './txnLookups'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   GatepassInwardItemLines,
@@ -51,6 +53,7 @@ export function GatepassInwardForm() {
   const mapLoc = useCallback(mapLocation, [])
   const mapItm = useCallback(mapItem, [])
   const mapUnt = useCallback(mapUnit, [])
+  const mapVend = useCallback(mapVendor, [])
   const { rows: employees } = useMasterList('employees', mapEmp)
   const { rows: stores } = useMasterList('locations', mapLoc)
   const systemStores = useMemo(
@@ -59,9 +62,13 @@ export function GatepassInwardForm() {
   )
   const { rows: items } = useMasterList('items', mapItm)
   const { rows: units } = useMasterList('units', mapUnt)
+  const vendors = useMasterList('vendors', mapVend)
   const { options: gpInOpts } = useGenValues(GEN_TYPE.GATEPASS_INWARD, 'code')
   const outward = useTxnList('gatepass/outward')
   const inward = useTxnList('gatepass/inward')
+
+  const vendorOptions = useMemo(() => toVendorOptions(vendors.rows), [vendors.rows])
+  const addVendor = useMemo(() => quickAddVendor(vendors.reload), [vendors.reload])
 
   const sessionEmpId = user?.employeeId != null ? String(user.employeeId) : ''
 
@@ -96,6 +103,7 @@ export function GatepassInwardForm() {
     preparedBy: sessionEmpId,
     inspectedBy: '',
     party: '',
+    partyId: '',
     remarks: '',
     returnableOutwardId: '',
     attachmentUrl: '',
@@ -128,6 +136,7 @@ export function GatepassInwardForm() {
       preparedBy: sessionEmpId,
       inspectedBy: defaultInspectorId,
       party: '',
+      partyId: '',
       remarks: '',
       returnableOutwardId: '',
       attachmentUrl: '',
@@ -171,6 +180,7 @@ export function GatepassInwardForm() {
         returnableOutwardId: '',
         store: '',
         party: '',
+        partyId: '',
         remarks: '',
       }))
       setLines([emptyGatepassInwardLine()])
@@ -222,6 +232,7 @@ export function GatepassInwardForm() {
         returnableOutwardId: docId,
         store: doc.locationId != null ? String(doc.locationId) : p.store,
         party: (doc.partyAdd ?? doc.remarks ?? p.party).trim(),
+        partyId: doc.partyId != null ? String(doc.partyId) : '',
         remarks: doc.remarks ?? p.remarks,
         preparedBy: p.preparedBy || sessionEmpId,
         inspectedBy: p.inspectedBy || defaultInspectorId,
@@ -254,7 +265,12 @@ export function GatepassInwardForm() {
       setError('You do not have Create/Edit permission for Gatepass')
       return
     }
-    if (!inwardForm.party.trim()) {
+    if (inwardType === 'new') {
+      if (!inwardForm.partyId) {
+        setError('Vendor / Party / Customer is required')
+        return
+      }
+    } else if (!inwardForm.party.trim()) {
       setError('Vendor / Party / Customer is required')
       return
     }
@@ -355,11 +371,20 @@ export function GatepassInwardForm() {
           })?.locationId ?? payloadLines[0]?.locationId
         : numOrUndef(inwardForm.store) ?? payloadLines[0]?.locationId
 
+      const selectedVendor = vendors.rows.find((v) => v.id === inwardForm.partyId)
+      const partyAdd =
+        inwardType === 'new'
+          ? selectedVendor
+            ? `${String(selectedVendor.code ?? '')} - ${String(selectedVendor.name ?? '')}`.trim()
+            : inwardForm.party.trim()
+          : inwardForm.party.trim()
+
       await createTxn('gatepass/inward', {
         docDate: inwardForm.date || todayIso(),
         entityId,
         locationId: headerLoc ?? undefined,
-        partyAdd: inwardForm.party.trim(),
+        partyId: inwardType === 'new' ? numOrUndef(inwardForm.partyId) : undefined,
+        partyAdd: partyAdd || undefined,
         initiatedByEmpId: numOrUndef(inwardForm.preparedBy),
         inspectedByEmpId: needsInspection ? numOrUndef(inwardForm.inspectedBy) : undefined,
         refTxnHeaderId:
@@ -543,13 +568,26 @@ export function GatepassInwardForm() {
                 )}
               </>
             )}
-            <Field label="Vendor / Party / Customer" required className="md:col-span-2">
-              <Input
-                placeholder="Vendor, party or customer name"
-                value={inwardForm.party}
-                onChange={(e) => setIn('party', e.target.value)}
+            {inwardType === 'new' ? (
+              <LookupSelect
+                label="Vendor / Party / Customer"
+                required
+                className="md:col-span-2"
+                value={inwardForm.partyId}
+                onChange={(v) => setIn('partyId', v)}
+                options={vendorOptions}
+                placeholder="— Select Vendor —"
+                quickAdd={addVendor}
               />
-            </Field>
+            ) : (
+              <Field label="Vendor / Party / Customer" required className="md:col-span-2">
+                <Input
+                  placeholder="Vendor, party or customer name"
+                  value={inwardForm.party}
+                  onChange={(e) => setIn('party', e.target.value)}
+                />
+              </Field>
+            )}
             <Field label="Remarks" className="md:col-span-2 xl:col-span-4">
               <Input
                 placeholder="Remarks..."

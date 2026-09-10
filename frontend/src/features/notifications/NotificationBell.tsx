@@ -243,19 +243,41 @@ export function NotificationToasts() {
   return (
     <div className="pointer-events-none fixed right-4 bottom-4 z-[400] flex w-[320px] flex-col gap-2">
       {toasts.map((t) => (
-        <button
+        <div
           key={t.id}
-          type="button"
-          className="pointer-events-auto rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-left shadow-[var(--sh-md)]"
-          onClick={() => {
-            const item = items.find((n) => n.id === t.id)
-            if (item) openItem(item)
-            dismissToast(t.id)
-          }}
+          className="pointer-events-auto relative rounded-[10px] border border-[var(--border)] bg-[var(--surface)] pr-8 shadow-[var(--sh-md)]"
         >
-          <div className="text-[12.5px] font-bold text-[var(--text)]">{t.title}</div>
-          <div className="text-[12px] text-[var(--text2)]">{t.body}</div>
-        </button>
+          <button
+            type="button"
+            className="w-full px-3 py-2.5 text-left"
+            onClick={() => {
+              const item = items.find((n) => n.id === t.id)
+              if (item) openItem(item)
+              dismissToast(t.id)
+            }}
+          >
+            <div className="text-[12.5px] font-bold text-[var(--text)]">{t.title}</div>
+            <div className="text-[12px] text-[var(--text2)]">{t.body}</div>
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss notification"
+            className="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text3)] hover:bg-[var(--surface2)] hover:text-[var(--text)]"
+            onClick={(e) => {
+              e.stopPropagation()
+              dismissToast(t.id)
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+              <path
+                d="M2.5 2.5l7 7M9.5 2.5l-7 7"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       ))}
     </div>
   )

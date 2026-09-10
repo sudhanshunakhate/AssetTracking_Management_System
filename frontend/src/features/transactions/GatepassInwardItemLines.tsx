@@ -489,8 +489,7 @@ export function GatepassInwardItemLines({
                         <Input
                           value={line.remark}
                           onChange={(e) => patch(line.key, { remark: e.target.value })}
-                          disabled={locked}
-                          placeholder="-"
+                          placeholder="Remark"
                           className={gridInput}
                         />
                       </td>

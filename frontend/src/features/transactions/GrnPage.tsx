@@ -28,7 +28,7 @@ import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   employeeOptions as toEmployeeOptions,
   locLabel,
-  systemLocationOptions,
+  operationalLocationOptions,
   quickAddEmployee,
   quickAddVendor,
   resolveTxnHeaderFromLines,
@@ -152,7 +152,7 @@ function GrnList() {
     <FadeContent>
       <PageHeader
         title="Goods Receipt Note"
-        description="Records material received from a supplier and receives the accepted quantity into stock — no approval workflow involved."
+        description="Records material received from a supplier. Inspection-needed items stay Under Inspection in Quarantine until approved."
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading GRNs…</div>}
@@ -455,7 +455,7 @@ function GrnForm() {
   const addSupplier = quickAddVendor(vendors.reload)
 
   const employeeOptions = toEmployeeOptions(employees.rows)
-  const locationOptions = systemLocationOptions(locations.rows)
+  const locationOptions = operationalLocationOptions(locations.rows)
 
   const supplierOptions = toVendorOptions(vendors.rows)
   const allItemsForType = useMemo(
@@ -485,7 +485,7 @@ function GrnForm() {
             )}
           </div>
           <div className="mt-0.5 text-[12.5px] text-[var(--text2)]">
-            Fill in the goods receipt entry form and save — no approval workflow involved.
+            Fill in the goods receipt form. Items that need inspection stay Under Inspection until approved.
           </div>
           {!canEdit && (
             <div className="mt-1 text-[12px] text-[var(--danger)]">

@@ -336,36 +336,36 @@ export function OpeningStockItemLines({
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-max min-w-full border-collapse">
             <thead>
               <tr className="bg-[var(--surface2)]">
-                <th className={`${gridHeadCell} w-[48px]`}>Sr No.</th>
-                <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Item Code', true)}</th>
-                <th className={gridHeadCell}>{gridHeadLabel('Item Name', true)}</th>
-                <th className={`${gridHeadCell} w-[70px]`}>UOM</th>
+                <th className={`${gridHeadCell} min-w-[52px] whitespace-nowrap`}>Sr No.</th>
+                <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>{gridHeadLabel('Item Code', true)}</th>
+                <th className={`${gridHeadCell} min-w-[180px] whitespace-nowrap`}>{gridHeadLabel('Item Name', true)}</th>
+                <th className={`${gridHeadCell} min-w-[70px] whitespace-nowrap`}>UOM</th>
                 {isAsset ? (
                   <>
-                    <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Serial No.', true)}</th>
-                    <th className={`${gridHeadCell} w-[120px]`}>IP Address</th>
-                    <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
-                    <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
-                    <th className={`${gridHeadCell} w-[120px]`}>Condition</th>
+                    <th className={`${gridHeadCell} min-w-[150px] whitespace-nowrap`}>{gridHeadLabel('Serial No.', true)}</th>
+                    <th className={`${gridHeadCell} min-w-[130px] whitespace-nowrap`}>IP Address</th>
+                    <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>MAC Address</th>
+                    <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>Hostname</th>
+                    <th className={`${gridHeadCell} min-w-[120px] whitespace-nowrap`}>Condition</th>
                     {showIssuedTo && (
-                      <th className={`${gridHeadCell} w-[160px]`}>{gridHeadLabel('Custody', true)}</th>
+                      <th className={`${gridHeadCell} min-w-[160px] whitespace-nowrap`}>{gridHeadLabel('Custody', true)}</th>
                     )}
                   </>
                 ) : (
                   <>
-                    <th className={`${gridHeadCell} w-[120px]`}>Batch / Lot</th>
-                    <th className={`${gridHeadCell} w-[100px]`}>{gridHeadLabel('Opening Qty', true)}</th>
-                    <th className={`${gridHeadCell} w-[120px]`}>Mfg Date</th>
-                    <th className={`${gridHeadCell} w-[120px]`}>Expiry Date</th>
+                    <th className={`${gridHeadCell} min-w-[120px] whitespace-nowrap`}>Batch / Lot</th>
+                    <th className={`${gridHeadCell} min-w-[110px] whitespace-nowrap`}>{gridHeadLabel('Opening Qty', true)}</th>
+                    <th className={`${gridHeadCell} min-w-[120px] whitespace-nowrap`}>Mfg Date</th>
+                    <th className={`${gridHeadCell} min-w-[120px] whitespace-nowrap`}>Expiry Date</th>
                   </>
                 )}
-                <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Location', true)}</th>
-                <th className={`${gridHeadCell} w-[150px]`}>Supplier</th>
-                <th className={`${gridHeadCell} w-[130px]`}>Remark</th>
-                <th className={`${gridHeadCell} w-[54px] text-center`}>Action</th>
+                <th className={`${gridHeadCell} min-w-[170px] whitespace-nowrap`}>{gridHeadLabel('Location', true)}</th>
+                <th className={`${gridHeadCell} min-w-[160px] whitespace-nowrap`}>Supplier</th>
+                <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>Remark</th>
+                <th className={`${gridHeadCell} min-w-[56px] whitespace-nowrap text-center`}>Action</th>
               </tr>
             </thead>
             <tbody>

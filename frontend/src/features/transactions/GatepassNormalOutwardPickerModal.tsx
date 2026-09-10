@@ -663,7 +663,7 @@ export function GatepassNormalOutwardPickerModal({
                       colSpan={7}
                       className="h-[360px] px-3 text-center align-middle text-[12px] text-[var(--text3)]"
                     >
-                      No free stock here for New Outward. Inspection-needed items cannot leave from Damaged, Scrap, or Quarantine — transfer them to Quarantine and complete Inspection Approval first.
+                      No free stock here for New Outward. (Items still in Quarantine must complete Inspection Approval first.)
                     </td>
                   </tr>
                 ) : (

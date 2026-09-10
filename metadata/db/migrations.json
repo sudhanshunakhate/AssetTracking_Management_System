@@ -1,4 +1,4 @@
-﻿{
+{
     "purpose":  "Ledger of every SQL change made to the CAITS schema, and which database has it. Keeps the local Postgres and the shared dev server in step.",
     "environments":  {
                          "local":  {
@@ -418,7 +418,25 @@
                                            "local":  "2026-09-06",
                                            "dev":  "2026-09-07"
                                        }
+                       },
+                       {
+                           "id":  "046-wipe-keep-system-admin",
+                           "file":  "db_approach/046_wipe_keep_system_admin.sql",
+                           "description":  "Delete all transaction/inventory/business data; keep system admin user, ADMIN role/menus/permissions, lookups, and system locations.",
+                           "applied":  {
+                                           "local":  "2026-09-08",
+                                           "dev":  "2026-09-08"
+                                       }
+                       },
+                       {
+                           "id":  "047-deactivate-legacy-ou-system-locations",
+                           "file":  "db_approach/047_deactivate_legacy_ou_system_locations.sql",
+                           "description":  "Deactivate legacy OU-scoped system locations when org-global SYS-ENT rows exist, fixing NonUniqueResultException on GRN post.",
+                           "applied":  {
+                                           "local":  "2026-09-09",
+                                           "dev":  null
+                                       }
                        }
                    ],
-    "updated":  "2026-09-07"
+    "updated":  "2026-09-09"
 }

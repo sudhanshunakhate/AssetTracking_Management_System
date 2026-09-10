@@ -4,6 +4,7 @@ import com.caits.domain.entity.OrgLocationMst;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface OrgLocationMstRepository extends JpaRepository<OrgLocationMst, Integer>, JpaSpecificationExecutor<OrgLocationMst> {
@@ -13,6 +14,6 @@ public interface OrgLocationMstRepository extends JpaRepository<OrgLocationMst, 
     Optional<OrgLocationMst> findByLocBuIdBuAndLocSystemRoleAndLocIsactiveTrue(Integer buId, String systemRole);
     boolean existsByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocBuIdBuIsNull(
             Integer entityId, String systemRole);
-    Optional<OrgLocationMst> findByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocIsactiveTrue(
+    List<OrgLocationMst> findByLocEntityIdEntAndLocSystemRoleAndLocIsSystemLocationTrueAndLocIsactiveTrue(
             Integer entityId, String systemRole);
 }

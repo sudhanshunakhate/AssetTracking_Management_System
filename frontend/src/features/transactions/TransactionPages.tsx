@@ -629,20 +629,20 @@ export function ReturnsPages() {
   return (
     <>
       <ListStatus loading={loading} error={error} label="returns" />
-      <TxnRoutes
+    <TxnRoutes
         listLoading={loading}
-        base="/transactions/returns"
+      base="/transactions/returns"
         menuCode="RTN"
-        title="Material Return"
+      title="Material Return"
         description="Return unused or excess material back into a store — from an employee or a department."
         rows={filteredRows as never}
-        columns={columns as never}
-        fields={fields}
-        searchPlaceholder="Search returns…"
+      columns={columns as never}
+      fields={fields}
+      searchPlaceholder="Search returns…"
         saveLabel="Submit Return"
         draftLabel="Save Draft"
-        formTitle="Return Details"
-        addLabel="New Return"
+      formTitle="Return Details"
+      addLabel="New Return"
         viewOnlyExisting
         filters={[
           {

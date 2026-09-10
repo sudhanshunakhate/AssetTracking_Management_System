@@ -332,11 +332,28 @@ export function StoresMaster() {
     {
       key: 'ou',
       header: 'OU',
-      searchText: (r) => r.ouCode,
-      render: (r) =>
-        r.isSystemLocation
-          ? 'All OUs'
-          : ous.find((o) => o.id === r.ouCode)?.code ?? r.ouCode,
+      searchText: (r) => {
+        const ou = ous.find((o) => String(o.id) === String(r.ouCode))
+        if (ou) return `${ou.code} ${ou.name}`
+        if (r.isSystemLocation && r.orgCode) {
+          return ous
+            .filter((o) => String(o.orgCode) === String(r.orgCode))
+            .map((o) => `${o.code} ${o.name}`)
+            .join(' ')
+        }
+        return String(r.ouCode ?? '')
+      },
+      render: (r) => {
+        const ou = ous.find((o) => String(o.id) === String(r.ouCode))
+        if (ou) return ou.name
+        // Entity-level system locations have no bu_id — show OUs under the org.
+        if (r.isSystemLocation && r.orgCode) {
+          const orgOus = ous.filter((o) => String(o.orgCode) === String(r.orgCode))
+          if (orgOus.length === 1) return orgOus[0].name
+          if (orgOus.length > 1) return orgOus.map((o) => o.name).join(', ')
+        }
+        return r.ouCode || '—'
+      },
     },
     { key: 'city', header: 'City', searchText: (r) => r.city, render: (r) => r.city },
     statusColumn(),
@@ -348,7 +365,7 @@ export function StoresMaster() {
       name: 'printLocationName',
       label: 'Print Location Name',
       span: 2,
-      hint: 'Label used on printouts (system locations only)',
+      hint: 'Label used on printouts',
       ...RULES.name(150, 1),
     },
     {
@@ -376,7 +393,7 @@ export function StoresMaster() {
       name: 'isSystemLocation',
       label: 'System Derived Location',
       type: 'switch',
-      hint: 'System locations are global per Organization (read-only)',
+      hint: 'System locations are global per Organization and shared across all OUs',
       span: 2,
     },
     { name: 'status', label: 'Active Location', type: 'switch', span: 4 },
@@ -415,9 +432,10 @@ export function StoresMaster() {
         formTitle="Location Details"
         validateForm={validateForm}
         readOnlyFields={(values) =>
+          // System locations keep identity fields locked; print name + system flag stay editable for all.
           values.isSystemLocation
-            ? ['code', 'name', 'orgCode', 'ouCode', 'storeType', 'status', 'city', 'isSystemLocation']
-            : ['printLocationName', 'isSystemLocation']
+            ? ['code', 'name', 'orgCode', 'ouCode', 'storeType', 'status', 'city']
+            : []
         }
         onFieldChange={(name, _value, values) => {
           if (name === 'orgCode' && values.ouCode) {
@@ -437,9 +455,8 @@ export function StoresMaster() {
             buId: numOrUndef(values.ouCode),
             city: String(values.city ?? ''),
             isActive: isActiveFromForm(values.status),
-          }
-          if (values.isSystemLocation) {
-            body.printLocationName = String(values.printLocationName ?? '')
+            printLocationName: String(values.printLocationName ?? ''),
+            isSystemLocation: Boolean(values.isSystemLocation),
           }
           if (id === 'new') await createMaster('locations', body)
           else await updateMaster('locations', id, body)

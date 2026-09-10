@@ -78,19 +78,19 @@ export function locationSystemRole(loc: ApiMasterRow | undefined | null): string
   return String(loc?.systemRole ?? '').trim().toUpperCase()
 }
 
-/** Inspection-needed items cannot transfer into Damaged / Scrap — send to Quarantine first. */
+/** @deprecated Transfers may go to Damaged/Scrap directly (no quarantine gate). */
 export function blocksInspectionItemTransferTo(loc: ApiMasterRow | undefined | null): boolean {
-  const role = locationSystemRole(loc)
-  return role === 'DAMAGED' || role === 'SCRAP'
+  void loc
+  return false
 }
 
 /**
- * Inspection-needed items cannot leave on New Outward from Damaged, Scrap, or Quarantine.
- * Complete Inspection Approval first; failed units may leave from Rejected.
+ * New Outward from Quarantine is still blocked for inspection-needed items.
+ * Damaged / Scrap may ship on outward after an asset is returned there.
  */
 export function blocksInspectionItemNewOutwardFrom(loc: ApiMasterRow | undefined | null): boolean {
   const role = locationSystemRole(loc)
-  return role === 'DAMAGED' || role === 'SCRAP' || role === 'QUARANTINE'
+  return role === 'QUARANTINE'
 }
 
 export function itemNeedsInspection(item: ApiMasterRow | undefined | null): boolean {
@@ -150,8 +150,8 @@ export function locationsForOu(
       String(l.ouCode ?? '') === String(ouId),
   )
 
-  // Current model: system stores are org-wide (buId null). Include active ones for this OU's entity.
-  let system = orgId
+  // Org-global system stores (bu_id null) for this OU's organization
+  const orgSystem = orgId
     ? rows.filter(
         (l) =>
           Boolean(l.isSystemLocation) &&
@@ -161,12 +161,21 @@ export function locationsForOu(
       )
     : []
 
-  // Fallback: older OU-scoped system rows (may be inactive in DB but still the only system set)
-  if (system.length === 0) {
-    system = rows.filter(
-      (l) => Boolean(l.isSystemLocation) && String(l.ouCode ?? '') === String(ouId),
-    )
-  }
+  // Legacy OU-scoped system stores (SYS-{buId}-*) still active for this OU
+  const ouSystem = rows.filter(
+    (l) =>
+      Boolean(l.isSystemLocation) &&
+      l.status !== 'Inactive' &&
+      String(l.ouCode ?? '') === String(ouId),
+  )
+
+  // Prefer org-global row per system role; keep OU-scoped roles that have no global twin.
+  const systemByRole = new Map<string, ApiMasterRow>()
+  const roleKey = (l: ApiMasterRow) =>
+    String(l.systemRole ?? l.code ?? l.id).trim().toUpperCase() || String(l.id)
+  for (const l of ouSystem) systemByRole.set(roleKey(l), l)
+  for (const l of orgSystem) systemByRole.set(roleKey(l), l) // global wins
+  const system = [...systemByRole.values()]
 
   // If operational list empty (locations not tagged with buId), fall back to org operational
   let ops = operational

@@ -1,0 +1,9 @@
+{
+  "name": "caits-guide-pdf",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "marked": "^15.0.12",
+    "puppeteer": "^24.10.0"
+  }
+}

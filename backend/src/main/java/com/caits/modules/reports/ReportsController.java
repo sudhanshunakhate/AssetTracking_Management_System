@@ -981,17 +981,24 @@ public class ReportsController {
             if (vendor == null) {
                 vendor = vendorRepo.findById(source.getTxhPartyIdVnd()).orElse(null);
             }
-            if (vendor != null && vendor.getVndVendorName() != null && !vendor.getVndVendorName().isBlank()) {
-                return vendor.getVndVendorName().trim() + " (Vendor / Party)";
+            if (vendor != null) {
+                String code = vendor.getVndVendorCode();
+                String name = vendor.getVndVendorName();
+                if (name != null && !name.isBlank()) {
+                    if (code != null && !code.isBlank()) {
+                        return code.trim() + " - " + name.trim();
+                    }
+                    return name.trim();
+                }
             }
+        }
+        String partyAdd = source.getTxhPartyAdd();
+        if (partyAdd != null && !partyAdd.isBlank()) {
+            return partyAdd.trim();
         }
         String contact = source.getTxhPartyContactPerson();
         if (contact != null && !contact.isBlank()) {
-            return contact.trim() + " (Vendor / Party)";
-        }
-        String remarks = source.getTxhRemarks();
-        if (remarks != null && !remarks.isBlank()) {
-            return remarks.trim() + " (Vendor / Party)";
+            return contact.trim();
         }
         return "Vendor / Party";
     }
@@ -1084,7 +1091,7 @@ public class ReportsController {
             String status,
             String rowSuffix
     ) {
-        Map<String, Object> row = new HashMap<>();
+                Map<String, Object> row = new HashMap<>();
         String id = rowSuffix == null
                 ? String.valueOf(line.getTxdTxnDetailId())
                 : line.getTxdTxnDetailId() + "-" + rowSuffix;
@@ -1094,8 +1101,8 @@ public class ReportsController {
         row.put("txnType", header.getTxhDocType());
         row.put("txnNo", header.getTxhDocNo());
         row.put("itemId", line.getTxdItemIdItm());
-        row.put("item", item == null ? null : item.getItmItemName());
-        row.put("categoryId", item == null ? null : item.getItmCategoryIdCat());
+                row.put("item", item == null ? null : item.getItmItemName());
+                row.put("categoryId", item == null ? null : item.getItmCategoryIdCat());
         row.put("qty", qty);
         row.put("uomId", line.getTxdUomIdUnt());
         row.put("fromLocationId", fromLocationId);

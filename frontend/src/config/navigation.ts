@@ -5,6 +5,8 @@ export type NavItem = {
   label: string
   badge?: string
   path: string
+  /** If set, sidebar marks the item active when the URL starts with this prefix. */
+  activeMatch?: string
   /** Matches sysm_menutree_mst.mtree_menu_code / rolepermission menu FK */
   menuCode: string
   /** CAIMS icon set entry rendered in the sidebar */
@@ -54,7 +56,15 @@ export const navGroups: NavGroup[] = [
       { id: 'matreq', label: 'Store Requisitions', badge: 'SR', path: '/transactions/requisitions', menuCode: 'SR', icon: 'storeRequisitions' },
       { id: 'grn', label: 'Goods Receipt Note', badge: 'GRN', path: '/transactions/grn', menuCode: 'GRN', icon: 'grn' },
       { id: 'getpass', label: 'Gatepass', badge: 'GP', path: '/transactions/gatepass', menuCode: 'GP', icon: 'gatepass' },
-      { id: 'issue', label: 'Store Issue', badge: 'ISS', path: '/transactions/issues', menuCode: 'ISS', icon: 'storeIssue' },
+      {
+        id: 'issue',
+        label: 'Store Issue',
+        badge: 'ISS',
+        path: '/transactions/issues/pick-requisition',
+        activeMatch: '/transactions/issues',
+        menuCode: 'ISS',
+        icon: 'storeIssue',
+      },
       { id: 'transfer', label: 'Material Transfer', badge: 'TRF', path: '/transactions/transfers', menuCode: 'TRF', icon: 'materialTransfer' },
       { id: 'return', label: 'Material Return', badge: 'RTN', path: '/transactions/returns', menuCode: 'RTN', icon: 'materialReturn' },
       { id: 'inspection', label: 'Inspection Approval', badge: 'IAPR', path: '/transactions/inspection-approvals', menuCode: 'IAPR', icon: 'storeIssue' },

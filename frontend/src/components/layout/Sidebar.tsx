@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { navGroups, type NavItem } from '@/config/navigation'
 import { Icon } from '@/components/ui/Icon'
 import { useAuth } from '@/features/auth/AuthContext'
@@ -11,6 +11,10 @@ interface SidebarProps {
 }
 
 function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+  const location = useLocation()
+  const prefixActive = Boolean(
+    item.activeMatch && location.pathname.startsWith(item.activeMatch),
+  )
   return (
     <NavLink
       to={item.path}
@@ -20,7 +24,7 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
         `relative mx-2 my-px flex w-[calc(100%-16px)] items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium transition ${
           collapsed ? 'justify-center px-0' : ''
         } ${
-          isActive
+          isActive || prefixActive
             ? 'bg-[var(--warm-lt)] text-[var(--warm-deep)] before:absolute before:-left-1.5 before:top-1/2 before:h-5 before:w-[3px] before:-translate-y-1/2 before:rounded-sm before:bg-[var(--warm)] before:content-[""]'
             : 'text-[var(--text2)] hover:bg-[var(--accent-lt)] hover:text-[var(--accent-deep)]'
         }`
@@ -36,7 +40,7 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
             {item.badge && (
               <span
                 className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] ${
-                    isActive
+                    isActive || prefixActive
                       ? 'bg-white/80 text-[var(--warm-deep)]'
                       : 'bg-[var(--border)] text-[var(--text3)]'
                 }`}

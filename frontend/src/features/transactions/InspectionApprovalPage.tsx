@@ -92,11 +92,12 @@ function enrichInspectionLines(
   let changed = enriched !== lines
   const next = enriched.map((line) => {
     if (!line.itemId) return line
+    // Keep GRN/source destination when present; only fill item default if empty.
+    if (line.locationId) return line
     const item = items.find((i) => String(i.id) === String(line.itemId))
     if (!item) return line
     const homeId = String(item.store ?? '')
     if (!homeId) return line
-    if (line.locationId === homeId) return line
     changed = true
     return { ...line, locationId: homeId }
   })
@@ -219,7 +220,7 @@ function InspectionApprovalList() {
     <FadeContent>
       <PageHeader
         title="Inspection Approval"
-        description="Items flagged for inspection (from GRN or Gatepass Inward) are posted to Quarantine on submit. Approve here to move stock to each item's home store."
+        description="Items flagged for inspection (from GRN or Gatepass Inward) are posted to Quarantine on submit. Approve here to move stock to the store selected on the source document (or the item default store)."
       />
       <div className="mb-3 flex flex-wrap gap-2">
         <Button
@@ -399,7 +400,7 @@ function InspectionApprovalForm() {
     for (const line of active) {
       const qty = toNum(line.approveQty)
       const avail = toNum(line.availableStock)
-      if (!line.locationId) lineErrors.lines = 'Each line needs a home store from Item Master.'
+      if (!line.locationId) lineErrors.lines = 'Each line needs a move-to store (from GRN or Item Master).'
       if (qty <= 0) lineErrors.lines = 'Approve quantity must be greater than zero.'
       if (avail > 0 && qty !== avail) {
         lineErrors.lines = 'Approve the full quarantine quantity (partial approval is not allowed).'
@@ -471,7 +472,7 @@ function InspectionApprovalForm() {
         setForm((p) => ({ ...p, status: updated.status ?? p.status }))
         setMessage(
           action === 'SUBMIT'
-            ? 'Inspection approved — stock moved to home stores.'
+            ? 'Inspection approved — stock moved to selected / default stores.'
             : action === 'REJECT'
               ? 'Inspection rejected — stock moved to Rejected store.'
               : 'Saved as draft.',
@@ -532,7 +533,7 @@ function InspectionApprovalForm() {
         <div>
           <PageHeader
             title={isNew ? 'New Inspection Approval' : `Approval ${form.approvalNo}`}
-            description="Approve quarantined stock and move it to each item's home store."
+            description="Approve quarantined stock and move it to the store selected on GRN (or the item default store)."
           />
           {form.status && (
             <div className="mt-1">

@@ -31,7 +31,7 @@ import {
   importGrnLines,
 } from './lineCsvImport'
 import type { ItemKind } from './OpeningStockItemLines'
-import { locLabel, nonSystemLocations, quarantineForEntity, rejectedForEntity, systemLocations } from './txnLookups'
+import { locLabel, nonSystemLocations, rejectedForEntity, systemLocations } from './txnLookups'
 
 export type GrnLine = BaseLine & {
   receivedQty: string
@@ -70,19 +70,17 @@ function orgForLocations(locations: ApiMasterRow[], locationId: string) {
 }
 
 function lockedLocationForLine(
-  item: ApiMasterRow | undefined,
+  _item: ApiMasterRow | undefined,
   accepted: number,
   rejected: number,
   locations: ApiMasterRow[],
   currentLoc: string,
 ): { locationId: string; locked: boolean } {
   const org = orgForLocations(locations, currentLoc)
+  // Fully rejected → lock to Rejected store. Accepted inspection lines keep the GRN
+  // destination (or item default); stock still posts to Quarantine on the backend.
   if (rejected > 0 && accepted <= 0) {
     const id = rejectedForEntity(locations, org)
-    return { locationId: id || currentLoc, locked: Boolean(id) }
-  }
-  if (Boolean(item?.inspectionNeeded) && accepted > 0) {
-    const id = quarantineForEntity(locations, org)
     return { locationId: id || currentLoc, locked: Boolean(id) }
   }
   return { locationId: currentLoc, locked: false }
@@ -236,10 +234,12 @@ export function GrnItemLines({
     const cost = toNum(item.standardCost as number)
     const accepted = qty
     const rejected = 0
-    const locked = lockedLocationForLine(item, accepted, rejected, locations, locationId)
+    // Prefer picker location; fall back to item default (ideal) store.
+    const destination = locationId || String(item.store ?? '')
+    const locked = lockedLocationForLine(item, accepted, rejected, locations, destination)
     return {
       ...emptyGrnLine(),
-      ...applyItemMaster(item, locked.locationId || locationId || String(item.store ?? '')),
+      ...applyItemMaster(item, locked.locationId || destination),
       receivedQty: wholeQtyStr(qty),
       acceptedQty: wholeQtyStr(qty),
       rejectedQty: '0',
@@ -472,31 +472,31 @@ export function GrnItemLines({
         )}
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-max min-w-full border-collapse">
             <thead>
               <tr className="bg-[var(--surface2)]">
-                <th className={`${gridHeadCell} w-[48px]`}>Sr No.</th>
-                <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Item Code', true)}</th>
-                <th className={gridHeadCell}>{gridHeadLabel('Item Name', true)}</th>
-                <th className={`${gridHeadCell} w-[70px]`}>UOM</th>
+                <th className={`${gridHeadCell} min-w-[52px] whitespace-nowrap`}>Sr No.</th>
+                <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>{gridHeadLabel('Item Code', true)}</th>
+                <th className={`${gridHeadCell} min-w-[180px] whitespace-nowrap`}>{gridHeadLabel('Item Name', true)}</th>
+                <th className={`${gridHeadCell} min-w-[70px] whitespace-nowrap`}>UOM</th>
                 {isAsset ? (
                   <>
-                    <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Serial No.', true)}</th>
-                    <th className={`${gridHeadCell} w-[120px]`}>IP Address</th>
-                    <th className={`${gridHeadCell} w-[130px]`}>MAC Address</th>
-                    <th className={`${gridHeadCell} w-[140px]`}>Hostname</th>
+                    <th className={`${gridHeadCell} min-w-[150px] whitespace-nowrap`}>{gridHeadLabel('Serial No.', true)}</th>
+                    <th className={`${gridHeadCell} min-w-[130px] whitespace-nowrap`}>IP Address</th>
+                    <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>MAC Address</th>
+                    <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>Hostname</th>
                   </>
                 ) : (
-                  <th className={`${gridHeadCell} w-[110px]`}>Batch / Lot</th>
+                  <th className={`${gridHeadCell} min-w-[120px] whitespace-nowrap`}>Batch / Lot</th>
                 )}
-                <th className={`${gridHeadCell} w-[100px]`}>{gridHeadLabel('Received Qty', !isAsset)}</th>
-                <th className={`${gridHeadCell} w-[100px]`}>Accepted Qty</th>
-                <th className={`${gridHeadCell} w-[100px]`}>Rejected Qty</th>
-                <th className={`${gridHeadCell} w-[115px]`}>Available Stock</th>
-                <th className={`${gridHeadCell} w-[110px]`}>Amount (₹)</th>
-                <th className={`${gridHeadCell} w-[130px]`}>{gridHeadLabel('Location', true)}</th>
-                <th className={`${gridHeadCell} w-[130px]`}>Remark</th>
-                <th className={`${gridHeadCell} w-[54px] text-center`}>Action</th>
+                <th className={`${gridHeadCell} min-w-[110px] whitespace-nowrap`}>{gridHeadLabel('Received Qty', !isAsset)}</th>
+                <th className={`${gridHeadCell} min-w-[110px] whitespace-nowrap`}>Accepted Qty</th>
+                <th className={`${gridHeadCell} min-w-[110px] whitespace-nowrap`}>Rejected Qty</th>
+                <th className={`${gridHeadCell} min-w-[120px] whitespace-nowrap`}>Available Stock</th>
+                <th className={`${gridHeadCell} min-w-[110px] whitespace-nowrap`}>Amount (₹)</th>
+                <th className={`${gridHeadCell} min-w-[170px] whitespace-nowrap`}>{gridHeadLabel('Location', true)}</th>
+                <th className={`${gridHeadCell} min-w-[140px] whitespace-nowrap`}>Remark</th>
+                <th className={`${gridHeadCell} min-w-[56px] whitespace-nowrap text-center`}>Action</th>
               </tr>
             </thead>
             <tbody>

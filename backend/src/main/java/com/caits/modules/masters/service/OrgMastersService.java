@@ -234,8 +234,10 @@ public class OrgMastersService {
             throw ApiException.conflict("Location code already exists");
         }
         OrgLocationMst e = new OrgLocationMst();
-        applyLoc(e, req);
+        // Apply identity fields first (system flag must not skip required columns on create).
         e.setLocIsSystemLocation(false);
+        applyLoc(e, req);
+        e.setLocIsSystemLocation(Boolean.TRUE.equals(req.isSystemLocation()));
         e.setLocIsactive(req.isActive() == null || req.isActive());
         e.setLocCreatedBy(SecurityUtils.requireLoginId());
         e.setLocCreatedOn(LocalDateTime.now());
@@ -253,7 +255,11 @@ public class OrgMastersService {
         Integer entityId = req.entityId() != null ? req.entityId() : e.getLocEntityIdEnt();
         Integer buId = req.buId() != null ? req.buId() : e.getLocBuIdBu();
         requireBuUnderEntity(buId, entityId);
+        // Apply field updates under the current system/operational rules, then update the flag.
         applyLoc(e, req);
+        if (req.isSystemLocation() != null) {
+            e.setLocIsSystemLocation(req.isSystemLocation());
+        }
         e.setLocModifiedBy(SecurityUtils.requireLoginId());
         e.setLocModifiedOn(LocalDateTime.now());
         return toLocDto(locationRepo.save(e), "Location updated successfully");
@@ -286,6 +292,7 @@ public class OrgMastersService {
             e.setLocManagerEmpIdEmp(req.managerEmpId());
             e.setLocCity(req.city());
             if (req.isActive() != null) e.setLocIsactive(req.isActive());
+            if (req.printLocationName() != null) e.setLocPrintLocationName(req.printLocationName());
         } else {
             if (req.locationName() != null) e.setLocLocationName(req.locationName());
             if (req.printLocationName() != null) e.setLocPrintLocationName(req.printLocationName());

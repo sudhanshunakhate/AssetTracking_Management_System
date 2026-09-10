@@ -1,8 +1,8 @@
 package com.caits.modules.transactions;
 
 /**
- * Inspection-needed items must pass Quarantine / Inspection Approval before
- * Damaged, Scrap, or New Outward from those holds.
+ * New Outward: inspection-needed items cannot leave from Quarantine until Inspection Approval.
+ * Damaged / Scrap outward is allowed after assets are returned there by transfer.
  */
 public final class InspectionRoutingRules {
 
@@ -12,21 +12,17 @@ public final class InspectionRoutingRules {
         return Boolean.TRUE.equals(inspectionNeeded);
     }
 
-    /** Transfer destination Damaged / Scrap is not allowed. Send to Quarantine instead. */
+    /** @deprecated Transfers no longer block Damaged/Scrap destinations. */
     public static boolean blocksTransferToRole(String systemRole) {
-        return isDamagedOrScrap(systemRole);
+        return false;
     }
 
     /**
-     * New outward from Damaged, Scrap, or Quarantine is not allowed.
-     * Inspect first (Quarantine → Inspection Approval); failed units may leave from Rejected.
+     * New outward from Quarantine is not allowed for inspection-needed items.
+     * Damaged / Scrap may leave on outward once stock has been returned there.
      */
     public static boolean blocksNewOutwardFromRole(String systemRole) {
-        return isDamagedOrScrap(systemRole) || isRole(systemRole, "QUARANTINE");
-    }
-
-    private static boolean isDamagedOrScrap(String systemRole) {
-        return isRole(systemRole, "DAMAGED") || isRole(systemRole, "SCRAP");
+        return isRole(systemRole, "QUARANTINE");
     }
 
     private static boolean isRole(String systemRole, String expected) {

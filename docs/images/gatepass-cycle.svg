@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="340" viewBox="0 0 900 340" role="img" aria-label="Gatepass returnable cycle">
+  <defs>
+    <marker id="g" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#5c3d8a"/>
+    </marker>
+  </defs>
+  <rect width="900" height="340" rx="16" fill="#f8f4fc"/>
+  <text x="28" y="36" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#5c3d8a">Gatepass &amp; OU transfer</text>
+  <text x="28" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#6b5b7a">Outward to party � optional returnable inward � OU transfer completion</text>
+
+  <!-- OU path -->
+  <rect x="28" y="90" width="844" height="100" rx="12" fill="#fff" stroke="#d0b3e8" stroke-width="1.5"/>
+  <text x="44" y="118" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#862e9c">OU TRANSFER PATH</text>
+  <rect x="44" y="132" width="150" height="40" rx="8" fill="#5c3d8a"/>
+  <text x="119" y="157" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">Material Transfer</text>
+  <path d="M194 152 L220 152" stroke="#5c3d8a" stroke-width="2" marker-end="url(#g)"/>
+  <rect x="228" y="132" width="170" height="40" rx="8" fill="#862e9c"/>
+  <text x="313" y="157" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">Pending for Outward</text>
+  <path d="M398 152 L424 152" stroke="#5c3d8a" stroke-width="2" marker-end="url(#g)"/>
+  <rect x="432" y="132" width="160" height="40" rx="8" fill="#9c36b5"/>
+  <text x="512" y="157" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">Gatepass Outward</text>
+  <path d="M592 152 L618 152" stroke="#5c3d8a" stroke-width="2" marker-end="url(#g)"/>
+  <rect x="626" y="132" width="130" height="40" rx="8" fill="#2f9e44"/>
+  <text x="691" y="157" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">Transferred</text>
+
+  <!-- Returnable -->
+  <rect x="28" y="210" width="844" height="100" rx="12" fill="#fff" stroke="#a5d8ff" stroke-width="1.5"/>
+  <text x="44" y="238" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#1c7ed6">RETURNABLE CYCLE</text>
+  <rect x="44" y="252" width="180" height="40" rx="8" fill="#1c7ed6"/>
+  <text x="134" y="277" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">Outward (Returnable Y)</text>
+  <path d="M224 272 L270 272" stroke="#1c7ed6" stroke-width="2" marker-end="url(#g)"/>
+  <rect x="278" y="252" width="150" height="40" rx="8" fill="#fff" stroke="#1c7ed6" stroke-width="2"/>
+  <text x="353" y="277" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#1c7ed6">With Party / Vendor</text>
+  <path d="M428 272 L474 272" stroke="#1c7ed6" stroke-width="2" marker-end="url(#g)"/>
+  <rect x="482" y="252" width="200" height="40" rx="8" fill="#0d7377"/>
+  <text x="582" y="277" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">Inward vs Outward</text>
+  <text x="720" y="277" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#868e96">� store / quarantine</text>
+</svg>

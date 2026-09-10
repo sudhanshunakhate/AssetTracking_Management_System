@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { StatusPill } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -89,38 +89,39 @@ export function IssuesPages() {
   return (
     <Routes>
       <Route index element={<IssueList />} />
-      <Route path="pick-requisition" element={<PickRequisitionRoute />} />
+      {/* Legacy deep-links — open the list with the requisition picker */}
+      <Route path="pick-requisition" element={<Navigate to={BASE} replace state={{ openReqPicker: true }} />} />
       <Route path="new/:requisitionId" element={<IssueForm />} />
-      <Route path="new" element={<Navigate to="../pick-requisition" replace />} />
+      <Route path="new" element={<Navigate to={BASE} replace state={{ openReqPicker: true }} />} />
       <Route path=":id" element={<IssueForm />} />
     </Routes>
   )
 }
 
-function PickRequisitionRoute() {
-  const navigate = useNavigate()
-  return (
-    <>
-      <IssueList />
-      <RequisitionPickerModal
-        open
-        onClose={() => navigate(BASE)}
-        onSelect={(reqId) => navigate(`${BASE}/new/${reqId}`)}
-      />
-    </>
-  )
-}
-
 export function IssueList() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { canCreateMenu } = useAuth()
   const { rows, loading, error } = useTxnList(RESOURCE)
   const [statusFilter, setStatusFilter] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
   const statusOptions = useMemo(() => txnStatusFilterOptions(rows), [rows])
   const filteredRows = useMemo(() => filterRowsByStatus(rows, statusFilter), [rows, statusFilter])
   const { locations, employees } = useTxnFormLookups()
   const reqs = useTxnList('requisitions')
 
+  // Open picker when navigated here with state (menu / New Issue / legacy links).
+  useEffect(() => {
+    const st = location.state as { openReqPicker?: boolean } | null
+    if (st?.openReqPicker && canCreateMenu(MENU)) setPickerOpen(true)
+  }, [location.state, canCreateMenu])
+
+  const closePicker = () => {
+    setPickerOpen(false)
+    if ((location.state as { openReqPicker?: boolean } | null)?.openReqPicker) {
+      navigate(BASE, { replace: true, state: {} })
+    }
+  }
   const empById = useMemo(() => new Map(employees.rows.map((e) => [e.id, e])), [employees.rows])
   const locById = useMemo(() => new Map(locations.rows.map((l) => [l.id, l])), [locations.rows])
   const reqById = useMemo(() => new Map(reqs.rows.map((r) => [r.id, r])), [reqs.rows])
@@ -187,9 +188,17 @@ export function IssueList() {
           },
         ]}
         onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
-        onAdd={canCreateMenu(MENU) ? () => navigate(`${BASE}/pick-requisition`) : undefined}
+        onAdd={canCreateMenu(MENU) ? () => setPickerOpen(true) : undefined}
         addLabel="New Issue"
         emptyMessage="No issues yet. Use New Issue to post one."
+      />
+      <RequisitionPickerModal
+        open={pickerOpen}
+        onClose={closePicker}
+        onSelect={(reqId) => {
+          closePicker()
+          navigate(`${BASE}/new/${reqId}`)
+        }}
       />
     </FadeContent>
   )
@@ -657,7 +666,7 @@ function IssueForm() {
     }
   }
 
-  if (isNew && !requisitionIdParam) return <Navigate to={`${BASE}/pick-requisition`} replace />
+  if (isNew && !requisitionIdParam) return <Navigate to={BASE} replace state={{ openReqPicker: true }} />
   if (issueId && !/^\d+$/.test(issueId)) return <Navigate to={BASE} replace />
   if (isNew && !canCreateMenu(MENU)) return <Navigate to={BASE} replace />
 

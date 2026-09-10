@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="300" viewBox="0 0 880 300" role="img" aria-label="Requisition issue return cycle">
+  <defs>
+    <marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#1c4b82"/>
+    </marker>
+  </defs>
+  <rect width="880" height="300" rx="16" fill="#f3f7fc"/>
+  <text x="28" y="36" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#1c4b82">Request � Issue � Return</text>
+  <text x="28" y="58" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#5a6b73">Daily store cycle for employees and departments</text>
+
+  <circle cx="110" cy="160" r="58" fill="#1c4b82"/>
+  <text x="110" y="154" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="#fff">1. Requisition</text>
+  <text x="110" y="174" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#c5d8f0">No stock move</text>
+
+  <path d="M172 160 L230 160" stroke="#1c4b82" stroke-width="3" marker-end="url(#ar)"/>
+
+  <circle cx="300" cy="160" r="58" fill="#1864ab"/>
+  <text x="300" y="154" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="#fff">2. Store Issue</text>
+  <text x="300" y="174" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#c5d8f0">Stock / custody</text>
+
+  <path d="M362 160 L420 160" stroke="#1c4b82" stroke-width="3" marker-end="url(#ar)"/>
+
+  <circle cx="490" cy="160" r="58" fill="#364fc7"/>
+  <text x="490" y="154" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="#fff">3. With user</text>
+  <text x="490" y="174" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#d0d6f5">Allotted</text>
+
+  <path d="M552 160 L610 160" stroke="#1c4b82" stroke-width="3" marker-end="url(#ar)"/>
+
+  <circle cx="680" cy="160" r="58" fill="#495057"/>
+  <text x="680" y="154" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" fill="#fff">4. Return</text>
+  <text x="680" y="174" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#dee2e6">Back to store</text>
+
+  <path d="M680 218 Q395 290 110 218" fill="none" stroke="#868e96" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="395" y="278" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#868e96">Asset serials: custody cleared on return � Consumables: qty restored</text>
+</svg>

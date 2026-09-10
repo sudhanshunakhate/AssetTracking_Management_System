@@ -109,6 +109,7 @@ const STATUS_TONE: Record<string, PillTone> = {
   requested: 'sky',
   submitted: 'sky',
   'pending approval': 'amber',
+  'under inspection': 'amber',
   approved: 'green',
   posted: 'teal',
   completed: 'green',

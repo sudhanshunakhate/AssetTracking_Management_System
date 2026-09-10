@@ -60,7 +60,7 @@ public final class MasterDtos {
                               String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record LocationRequest(Integer locationId, String locationCode, String locationName, String locationType,
                                   Integer entityId, Integer buId, Integer managerEmpId, String city, Boolean isActive,
-                                  String printLocationName) {}
+                                  String printLocationName, Boolean isSystemLocation) {}
 
     public record ItemDto(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
                           Integer subcategoryId, Integer uomId, BigDecimal standardCost, String imageUrl, String desc,

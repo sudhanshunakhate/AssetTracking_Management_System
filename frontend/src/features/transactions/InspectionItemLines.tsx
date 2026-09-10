@@ -152,7 +152,7 @@ export function InspectionItemLines({
                 <th className={gridHeadCell}>Approve Qty</th>
                 <th className={gridHeadCell}>Batch / Lot</th>
                 {showSerial && <th className={gridHeadCell}>Serial No.</th>}
-                <th className={gridHeadCell}>Home Store</th>
+                <th className={gridHeadCell}>Move to Store</th>
                 <th className={gridHeadCell} />
               </tr>
             </thead>
