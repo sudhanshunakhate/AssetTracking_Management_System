@@ -18,9 +18,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   subscribePush,
+  unsubscribePush,
   type AppNotification,
 } from '@/api/notifications'
 import { useAuth } from '@/features/auth/AuthContext'
+
+const TOAST_MS = 5_000
 
 type Toast = { id: number; title: string; body: string }
 
@@ -70,6 +73,33 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
   )
   const seenIds = useRef(new Set<number>())
+  const toastTimers = useRef(new Map<number, number>())
+
+  const dismissToast = useCallback((id: number) => {
+    const timer = toastTimers.current.get(id)
+    if (timer != null) {
+      window.clearTimeout(timer)
+      toastTimers.current.delete(id)
+    }
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
+
+  const scheduleToastDismiss = useCallback(
+    (id: number) => {
+      const existing = toastTimers.current.get(id)
+      if (existing != null) window.clearTimeout(existing)
+      const timer = window.setTimeout(() => dismissToast(id), TOAST_MS)
+      toastTimers.current.set(id, timer)
+    },
+    [dismissToast],
+  )
+
+  useEffect(() => {
+    return () => {
+      for (const timer of toastTimers.current.values()) window.clearTimeout(timer)
+      toastTimers.current.clear()
+    }
+  }, [])
 
   const refresh = useCallback(async () => {
     if (!user) return
@@ -85,13 +115,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
-  const presentIncoming = useCallback((n: AppNotification) => {
-    if (seenIds.current.has(n.id)) return
-    seenIds.current.add(n.id)
-    setItems((prev) => [n, ...prev.filter((x) => x.id !== n.id)].slice(0, 50))
-    if (!n.read) setUnreadCount((c) => c + 1)
-    setToasts((prev) => [...prev.slice(-4), { id: n.id, title: n.title, body: n.body }])
-  }, [])
+  const presentIncoming = useCallback(
+    (n: AppNotification) => {
+      if (seenIds.current.has(n.id)) return
+      seenIds.current.add(n.id)
+      setItems((prev) => [n, ...prev.filter((x) => x.id !== n.id)].slice(0, 50))
+      if (!n.read) setUnreadCount((c) => c + 1)
+      setToasts((prev) => [...prev.slice(-4), { id: n.id, title: n.title, body: n.body }])
+      scheduleToastDismiss(n.id)
+    },
+    [scheduleToastDismiss],
+  )
 
   useEffect(() => {
     void refresh()
@@ -135,6 +169,34 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setUnreadCount(0)
   }, [])
 
+  /** Upsert existing browser push subscription without recreating it (no OS test blast). */
+  const ensurePushSubscription = useCallback(async (): Promise<boolean> => {
+    if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setPermission('unsupported')
+      return false
+    }
+    if (Notification.permission !== 'granted') return false
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      await navigator.serviceWorker.ready
+      let sub = await reg.pushManager.getSubscription()
+      if (!sub) {
+        const { publicKey } = await fetchVapidPublicKey()
+        if (!publicKey) return false
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        })
+      }
+      await subscribePush(sub.toJSON())
+      return true
+    } catch (err) {
+      console.error('Push ensure failed', err)
+      return false
+    }
+  }, [])
+
+  /** Explicit user gesture: request permission and (re)subscribe. */
   const enableOsNotifications = useCallback(async () => {
     if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       setPermission('unsupported')
@@ -151,6 +213,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const appKey = urlBase64ToUint8Array(publicKey)
       let sub = await reg.pushManager.getSubscription()
       if (sub) {
+        const endpoint = sub.endpoint
+        try {
+          await unsubscribePush(endpoint)
+        } catch {
+          /* best-effort server cleanup */
+        }
         await sub.unsubscribe()
       }
       sub = await reg.pushManager.subscribe({
@@ -169,10 +237,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     if (!user) return
     if (typeof Notification === 'undefined') return
     setPermission(Notification.permission)
+    // Already granted: quietly upsert subscription — do not force-recreate (that fired OS spam).
     if (Notification.permission === 'granted') {
-      void enableOsNotifications()
+      void ensurePushSubscription()
     }
-  }, [user, enableOsNotifications])
+  }, [user, ensurePushSubscription])
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
@@ -194,10 +263,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     [markRead, navigate],
   )
 
-  const dismissToast = useCallback((id: number) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }, [])
-
   const value = useMemo(
     () => ({
       items,
@@ -212,7 +277,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       openItem,
       dismissToast,
     }),
-    [items, unreadCount, ready, toasts, permission, refresh, markRead, markAllRead, enableOsNotifications, openItem, dismissToast],
+    [
+      items,
+      unreadCount,
+      ready,
+      toasts,
+      permission,
+      refresh,
+      markRead,
+      markAllRead,
+      enableOsNotifications,
+      openItem,
+      dismissToast,
+    ],
   )
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>

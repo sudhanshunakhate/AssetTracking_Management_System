@@ -3,6 +3,7 @@ package com.caits.modules.masters.service;
 import com.caits.common.ApiException;
 import com.caits.common.MessageResponse;
 import com.caits.common.PageResponse;
+import com.caits.common.PageSizes;
 import com.caits.common.spec.SpecUtils;
 import com.caits.domain.entity.*;
 import com.caits.domain.repository.*;
@@ -251,12 +252,32 @@ public class SecurityMastersService {
     // ---- Employees ----
     @Transactional(readOnly = true)
     public PageResponse<EmployeeDto> listEmployees(int page, int pageSize, String search, Boolean isActive) {
+        int size = PageSizes.clampMaster(pageSize);
         Specification<HrcEmployeeMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("empIsactive", isActive),
                 SpecUtils.searchContains(search, "empEmployeeCode", "empFirstName", "empLastName", "empEmail"));
-        Page<HrcEmployeeMst> result = employeeRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
-        return PageResponse.of(page, pageSize, result.getTotalElements(),
+        Page<HrcEmployeeMst> result = employeeRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), size));
+        return PageResponse.of(page, size, result.getTotalElements(),
                 result.getContent().stream().map(e -> toEmpDto(e, null)).toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<LookupEmployeeDto> lookupEmployees(String q, int page, int pageSize, Boolean isActive) {
+        int size = PageSizes.clampMaster(Math.min(pageSize, 50));
+        Specification<HrcEmployeeMst> spec = SpecUtils.combine(
+                SpecUtils.activeEquals("empIsactive", isActive == null ? true : isActive),
+                SpecUtils.searchContains(q, "empEmployeeCode", "empFirstName", "empLastName"));
+        Page<HrcEmployeeMst> result = employeeRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), size));
+        return PageResponse.of(page, size, result.getTotalElements(),
+                result.getContent().stream()
+                        .map(e -> new LookupEmployeeDto(
+                                e.getEmpEmployeeId(),
+                                e.getEmpEmployeeCode(),
+                                e.getEmpFirstName(),
+                                e.getEmpLastName(),
+                                e.getEmpDesignation(),
+                                e.getEmpIsactive()))
+                        .toList());
     }
 
     @Transactional(readOnly = true)

@@ -1,5 +1,6 @@
 com\caits\domain\repository\InvItemBuMappingDtlRepository.class
 com\caits\modules\masters\SystemLocationService.class
+com\caits\modules\masters\dto\MasterDtos$LookupItemDto.class
 com\caits\modules\masters\service\DepartmentMastersService.class
 com\caits\modules\masters\SystemLocationService$1.class
 com\caits\modules\transactions\TxnDocumentService$BatchQty.class
@@ -12,6 +13,7 @@ com\caits\modules\transactions\InspectionRoutingRules.class
 com\caits\modules\masters\SystemLocationRole.class
 com\caits\security\AccessScopeService$Scope.class
 com\caits\domain\entity\InvItemBuMappingDtl.class
+com\caits\common\PageSizes.class
 com\caits\modules\auth\AuthController.class
 com\caits\domain\entity\InvBlsMst.class
 com\caits\modules\transactions\TransferGatepassRules.class
@@ -23,6 +25,7 @@ com\caits\modules\reports\ReportsController$IssueCustody.class
 com\caits\domain\entity\InvItemLocationMappingDtl.class
 com\caits\common\ConstraintMessages.class
 com\caits\modules\masters\dto\MasterDtos$DepartmentDto.class
+com\caits\modules\masters\dto\MasterDtos$LookupEmployeeDto.class
 com\caits\domain\entity\DashRoleWidgetDtl.class
 com\caits\modules\transactions\StockPostingRules$1.class
 com\caits\domain\repository\SysmUserLocationMappingDtlRepository.class

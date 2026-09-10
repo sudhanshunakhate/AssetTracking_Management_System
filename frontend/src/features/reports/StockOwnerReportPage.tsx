@@ -58,6 +58,11 @@ export function StockOwnerReportPage() {
   const mapLoc = useCallback(mapLocation, [])
   const mapUnt = useCallback(mapUnit, [])
   const mapEmp = useCallback(mapEmployee, [])
+
+  useEffect(() => {
+    void import('@/api/pageData/reportFiltersBundle').then((m) => m.ensureReportFiltersBundle())
+  }, [])
+
   const { rows: categories } = useMasterList('categories', mapCat)
   const { rows: stores } = useMasterList('locations', mapLoc)
   const { rows: units } = useMasterList('units', mapUnt)

@@ -98,7 +98,14 @@ public class NotificationService {
             row.setNpsCreatedOn(LocalDateTime.now());
         }
         subscriptionRepo.save(row);
-        webPushService.sendTestAsync(userId);
+        // Drop other endpoints for this user so reopen/upsert does not fan out to stale rows.
+        for (NtfPushSubscriptionDtl other : subscriptionRepo.findByNpsUserIdUsr(userId)) {
+            if (!req.endpoint().equals(other.getNpsEndpoint())) {
+                subscriptionRepo.delete(other);
+            }
+        }
+        // Do not send a test push here — that blasted OS trays on every browser open.
+        // Use POST /notifications/push/test for an explicit check.
     }
 
     @Transactional

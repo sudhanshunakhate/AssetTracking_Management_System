@@ -29,6 +29,16 @@ public class ItemMastersController {
         return service.listItems(page, pageSize, search, isActive);
     }
 
+    /** Slim typeahead for dropdowns — does not return full item mappings. */
+    @GetMapping("/items/lookup")
+    public PageResponse<LookupItemDto> lookupItems(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "30") int pageSize,
+            @RequestParam(required = false) Boolean isActive) {
+        return service.lookupItems(q, page, pageSize, isActive);
+    }
+
     @GetMapping("/items/{id}")
     public ItemDto getItem(@PathVariable Integer id) {
         return service.getItem(id);

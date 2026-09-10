@@ -3,6 +3,7 @@ package com.caits.modules.masters.service;
 import com.caits.common.ApiException;
 import com.caits.common.MessageResponse;
 import com.caits.common.PageResponse;
+import com.caits.common.PageSizes;
 import com.caits.common.spec.SpecUtils;
 import com.caits.domain.entity.*;
 import com.caits.domain.repository.*;
@@ -203,6 +204,7 @@ public class OrgMastersService {
     @Transactional(readOnly = true)
     public PageResponse<LocationDto> listLocations(int page, int pageSize, String search, Boolean isActive,
                                                    Integer entityId, Integer buId) {
+        int size = PageSizes.clampMaster(pageSize);
         Specification<OrgLocationMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("locIsactive", isActive),
                 SpecUtils.searchContains(search, "locLocationCode", "locLocationName"),
@@ -211,8 +213,8 @@ public class OrgMastersService {
                 accessScope.entitySpec("locEntityIdEnt"),
                 accessScope.buSpec("locBuIdBu"),
                 accessScope.locationSpec("locLocationId"));
-        Page<OrgLocationMst> result = locationRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
-        return PageResponse.of(page, pageSize, result.getTotalElements(),
+        Page<OrgLocationMst> result = locationRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), size));
+        return PageResponse.of(page, size, result.getTotalElements(),
                 result.getContent().stream().map(e -> toLocDto(e, null)).toList());
     }
 

@@ -82,6 +82,11 @@ export function StockRegisterPage() {
   const [columnSearchDebounced, setColumnSearchDebounced] = useState('')
 
   const mapLoc = useCallback(mapLocation, [])
+
+  useEffect(() => {
+    void import('@/api/pageData/reportFiltersBundle').then((m) => m.ensureReportFiltersBundle())
+  }, [])
+
   const { rows: stores } = useMasterList('locations', mapLoc)
 
   useEffect(() => {

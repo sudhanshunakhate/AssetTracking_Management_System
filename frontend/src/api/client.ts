@@ -179,11 +179,14 @@ export async function maybeRefreshSession(): Promise<boolean> {
   return refreshInFlight
 }
 
-export async function api<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  beginLoading()
+export type ApiRequestOptions = RequestInit & {
+  /** When true, skip GlobalLoader begin/end — for background catalog fetches. */
+  silent?: boolean
+}
+
+export async function api<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const { silent = false, ...fetchOptions } = options
+  if (!silent) beginLoading()
   try {
     // Proactively slide the session on real API traffic while the user is working.
     if (!path.startsWith('/auth/login') && !path.startsWith('/auth/refresh')) {
@@ -191,16 +194,16 @@ export async function api<T>(
       await maybeRefreshSession()
     }
 
-    const headers = new Headers(options.headers)
+    const headers = new Headers(fetchOptions.headers)
     // FormData must keep the browser-generated multipart boundary.
-    const isFormData = options.body instanceof FormData
-    if (!headers.has('Content-Type') && options.body && !isFormData) {
+    const isFormData = fetchOptions.body instanceof FormData
+    if (!headers.has('Content-Type') && fetchOptions.body && !isFormData) {
       headers.set('Content-Type', 'application/json')
     }
     const token = getToken()
     if (token) headers.set('Authorization', `Bearer ${token}`)
 
-    const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+    const res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers })
     const text = await res.text()
     const body = text ? (JSON.parse(text) as unknown) : null
 
@@ -216,12 +219,12 @@ export async function api<T>(
     }
     return body as T
   } finally {
-    endLoading()
+    if (!silent) endLoading()
   }
 }
 
 export const http = {
-  get: <T>(path: string) => api<T>(path),
+  get: <T>(path: string, opts?: { silent?: boolean }) => api<T>(path, { silent: opts?.silent }),
   post: <T>(path: string, body?: unknown) =>
     api<T>(path, { method: 'POST', body: body == null ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body?: unknown) =>
@@ -443,7 +446,11 @@ export function mapMasterRow<T extends Record<string, unknown>>(
   }
 }
 
-export async function listMaster<T>(resource: string, params: Record<string, string | number | boolean | undefined> = {}) {
+export async function listMaster<T>(
+  resource: string,
+  params: Record<string, string | number | boolean | undefined> = {},
+  opts?: { silent?: boolean },
+) {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== '') qs.set(k, String(v))
@@ -451,5 +458,5 @@ export async function listMaster<T>(resource: string, params: Record<string, str
   if (!qs.has('page')) qs.set('page', '1')
   if (!qs.has('pageSize')) qs.set('pageSize', '200')
   const q = qs.toString()
-  return http.get<PageResponse<T>>(`/${resource}${q ? `?${q}` : ''}`)
+  return http.get<PageResponse<T>>(`/${resource}${q ? `?${q}` : ''}`, { silent: opts?.silent })
 }

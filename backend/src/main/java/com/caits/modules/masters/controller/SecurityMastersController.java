@@ -76,6 +76,15 @@ public class SecurityMastersController {
         return service.listEmployees(page, pageSize, search, isActive);
     }
 
+    @GetMapping("/employees/lookup")
+    public PageResponse<LookupEmployeeDto> lookupEmployees(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "30") int pageSize,
+            @RequestParam(required = false) Boolean isActive) {
+        return service.lookupEmployees(q, page, pageSize, isActive);
+    }
+
     @GetMapping("/employees/{id}")
     public EmployeeDto getEmployee(@PathVariable Integer id) {
         return service.getEmployee(id);

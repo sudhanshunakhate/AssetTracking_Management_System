@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
@@ -6,8 +6,12 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchStockMovement } from '@/api/transactions'
-import { mapEmployee, mapItem, mapLocation, useMasterList } from '@/api/masters'
+import { mapLocation, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import {
+  MasterEmployeeSearchLookup,
+  MasterItemSearchLookup,
+} from '@/features/transactions/MasterSearchLookup'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 
@@ -51,16 +55,12 @@ export function StockMovementReportPage() {
   const [error, setError] = useState<string | null>(null)
 
   const mapLoc = useCallback(mapLocation, [])
-  const mapItm = useCallback(mapItem, [])
-  const mapEmp = useCallback(mapEmployee, [])
-  const { rows: stores } = useMasterList('locations', mapLoc)
-  const { rows: items } = useMasterList('items', mapItm)
-  const { rows: employees } = useMasterList('employees', mapEmp)
 
-  const assetItems = useMemo(
-    () => items.filter((i) => (i.itemType === 'consumable' ? false : true)),
-    [items],
-  )
+  useEffect(() => {
+    void import('@/api/pageData/reportFiltersBundle').then((m) => m.ensureReportFiltersBundle())
+  }, [])
+
+  const { rows: stores } = useMasterList('locations', mapLoc)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -191,24 +191,18 @@ export function StockMovementReportPage() {
               />
             </Field>
             <Field label="Item">
-              <Select value={draft.itemId} onChange={(e) => set('itemId', e.target.value)}>
-                <option value="">All Assets</option>
-                {assetItems.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.code} – {i.name}
-                  </option>
-                ))}
-              </Select>
+              <MasterItemSearchLookup
+                value={draft.itemId}
+                onChange={(v) => set('itemId', v)}
+                placeholder="All Assets"
+              />
             </Field>
             <Field label="Owner">
-              <Select value={draft.employeeId} onChange={(e) => set('employeeId', e.target.value)}>
-                <option value="">All Owners</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.code} – {e.firstName} {e.lastName}
-                  </option>
-                ))}
-              </Select>
+              <MasterEmployeeSearchLookup
+                value={draft.employeeId}
+                onChange={(v) => set('employeeId', v)}
+                placeholder="All Owners"
+              />
             </Field>
             <Field label="Location">
               <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>

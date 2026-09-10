@@ -68,8 +68,25 @@ public class AccessScopeService {
         this.properties = properties;
     }
 
+    private static final String SCOPE_ATTR = AccessScopeService.class.getName() + ".current";
+
     @Transactional(readOnly = true)
     public Scope current() {
+        var attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if (attrs != null) {
+            Object cached = attrs.getAttribute(SCOPE_ATTR, org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+            if (cached instanceof Scope scope) {
+                return scope;
+            }
+        }
+        Scope scope = resolveCurrent();
+        if (attrs != null) {
+            attrs.setAttribute(SCOPE_ATTR, scope, org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST);
+        }
+        return scope;
+    }
+
+    private Scope resolveCurrent() {
         CurrentUser cu = SecurityUtils.requireCurrentUser();
         SysmUserloginMst user = userRepo.findById(cu.userId())
                 .orElseThrow(() -> ApiException.unauthorized("User not found"));

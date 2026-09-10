@@ -75,6 +75,12 @@ public final class MasterDtos {
                           List<Integer> buIds, List<Integer> locationIds, List<Integer> effectiveLocationIds,
                           String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn,
                           String message) {}
+
+    /** Slim row for typeahead / lookup dropdowns. */
+    public record LookupItemDto(Integer itemId, String itemCode, String itemName, String itemType,
+                                Integer uomId, Integer currentLocationId, Boolean inspectionNeeded,
+                                Boolean isSerialized, Boolean isActive) {}
+
     public record ItemRequest(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
                               Integer subcategoryId, Integer uomId, BigDecimal standardCost, String imageUrl, String desc,
                               String remarks, String assetType, String makeBrand, String model,
@@ -126,6 +132,10 @@ public final class MasterDtos {
                               String departmentName, Integer roleId, Integer baseLocationId, Integer reportingToEmpId, Boolean isActive,
                               Boolean hasLogin, String createdBy, LocalDateTime createdOn,
                               String modifiedBy, LocalDateTime modifiedOn, String message) {}
+
+    public record LookupEmployeeDto(Integer employeeId, String employeeCode, String firstName, String lastName,
+                                    String designation, Boolean isActive) {}
+
     public record EmployeeRequest(Integer employeeId, String employeeCode, String firstName, String lastName,
                                   String gender, java.time.LocalDate dob, java.time.LocalDate joiningDate,
                                   String employmentType, String email, String phone, String altPhone,

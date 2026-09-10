@@ -37,6 +37,11 @@ export function FullReportPage() {
   const mapEnt = useCallback(mapEntity, [])
   const mapEmp = useCallback(mapEmployee, [])
   const mapDept = useCallback(mapDepartment, [])
+
+  useEffect(() => {
+    void import('@/api/pageData/reportFiltersBundle').then((m) => m.ensureReportFiltersBundle())
+  }, [])
+
   const { rows: stores } = useMasterList('locations', mapLoc)
   const { rows: orgs } = useMasterList('entities', mapEnt)
   const { rows: employees } = useMasterList('employees', mapEmp)

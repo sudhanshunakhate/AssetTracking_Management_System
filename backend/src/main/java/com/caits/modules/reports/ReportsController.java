@@ -403,7 +403,7 @@ public class ReportsController {
         if (serialNo != null && !serialNo.isBlank() && serialHeaderIds.isEmpty()) {
             return pageOf(List.of(), page, pageSize);
         }
-        var headers = headerRepo.findAll((root, query, cb) -> {
+        var headerPage = headerRepo.findAll((root, query, cb) -> {
             List<Predicate> preds = new ArrayList<>();
             preds.add(root.get("txhDocType").in(MOVEMENT_DOC_TYPES));
             if (!serialHeaderIds.isEmpty()) {
@@ -426,7 +426,10 @@ public class ReportsController {
                 }
             }
             return cb.and(preds.toArray(Predicate[]::new));
-        }, PageRequest.of(0, 800, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+        }, PageRequest.of(Math.max(page - 1, 0), Math.min(Math.max(pageSize, 1), 200),
+                Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId")));
+
+        List<TxnHeaderMst> headers = headerPage.getContent();
 
         Map<Integer, InvItemMst> items = itemMap();
         Map<Integer, OrgLocationMst> locations = locationMap();
@@ -583,7 +586,7 @@ public class ReportsController {
                 rows.add(row);
             }
         }
-        return pageOf(rows, page, pageSize);
+        return PageResponse.of(page, Math.min(Math.max(pageSize, 1), 200), headerPage.getTotalElements(), rows);
     }
 
     /**
@@ -649,7 +652,11 @@ public class ReportsController {
                 }
             }
             return cb.and(preds.toArray(Predicate[]::new));
-        }, PageRequest.of(0, 2000, Sort.by(Sort.Direction.ASC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+        }, PageRequest.of(0,
+                (itemId != null || (search != null && !search.isBlank()) || serialOnly)
+                        ? 2000
+                        : Math.min(800, Math.max(page * Math.min(Math.max(pageSize, 1), 200), 200)),
+                Sort.by(Sort.Direction.ASC, "txhDocDate", "txhTxnHeaderId"))).getContent();
 
         Map<Integer, OrgLocationMst> locations = locationMap();
         Map<Integer, TxnHeaderMst> grnById = new HashMap<>();
@@ -830,7 +837,7 @@ public class ReportsController {
         if (serialNo != null && !serialNo.isBlank() && serialHeaderIds.isEmpty()) {
             return pageOf(List.of(), page, pageSize);
         }
-        var headers = headerRepo.findAll((root, query, cb) -> {
+        var headerPage = headerRepo.findAll((root, query, cb) -> {
             List<Predicate> preds = new ArrayList<>();
             if (!serialHeaderIds.isEmpty()) {
                 preds.add(root.get("txhTxnHeaderId").in(serialHeaderIds));
@@ -852,7 +859,10 @@ public class ReportsController {
                 }
             }
             return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(Predicate[]::new));
-        }, PageRequest.of(0, 500, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+        }, PageRequest.of(Math.max(page - 1, 0), Math.min(Math.max(pageSize, 1), 200),
+                Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId")));
+
+        List<TxnHeaderMst> headers = headerPage.getContent();
 
         Map<Integer, InvItemMst> items = itemMap();
         Map<Integer, TxnHeaderMst> grnById = new HashMap<>();
@@ -882,7 +892,8 @@ public class ReportsController {
                 rows.addAll(fullReportRowsForLine(h, d, item, grnById, locations, vendors));
             }
         }
-        return pageOf(rows, page, pageSize);
+        // Page by document headers (true DB paging); rows are the expanded lines for that page of headers.
+        return PageResponse.of(page, Math.min(Math.max(pageSize, 1), 200), headerPage.getTotalElements(), rows);
     }
 
     /**

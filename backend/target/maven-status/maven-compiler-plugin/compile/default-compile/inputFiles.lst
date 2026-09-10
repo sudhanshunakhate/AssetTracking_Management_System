@@ -4,6 +4,7 @@ D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\common\
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\common\GlobalExceptionHandler.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\common\MessageResponse.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\common\PageResponse.java
+D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\common\PageSizes.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\common\spec\SpecUtils.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\config\AsyncConfig.java
 D:\CAITS\AssetTracking_Management_System\backend\src\main\java\com\caits\config\DataSeeder.java

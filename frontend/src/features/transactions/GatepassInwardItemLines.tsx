@@ -6,7 +6,6 @@ import type { ApiMasterRow } from '@/api/masters'
 import { locLabel, quarantineForEntity, quarantineForLocation } from './txnLookups'
 import {
   applyItemMaster,
-  FilterableLookup,
   gridCell,
   gridHeadCell,
   gridHeadLabel,
@@ -16,6 +15,7 @@ import {
   useCodeIndex,
   wholeQtyStr,
 } from './lineGrid'
+import { MasterItemSearchLookup } from './MasterSearchLookup'
 
 export type GatepassInwardLine = {
   key: string
@@ -322,14 +322,17 @@ export function GatepassInwardItemLines({
               </label>
               <label className="flex min-w-0 flex-col gap-1 text-[11px] font-semibold text-[var(--text2)]">
                 <span>Item</span>
-                <FilterableLookup
+                <MasterItemSearchLookup
                   value={pickItemId}
                   onChange={setPickItemId}
-                  options={itemOptions}
                   disabled={!storeReady}
                   placeholder={storeReady ? '- Select Item -' : '- Select store first -'}
-                  searchPlaceholder="Search item code or name..."
                   className={gridInput}
+                  selectedLabel={
+                    pickItemId
+                      ? itemOptions.find((o) => o.value === pickItemId)?.label
+                      : undefined
+                  }
                 />
               </label>
 

@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { http, listMaster, type PageResponse } from '@/api/client'
 import { cachedFetch, invalidateCache, MASTER_TTL_MS } from '@/api/requestCache'
 import { sortMasterListRows } from '@/lib/listOrder'
+import {
+  ensureCatalog,
+  getCatalogSnapshot,
+  invalidateCatalog,
+  subscribeCatalog,
+} from '@/api/masterCatalogStore'
 
 type Status = 'Active' | 'Inactive'
 
@@ -21,65 +27,165 @@ const LIST_PAGE_SIZE = 500
 const MAX_LIST_PAGES = 40
 
 /**
- * Fetches every page of a master list. The forms validate uniqueness against
- * this array, so a partial list would silently let duplicates through.
+ * Fetches every page of a master list (silent — does not trip GlobalLoader).
+ * The forms validate uniqueness against this array, so a partial list would
+ * silently let duplicates through.
  */
 async function listMasterAll<TApi extends Record<string, unknown>>(resource: string): Promise<TApi[]> {
-  return cachedFetch(`master:${resource}`, async () => {
-    const first = await listMaster<TApi>(resource, { page: 1, pageSize: LIST_PAGE_SIZE })
-    const rows = first.data ?? []
-    const total = first.totalRecords ?? rows.length
-    if (rows.length >= total || rows.length === 0) return rows
+  return cachedFetch(
+    `master:${resource}`,
+    async () => {
+      const first = await listMaster<TApi>(resource, { page: 1, pageSize: LIST_PAGE_SIZE }, { silent: true })
+      const rows = first.data ?? []
+      const total = first.totalRecords ?? rows.length
+      if (rows.length >= total || rows.length === 0) return rows
 
-    // The API may cap page size below what we asked for, so page off what it actually returned.
-    const served = rows.length
-    const pageCount = Math.min(Math.ceil(total / served), MAX_LIST_PAGES)
-    const rest = await Promise.all(
-      Array.from({ length: pageCount - 1 }, (_, i) =>
-        listMaster<TApi>(resource, { page: i + 2, pageSize: served }),
-      ),
-    )
-    return rest.reduce<TApi[]>((all, page) => all.concat(page.data ?? []), rows)
-  }, MASTER_TTL_MS)
+      const served = rows.length
+      const pageCount = Math.min(Math.ceil(total / served), MAX_LIST_PAGES)
+      const rest = await Promise.all(
+        Array.from({ length: pageCount - 1 }, (_, i) =>
+          listMaster<TApi>(resource, { page: i + 2, pageSize: served }, { silent: true }),
+        ),
+      )
+      return rest.reduce<TApi[]>((all, page) => all.concat(page.data ?? []), rows)
+    },
+    MASTER_TTL_MS,
+  )
 }
 
 /** Call after mutating a master so lists refetch on next use. */
 export function invalidateMasterList(resource?: string) {
-  if (resource) invalidateCache(`master:${resource}`)
-  else invalidateCache('master:')
+  if (resource) {
+    invalidateCache(`master:${resource}`)
+    invalidateCatalog(resource)
+  } else {
+    invalidateCache('master:')
+    invalidateCatalog()
+  }
 }
 
-/** Loads a master list from the API and maps it to UI table rows. */
+/** Loads a master list from the shared catalog store (same public API as before). */
 export function useMasterList<TApi extends Record<string, unknown>>(
   resource: string,
   mapRow: Mapper<TApi>,
   enabled = true,
 ) {
-  const [rows, setRows] = useState<ApiMasterRow[]>([])
-  const [loading, setLoading] = useState(enabled)
-  const [error, setError] = useState<string | null>(null)
+  const snapshot = useSyncExternalStore(
+    (onStoreChange) => (enabled ? subscribeCatalog(resource, onStoreChange) : () => {}),
+    () => getCatalogSnapshot(resource),
+    () => getCatalogSnapshot(resource),
+  )
 
-  const reload = useCallback(async (opts?: { force?: boolean }) => {
-    if (!enabled) return
-    if (opts?.force) invalidateMasterList(resource)
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await listMasterAll<TApi>(resource)
-      setRows(sortMasterListRows(data.map(mapRow), resource))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load')
-      setRows([])
-    } finally {
-      setLoading(false)
-    }
-  }, [enabled, mapRow, resource])
+  const [mapped, setMapped] = useState<ApiMasterRow[]>([])
+  const [mapError, setMapError] = useState<string | null>(null)
 
   useEffect(() => {
-    void reload()
-  }, [reload])
+    if (!enabled) return
+    void ensureCatalog(resource, () => listMasterAll<TApi>(resource)).catch(() => {
+      /* error lives on catalog snapshot */
+    })
+  }, [enabled, resource])
 
-  return { rows, loading, error, reload: () => reload({ force: true }) }
+  useEffect(() => {
+    if (!enabled) {
+      setMapped([])
+      return
+    }
+    if (snapshot.status !== 'ready') return
+    try {
+      setMapped(sortMasterListRows((snapshot.rows as TApi[]).map(mapRow), resource))
+      setMapError(null)
+    } catch (err) {
+      setMapError(err instanceof Error ? err.message : 'Failed to map')
+      setMapped([])
+    }
+  }, [enabled, mapRow, resource, snapshot.status, snapshot.rows, snapshot.updatedAt])
+
+  const reload = useCallback(async () => {
+    if (!enabled) return
+    invalidateMasterList(resource)
+    await ensureCatalog(resource, () => listMasterAll<TApi>(resource), { force: true })
+  }, [enabled, resource])
+
+  const loading = enabled && (snapshot.status === 'idle' || snapshot.status === 'loading')
+  const error = mapError ?? (enabled ? snapshot.error : null)
+
+  return { rows: mapped, loading, error, reload }
+}
+
+/** Server-side typeahead for large masters (items / employees). Silent HTTP. */
+export function useMasterSearch(
+  resource: 'items' | 'employees',
+  opts?: { debounceMs?: number; pageSize?: number; enabled?: boolean },
+) {
+  const enabled = opts?.enabled !== false
+  const debounceMs = opts?.debounceMs ?? 250
+  const pageSize = opts?.pageSize ?? 30
+  const [q, setQ] = useState('')
+  const [rows, setRows] = useState<ApiMasterRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!enabled) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setLoading(true)
+        setError(null)
+        try {
+          const qs = new URLSearchParams({
+            page: '1',
+            pageSize: String(pageSize),
+          })
+          if (q.trim()) qs.set('q', q.trim())
+          const data = await http.get<PageResponse<Record<string, unknown>>>(
+            `/${resource}/lookup?${qs}`,
+            { silent: true },
+          )
+          if (cancelled) return
+          const mapped = (data.data ?? []).map((row) => {
+            if (resource === 'items') {
+              return {
+                id: String(row.itemId ?? ''),
+                code: String(row.itemCode ?? ''),
+                name: String(row.itemName ?? ''),
+                status: activeStatus(row.isActive !== false),
+                itemType: row.itemType,
+                uom: row.uomId,
+                store: row.currentLocationId,
+                inspectionNeeded: row.inspectionNeeded,
+                isSerialized: row.isSerialized,
+              } as ApiMasterRow
+            }
+            return {
+              id: String(row.employeeId ?? ''),
+              code: String(row.employeeCode ?? ''),
+              name: `${String(row.firstName ?? '')} ${String(row.lastName ?? '')}`.trim(),
+              firstName: row.firstName,
+              lastName: row.lastName,
+              status: activeStatus(row.isActive !== false),
+              designation: row.designation,
+            } as ApiMasterRow
+          })
+          setRows(mapped)
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : 'Lookup failed')
+            setRows([])
+          }
+        } finally {
+          if (!cancelled) setLoading(false)
+        }
+      })()
+    }, debounceMs)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [enabled, q, resource, pageSize, debounceMs])
+
+  return { q, setQ, rows, loading, error }
 }
 
 export async function createMaster<TReq extends object, TRes>(resource: string, body: TReq) {

@@ -44,6 +44,11 @@ export function invalidateCache(prefix?: string) {
     return
   }
   for (const key of [...store.keys()]) {
+    // Trailing ":" (e.g. master: / reports:) means a real prefix match.
+    if (prefix.endsWith(':')) {
+      if (key.startsWith(prefix) || key === prefix.slice(0, -1)) store.delete(key)
+      continue
+    }
     if (key === prefix || key.startsWith(`${prefix}:`) || key.startsWith(`${prefix}?`)) {
       store.delete(key)
     }

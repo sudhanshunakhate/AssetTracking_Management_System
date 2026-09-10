@@ -6,9 +6,10 @@ import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { fetchItemLedger } from '@/api/transactions'
-import { mapItem, mapLocation, useMasterList } from '@/api/masters'
+import { mapLocation, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { formatStockQty } from '@/features/transactions/lineGrid'
+import { MasterItemSearchLookup } from '@/features/transactions/MasterSearchLookup'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 
@@ -61,9 +62,12 @@ export function ItemRegisterPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const mapItm = useCallback(mapItem, [])
   const mapLoc = useCallback(mapLocation, [])
-  const { rows: items } = useMasterList('items', mapItm)
+
+  useEffect(() => {
+    void import('@/api/pageData/reportFiltersBundle').then((m) => m.ensureReportFiltersBundle())
+  }, [])
+
   const { rows: stores } = useMasterList('locations', mapLoc)
 
   const showItemCols = !applied.itemId
@@ -187,14 +191,11 @@ export function ItemRegisterPage() {
         <CardBody>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2.5">
             <Field label="Item">
-              <Select value={draft.itemId} onChange={(e) => set('itemId', e.target.value)}>
-                <option value="">All Items</option>
-                {items.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.code} – {i.name}
-                  </option>
-                ))}
-              </Select>
+              <MasterItemSearchLookup
+                value={draft.itemId}
+                onChange={(v) => set('itemId', v)}
+                placeholder="All Items"
+              />
             </Field>
             <Field label="Serial No.">
               <Input

@@ -20,6 +20,11 @@ export function useTxnFormLookups() {
   const mapVend = useCallback(mapVendor, [])
   const mapItm = useCallback(mapItem, [])
   const mapUnt = useCallback(mapUnit, [])
+
+  useEffect(() => {
+    void import('@/api/pageData/txnLookupsBundle').then((m) => m.ensureTxnLookupsBundle())
+  }, [])
+
   return {
     locations: useMasterList('locations', mapLoc),
     employees: useMasterList('employees', mapEmp),

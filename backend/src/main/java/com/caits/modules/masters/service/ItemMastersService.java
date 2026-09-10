@@ -18,9 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
+import com.caits.common.PageSizes;
 
 @Service
 public class ItemMastersService {
@@ -69,14 +73,54 @@ public class ItemMastersService {
     // ---- Items ----
     @Transactional(readOnly = true)
     public PageResponse<ItemDto> listItems(int page, int pageSize, String search, Boolean isActive) {
+        int size = PageSizes.clampMaster(pageSize);
         Specification<InvItemMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("itmIsactive", isActive),
                 SpecUtils.searchContains(search, "itmItemCode", "itmItemName"));
-        Page<InvItemMst> result = itemRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
+        Page<InvItemMst> result = itemRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), size));
         List<OrgLocationMst> selectableLocations = selectableLocations();
-        return PageResponse.of(page, pageSize, result.getTotalElements(),
+        List<InvItemMst> content = result.getContent();
+        List<Integer> itemIds = content.stream().map(InvItemMst::getItmItemId).toList();
+        Map<Integer, List<Integer>> buByItem = new HashMap<>();
+        Map<Integer, List<Integer>> locByItem = new HashMap<>();
+        if (!itemIds.isEmpty()) {
+            for (InvItemBuMappingDtl m : itemBuMappingRepo.findByIibmItemIdItmIn(itemIds)) {
+                buByItem.computeIfAbsent(m.getIibmItemIdItm(), k -> new ArrayList<>()).add(m.getIibmBuIdBu());
+            }
+            for (InvItemLocationMappingDtl m : itemLocationMappingRepo.findByIlimItemIdItmIn(itemIds)) {
+                locByItem.computeIfAbsent(m.getIlimItemIdItm(), k -> new ArrayList<>()).add(m.getIlimLocationIdLoc());
+            }
+        }
+        return PageResponse.of(page, size, result.getTotalElements(),
+                content.stream()
+                        .map(e -> toItemDto(
+                                e,
+                                null,
+                                selectableLocations,
+                                buByItem.getOrDefault(e.getItmItemId(), List.of()),
+                                locByItem.getOrDefault(e.getItmItemId(), List.of())))
+                        .toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<LookupItemDto> lookupItems(String q, int page, int pageSize, Boolean isActive) {
+        int size = PageSizes.clampMaster(Math.min(pageSize, 50));
+        Specification<InvItemMst> spec = SpecUtils.combine(
+                SpecUtils.activeEquals("itmIsactive", isActive == null ? true : isActive),
+                SpecUtils.searchContains(q, "itmItemCode", "itmItemName"));
+        Page<InvItemMst> result = itemRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), size));
+        return PageResponse.of(page, size, result.getTotalElements(),
                 result.getContent().stream()
-                        .map(e -> toItemDto(e, null, selectableLocations))
+                        .map(e -> new LookupItemDto(
+                                e.getItmItemId(),
+                                e.getItmItemCode(),
+                                e.getItmItemName(),
+                                e.getItmItemType(),
+                                e.getItmUomIdUnt(),
+                                e.getItmCurrentLocationIdLoc(),
+                                e.getItmInspectionNeeded(),
+                                e.getItmIsSerialized(),
+                                e.getItmIsactive()))
                         .toList());
     }
 
@@ -270,6 +314,16 @@ public class ItemMastersService {
         List<Integer> locationIds = itemLocationMappingRepo.findByIlimItemIdItm(e.getItmItemId()).stream()
                 .map(InvItemLocationMappingDtl::getIlimLocationIdLoc)
                 .toList();
+        return toItemDto(e, message, selectableLocations, buIds, locationIds);
+    }
+
+    private ItemDto toItemDto(
+            InvItemMst e,
+            String message,
+            List<OrgLocationMst> selectableLocations,
+            List<Integer> buIds,
+            List<Integer> locationIds
+    ) {
         String buScope = normalizeScope(e.getItmBuAccessScope(), "ALL");
         String locScope = normalizeScope(e.getItmLocationAccessScope(), "SELECTED");
         List<Integer> effectiveLocationIds = resolveEffectiveLocationIds(

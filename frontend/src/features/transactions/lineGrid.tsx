@@ -359,6 +359,8 @@ export function FilterableLookup({
   searchPlaceholder = 'Search…',
   className,
   maxVisible = 80,
+  onSearchChange,
+  searching,
 }: {
   value: string
   onChange: (value: string) => void
@@ -369,20 +371,25 @@ export function FilterableLookup({
   searchPlaceholder?: string
   className?: string
   maxVisible?: number
+  /** When set, typing drives remote search (parent supplies filtered options). */
+  onSearchChange?: (query: string) => void
+  searching?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
   const selected = options.find((o) => o.value === value)
+  const remote = Boolean(onSearchChange)
 
   const filtered = useMemo(() => {
+    if (remote) return options.slice(0, maxVisible)
     const term = query.trim().toLowerCase()
     const list = term
       ? options.filter((o) => (o.searchText ?? o.label).toLowerCase().includes(term))
       : options
     return list.slice(0, maxVisible)
-  }, [options, query, maxVisible])
+  }, [options, query, maxVisible, remote])
 
   useEffect(() => {
     if (!open) return
@@ -394,8 +401,11 @@ export function FilterableLookup({
   }, [open])
 
   useEffect(() => {
-    if (open) setQuery('')
-  }, [open])
+    if (open) {
+      setQuery('')
+      onSearchChange?.('')
+    }
+  }, [open, onSearchChange])
 
   const pick = (next: string) => {
     onChange(next)
@@ -428,7 +438,11 @@ export function FilterableLookup({
           <div className="border-b border-[var(--border)] p-1.5">
             <Input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value
+                setQuery(next)
+                onSearchChange?.(next)
+              }}
               placeholder={searchPlaceholder}
               autoFocus
               className="px-2 py-1 text-[12px]"
@@ -442,7 +456,9 @@ export function FilterableLookup({
             role="listbox"
             className="max-h-[220px] overflow-y-auto py-0.5 text-[12px]"
           >
-            {filtered.length === 0 ? (
+            {searching ? (
+              <li className="px-2.5 py-2 text-[var(--text3)]">Searching…</li>
+            ) : filtered.length === 0 ? (
               <li className="px-2.5 py-2 text-[var(--text3)]">No matches</li>
             ) : (
               filtered.map((o) => (
@@ -460,14 +476,19 @@ export function FilterableLookup({
               ))
             )}
           </ul>
-          {options.length > maxVisible && !query.trim() && (
+          {!remote && options.length > maxVisible && !query.trim() && (
             <div className="border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
               Showing {filtered.length} of {options.length} — type to search
             </div>
           )}
-          {query.trim() && filtered.length >= maxVisible && (
+          {!remote && query.trim() && filtered.length >= maxVisible && (
             <div className="border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
               First {maxVisible} matches — refine your search
+            </div>
+          )}
+          {remote && (
+            <div className="border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+              Type to search the catalog
             </div>
           )}
         </div>

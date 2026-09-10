@@ -21,6 +21,7 @@ import {
   type MenuPermission,
 } from '@/api/client'
 import { invalidateCache } from '@/api/requestCache'
+import { prefetchCatalogs } from '@/api/prefetchCatalogs'
 
 type AuthUser = {
   loginId: string
@@ -228,6 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       return next
     })
+    void prefetchCatalogs()
   }, [])
 
   const seesAllLocations = scope.locationAccessScope !== 'SELECTED'
