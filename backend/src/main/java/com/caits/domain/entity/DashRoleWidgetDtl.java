@@ -3,7 +3,7 @@ package com.caits.domain.entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "dash_role_widget_dtl", schema = "caits_local")
+@Table(name = "dash_role_widget_dtl")
 public class DashRoleWidgetDtl {
 
     @Id

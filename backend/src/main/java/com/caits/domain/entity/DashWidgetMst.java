@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "dash_widget_mst", schema = "caits_local")
+@Table(name = "dash_widget_mst")
 public class DashWidgetMst {
 
     @Id

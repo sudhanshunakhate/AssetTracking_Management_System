@@ -215,16 +215,52 @@ export function LoginNotificationPopup() {
 
 export function WindowsPushPrompt() {
   const { permission, enableOsNotifications } = useNotifications()
-  if (permission === 'granted' || permission === 'unsupported') return null
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return sessionStorage.getItem('caits.pushPromptDismissed') === '1'
+    } catch {
+      return false
+    }
+  })
+
+  const insecure = typeof window !== 'undefined' && !window.isSecureContext
+  const unsupported =
+    permission === 'unsupported' ||
+    insecure ||
+    typeof Notification === 'undefined'
+
+  if (dismissed || permission === 'granted') return null
+  if (unsupported && !insecure) return null
+
+  const dismiss = () => {
+    try {
+      sessionStorage.setItem('caits.pushPromptDismissed', '1')
+    } catch {
+      /* ignore */
+    }
+    setDismissed(true)
+  }
+
   return (
     <div className="fixed bottom-4 left-1/2 z-[430] w-[min(440px,calc(100%-2rem))] -translate-x-1/2 rounded-[12px] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-[var(--sh-md)]">
-      <div className="text-[13px] font-bold text-[var(--text)]">Windows notifications</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[13px] font-bold text-[var(--text)]">Windows notifications</div>
+        <button
+          type="button"
+          className="text-[11px] font-semibold text-[var(--text3)] hover:text-[var(--text)]"
+          onClick={dismiss}
+        >
+          Dismiss
+        </button>
+      </div>
       <p className="mt-1 text-[12px] text-[var(--text2)]">
-        {permission === 'denied'
-          ? 'Blocked in the browser. Click the lock icon in the address bar, allow Notifications, then refresh.'
-          : 'Allow once so CAITS can alert you on the Windows tray even if this tab or Chrome is closed.'}
+        {insecure
+          ? 'Browser push alerts need HTTPS (or localhost). In-app bell notifications still work over HTTP.'
+          : permission === 'denied'
+            ? 'Blocked in the browser. Click the lock icon in the address bar, allow Notifications, then refresh — or dismiss this message.'
+            : 'Allow once so CAITS can alert you on the Windows tray even if this tab or Chrome is closed.'}
       </p>
-      {permission !== 'denied' && (
+      {!insecure && permission !== 'denied' && (
         <button
           type="button"
           className="mt-2 rounded-md px-3 py-1.5 text-[12.5px] font-semibold text-white"

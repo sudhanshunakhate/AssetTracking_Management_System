@@ -7,7 +7,7 @@ import { Topbar } from './Topbar'
 import { LoginNotificationPopup, NotificationToasts, WindowsPushPrompt } from '@/features/notifications/NotificationBell'
 
 export function AppShell() {
-  const { user } = useAuth()
+  const { user, sessionReady } = useAuth()
   const { pathname } = useLocation()
   const [collapsed, setCollapsed] = useState(false)
 
@@ -18,6 +18,7 @@ export function AppShell() {
     )
   }, [collapsed])
 
+  if (!sessionReady) return null
   if (!user) return <Navigate to="/login" replace />
 
   return (

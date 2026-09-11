@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface DashWidgetMstRepository extends JpaRepository<DashWidgetMst, Integer> {
     List<DashWidgetMst> findByDshwIsactiveTrueOrderByDshwDefaultSortAsc();
+    java.util.Optional<DashWidgetMst> findByDshwWidgetCodeIgnoreCase(String code);
 }

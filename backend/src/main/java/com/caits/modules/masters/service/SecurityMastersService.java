@@ -9,7 +9,10 @@ import com.caits.domain.entity.*;
 import com.caits.domain.repository.*;
 import com.caits.modules.masters.dto.MasterDtos.*;
 import com.caits.security.AccessScopeService;
+import com.caits.security.PayloadCryptoService;
 import com.caits.security.SecurityUtils;
+import com.caits.security.SensitiveDataMask;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -41,6 +44,7 @@ public class SecurityMastersService {
     private final HrcDepartmentMstRepository departmentRepo;
     private final PasswordEncoder passwordEncoder;
     private final AccessScopeService accessScope;
+    private final PayloadCryptoService payloadCrypto;
 
     public SecurityMastersService(SysmMenutreeMstRepository menuRepo, SysmRolesMstRepository roleRepo,
                                   SysmRolepermissionDtlRepository rolePermRepo, HrcEmployeeMstRepository employeeRepo,
@@ -48,7 +52,8 @@ public class SecurityMastersService {
                                   SysmUserLocationMappingDtlRepository locationMappingRepo,
                                   SysmUseraccessExceptionDtlRepository exceptionRepo, OrgEntityMstRepository entityRepo,
                                   HrcDepartmentMstRepository departmentRepo,
-                                  PasswordEncoder passwordEncoder, AccessScopeService accessScope) {
+                                  PasswordEncoder passwordEncoder, AccessScopeService accessScope,
+                                  PayloadCryptoService payloadCrypto) {
         this.menuRepo = menuRepo;
         this.roleRepo = roleRepo;
         this.rolePermRepo = rolePermRepo;
@@ -61,6 +66,7 @@ public class SecurityMastersService {
         this.departmentRepo = departmentRepo;
         this.passwordEncoder = passwordEncoder;
         this.accessScope = accessScope;
+        this.payloadCrypto = payloadCrypto;
     }
 
     // ---- Menus ----
@@ -255,10 +261,11 @@ public class SecurityMastersService {
         int size = PageSizes.clampMaster(pageSize);
         Specification<HrcEmployeeMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("empIsactive", isActive),
-                SpecUtils.searchContains(search, "empEmployeeCode", "empFirstName", "empLastName", "empEmail"));
+                SpecUtils.searchContains(search, "empEmployeeCode", "empFirstName", "empLastName", "empEmail"),
+                accessScope.locationSpec("empBaseLocationIdLoc"));
         Page<HrcEmployeeMst> result = employeeRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), size));
         return PageResponse.of(page, size, result.getTotalElements(),
-                result.getContent().stream().map(e -> toEmpDto(e, null)).toList());
+                result.getContent().stream().map(e -> toEmpDto(e, null, true)).toList());
     }
 
     @Transactional(readOnly = true)
@@ -282,19 +289,20 @@ public class SecurityMastersService {
 
     @Transactional(readOnly = true)
     public EmployeeDto getEmployee(Integer id) {
-        return toEmpDto(findEmployee(id), null);
+        return toEmpDto(requireEmployeeAccessible(id), null, false);
     }
 
     @Transactional(readOnly = true)
     public List<SubordinateDto> subordinates(Integer employeeId) {
-        findEmployee(employeeId);
+        requireEmployeeAccessible(employeeId);
         return employeeRepo.findByEmpReportingToEmpIdEmp(employeeId).stream()
                 .map(e -> new SubordinateDto(e.getEmpEmployeeId(), e.getEmpEmployeeCode(), e.getEmpFirstName(), e.getEmpDesignation()))
                 .toList();
     }
 
     @Transactional
-    public EmployeeDto createEmployee(EmployeeRequest req) {
+    public EmployeeDto createEmployee(EmployeeRequest raw) {
+        EmployeeRequest req = resolveEmployeePasswords(raw);
         require(req.employeeCode(), "employeeCode");
         require(req.firstName(), "firstName");
         require(req.email(), "email");
@@ -308,6 +316,9 @@ public class SecurityMastersService {
         if (employeeRepo.existsByEmpEmailIgnoreCase(req.email())) {
             throw ApiException.conflict("This email is already used by another employee");
         }
+        if (req.baseLocationId() != null) {
+            accessScope.requireLocationAllowed(req.baseLocationId());
+        }
         HrcEmployeeMst e = new HrcEmployeeMst();
         applyEmp(e, req);
         e.setEmpCreatedBy(SecurityUtils.requireLoginId());
@@ -319,12 +330,13 @@ public class SecurityMastersService {
             provisionLogin(e, req);
             message = "Employee created successfully. User login was created automatically.";
         }
-        return toEmpDto(e, message);
+        return toEmpDto(e, message, false);
     }
 
     @Transactional
-    public EmployeeDto updateEmployee(Integer id, EmployeeRequest req) {
-        HrcEmployeeMst e = findEmployee(id);
+    public EmployeeDto updateEmployee(Integer id, EmployeeRequest raw) {
+        EmployeeRequest req = resolveEmployeePasswords(raw);
+        HrcEmployeeMst e = requireEmployeeAccessible(id);
         if (req.employeeCode() != null && !req.employeeCode().equalsIgnoreCase(e.getEmpEmployeeCode())
                 && employeeRepo.existsByEmpEmployeeCodeIgnoreCase(req.employeeCode())) {
             throw ApiException.conflict("Employee code already exists");
@@ -334,6 +346,9 @@ public class SecurityMastersService {
             throw ApiException.conflict("This email is already used by another employee");
         }
         if (req.roleId() != null) findRole(req.roleId());
+        if (req.baseLocationId() != null) {
+            accessScope.requireLocationAllowed(req.baseLocationId());
+        }
         applyEmp(e, req);
         e.setEmpModifiedBy(SecurityUtils.requireLoginId());
         e.setEmpModifiedOn(LocalDateTime.now());
@@ -347,12 +362,12 @@ public class SecurityMastersService {
             provisionLogin(e, req);
             message = "Employee updated successfully. User login was created automatically.";
         }
-        return toEmpDto(e, message);
+        return toEmpDto(e, message, false);
     }
 
     @Transactional
     public MessageResponse deleteEmployee(Integer id) {
-        HrcEmployeeMst e = findEmployee(id);
+        HrcEmployeeMst e = requireEmployeeAccessible(id);
         e.setEmpIsactive(false);
         e.setEmpModifiedBy(SecurityUtils.requireLoginId());
         e.setEmpModifiedOn(LocalDateTime.now());
@@ -362,6 +377,35 @@ public class SecurityMastersService {
 
     private HrcEmployeeMst findEmployee(Integer id) {
         return employeeRepo.findById(id).orElseThrow(() -> ApiException.notFound("Employee not found"));
+    }
+
+    private HrcEmployeeMst requireEmployeeAccessible(Integer id) {
+        HrcEmployeeMst e = findEmployee(id);
+        assertEmployeeAccessible(e);
+        return e;
+    }
+
+    private void assertEmployeeAccessible(HrcEmployeeMst e) {
+        AccessScopeService.Scope scope = accessScope.current();
+        if (scope.unrestricted()) {
+            return;
+        }
+        if (e.getEmpBaseLocationIdLoc() != null && !accessScope.canAccessLocation(e.getEmpBaseLocationIdLoc())) {
+            throw ApiException.notFound("Employee not found");
+        }
+        if (scope.entityRestricted()) {
+            var linkedUser = userRepo.findByUsrEmployeeIdEmp(e.getEmpEmployeeId());
+            if (linkedUser.isPresent()) {
+                if (!Objects.equals(linkedUser.get().getUsrEntityIdEnt(), scope.entityId())) {
+                    throw ApiException.notFound("Employee not found");
+                }
+            } else if (e.getEmpDepartmentIdDept() != null) {
+                HrcDepartmentMst dept = departmentRepo.findById(e.getEmpDepartmentIdDept()).orElse(null);
+                if (dept != null && !Objects.equals(dept.getDeptEntityIdEnt(), scope.entityId())) {
+                    throw ApiException.notFound("Employee not found");
+                }
+            }
+        }
     }
 
     private void applyEmp(HrcEmployeeMst e, EmployeeRequest req) {
@@ -440,7 +484,7 @@ public class SecurityMastersService {
         userRepo.save(user);
     }
 
-    private EmployeeDto toEmpDto(HrcEmployeeMst e, String message) {
+    private EmployeeDto toEmpDto(HrcEmployeeMst e, String message, boolean maskSensitive) {
         boolean hasLogin = userRepo.existsByUsrEmployeeIdEmp(e.getEmpEmployeeId());
         String departmentName = null;
         if (e.getEmpDepartmentIdDept() != null) {
@@ -448,10 +492,13 @@ public class SecurityMastersService {
                     .map(HrcDepartmentMst::getDeptDepartmentName)
                     .orElse(null);
         }
+        String email = maskSensitive ? SensitiveDataMask.email(e.getEmpEmail()) : e.getEmpEmail();
+        String phone = maskSensitive ? SensitiveDataMask.phone(e.getEmpPhone()) : e.getEmpPhone();
+        String altPhone = maskSensitive ? SensitiveDataMask.phone(e.getEmpAltPhone()) : e.getEmpAltPhone();
         return new EmployeeDto(
                 e.getEmpEmployeeId(), e.getEmpEmployeeCode(), e.getEmpFirstName(), e.getEmpLastName(),
                 e.getEmpGender(), e.getEmpDob(), e.getEmpJoiningDate(), e.getEmpEmploymentType(),
-                e.getEmpEmail(), e.getEmpPhone(), e.getEmpAltPhone(), e.getEmpDesignation(),
+                email, phone, altPhone, e.getEmpDesignation(),
                 e.getEmpDepartmentIdDept(), departmentName,
                 e.getEmpRoleIdRol(), e.getEmpBaseLocationIdLoc(), e.getEmpReportingToEmpIdEmp(), e.getEmpIsactive(),
                 hasLogin, e.getEmpCreatedBy(), e.getEmpCreatedOn(), e.getEmpModifiedBy(), e.getEmpModifiedOn(), message);
@@ -480,7 +527,9 @@ public class SecurityMastersService {
     public PageResponse<UserDto> listUsers(int page, int pageSize, String search, Boolean isActive) {
         Specification<SysmUserloginMst> spec = SpecUtils.combine(
                 SpecUtils.activeEquals("usrIsactive", isActive),
-                SpecUtils.searchContains(search, "usrLoginId"));
+                SpecUtils.searchContains(search, "usrLoginId"),
+                accessScope.entitySpec("usrEntityIdEnt"),
+                accessScope.locationSpec("usrLocationIdLoc"));
         Page<SysmUserloginMst> result = userRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
         return PageResponse.of(page, pageSize, result.getTotalElements(),
                 result.getContent().stream().map(e -> toUserDto(e, null)).toList());
@@ -488,16 +537,24 @@ public class SecurityMastersService {
 
     @Transactional(readOnly = true)
     public UserDto getUser(Integer id) {
-        return toUserDto(findUser(id), null);
+        return toUserDto(requireUserAccessible(id), null);
     }
 
     @Transactional
-    public UserDto createUser(UserRequest req) {
+    public UserDto createUser(UserRequest raw) {
+        UserRequest req = resolveUserPasswords(raw);
         if (req.employeeId() == null) throw ApiException.badRequest("employeeId is required");
         require(req.loginId(), "loginId");
         require(req.password(), "password");
         if (req.roleId() == null) throw ApiException.badRequest("roleId is required");
         if (req.entityId() == null) throw ApiException.badRequest("entityId is required");
+        AccessScopeService.Scope scope = accessScope.current();
+        if (scope.entityRestricted() && !Objects.equals(scope.entityId(), req.entityId())) {
+            throw ApiException.forbidden("You do not have access to this Organization");
+        }
+        if (req.locationId() != null) {
+            accessScope.requireLocationAllowed(req.locationId());
+        }
         if (req.password().length() < 8) {
             throw ApiException.badRequest("Password must be at least 8 characters");
         }
@@ -530,14 +587,24 @@ public class SecurityMastersService {
     }
 
     @Transactional
-    public UserDto updateUser(Integer id, UserRequest req) {
-        SysmUserloginMst e = findUser(id);
+    public UserDto updateUser(Integer id, UserRequest raw) {
+        UserRequest req = resolveUserPasswords(raw);
+        SysmUserloginMst e = requireUserAccessible(id);
         if (req.loginId() != null && !req.loginId().equalsIgnoreCase(e.getUsrLoginId())
                 && userRepo.existsByUsrLoginIdIgnoreCase(req.loginId())) {
             throw ApiException.conflict("Login ID already exists");
         }
         if (req.employeeId() != null) findEmployee(req.employeeId());
         if (req.roleId() != null) findRole(req.roleId());
+        if (req.entityId() != null) {
+            AccessScopeService.Scope scope = accessScope.current();
+            if (scope.entityRestricted() && !Objects.equals(scope.entityId(), req.entityId())) {
+                throw ApiException.forbidden("You do not have access to this Organization");
+            }
+        }
+        if (req.locationId() != null) {
+            accessScope.requireLocationAllowed(req.locationId());
+        }
         applyUser(e, req);
         if (req.password() != null && !req.password().isBlank()) {
             if (req.password().length() < 8) {
@@ -554,7 +621,7 @@ public class SecurityMastersService {
 
     @Transactional
     public MessageResponse deleteUser(Integer id) {
-        SysmUserloginMst e = findUser(id);
+        SysmUserloginMst e = requireUserAccessible(id);
         e.setUsrIsactive(false);
         e.setUsrAccountStatus("Disabled");
         e.setUsrModifiedBy(SecurityUtils.requireLoginId());
@@ -565,7 +632,7 @@ public class SecurityMastersService {
 
     @Transactional
     public MessageResponse resetPassword(Integer userId) {
-        SysmUserloginMst e = findUser(userId);
+        SysmUserloginMst e = requireUserAccessible(userId);
         String temp = "Temp@" + UUID.randomUUID().toString().substring(0, 8);
         e.setUsrPasswordHash(passwordEncoder.encode(temp));
         e.setUsrForcePasswordReset(true);
@@ -578,7 +645,7 @@ public class SecurityMastersService {
 
     @Transactional
     public LockStatusResponse lockStatus(Integer userId, LockStatusRequest req) {
-        SysmUserloginMst e = findUser(userId);
+        SysmUserloginMst e = requireUserAccessible(userId);
         if (req == null || req.action() == null) throw ApiException.badRequest("action is required");
         String action = req.action().trim().toLowerCase();
         if ("lock".equals(action)) {
@@ -597,7 +664,7 @@ public class SecurityMastersService {
 
     @Transactional(readOnly = true)
     public OuAccessDto getOuAccess(Integer userId) {
-        SysmUserloginMst e = findUser(userId);
+        SysmUserloginMst e = requireUserAccessible(userId);
         List<Integer> buIds = buMappingRepo.findByUboaUserIdUsr(userId).stream()
                 .map(SysmUserBuMappingDtl::getUboaBuIdBu).toList();
         List<Integer> locationIds = locationMappingRepo.findByUlocUserIdUsr(userId).stream()
@@ -609,7 +676,7 @@ public class SecurityMastersService {
 
     @Transactional
     public OuAccessDto putOuAccess(Integer userId, OuAccessRequest req) {
-        SysmUserloginMst e = findUser(userId);
+        SysmUserloginMst e = requireUserAccessible(userId);
         // A scoped administrator must not be able to hand out access they do not hold themselves.
         if (req.buIds() != null) req.buIds().forEach(accessScope::requireBuAllowed);
         if (req.locationIds() != null) req.locationIds().forEach(accessScope::requireLocationAllowed);
@@ -666,6 +733,21 @@ public class SecurityMastersService {
 
     private SysmUserloginMst findUser(Integer id) {
         return userRepo.findById(id).orElseThrow(() -> ApiException.notFound("User not found"));
+    }
+
+    private SysmUserloginMst requireUserAccessible(Integer id) {
+        SysmUserloginMst e = findUser(id);
+        AccessScopeService.Scope scope = accessScope.current();
+        if (scope.unrestricted()) {
+            return e;
+        }
+        if (scope.entityRestricted() && !Objects.equals(scope.entityId(), e.getUsrEntityIdEnt())) {
+            throw ApiException.notFound("User not found");
+        }
+        if (e.getUsrLocationIdLoc() != null && !accessScope.canAccessLocation(e.getUsrLocationIdLoc())) {
+            throw ApiException.notFound("User not found");
+        }
+        return e;
     }
 
     private void applyUser(SysmUserloginMst e, UserRequest req) {
@@ -795,6 +877,43 @@ public class SecurityMastersService {
 
     private static boolean bool(Boolean b) {
         return Boolean.TRUE.equals(b);
+    }
+
+    /** Prefer RSA passwordCipher from the browser; reject lingering plaintext passwords. */
+    private EmployeeRequest resolveEmployeePasswords(EmployeeRequest req) {
+        if (req == null) return null;
+        if (req.passwordCipher() != null && !req.passwordCipher().isBlank()) {
+            JsonNode n = payloadCrypto.decryptPayload(req.passwordCipher());
+            return new EmployeeRequest(
+                    req.employeeId(), req.employeeCode(), req.firstName(), req.lastName(),
+                    req.gender(), req.dob(), req.joiningDate(), req.employmentType(),
+                    req.email(), req.phone(), req.altPhone(), req.designation(),
+                    req.departmentId(), req.roleId(), req.baseLocationId(), req.reportingToEmpId(),
+                    req.isActive(), req.createLogin(), req.loginId(),
+                    payloadCrypto.requireText(n, "password"),
+                    payloadCrypto.requireText(n, "confirmPassword"),
+                    req.entityId(), null);
+        }
+        if (req.password() != null && !req.password().isBlank()) {
+            throw ApiException.badRequest("Passwords must be sent encrypted");
+        }
+        return req;
+    }
+
+    private UserRequest resolveUserPasswords(UserRequest req) {
+        if (req == null) return null;
+        if (req.passwordCipher() != null && !req.passwordCipher().isBlank()) {
+            JsonNode n = payloadCrypto.decryptPayload(req.passwordCipher());
+            return new UserRequest(
+                    req.employeeId(), req.loginId(),
+                    payloadCrypto.requireText(n, "password"),
+                    req.roleId(), req.accountStatus(), req.entityId(), req.buAccessScope(),
+                    req.locationId(), req.forcePasswordReset(), req.isActive(), null);
+        }
+        if (req.password() != null && !req.password().isBlank()) {
+            throw ApiException.badRequest("Passwords must be sent encrypted");
+        }
+        return req;
     }
 
     private static void require(String v, String field) {

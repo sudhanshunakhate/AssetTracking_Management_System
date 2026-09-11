@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "subcategory_mst", schema = "caits_local")
+@Table(name = "subcategory_mst")
 public class SubcategoryMst {
 
     @Id

@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "org_entity_mst", schema = "caits_local")
+@Table(name = "org_entity_mst")
 public class OrgEntityMst {
 
     @Id
@@ -24,10 +24,12 @@ public class OrgEntityMst {
     @Column(name = "ent_legal_name")
     private String entLegalName;
 
-    @Column(name = "ent_gstin")
+    @Convert(converter = com.caits.security.EncryptedStringConverter.class)
+    @Column(name = "ent_gstin", length = 512)
     private String entGstin;
 
-    @Column(name = "ent_pan_no")
+    @Convert(converter = com.caits.security.EncryptedStringConverter.class)
+    @Column(name = "ent_pan_no", length = 512)
     private String entPanNo;
 
     @Column(name = "ent_cin")

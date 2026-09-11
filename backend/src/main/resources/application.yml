@@ -1,20 +1,25 @@
 server:
   port: 8085
   error:
-    include-message: always
+    # Never expose raw exception text to clients (see GlobalExceptionHandler).
+    include-message: never
+    include-stacktrace: never
 
+# ---------------------------------------------------------------------------
+# DB switch (single knob):
+#   CAITS_DB=1  → schema caits_local (full data clone / legacy)
+#   CAITS_DB=2  → schema caits      (structure + admin)   ← default
+#
+# Examples:
+#   PowerShell:  $env:CAITS_DB = "1"; mvn spring-boot:run
+#   Or edit below: spring.profiles.active: "1"
+# ---------------------------------------------------------------------------
 spring:
   application:
     name: caits-backend
+  profiles:
+    active: ${CAITS_DB:2}
   datasource:
-    # Local Postgres.
-    # url: jdbc:postgresql://localhost:5432/postgres
-    # username: postgres
-    # password: pass121word
-    # Shared dev server (active).
-    url: jdbc:postgresql://192.168.0.223:5432/caits
-    username: caits
-    password: caits123
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 20
@@ -29,7 +34,6 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
-        default_schema: caits_local
         jdbc:
           time_zone: Asia/Kolkata
           batch_size: 50
@@ -48,18 +52,27 @@ spring:
 
 caits:
   security:
-    jwt-secret: "CAITS_Local_Dev_Secret_Change_Me_32chars_Min_Length_Required!!"
+    # Override via CAITS_SECURITY_JWT_SECRET in production — never commit real secrets.
+    jwt-secret: ${CAITS_SECURITY_JWT_SECRET:CAITS_Local_Dev_Secret_Change_Me_32chars_Min_Length_Required!!}
     jwt-expiration-seconds: 3600
+    # AES key material for S3 field encryption (PAN/GSTIN). Override in production.
+    field-encryption-key: ${CAITS_SECURITY_FIELD_ENCRYPTION_KEY:CAITS_DEV_FIELD_KEY_CHANGE_ME_32+}
+    # false for local HTTP; set CAITS_SECURITY_COOKIE_SECURE=true behind HTTPS.
+    cookie-secure: ${CAITS_SECURITY_COOKIE_SECURE:false}
+    # Lax for Vite proxy/local; use Strict in production same-site HTTPS.
+    cookie-same-site: ${CAITS_SECURITY_COOKIE_SAME_SITE:Lax}
     # Roles that bypass OU / Location scoping and see every record.
-    # Comma-separated; change without a code edit. Case-insensitive.
     location-scope-exempt-roles: ADMIN
   cors:
-    allowed-origins: "http://localhost:5173,http://127.0.0.1:5173"
+    # Dev Vite + Tomcat same-origin. Override via CAITS_CORS_ALLOWED_ORIGINS on server.
+    allowed-origins: "${CAITS_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080}"
   storage:
-    # Local folder for document attachments; created on first upload.
-    upload-dir: "./uploads"
+    upload-dir: "${CAITS_STORAGE_UPLOAD_DIR:./uploads}"
 
 logging:
+  file:
+    name: ${CAITS_LOG_FILE:./logs/caits-app.log}
   level:
     com.caits: INFO
     org.springframework.security: WARN
+    org.springframework.web: INFO

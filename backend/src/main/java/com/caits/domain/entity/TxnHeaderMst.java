@@ -6,7 +6,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "txn_header_mst", schema = "caits_local")
+@Table(name = "txn_header_mst")
 public class TxnHeaderMst {
 
     @Id
@@ -53,7 +53,8 @@ public class TxnHeaderMst {
     @Column(name = "txh_party_phone")
     private String txhPartyPhone;
 
-    @Column(name = "txh_party_gstin")
+    @Convert(converter = com.caits.security.EncryptedStringConverter.class)
+    @Column(name = "txh_party_gstin", length = 512)
     private String txhPartyGstin;
 
     @Column(name = "txh_ship_to")

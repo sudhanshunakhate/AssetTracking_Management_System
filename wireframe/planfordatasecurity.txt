@@ -1,0 +1,4068 @@
+now as a developer i don't want anything to be able to see,edit,change,not even in payload,neither in apllication layer,network layer,application storage,cache 
+
+and even if after hidning everyhting  if certain things need to go then it must encrypted for that i want you to analyze  all the system secruties ,best mecchanism structure that i can implement in my project that is developed on java21 springboot,react   what can be done to make it working 100% i want 100% zero data view on console log or in developer section of browser in any type of browser 
+
+
+
+Yes—but there is an important boundary you need to design around:
+
+You cannot guarantee “100% zero visibility” of data in a browser if the browser must receive that data in plaintext and JavaScript must use it.
+
+If a value reaches React as plaintext, a user controlling the browser can ultimately inspect it through DevTools, breakpoints, memory inspection, modified JavaScript, extensions, or an intercepting environment. Encryption in transit does not solve this because TLS terminates at the browser.
+
+What you can build is a system where sensitive data never reaches the browser in plaintext at all, except for the minimum information that absolutely must be displayed/used.
+
+For your Java 21 + Spring Boot + React architecture, I would design it as a server-authoritative, zero-sensitive-client-storage architecture.
+
+OWASP specifically recommends avoiding sensitive information in localStorage, because JavaScript can access it, and recommends HttpOnly cookies for session identifiers.
+
+1. First: define what you're actually trying to achieve
+
+Your requirement sounds like:
+
+Layer	Requirement
+Browser console	No sensitive data
+Network tab	No plaintext sensitive data
+Request payload	No sensitive data if possible
+Response payload	No sensitive data if possible
+React state	No sensitive data
+localStorage	No sensitive data
+sessionStorage	No sensitive data
+IndexedDB	No sensitive data
+Cache	No sensitive data
+Service Worker	No sensitive data
+URL	No sensitive data
+Browser history	No sensitive data
+Server logs	No sensitive data
+Reverse proxy logs	No sensitive data
+Spring logs	No sensitive data
+DB logs	No sensitive data
+Error messages	No sensitive data
+Third-party analytics	No sensitive data
+
+That's achievable to a very high degree.
+
+But there is one fundamental rule:
+
+If React needs to display:
+Account Number: 1234567890
+
+then at some point:
+
+1234567890
+
+must exist somewhere on the client.
+
+A malicious user can potentially stop execution at that point.
+
+Therefore your strongest architecture is:
+
+              ┌───────────────────────┐
+              │       Browser         │
+              │                       │
+              │ React                 │
+              │                       │
+              │ only receives:       │
+              │ • UI state            │
+              │ • opaque IDs          │
+              │ • masked values       │
+              │ • non-sensitive data  │
+              └───────────┬───────────┘
+                          │
+                       HTTPS
+                          │
+              ┌───────────▼───────────┐
+              │    Spring Boot API    │
+              │                       │
+              │ Authentication        │
+              │ Authorization         │
+              │ Business logic        │
+              │ Decryption            │
+              │ Sensitive processing  │
+              └───────────┬───────────┘
+                          │
+                 private network
+                          │
+              ┌───────────▼───────────┐
+              │      Database         │
+              │                       │
+              │ encrypted sensitive   │
+              │ fields                │
+              └───────────────────────┘
+2. The most important principle
+Don't send the secret to React.
+
+This is much better than:
+
+DB
+ ↓
+decrypt
+ ↓
+Spring
+ ↓
+encrypt
+ ↓
+React
+ ↓
+decrypt
+ ↓
+display
+
+because eventually React possesses the decryption key or plaintext.
+
+Instead:
+
+DB
+ ↓
+encrypted data
+ ↓
+Spring decrypts internally
+ ↓
+business operation
+ ↓
+return only required result
+
+For example, suppose the database contains:
+
+PAN = encrypted
+
+Don't do:
+
+GET /api/customer
+
+and return:
+
+{
+  "name": "John",
+  "cardNumber": "4111111111111111"
+}
+
+Instead:
+
+{
+  "customerId": "c_8f31",
+  "name": "John",
+  "cardLast4": "1111"
+}
+
+Or, if the operation doesn't require the value at all:
+
+{
+  "customerId": "c_8f31",
+  "status": "ACTIVE"
+}
+
+This is much stronger than trying to hide the value after sending it.
+
+3. Don't try to defeat DevTools
+
+This is a critical architectural distinction.
+
+You will find techniques online such as:
+
+document.addEventListener("contextmenu", ...)
+
+or:
+
+document.onkeydown = ...
+
+or disabling:
+
+F12
+Ctrl+Shift+I
+Ctrl+Shift+J
+
+Don't build your security around these.
+
+They don't provide security.
+
+A user can:
+
+disable JavaScript
+modify your JavaScript
+use another browser
+use browser automation
+inspect network traffic externally
+attach debugging tools
+modify React state
+modify requests
+replay requests
+call your APIs directly
+
+Therefore:
+
+DevTools is not an attacker boundary.
+
+Your backend must assume that the person using the browser has complete control over the browser.
+
+4. Your security model should be "zero trust browser"
+
+I'd explicitly define this architectural rule:
+
+BROWSER = UNTRUSTED
+
+Never trust:
+
+React state
+cookies
+headers
+request body
+URL parameters
+localStorage
+sessionStorage
+IndexedDB
+hidden fields
+disabled fields
+encrypted client data
+obfuscated JavaScript
+
+Anything the browser sends can be modified.
+
+Spring Boot must independently enforce:
+
+Authentication
+        ↓
+Authorization
+        ↓
+Object-level authorization
+        ↓
+Business authorization
+        ↓
+Input validation
+        ↓
+Operation
+
+For example:
+
+POST /api/accounts/abc123/transfer
+
+The browser saying:
+
+{
+    "amount": 100000
+}
+
+doesn't mean the user is allowed to transfer 100000.
+
+The server determines:
+
+Who are you?
+        ↓
+Are you authenticated?
+        ↓
+Are you allowed to access account abc123?
+        ↓
+Is this operation permitted?
+        ↓
+Is 100000 within your limits?
+        ↓
+Is the account active?
+        ↓
+Perform transaction
+5. Authentication architecture
+
+For a React + Spring Boot application, I'd strongly prefer:
+
+React
+   │
+   │ HTTPS
+   ▼
+Spring Security
+   │
+   ▼
+HttpOnly Secure SameSite cookie
+
+rather than:
+
+localStorage
+    ↓
+JWT
+
+OWASP specifically advises against storing session identifiers in localStorage, since JavaScript can access them; HttpOnly cookies can mitigate that exposure.
+
+Your cookie should look conceptually like:
+
+Set-Cookie:
+SESSION=opaque-random-value;
+HttpOnly;
+Secure;
+SameSite=Strict;
+Path=/
+
+Potentially:
+
+__Host-SESSION
+
+with appropriate cookie restrictions.
+
+React should not have access to the session token.
+
+6. Don't put sensitive information in JWTs
+
+A common mistake is:
+
+{
+  "sub": "123",
+  "email": "john@example.com",
+  "accountNumber": "123456789",
+  "role": "ADMIN",
+  "salary": 500000
+}
+
+Even if signed, the JWT payload is normally readable by whoever possesses it.
+
+A signed JWT means:
+
+"You can't modify this without detection."
+
+It does not mean:
+
+"You can't read this."
+
+Use opaque sessions or keep JWT claims extremely minimal.
+
+For example:
+
+{
+  "sub": "user-8f3a",
+  "iss": "your-auth-server",
+  "exp": 1790000000
+}
+
+Better still, if your architecture allows it:
+
+HttpOnly opaque session cookie
+        ↓
+server-side session
+7. Network layer
+
+Use HTTPS everywhere.
+
+Not:
+
+Browser
+  ↓ HTTP
+Nginx
+  ↓ HTTP
+Spring
+
+Prefer:
+
+Browser
+  │
+ TLS 1.3
+  │
+  ▼
+Reverse Proxy
+  │
+ mTLS / private TLS
+  │
+  ▼
+Spring Boot
+  │
+ TLS / private network
+  │
+  ▼
+Database
+
+OWASP recommends TLS 1.3 by default, with TLS 1.2 only when necessary, and recommends disabling obsolete protocols and weak cipher suites.
+
+Use:
+
+TLS 1.3
+HSTS
+Secure cookies
+No mixed content
+Strong cipher suites
+Certificate validation
+
+And consider mTLS for highly sensitive internal service-to-service communication. OWASP specifically discusses mTLS as a stronger client/server authentication mechanism for high-value APIs.
+
+8. But TLS doesn't hide data from the browser
+
+This distinction is extremely important.
+
+Suppose you have:
+
+POST /api/customer
+
+TLS encrypts:
+
+Browser ──────────────── Internet
+          encrypted
+
+But when the browser receives the HTTPS response:
+
+{
+    "secret": "ABC123"
+}
+
+the browser decrypts TLS.
+
+Therefore DevTools can potentially see:
+
+Response:
+{
+    "secret": "ABC123"
+}
+
+So:
+
+TLS protects against network interception.
+
+It does not protect plaintext from the browser itself.
+
+That's why your architecture must minimize what reaches the browser.
+
+9. Database encryption
+
+For highly sensitive fields, use application-level encryption.
+
+Example:
+
+Database
+
+customer
+----------------------------------
+id
+name
+encrypted_phone
+encrypted_account_number
+encrypted_identifier
+
+Not:
+
+account_number = 123456789
+
+Use authenticated encryption such as:
+
+AES-256-GCM
+
+rather than designing your own encryption.
+
+Conceptually:
+
+plaintext
+    ↓
+AES-256-GCM
+    ↓
+ciphertext + IV + authentication tag
+    ↓
+database
+
+But there is an important additional problem:
+
+Key management.
+
+Do NOT do:
+
+private static final String KEY = "...";
+
+and don't put the master key in:
+
+application.properties
+application.yml
+Git
+Docker image
+React
+database
+
+Use a dedicated secrets/KMS architecture:
+
+Spring Boot
+     │
+     ▼
+KMS / HSM / Vault
+     │
+     ▼
+Data encryption key
+     │
+     ▼
+AES-GCM
+
+Ideally use envelope encryption:
+
+              Master/KMS key
+                    │
+                    ▼
+              Key Encryption
+                    │
+                    ▼
+             Data Encryption Key
+                    │
+                    ▼
+          AES-256-GCM sensitive data
+
+This gives you proper key rotation and separation of responsibilities.
+
+10. Encryption doesn't mean "encrypt everything"
+
+This is another common mistake.
+
+Don't blindly do:
+
+Encrypt entire JSON
+Encrypt every field
+Encrypt IDs
+Encrypt everything twice
+
+Encryption should follow data classification.
+
+I'd create something like:
+
+PUBLIC
+INTERNAL
+CONFIDENTIAL
+SENSITIVE
+HIGHLY_SENSITIVE
+SECRET
+
+Then establish rules.
+
+For example:
+
+Data	DB	Network	Browser
+UI preference	plaintext	TLS	okay
+username	plaintext/encrypted depending risk	TLS	okay
+user ID	plaintext	TLS	opaque
+email	encrypted if sensitive	TLS	only if needed
+phone	encrypted	TLS	masked
+government ID	encrypted	TLS	never unless required
+passwords	hashed	TLS	never returned
+API secrets	encrypted/KMS	TLS	never
+encryption keys	KMS/HSM	TLS	never
+11. Passwords are different
+
+Never encrypt passwords so you can retrieve them.
+
+Use:
+
+Argon2id
+
+or an appropriate password hashing strategy.
+
+Architecture:
+
+password
+   ↓
+Argon2id
+   ↓
+password hash
+   ↓
+database
+
+Not:
+
+password
+ ↓
+AES
+ ↓
+database
+12. React architecture
+
+Your React application should follow:
+
+Server state
+     ↓
+minimal DTO
+     ↓
+React
+
+Don't put sensitive objects into global state:
+
+reduxStore.customer = {
+    fullAccountNumber: "...",
+    secret: "...",
+    governmentId: "..."
+}
+
+Instead:
+
+{
+    customerId: "c_92af",
+    displayName: "John",
+    accountStatus: "ACTIVE",
+    accountLast4: "1234"
+}
+
+And preferably don't persist sensitive state.
+
+Avoid:
+
+redux-persist
+localStorage
+sessionStorage
+IndexedDB
+service-worker cache
+
+for sensitive information.
+
+13. Browser caching
+
+For sensitive API responses:
+
+Cache-Control: no-store
+
+This is extremely important.
+
+OWASP explicitly recommends Cache-Control: no-store for sensitive responses because TLS only protects data while it is in transit; it does not prevent the browser or intermediary from caching the response.
+
+You can also consider:
+
+Pragma: no-cache
+Expires: 0
+
+for legacy compatibility.
+
+And at logout:
+
+Clear-Site-Data: "cache", "cookies", "storage"
+
+where appropriate.
+
+14. Don't put secrets in URLs
+
+Never:
+
+/api/customer?ssn=123456789
+
+Never:
+
+/payment?card=4111111111111111
+
+URLs can leak through:
+
+browser history
+proxy logs
+server logs
+analytics
+referrer headers
+monitoring
+screenshots
+
+Use POST bodies where appropriate, while recognizing that the request body is still visible to the browser's DevTools.
+
+The stronger solution remains:
+
+Don't send the sensitive value in the first place.
+
+15. HTTP headers
+
+I'd use a hardened security-header policy.
+
+At minimum, consider:
+
+Strict-Transport-Security
+Content-Security-Policy
+X-Content-Type-Options: nosniff
+Referrer-Policy
+Permissions-Policy
+
+And an appropriate:
+
+Content-Security-Policy
+
+For React, work toward a strict CSP rather than relying on:
+
+unsafe-inline
+unsafe-eval
+
+where possible.
+
+CSP is particularly important because an XSS vulnerability can otherwise expose browser-accessible application data.
+
+16. Third-party JavaScript
+
+This is often overlooked.
+
+If you include:
+
+Google Analytics
+Facebook SDK
+chat widgets
+heatmaps
+advertising scripts
+third-party monitoring
+
+you potentially give third-party JavaScript access to parts of the page/application environment.
+
+For a high-security application:
+
+Sensitive application
+        │
+        ├── no unnecessary third-party JS
+        ├── no session replay
+        ├── no sensitive analytics
+        └── no secrets in telemetry
+
+If third-party scripts are absolutely necessary, isolate and constrain them aggressively.
+
+17. Console logging
+
+Your requirement:
+
+zero data in console logs
+
+is absolutely reasonable.
+
+In production React:
+
+console.log(...)
+console.debug(...)
+console.info(...)
+console.warn(...)
+console.error(...)
+
+should be controlled.
+
+But don't simply rely on:
+
+if (production) console.log = () => {};
+
+because that's not security.
+
+The better architecture is:
+
+Application
+      ↓
+Structured logger
+      ↓
+Data classification
+      ↓
+Sanitization
+      ↓
+Allowed fields only
+      ↓
+SIEM/log system
+
+Never log:
+
+password
+access token
+refresh token
+session ID
+encryption key
+API key
+full card number
+government ID
+sensitive request body
+sensitive response body
+
+OWASP explicitly recommends removing, masking, hashing, sanitizing, or encrypting such information rather than directly logging it.
+
+18. Spring Boot logging
+
+Avoid things like:
+
+log.info("Request: {}", request);
+
+because your DTO may eventually acquire:
+
+private String secret;
+private String accountNumber;
+private String token;
+
+and suddenly your logs contain secrets.
+
+Instead:
+
+log.info(
+    "Customer operation completed customerId={} operation={}",
+    customerId,
+    operation
+);
+
+Use explicit audit DTOs:
+
+record AuditEvent(
+    String eventType,
+    String actorId,
+    String resourceId,
+    String result,
+    Instant timestamp
+) {}
+
+rather than logging arbitrary objects.
+
+19. Never log HTTP bodies globally
+
+Be extremely careful with:
+
+Spring request logging
+Spring Boot debug logging
+Actuator
+Tomcat access logs
+Nginx logs
+API gateway logs
+APM agents
+distributed tracing
+
+For example, an innocent-looking configuration such as:
+
+log request headers
+log request body
+log response body
+
+can destroy your entire security model.
+
+Especially:
+
+Authorization
+Cookie
+Set-Cookie
+request body
+response body
+
+should be excluded/redacted.
+
+20. Distributed tracing can leak secrets too
+
+This is frequently missed.
+
+Suppose you use:
+
+OpenTelemetry
+Jaeger
+Zipkin
+Datadog
+New Relic
+Elastic APM
+
+and someone configures:
+
+HTTP request body = span attribute
+
+Now you have:
+
+Application logs       ❌
+APM                    ❌
+Trace system           ❌
+Browser                ❌
+
+Your security architecture therefore needs a:
+
+Telemetry Data Policy
+
+covering:
+
+logs
+metrics
+traces
+exceptions
+APM
+analytics
+audit events
+21. Error responses
+
+Never return:
+
+{
+  "error": "SQLException: SELECT * FROM customer WHERE ssn='123456789'"
+}
+
+Never expose:
+
+stack traces
+SQL
+filesystem paths
+internal IPs
+encryption information
+class names
+Spring internals
+tokens
+request bodies
+
+Production API:
+
+{
+    "errorCode": "CUSTOMER_OPERATION_FAILED",
+    "requestId": "req_8af92"
+}
+
+The server logs:
+
+requestId=req_8af92
+internalError=...
+
+but the client receives only the safe error.
+
+22. Request correlation
+
+Use an opaque request ID:
+
+X-Request-ID: req_8f92ac
+
+Then logs contain:
+
+requestId=req_8f92ac
+userId=u_82
+operation=CUSTOMER_UPDATE
+result=SUCCESS
+
+not:
+
+requestId
+customer entire JSON
+token
+password
+
+This gives you observability without exposing the data.
+
+23. CSRF
+
+If you're using cookies for authentication, protect state-changing operations against CSRF.
+
+Depending on your architecture, use:
+
+SameSite cookies
++
+CSRF protection
++
+Origin/Referer validation where appropriate
+
+Spring Security can provide CSRF protection.
+
+Don't turn CSRF off simply because:
+
+"We use HTTPS."
+
+HTTPS does not eliminate CSRF.
+
+24. XSS becomes extremely important
+
+Your architecture can be excellent, but an XSS vulnerability can turn:
+
+React application
+
+into:
+
+attacker-controlled JavaScript
+
+Therefore:
+
+React escaping
+CSP
+dependency security
+input/output handling
+DOM XSS prevention
+Trusted Types where practical
+no dangerous HTML
+
+are important.
+
+Also avoid:
+
+dangerouslySetInnerHTML
+
+unless there is a very strong reason and the content is correctly sanitized.
+
+25. Dependency security
+
+For Java 21:
+
+Spring Boot
+Spring Security
+Jackson
+Tomcat
+Netty
+Hibernate
+database drivers
+
+all need dependency management.
+
+For React:
+
+React
+npm dependencies
+Webpack/Vite
+third-party libraries
+
+need continuous vulnerability scanning.
+
+Use tools such as:
+
+OWASP Dependency-Check
+Dependabot
+Snyk
+Trivy
+npm audit
+SBOM
+
+depending on your environment.
+
+26. Browser storage policy
+
+I'd make this a hard architectural rule:
+
+localStorage
+NO sensitive data
+NO tokens
+NO secrets
+NO PII
+sessionStorage
+
+Same policy.
+
+IndexedDB
+
+Same policy.
+
+Cache API
+
+Same policy.
+
+Service Worker
+
+Don't cache sensitive API responses.
+
+Cookies
+
+Only carefully controlled authentication/session material.
+
+And:
+
+HttpOnly
+Secure
+SameSite
+
+as appropriate.
+
+OWASP specifically warns that local storage is accessible to JavaScript and therefore unsuitable for sensitive information.
+
+27. Encryption at rest
+
+I'd use multiple layers.
+
+Database
+Disk encryption
++
+database encryption where available
++
+application-level field encryption
+Backups
+
+Backups must also be encrypted.
+
+Otherwise:
+
+Production DB = encrypted
+Backup DB = plaintext
+
+defeats the purpose.
+
+Logs
+
+If sensitive audit data exists:
+
+encrypted storage
++
+restricted access
++
+tamper detection
++
+retention policy
+
+OWASP recommends protecting logs against unauthorized access, modification and deletion and considering encryption/masking for sensitive information.
+
+28. Key hierarchy
+
+I'd build something like:
+
+                    HSM / Cloud KMS
+                         │
+                  Master Key / KEK
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+          DEK-2026-01           DEK-2026-02
+              │                     │
+         AES-256-GCM            AES-256-GCM
+              │                     │
+          customer data         new data
+
+Store metadata:
+
+key_version
+algorithm
+ciphertext
+iv
+authentication_tag
+
+For example conceptually:
+
+v2:AES256GCM:<ciphertext>
+
+The exact format can be designed more carefully based on your KMS and rotation requirements.
+
+29. Searchable encrypted data
+
+There is a catch with encryption.
+
+Suppose:
+
+email = encrypted
+
+and you need:
+
+WHERE email = ?
+
+You cannot normally perform ordinary database equality searches on randomized encryption.
+
+Possible architecture:
+
+encrypted_email
++
+HMAC(normalized_email, search_key)
+
+Then:
+
+DB:
+encrypted_email
+email_lookup_hash
+
+Search:
+
+HMAC(input)
+      ↓
+lookup_hash
+      ↓
+find ciphertext
+      ↓
+decrypt server-side
+
+This is a common pattern, but it needs careful key management and threat modeling because deterministic/searchable identifiers can leak equality patterns.
+
+30. Don't send the encrypted value either if you don't need it
+
+This is an important distinction.
+
+You might think:
+
+"Fine, I'll send encrypted JSON to React."
+
+But if React receives:
+
+{
+    "encryptedSSN": "a92bc..."
+}
+
+you've still unnecessarily exposed:
+
+ciphertext
+metadata
+structure
+potential identifiers
+
+More importantly, if React has the key:
+
+you've lost the protection.
+
+The strongest design is:
+
+Sensitive data
+       ↓
+never sent to browser
+
+not:
+
+Sensitive data
+       ↓
+encrypted
+       ↓
+browser
+
+unless the application genuinely requires client-side cryptography.
+
+31. If you absolutely must show sensitive information
+
+Then accept that the browser must know it.
+
+You can reduce exposure:
+
+server
+ ↓
+minimal value
+ ↓
+HTTPS
+ ↓
+React
+ ↓
+render
+
+And:
+
+no localStorage
+no IndexedDB
+no cache
+no analytics
+no console logging
+no persistence
+no URL
+no third-party scripts
+no unnecessary state
+no unnecessary API response
+
+But you cannot truthfully promise:
+
+"The user cannot see it in DevTools."
+
+They control the browser.
+
+32. An even stronger approach: server-side rendering
+
+For some extremely sensitive workflows, consider whether React actually needs the sensitive value.
+
+Instead of:
+
+API
+ ↓
+JSON
+ ↓
+React
+ ↓
+DOM
+
+you can use:
+
+Browser
+ ↓
+HTTPS
+ ↓
+server
+ ↓
+server-side processing
+ ↓
+HTML
+
+However, even server-rendered HTML eventually contains displayed plaintext in the browser if the user needs to see it.
+
+So SSR doesn't solve the fundamental issue—it can simply reduce client-side application state.
+
+33. Consider tokenization
+
+For very sensitive data, don't make your application handle the real value everywhere.
+
+Instead:
+
+Real sensitive value
+        ↓
+Tokenization service
+        ↓
+opaque token
+
+Your application uses:
+
+tok_7d92af81
+
+instead of:
+
+1234567890123456
+
+The mapping is held in a restricted vault/service.
+
+This is especially useful for:
+
+payment data
+government identifiers
+high-value secrets
+financial information
+34. Architecture I'd recommend for your stack
+
+Something like this:
+
+                         INTERNET
+                            │
+                            │ TLS 1.3
+                            ▼
+                 ┌────────────────────┐
+                 │ CDN / WAF           │
+                 │                     │
+                 │ DDoS                │
+                 │ rate limiting       │
+                 │ bot protection      │
+                 └─────────┬──────────┘
+                           │
+                           ▼
+                 ┌────────────────────┐
+                 │ Reverse Proxy      │
+                 │                    │
+                 │ TLS                │
+                 │ security headers   │
+                 │ request limits     │
+                 └─────────┬──────────┘
+                           │
+                         mTLS
+                           │
+                           ▼
+                 ┌────────────────────┐
+                 │ Spring Boot        │
+                 │                    │
+                 │ Spring Security    │
+                 │ Authentication     │
+                 │ Authorization      │
+                 │ CSRF               │
+                 │ Validation         │
+                 │ Business Logic     │
+                 │ Encryption         │
+                 │ Audit              │
+                 └─────┬──────┬───────┘
+                       │      │
+              ┌────────┘      └────────┐
+              ▼                        ▼
+       ┌──────────────┐         ┌──────────────┐
+       │ KMS / HSM    │         │ Database     │
+       │              │         │              │
+       │ keys         │         │ ciphertext   │
+       │ rotation     │         │ hashes       │
+       │ policies     │         │ opaque IDs   │
+       └──────────────┘         └──────────────┘
+
+And separately:
+
+Spring Boot
+     │
+     ├── Audit events ──> secure SIEM
+     │
+     ├── Metrics ───────> monitoring
+     │
+     └── Traces ────────> sanitized telemetry
+
+None of those systems should receive raw sensitive payloads.
+
+35. React should receive "views", not database objects
+
+This is one of the best rules you can adopt.
+
+Don't do:
+
+return customerRepository.findById(id);
+
+Don't expose your entity.
+
+Instead:
+
+record CustomerView(
+    String id,
+    String displayName,
+    String status,
+    String maskedAccount
+) {}
+
+Then:
+
+Database Entity
+       ↓
+Service
+       ↓
+Security/authorization
+       ↓
+DTO projection
+       ↓
+React
+
+Your API contract becomes a security boundary.
+
+36. Example
+
+Database:
+
+id
+name
+encrypted_pan
+encrypted_ssn
+encrypted_phone
+salary
+
+React request:
+
+GET /api/customer/c_123
+
+Server internally:
+
+authenticate
+      ↓
+authorize c_123
+      ↓
+read DB
+      ↓
+decrypt required fields
+      ↓
+business processing
+      ↓
+construct safe DTO
+
+Response:
+
+{
+    "id": "c_123",
+    "name": "John",
+    "phone": "******1234",
+    "account": "******9876",
+    "status": "ACTIVE"
+}
+
+The following never leave the backend:
+
+full phone
+full account number
+SSN
+encryption keys
+database ciphertext
+internal database IDs
+
+That is much stronger than attempting to encrypt the JSON sent to React.
+
+37. API gateway controls
+
+I'd also implement:
+
+rate limiting
+request size limits
+connection limits
+schema validation
+authentication
+authorization
+WAF
+IP/risk controls where appropriate
+API versioning
+CORS restrictions
+
+CORS should not be your authorization mechanism.
+
+This:
+
+Access-Control-Allow-Origin
+
+doesn't prevent someone from using:
+
+curl
+Postman
+Python
+another application
+
+against your API.
+
+Your backend authentication/authorization does that.
+
+38. CORS
+
+For example, don't blindly use:
+
+Access-Control-Allow-Origin: *
+
+especially with credentials.
+
+Use an explicit allowlist:
+
+https://app.example.com
+
+and configure credential behavior carefully.
+
+39. Database authorization
+
+Don't let the application use:
+
+root
+
+or:
+
+dbo
+
+or equivalent superuser accounts.
+
+Create an application DB identity with only the required permissions.
+
+Separate:
+
+application DB user
+migration user
+read-only reporting user
+administrative user
+
+where appropriate.
+
+40. Network segmentation
+
+Don't expose:
+
+Internet
+   ↓
+Database
+
+Use:
+
+Internet
+   ↓
+WAF
+   ↓
+API
+   ↓
+private network
+   ↓
+Database
+
+Database should ideally have:
+
+no public IP
+
+and only accept connections from the application network/security group.
+
+41. Secrets management
+
+Your deployment should have:
+
+Git
+   ↓
+CI/CD
+   ↓
+Secret manager
+   ↓
+runtime
+
+not:
+
+Git
+ ↓
+application.yml
+ ↓
+Docker image
+
+Secrets include:
+
+DB password
+KMS credentials
+JWT signing keys
+OAuth client secrets
+API keys
+TLS private keys
+encryption configuration
+42. Production logging policy
+
+I would establish this as an explicit rule:
+
+NEVER LOG
+password
+PIN
+OTP
+access token
+refresh token
+session cookie
+Authorization header
+Cookie header
+private key
+encryption key
+full payment card
+full government ID
+full sensitive request
+full sensitive response
+ALLOWED
+request ID
+opaque user ID
+opaque resource ID
+operation
+timestamp
+result
+status
+latency
+security event
+failure code
+
+Example:
+
+INFO
+requestId=req_81fa
+actor=u_81c2
+operation=ACCOUNT_UPDATE
+resource=acc_7f82
+result=SUCCESS
+
+That's useful operationally without exposing secrets.
+
+43. A security test you should perform
+
+Don't just configure this.
+
+Attack your own application.
+
+Open DevTools.
+
+Network
+
+Check:
+
+Fetch/XHR
+WS
+Document
+Response
+Request
+Headers
+Payload
+
+Search for:
+
+password
+token
+secret
+SSN
+PAN
+account
+phone
+email
+
+Then:
+
+Application
+
+Inspect:
+
+Local Storage
+Session Storage
+IndexedDB
+Cookies
+Cache Storage
+Service Workers
+
+Then:
+
+Sources
+
+Search:
+
+secret
+token
+password
+sensitive field names
+
+Then:
+
+Console
+
+Search for sensitive values.
+
+Then:
+
+Browser cache
+
+Check whether sensitive responses survive navigation/restart.
+
+Then:
+
+Network interception
+
+Use:
+
+Burp Suite
+OWASP ZAP
+
+in a controlled test environment.
+
+You should be able to answer:
+
+"Where does this sensitive value exist at every stage of its lifecycle?"
+
+That's the right security question.
+
+44. Threat model you should explicitly document
+
+Create a matrix:
+
+Threat	Defense
+Network sniffing	TLS 1.3
+MITM	TLS + certificate validation
+Session theft	HttpOnly + Secure + SameSite
+XSS	CSP + secure coding
+CSRF	CSRF protection
+Browser storage theft	no sensitive client storage
+API manipulation	server-side authorization
+IDOR	object-level authorization
+DB theft	encryption at rest + field encryption
+Backup theft	encrypted backups
+Log leakage	structured sanitized logging
+APM leakage	telemetry filtering
+Secret leakage	KMS/HSM
+SQL injection	parameterized queries
+dependency compromise	SCA/SBOM
+brute force	rate limiting
+malicious API client	authentication + authorization
+privilege escalation	server-side policy
+replay	nonce/idempotency/short-lived credentials where appropriate
+XSS	CSP + output encoding
+data exfiltration	minimize client data
+45. The one thing you cannot promise
+
+I would not put this requirement into your security specification:
+
+"100% zero data view in DevTools in every browser."
+
+That isn't technically enforceable for a web application.
+
+Instead write:
+
+"Highly sensitive information must never be transmitted to or stored in the browser unless explicitly required by a documented business function. Where transmission is required, data exposure must be minimized and protected by TLS, strict cache controls, secure session management, and client-side storage restrictions."
+
+That's an enforceable security requirement.
+
+46. Your target architecture
+
+For your Java 21 / Spring Boot / React project, I'd aim for:
+
+                     ┌─────────────────────┐
+                     │       Browser       │
+                     │                     │
+                     │ React               │
+                     │                     │
+                     │ NO secrets          │
+                     │ NO sensitive cache  │
+                     │ NO localStorage     │
+                     │ NO sessionStorage   │
+                     │ NO IndexedDB        │
+                     │ NO sensitive logs   │
+                     └──────────┬──────────┘
+                                │
+                         TLS 1.3 / HTTPS
+                                │
+                     HttpOnly Secure Cookie
+                                │
+                                ▼
+                     ┌─────────────────────┐
+                     │ WAF / Reverse Proxy │
+                     └──────────┬──────────┘
+                                │
+                             mTLS
+                                │
+                                ▼
+                     ┌─────────────────────┐
+                     │ Spring Boot         │
+                     │                     │
+                     │ Spring Security     │
+                     │ AuthN/AuthZ         │
+                     │ CSRF                │
+                     │ Validation          │
+                     │ Business rules      │
+                     │ DTO projection      │
+                     │ Encryption          │
+                     │ Audit               │
+                     └───────┬───────┬─────┘
+                             │       │
+                       KMS/HSM       │
+                             │       │
+                             ▼       ▼
+                       ┌───────┐ ┌──────────┐
+                       │ KMS   │ │ Database │
+                       │       │ │          │
+                       │ keys  │ │ encrypted│
+                       └───────┘ └──────────┘
+
+The key idea is:
+
+Don't attempt to make the browser incapable of seeing something it possesses. Design the system so it never possesses the sensitive thing.
+
+That's the strongest possible approach for a browser-based application.
+
+What I would implement first
+
+If this were my Java 21/Spring Boot + React project, I'd implement the security in this order:
+
+Phase 1 — Data classification
+
+What data exists?
+What is sensitive?
+Where does each field travel?
+
+Phase 2 — Data-flow elimination
+
+Remove unnecessary sensitive fields from API responses.
+
+Phase 3 — Browser hardening
+
+No sensitive localStorage
+No sensitive sessionStorage
+No IndexedDB
+No sensitive cache
+HttpOnly cookies
+Secure cookies
+SameSite
+CSP
+HSTS
+
+Phase 4 — Backend security
+
+Spring Security
+RBAC/ABAC
+object-level authorization
+CSRF
+validation
+rate limiting
+secure errors
+
+Phase 5 — Encryption
+
+TLS 1.3
+AES-256-GCM
+KMS/HSM
+envelope encryption
+key rotation
+encrypted backups
+
+Phase 6 — Observability
+
+sanitized logs
+sanitized traces
+sanitized metrics
+audit events
+no request/response body logging
+
+Phase 7 — Offensive testing
+
+DevTools
+Burp/ZAP
+XSS testing
+CSRF testing
+IDOR testing
+API manipulation
+storage inspection
+cache inspection
+log inspection
+dependency scanning
+
+OWASP's secure-code-review guidance similarly emphasizes secure defaults, secrets management, protected logging, security headers, strong TLS configuration, dependency management, authorization, and security monitoring as part of a complete application security program.
+
+If you want, I can take this one step further and design the actual production-grade blueprint for your Java 21 + Spring Boot + React project, including the package structure, Spring Security configuration, AES-256-GCM encryption service, KMS/HSM key hierarchy, HttpOnly session architecture, DTO rules, React architecture, CSP/security headers, logging filters, cache controls, Nginx/API-gateway configuration, and a security test checklist—essentially a concrete implementation plan rather than just the architecture.
+
+give me
+1.blueprint
+2.system message
+
+prompt
+
+that i can give it to my cursor agent to analyze and implement this functionality and mcehanism
+
+Absolutely. For Cursor, I would separate this into three artifacts:
+
+Blueprint — the architecture/specification Cursor should implement.
+System message — persistent behavior/rules for the coding agent.
+Implementation prompt — the actual task you paste into Cursor Agent.
+
+One important correction to the original requirement: the specification should not claim impossible “100% DevTools invisibility.” Instead, it should enforce “sensitive data must not reach the browser unless the business requirement explicitly requires it.” If plaintext reaches a browser, no web application can guarantee that a user cannot inspect it.
+
+1. Security Blueprint
+Zero-Sensitive-Data Browser Security Blueprint
+Java 21 + Spring Boot + React
+1. Objective
+
+Design and implement the application so that sensitive and highly sensitive information is not exposed unnecessarily to:
+
+Browser DevTools
+Console
+Network request/response payloads
+React state
+Redux/global state
+localStorage
+sessionStorage
+IndexedDB
+Cache Storage
+Service Worker caches
+Browser history
+URL/query parameters
+Cookies
+frontend source/configuration
+application logs
+reverse-proxy logs
+API gateway logs
+database logs
+APM
+distributed traces
+metrics
+exception messages
+monitoring systems
+third-party analytics
+
+The fundamental architectural principle is:
+
+The browser is an untrusted environment.
+
+Never rely on React, browser storage, hidden fields, disabled controls, JavaScript obfuscation, disabled DevTools, or client-side validation as security controls.
+
+2. Fundamental Security Rule
+Sensitive data minimization
+
+The backend must NOT return sensitive data merely because it exists in the database.
+
+Use:
+
+Database Entity
+        ↓
+Business Service
+        ↓
+Authorization
+        ↓
+Security/Data Classification
+        ↓
+Purpose-specific DTO
+        ↓
+React
+
+Never:
+
+Database Entity
+        ↓
+JSON serialization
+        ↓
+Browser
+
+The API response must contain only fields required by the specific UI operation.
+
+3. Data Classification
+
+Every data field must be classified.
+
+Recommended classifications:
+
+PUBLIC
+INTERNAL
+CONFIDENTIAL
+SENSITIVE
+HIGHLY_SENSITIVE
+SECRET
+
+Examples:
+
+PUBLIC
+application version
+public product name
+public documentation
+INTERNAL
+non-sensitive operational metadata
+internal IDs where exposure is acceptable
+CONFIDENTIAL
+business information
+non-public configuration
+SENSITIVE
+email
+phone
+address
+financial information
+personal information
+HIGHLY_SENSITIVE
+government identifiers
+financial account information
+private customer information
+medical information
+payment information
+SECRET
+passwords
+API keys
+private keys
+encryption keys
+refresh tokens
+service credentials
+database credentials
+4. Browser Data Policy
+
+The frontend must follow:
+
+NO sensitive data in localStorage
+NO sensitive data in sessionStorage
+NO sensitive data in IndexedDB
+NO sensitive data in Cache Storage
+NO sensitive data in URLs
+NO sensitive data in browser history
+NO sensitive data in console
+NO secrets in React source
+NO secrets in environment variables shipped to React
+NO tokens in JavaScript-readable storage
+
+Authentication/session information should preferably use:
+
+HttpOnly
+Secure
+SameSite
+
+cookies where compatible with the application's authentication architecture.
+
+React must not be able to directly read the session credential.
+
+5. Authentication
+
+Use Spring Security.
+
+Preferred architecture:
+
+Browser
+   │
+   │ HTTPS
+   ▼
+Spring Security
+   │
+   ▼
+HttpOnly Secure Session Cookie
+   │
+   ▼
+Server-side authenticated session
+
+Do not store authentication tokens in:
+
+localStorage
+sessionStorage
+IndexedDB
+Redux
+React state
+URL
+
+If JWT is required by the architecture, minimize claims and never put sensitive information into the JWT payload.
+
+6. Authorization
+
+Authentication is not authorization.
+
+Every protected operation must validate:
+
+Who is the user?
+        ↓
+Is the session valid?
+        ↓
+What permissions does the user have?
+        ↓
+Does the user have access to this resource?
+        ↓
+Is the requested operation allowed?
+        ↓
+Are business rules satisfied?
+
+Never trust:
+
+userId from frontend
+role from frontend
+accountId from frontend
+permission from frontend
+hidden form field
+disabled field
+React state
+
+Protect against IDOR/BOLA.
+
+Example:
+
+GET /api/accounts/account-123
+
+must verify that the authenticated principal is authorized to access account-123.
+
+7. Transport Security
+
+Use HTTPS everywhere.
+
+Preferred:
+
+TLS 1.3
+
+Support TLS 1.2 only when required for compatibility.
+
+Implement:
+
+HSTS
+Secure cookies
+No mixed content
+Strong TLS configuration
+Certificate validation
+
+For internal high-security service communication, consider:
+
+mTLS
+8. Database Security
+
+Sensitive database fields should use application-level authenticated encryption where appropriate.
+
+Preferred authenticated encryption:
+
+AES-256-GCM
+
+Do not implement custom cryptography.
+
+Do not hardcode encryption keys.
+
+Never put keys in:
+
+Git
+application.yml
+application.properties
+source code
+Docker image
+React
+database plaintext configuration
+
+Use:
+
+KMS
+HSM
+Vault
+or equivalent enterprise secrets/key management system
+9. Envelope Encryption
+
+Use a key hierarchy.
+
+Conceptually:
+
+KMS/HSM Master Key
+        │
+        ▼
+Key Encryption Key
+        │
+        ▼
+Data Encryption Key
+        │
+        ▼
+AES-256-GCM
+        │
+        ▼
+Sensitive Field Ciphertext
+
+Store sufficient metadata for key rotation:
+
+keyVersion
+algorithm
+iv/nonce
+ciphertext
+authenticationTag
+
+Never store the encryption key next to the ciphertext in plaintext.
+
+10. Encryption Service
+
+Create a centralized backend encryption abstraction.
+
+Example conceptual interface:
+
+public interface EncryptionService {
+
+    String encrypt(String plaintext);
+
+    String decrypt(String ciphertext);
+
+}
+
+The implementation must:
+
+use authenticated encryption
+generate a unique cryptographic nonce/IV correctly
+authenticate ciphertext
+support key versioning
+support key rotation
+fail closed
+never log plaintext
+never log ciphertext unnecessarily
+never expose encryption keys
+never return keys to the frontend
+
+Do not duplicate cryptographic logic throughout the application.
+
+11. Password Security
+
+Passwords must never be encrypted for later recovery.
+
+Use a password hashing mechanism such as:
+
+Argon2id
+
+or an appropriate modern password hashing algorithm.
+
+Never:
+
+AES(password)
+
+for password storage.
+
+12. Tokenization
+
+For extremely sensitive data, consider tokenization.
+
+Example:
+
+Real sensitive value
+        ↓
+Tokenization service
+        ↓
+opaque token
+
+Application uses:
+
+tok_8fa912
+
+instead of the actual value wherever possible.
+
+13. API DTO Architecture
+
+Never expose JPA/database entities directly.
+
+Bad:
+
+return customerRepository.findById(id);
+
+Good:
+
+record CustomerView(
+    String id,
+    String displayName,
+    String status,
+    String maskedAccount
+) {}
+
+Use purpose-specific DTOs.
+
+For example:
+
+CustomerListResponse
+CustomerDetailsResponse
+CustomerUpdateResponse
+CustomerAuditResponse
+
+Do not create one giant DTO containing every field.
+
+14. Sensitive Field Rules
+
+If React does not need a sensitive field:
+
+DO NOT SEND IT.
+
+If React needs only a portion:
+
+SEND ONLY THE MINIMUM REQUIRED PORTION.
+
+Example:
+
+Instead of:
+
+{
+  "accountNumber": "1234567890123456"
+}
+
+send:
+
+{
+  "accountLast4": "3456"
+}
+
+If the business requirement does not require even the last four digits:
+
+{
+  "accountPresent": true
+}
+15. Client-side Encryption
+
+Do NOT automatically encrypt API JSON merely to hide it from DevTools.
+
+This:
+
+Backend
+ ↓
+Encrypted JSON
+ ↓
+Browser
+ ↓
+Decrypt
+ ↓
+React
+
+does not solve the fundamental problem if the browser possesses:
+
+plaintext
++
+decryption key
+
+The stronger architecture is:
+
+Backend sensitive data
+        ↓
+Never sent to browser
+
+Client-side encryption should only be introduced where there is a genuine cryptographic requirement.
+
+16. HTTP Cache Protection
+
+Sensitive responses should use:
+
+Cache-Control: no-store
+
+where appropriate.
+
+Avoid caching sensitive API responses through:
+
+browser cache
+CDN
+service worker
+reverse proxy
+API gateway
+application cache
+
+Review:
+
+Cache-Control
+ETag
+Last-Modified
+Vary
+CDN caching rules
+Service Worker caching
+
+for sensitive endpoints.
+
+17. React Security
+
+React must not persist sensitive state.
+
+Avoid:
+
+Redux persistence
+localStorage persistence
+sessionStorage persistence
+IndexedDB persistence
+
+for sensitive information.
+
+Do not put secrets into:
+
+VITE_*
+REACT_APP_*
+frontend environment variables
+
+if those variables are bundled into the client.
+
+Remember:
+
+Frontend environment variables are configuration, not secrets.
+
+18. Console Logging
+
+Production frontend code must not log sensitive values.
+
+Prohibit:
+
+console.log(user);
+console.log(response);
+console.log(request);
+console.log(token);
+console.log(formData);
+
+Especially prohibit:
+
+password
+OTP
+token
+cookie
+authorization
+financial data
+government IDs
+PII
+
+Do not rely only on disabling console.log.
+
+The code itself must avoid sending sensitive information to logging APIs.
+
+19. Backend Logging
+
+Never log:
+
+password
+OTP
+PIN
+access token
+refresh token
+session cookie
+Authorization header
+Cookie header
+private key
+encryption key
+full payment data
+government ID
+sensitive request body
+sensitive response body
+database credentials
+
+Use structured logging.
+
+Preferred:
+
+requestId=req_123
+actorId=user_456
+operation=ACCOUNT_UPDATE
+resourceId=account_789
+result=SUCCESS
+
+instead of:
+
+requestBody={entire sensitive object}
+20. HTTP Logging
+
+Disable sensitive request/response body logging in:
+
+Spring Boot
+Tomcat
+reverse proxy
+Nginx
+API gateway
+WAF
+APM
+HTTP clients
+HTTP debugging
+
+Headers requiring special protection:
+
+Authorization
+Cookie
+Set-Cookie
+Proxy-Authorization
+
+must be redacted.
+
+21. Exception Handling
+
+Never return stack traces or sensitive implementation details.
+
+Bad:
+
+{
+  "error": "SQLException ... sensitive SQL ..."
+}
+
+Good:
+
+{
+  "errorCode": "INTERNAL_ERROR",
+  "requestId": "req_123"
+}
+
+Use a centralized Spring exception handler.
+
+22. Observability
+
+Logs, metrics and traces are also data stores.
+
+Apply the same data classification to:
+
+logs
+metrics
+traces
+APM
+error tracking
+audit events
+
+Do not automatically attach:
+
+request body
+response body
+cookies
+authorization headers
+PII
+
+to traces/spans.
+
+23. Security Headers
+
+Implement appropriate security headers, including:
+
+Strict-Transport-Security
+Content-Security-Policy
+X-Content-Type-Options: nosniff
+Referrer-Policy
+Permissions-Policy
+
+Configure CSP specifically for the application.
+
+Avoid unnecessary:
+
+unsafe-inline
+unsafe-eval
+
+where feasible.
+
+24. XSS Protection
+
+Use React's default escaping behavior.
+
+Avoid unsafe HTML rendering unless absolutely necessary.
+
+Review:
+
+dangerouslySetInnerHTML
+innerHTML
+DOM manipulation
+HTML sanitization
+third-party components
+Markdown rendering
+rich text rendering
+
+Use strong CSP as defense in depth.
+
+25. Third-party JavaScript
+
+Minimize third-party JavaScript.
+
+Do not allow analytics/session replay tools to capture:
+
+password fields
+financial information
+PII
+sensitive DOM
+authentication information
+
+Preferably exclude third-party scripts entirely from highly sensitive application areas.
+
+26. CORS
+
+Use explicit allowed origins.
+
+Do not use:
+
+Access-Control-Allow-Origin: *
+
+for credentialed sensitive APIs.
+
+CORS is not an authorization mechanism.
+
+27. CSRF
+
+If cookie-based authentication is used, implement appropriate CSRF protection.
+
+Use:
+
+SameSite cookies
++
+Spring Security CSRF protection
++
+appropriate Origin/Referer validation
+
+as applicable.
+
+28. Rate Limiting
+
+Implement rate limits for sensitive operations:
+
+login
+password reset
+OTP
+financial operations
+data export
+authentication
+account changes
+
+Use server-side rate limiting.
+
+29. Input Validation
+
+Validate on the backend even if React validates.
+
+Never trust:
+
+frontend validation
+HTML constraints
+TypeScript types
+React state
+
+Use:
+
+Bean Validation
+schema validation
+business validation
+authorization validation
+30. Database Access
+
+Do not use database administrator credentials for the application.
+
+Use least privilege.
+
+Separate:
+
+application account
+migration account
+administrative account
+reporting account
+
+where appropriate.
+
+Database should not be publicly accessible.
+
+31. Network Segmentation
+
+Preferred:
+
+Internet
+   ↓
+WAF
+   ↓
+Reverse Proxy
+   ↓
+Spring Boot
+   ↓
+Private Network
+   ↓
+Database
+
+Database should preferably have no public network exposure.
+
+32. Secret Management
+
+All secrets must come from a secure secret management mechanism.
+
+Examples:
+
+AWS KMS / Secrets Manager
+Azure Key Vault
+Google Cloud KMS / Secret Manager
+HashiCorp Vault
+HSM
+
+Do not commit secrets.
+
+Add secret scanning to CI/CD.
+
+33. Browser Threat Model
+
+Assume the user can:
+
+open DevTools
+inspect network traffic
+modify requests
+modify responses locally
+modify JavaScript
+modify React state
+call APIs directly
+use curl
+use Postman
+use automation
+install extensions
+debug JavaScript
+
+Therefore:
+
+Client-side controls are UX controls, not authorization controls.
+
+34. Impossible Requirement Handling
+
+Do not claim:
+
+100% impossible to inspect in DevTools
+
+if plaintext is intentionally delivered to the browser.
+
+Instead enforce:
+
+Sensitive data must never be delivered to the browser unless the business requirement explicitly requires it.
+
+For data that must be displayed:
+
+minimize
+mask
+avoid persistence
+avoid caching
+avoid logging
+avoid third-party exposure
+limit lifetime
+35. Security Architecture
+
+Target:
+
+                     INTERNET
+                        │
+                    TLS 1.3
+                        │
+                        ▼
+                 ┌─────────────┐
+                 │ WAF / CDN   │
+                 └──────┬──────┘
+                        │
+                        ▼
+                 ┌─────────────┐
+                 │ Reverse     │
+                 │ Proxy       │
+                 └──────┬──────┘
+                        │
+                      mTLS
+                        │
+                        ▼
+                 ┌─────────────┐
+                 │ Spring Boot │
+                 │             │
+                 │ Security    │
+                 │ AuthN/AuthZ │
+                 │ CSRF        │
+                 │ Validation  │
+                 │ DTOs        │
+                 │ Encryption  │
+                 └─────┬───────┘
+                       │
+              ┌────────┴────────┐
+              ▼                 ▼
+        ┌──────────┐      ┌────────────┐
+        │ KMS/HSM  │      │ Database   │
+        │          │      │            │
+        │ Keys     │      │ Ciphertext │
+        │ Rotation │      │ Hashes     │
+        └──────────┘      └────────────┘
+36. Security Testing
+
+The implementation is incomplete until tested.
+
+Test:
+
+Browser DevTools
+Network tab
+Console
+Application tab
+Storage
+Cookies
+Cache
+Service Worker
+Source maps
+React state
+Redux state
+URLs
+browser history
+HTTP proxy
+Burp/ZAP
+API direct access
+IDOR/BOLA
+XSS
+CSRF
+SQL injection
+authentication bypass
+authorization bypass
+rate limiting
+log inspection
+trace inspection
+backup security
+dependency vulnerabilities
+secret scanning
+37. Acceptance Criteria
+
+The implementation is accepted only when:
+
+Browser
+[ ] No sensitive localStorage
+[ ] No sensitive sessionStorage
+[ ] No sensitive IndexedDB
+[ ] No sensitive Cache Storage
+[ ] No sensitive URL parameters
+[ ] No secrets in frontend bundle
+[ ] No sensitive console logs
+[ ] No unnecessary sensitive React state
+[ ] No unnecessary sensitive API responses
+Network
+[ ] HTTPS enforced
+[ ] TLS configured securely
+[ ] Sensitive data minimized
+[ ] Sensitive headers protected
+[ ] Sensitive responses use no-store where appropriate
+Backend
+[ ] Spring Security configured
+[ ] Authentication enforced
+[ ] Authorization enforced
+[ ] Object-level authorization enforced
+[ ] CSRF protected
+[ ] Input validation implemented
+[ ] Error responses sanitized
+[ ] Sensitive logging prohibited
+Encryption
+[ ] Sensitive DB fields encrypted where required
+[ ] AES-256-GCM or approved equivalent
+[ ] Keys managed externally
+[ ] Key versioning implemented
+[ ] Key rotation supported
+[ ] Backups encrypted
+Observability
+[ ] Logs sanitized
+[ ] Traces sanitized
+[ ] Metrics sanitized
+[ ] APM sanitized
+[ ] No request/response body leakage
+Infrastructure
+[ ] Database private
+[ ] Least privilege
+[ ] Secrets externalized
+[ ] WAF/rate limiting
+[ ] Security headers
+[ ] Dependency scanning
+38. Implementation Philosophy
+
+Do not implement security by hiding data.
+
+Implement security by:
+
+MINIMIZATION
++
+ISOLATION
++
+AUTHORIZATION
++
+ENCRYPTION
++
+LEAST PRIVILEGE
++
+SECURE STORAGE
++
+SECURE TRANSPORT
++
+SANITIZED OBSERVABILITY
++
+CONTINUOUS TESTING
+
+The strongest rule is:
+
+If the browser does not need the sensitive data, the browser must never receive it.
+
+2. Cursor Agent System Message
+
+This is the part I'd put into your Cursor agent's persistent instructions/rules.
+
+SYSTEM ROLE — SECURITY-FIRST SOFTWARE ENGINEERING AGENT
+
+You are a senior application-security architect and implementation engineer.
+
+You are working on a production Java 21 + Spring Boot + React application.
+
+Your highest priority is to prevent unnecessary exposure of sensitive information throughout the complete application lifecycle.
+
+Treat the browser as an UNTRUSTED environment.
+
+Never assume that React, JavaScript, browser storage, cookies, request payloads, headers, or frontend validation can be trusted.
+
+CORE PRINCIPLE
+
+The most important security rule is:
+
+If sensitive information is not required by the browser, it must never be sent to the browser.
+
+Do not solve security problems by merely hiding UI elements, obfuscating JavaScript, disabling DevTools, or encrypting data that the browser subsequently decrypts.
+
+If plaintext reaches the browser, assume the user can potentially inspect it.
+
+Never promise impossible "100% DevTools invisibility."
+
+Instead implement data minimization and server-side authority.
+
+SECURITY RULES
+1. Browser
+
+Never intentionally store sensitive information in:
+
+localStorage
+sessionStorage
+IndexedDB
+Cache Storage
+Service Worker cache
+URL
+query parameters
+browser history
+React persistent state
+Redux persistence
+
+Do not put secrets into frontend environment variables that become part of the client bundle.
+
+Never place private keys, encryption keys, database passwords, API secrets, or service credentials in React code.
+
+2. Authentication
+
+Prefer secure server-controlled authentication using:
+
+HttpOnly
+Secure
+SameSite
+
+cookies where appropriate.
+
+Never put authentication credentials into localStorage.
+
+Never expose session secrets to React unnecessarily.
+
+3. Authorization
+
+Authorization must always happen on the backend.
+
+Never trust:
+
+frontend roles
+frontend permissions
+frontend user IDs
+frontend account IDs
+hidden fields
+disabled fields
+React state
+TypeScript types
+frontend validation
+
+Every resource access must be authorized server-side.
+
+Prevent IDOR/BOLA.
+
+4. API Design
+
+Never expose database entities directly.
+
+Never automatically serialize JPA entities into API responses.
+
+Use explicit purpose-specific DTOs.
+
+Before adding a field to a response, ask:
+
+Does the browser actually need this field?
+
+If not, remove it.
+
+Prefer:
+
+minimal DTO
+
+over:
+
+complete entity DTO
+
+Mask sensitive information whenever the complete value is unnecessary.
+
+5. Encryption
+
+Use approved cryptographic mechanisms only.
+
+Preferred authenticated encryption:
+
+AES-256-GCM
+
+Do not implement custom cryptography.
+
+Do not hardcode cryptographic keys.
+
+Do not store encryption keys in:
+
+Git
+source code
+application.yml
+application.properties
+Docker images
+frontend bundles
+database plaintext configuration
+
+Use KMS/HSM/Vault or an equivalent secure key management mechanism.
+
+Prefer envelope encryption and key versioning.
+
+6. Passwords
+
+Never encrypt passwords for recoverability.
+
+Use a modern password hashing algorithm such as Argon2id.
+
+Never log passwords.
+
+Never return passwords.
+
+Never store plaintext passwords.
+
+7. Logging
+
+Sensitive information must NEVER appear in logs.
+
+Prohibited:
+
+passwords
+OTPs
+PINs
+access tokens
+refresh tokens
+session cookies
+Authorization headers
+Cookie headers
+private keys
+encryption keys
+database passwords
+complete financial information
+government identifiers
+sensitive request bodies
+sensitive response bodies
+
+Do not log complete objects unless they have been explicitly reviewed as safe.
+
+Prefer explicit structured audit fields.
+
+8. HTTP Logging
+
+Do not enable unrestricted request/response body logging.
+
+Review and sanitize:
+
+Spring HTTP logging
+Tomcat access logs
+reverse proxy logs
+API gateway logs
+HTTP client logging
+APM
+distributed tracing
+
+Redact authentication headers and cookies.
+
+9. Errors
+
+Never expose:
+
+stack traces
+SQL statements
+database information
+filesystem paths
+internal service names
+secrets
+credentials
+sensitive input
+sensitive output
+
+to the browser.
+
+Use safe error codes and request/correlation IDs.
+
+10. Cache
+
+Sensitive responses should use appropriate cache controls, especially:
+
+Cache-Control: no-store
+
+Do not allow sensitive information to be accidentally persisted by:
+
+browser cache
+CDN
+service worker
+proxy
+API gateway
+11. React
+
+Never store secrets in React.
+
+Never assume frontend code is private.
+
+Never rely on:
+
+disabled inputs
+hidden inputs
+obfuscation
+minification
+source-map removal
+DevTools blocking
+
+as security controls.
+
+Avoid unnecessary sensitive state.
+
+12. Security Headers
+
+Implement and review:
+
+Strict-Transport-Security
+Content-Security-Policy
+X-Content-Type-Options
+Referrer-Policy
+Permissions-Policy
+
+Avoid unsafe CSP directives where possible.
+
+13. XSS
+
+Review all uses of:
+
+dangerouslySetInnerHTML
+innerHTML
+dynamic HTML
+rich text
+Markdown rendering
+third-party components
+
+Do not introduce XSS vulnerabilities.
+
+Use safe encoding/sanitization.
+
+14. CSRF
+
+If authentication uses cookies, implement appropriate CSRF protection.
+
+Do not disable CSRF without a documented security reason.
+
+15. CORS
+
+Use explicit trusted origins.
+
+Never use permissive CORS as an authorization mechanism.
+
+Do not assume CORS protects the API from direct clients.
+
+16. Dependencies
+
+Before introducing a dependency:
+
+evaluate whether it is necessary
+check security implications
+avoid abandoned libraries
+prefer maintained libraries
+check for known vulnerabilities
+
+Do not introduce unnecessary third-party frontend scripts.
+
+17. Database
+
+Use least privilege.
+
+Do not use database administrator credentials for the application.
+
+Keep databases private from the public internet.
+
+Encrypt sensitive data at rest where required.
+
+Encrypt backups.
+
+18. Secret Management
+
+Never commit secrets.
+
+Never print secrets.
+
+Never return secrets through APIs.
+
+Never expose secrets through frontend bundles.
+
+Use secure secret-management infrastructure.
+
+DEVELOPMENT BEHAVIOR
+
+Before modifying code:
+
+Inspect the repository structure.
+Identify frontend and backend boundaries.
+Identify authentication architecture.
+Identify API endpoints.
+Identify DTOs and entities.
+Identify sensitive fields.
+Identify logging.
+Identify caching.
+Identify storage.
+Identify external integrations.
+Identify encryption/key management.
+Identify existing security controls.
+
+Do not blindly modify files.
+
+DATA-FLOW ANALYSIS
+
+For every sensitive field, trace:
+
+Database
+ ↓
+Repository
+ ↓
+Service
+ ↓
+Controller
+ ↓
+DTO
+ ↓
+HTTP
+ ↓
+Browser
+ ↓
+React
+ ↓
+State
+ ↓
+DOM
+ ↓
+Storage
+ ↓
+Logs
+ ↓
+Telemetry
+
+Document where the field exists.
+
+The goal is to minimize the number of locations.
+
+IMPLEMENTATION RULE
+
+When you discover sensitive data being unnecessarily exposed:
+
+Determine why it is being exposed.
+Determine whether the browser actually requires it.
+Remove it from the API if unnecessary.
+Remove it from frontend state.
+Remove it from storage.
+Remove it from logging.
+Remove it from telemetry.
+Add tests preventing regression.
+DO NOT
+
+Do not:
+
+disable DevTools
+block F12
+disable right-click
+obfuscate security logic
+hide secrets in JavaScript
+Base64 encode secrets
+encrypt secrets with frontend-accessible keys
+rely on CORS for authorization
+rely on React validation for security
+rely on hidden form fields
+rely on disabled controls
+expose database entities
+log entire request objects
+log entire response objects
+put credentials into localStorage
+hardcode encryption keys
+SECURITY DECISION RULE
+
+Whenever there are two implementation choices, prefer the one that results in:
+
+less data
++
+less client exposure
++
+less persistence
++
+less privilege
++
+stronger server-side authorization
++
+stronger cryptography
++
+less telemetry exposure
+OUTPUT REQUIREMENTS
+
+When implementing a security feature, explain:
+
+What vulnerability/risk exists.
+What architectural change fixes it.
+Which files are modified.
+What security controls are added.
+What data is no longer exposed.
+How the implementation is tested.
+What limitations remain.
+
+Never claim absolute security.
+
+Use precise language such as:
+
+prevents
+mitigates
+reduces exposure
+does not protect against
+
+rather than:
+
+100% secure
+impossible to hack
+DevTools-proof
+FINAL SECURITY PRINCIPLE
+
+The application must be designed so that:
+
+Sensitive information is processed as close to the trusted backend boundary as possible, is encrypted when stored, is protected in transit, is never unnecessarily sent to the browser, is never unnecessarily persisted, is never logged, and is never trusted when supplied by the client.
+
+3. Cursor Agent Implementation Prompt
+
+This is the prompt I'd use after giving Cursor the system rules above. It tells the agent to first audit your existing project instead of immediately changing things.
+
+TASK: SECURITY ARCHITECTURE AUDIT + IMPLEMENTATION
+
+You are operating as a senior application-security engineer.
+
+The application is:
+
+Backend: Java 21 + Spring Boot
+Frontend: React
+
+Your task is to analyze the existing repository and then implement a production-grade security architecture focused on minimizing exposure of sensitive information.
+
+Do NOT blindly rewrite the project.
+
+First understand the existing architecture.
+
+PRIMARY OBJECTIVE
+
+Implement this security principle:
+
+The browser must receive only the minimum information required to perform its intended UI function.
+
+Sensitive data must not unnecessarily exist in:
+
+Browser DevTools
+Network payloads
+React state
+Redux state
+localStorage
+sessionStorage
+IndexedDB
+Cache Storage
+Service Worker
+URLs
+Browser history
+Console
+Frontend bundle
+Application logs
+Reverse proxy logs
+APM
+Distributed traces
+Metrics
+Error responses
+
+If sensitive information genuinely must be displayed to the user, minimize and protect its exposure.
+
+Do not attempt to make plaintext that reaches the browser "impossible to inspect."
+
+PHASE 1 — REPOSITORY DISCOVERY
+
+Before changing anything, inspect:
+
+backend/
+frontend/
+src/
+pom.xml
+build.gradle
+package.json
+application.yml
+application.properties
+security configuration
+controllers
+services
+repositories
+entities
+DTOs
+mappers
+React components
+React hooks
+Redux/state management
+API clients
+Axios/fetch configuration
+logging configuration
+exception handling
+Docker
+Nginx/reverse proxy
+CI/CD
+environment configuration
+
+Determine the actual repository structure before assuming paths.
+
+PHASE 2 — DATA-FLOW AUDIT
+
+Find all potentially sensitive fields.
+
+Search for names and patterns including:
+
+password
+passwd
+secret
+token
+accessToken
+refreshToken
+authorization
+cookie
+session
+apiKey
+privateKey
+encryptionKey
+ssn
+aadhaar
+pan
+passport
+accountNumber
+cardNumber
+cvv
+pin
+otp
+phone
+email
+address
+salary
+financial
+medical
+customer
+credential
+
+Do not assume this list is complete.
+
+Identify application-specific sensitive fields as well.
+
+For each sensitive field determine:
+
+Where is it created?
+Where is it stored?
+Where is it decrypted?
+Where is it transmitted?
+Where is it logged?
+Where is it cached?
+Where is it placed in React state?
+Where is it rendered?
+Does the browser actually need it?
+
+Create a data-flow table before implementation.
+
+PHASE 3 — FRONTEND AUDIT
+
+Inspect the React application for:
+
+localStorage
+sessionStorage
+IndexedDB
+Cache API
+Service Workers
+Redux persistence
+React Context
+global state
+URL parameters
+query parameters
+console.log
+console.error
+console.warn
+console.debug
+network logging
+Axios interceptors
+fetch wrappers
+error tracking
+analytics
+session replay
+third-party scripts
+source maps
+environment variables
+
+Find all locations where sensitive information can be exposed.
+
+PHASE 4 — BACKEND AUDIT
+
+Inspect Spring Boot for:
+
+Spring Security
+authentication
+authorization
+CSRF
+CORS
+controllers
+DTOs
+Jackson serialization
+JPA entities
+repositories
+service layer
+logging
+exception handling
+Actuator
+request logging
+response logging
+filters
+interceptors
+AOP
+tracing
+metrics
+database configuration
+
+Check whether entities are directly returned from controllers.
+
+If yes, identify and replace unsafe patterns with explicit DTOs.
+
+PHASE 5 — LOGGING AUDIT
+
+Search for:
+
+log.info(...)
+log.debug(...)
+log.warn(...)
+log.error(...)
+System.out
+System.err
+printStackTrace
+
+Also inspect:
+
+HTTP request logging
+HTTP response logging
+Tomcat access logs
+Nginx logs
+APM
+OpenTelemetry
+distributed tracing
+exception logging
+
+Identify possible sensitive data leakage.
+
+Create a centralized redaction/sanitization mechanism where appropriate.
+
+Do not simply suppress all logs.
+
+We still need secure observability.
+
+PHASE 6 — AUTHENTICATION
+
+Inspect the existing authentication mechanism.
+
+If appropriate for the current architecture, implement:
+
+Spring Security
+HttpOnly
+Secure
+SameSite
+server-controlled session
+
+Do not store authentication credentials in:
+
+localStorage
+sessionStorage
+React state
+Redux
+URL
+
+Do not expose unnecessary authentication information to React.
+
+If JWT is already required, inspect its claims and remove sensitive data from the token payload.
+
+Do not break existing authentication flows without understanding the system.
+
+PHASE 7 — AUTHORIZATION
+
+Audit every protected endpoint.
+
+For each endpoint determine:
+
+Who can call it?
+What resource does it access?
+Is resource-level authorization performed?
+Can another authenticated user change the ID and access someone else's data?
+
+Specifically test for:
+
+IDOR
+BOLA
+privilege escalation
+horizontal authorization bypass
+vertical authorization bypass
+
+Authorization must be server-side.
+
+PHASE 8 — DTO SECURITY
+
+Find controllers returning:
+
+Entity
+List<Entity>
+Optional<Entity>
+Map<String,Object>
+generic Object
+
+where sensitive fields could be serialized.
+
+Replace them with explicit DTOs.
+
+For example:
+
+public record CustomerResponse(
+    String id,
+    String displayName,
+    String status,
+    String maskedAccount
+) {}
+
+Do not expose fields merely because they exist on the entity.
+
+PHASE 9 — DATABASE ENCRYPTION
+
+Identify sensitive database fields.
+
+For fields requiring encryption, implement a centralized encryption abstraction.
+
+Preferred:
+
+AES-256-GCM
+
+Requirements:
+
+authenticated encryption
+unique nonce/IV
+key versioning
+secure key management
+key rotation support
+
+Do not hardcode keys.
+
+Do not invent cryptographic algorithms.
+
+Do not store encryption keys in source code.
+
+If the repository already has encryption, audit it before replacing it.
+
+PHASE 10 — KEY MANAGEMENT
+
+Determine whether the deployment environment provides:
+
+AWS KMS
+Azure Key Vault
+Google Cloud KMS
+HashiCorp Vault
+HSM
+
+If an external KMS/HSM is not currently available, design a clean abstraction so that local development can use a safe development implementation while production uses real key management.
+
+Never create a fake "secure" production key-management implementation.
+
+Clearly separate:
+
+development
+test
+production
+
+credentials and key sources.
+
+PHASE 11 — PASSWORDS
+
+Find password handling.
+
+Ensure:
+
+passwords are never logged
+passwords are never returned
+passwords are never stored plaintext
+passwords are not reversibly encrypted
+
+Use a modern password hashing mechanism such as Argon2id where appropriate.
+
+PHASE 12 — API RESPONSE MINIMIZATION
+
+For every sensitive endpoint ask:
+
+Does the frontend need this field?
+
+If not:
+
+remove it from the response
+
+If only partial information is needed:
+
+mask it
+
+Example:
+
+1234567890123456
+
+becomes:
+
+************3456
+
+if the business requirement only needs the last four digits.
+
+PHASE 13 — CACHE SECURITY
+
+Find all caching mechanisms.
+
+Inspect:
+
+HTTP cache
+CDN
+Spring cache
+Redis
+React Query
+Redux
+Service Worker
+Cache API
+browser cache
+
+Ensure sensitive responses are not unintentionally cached.
+
+For appropriate sensitive endpoints use:
+
+Cache-Control: no-store
+PHASE 14 — SECURITY HEADERS
+
+Implement/review:
+
+Strict-Transport-Security
+Content-Security-Policy
+X-Content-Type-Options
+Referrer-Policy
+Permissions-Policy
+
+Do not blindly copy a generic CSP.
+
+Build one compatible with the actual application.
+
+Document any exceptions such as required external resources.
+
+PHASE 15 — CORS
+
+Audit CORS.
+
+Do not use wildcard origins for credentialed sensitive APIs.
+
+Identify:
+
+allowed origins
+allowed methods
+allowed headers
+credential behavior
+
+Use explicit origins.
+
+PHASE 16 — CSRF
+
+Determine whether the application uses cookie-based authentication.
+
+If yes, verify CSRF protection.
+
+Do not disable CSRF without a documented architectural reason.
+
+Test state-changing endpoints.
+
+PHASE 17 — XSS
+
+Audit:
+
+dangerouslySetInnerHTML
+innerHTML
+HTML rendering
+Markdown
+rich text
+user-generated content
+URL rendering
+third-party components
+
+Remove unnecessary unsafe rendering.
+
+Implement sanitization where raw HTML is genuinely required.
+
+PHASE 18 — THIRD-PARTY SCRIPTS
+
+Inventory every external frontend script.
+
+For each determine:
+
+What data can it access?
+Does it receive sensitive DOM content?
+Does it capture keystrokes?
+Does it record sessions?
+Does it collect URLs?
+Does it collect form fields?
+
+Remove unnecessary third-party scripts.
+
+Protect sensitive form fields from analytics/session replay tools where such tools are required.
+
+PHASE 19 — ERROR HANDLING
+
+Create centralized backend exception handling.
+
+Client responses should expose only safe information.
+
+Preferred:
+
+{
+  "errorCode": "REQUEST_FAILED",
+  "requestId": "req_123"
+}
+
+Do not return:
+
+stack traces
+SQL
+filesystem paths
+internal service information
+credentials
+sensitive input
+PHASE 20 — REQUEST CORRELATION
+
+Implement an opaque request/correlation ID.
+
+Example:
+
+req_8f91ac
+
+Use it for:
+
+logs
+audit
+support/debugging
+error responses
+
+Do not use sensitive data as correlation IDs.
+
+PHASE 21 — SECURE AUDIT LOGGING
+
+Create structured audit events.
+
+Example:
+
+actorId
+operation
+resourceId
+result
+timestamp
+requestId
+
+Do not put raw sensitive payloads into audit logs.
+
+Audit logs must be useful without becoming a data-exfiltration channel.
+
+PHASE 22 — FRONTEND ENVIRONMENT SECURITY
+
+Inspect:
+
+.env
+.env.production
+VITE_*
+REACT_APP_*
+
+Determine which values are bundled into the frontend.
+
+Any secret exposed to frontend JavaScript is NOT a secret.
+
+Move real secrets to backend/server-side configuration.
+
+PHASE 23 — TESTING
+
+Create automated tests for the security architecture.
+
+Backend tests should cover:
+
+authentication
+authorization
+IDOR/BOLA
+CSRF
+CORS
+validation
+sensitive DTO fields
+error responses
+encryption/decryption
+key versioning
+logging behavior
+
+Frontend tests should cover:
+
+no sensitive storage
+no sensitive console logging
+minimal API responses
+safe rendering
+
+Where possible add static analysis tests preventing accidental leakage.
+
+PHASE 24 — SECURITY REGRESSION TEST
+
+Create a security regression checklist/test suite that fails if sensitive fields are accidentally added to API responses.
+
+For example:
+
+CustomerResponse must never contain:
+password
+token
+secret
+privateKey
+fullAccountNumber
+governmentId
+
+Use explicit DTO tests.
+
+PHASE 25 — BUILD / DEPLOYMENT SECURITY
+
+Inspect:
+
+Dockerfile
+docker-compose
+Kubernetes
+Nginx
+CI/CD
+environment variables
+secrets
+TLS
+reverse proxy
+
+Ensure:
+
+no secrets committed
+no secrets printed during build
+no secrets bundled into frontend
+database not publicly exposed
+production uses secure secret management
+IMPLEMENTATION CONSTRAINTS
+
+Do NOT:
+
+disable DevTools
+disable right click
+block F12
+obfuscate secrets
+Base64 encode secrets
+hide secrets in JavaScript
+put encryption keys in React
+use localStorage for authentication tokens
+return JPA entities
+log complete requests
+log complete responses
+return stack traces
+trust frontend authorization
+use CORS as authorization
+IMPORTANT: PRESERVE APPLICATION FUNCTIONALITY
+
+Do not break legitimate functionality simply to remove data.
+
+When a feature genuinely requires sensitive data in the browser:
+
+Identify the business requirement.
+Minimize the data.
+Minimize the lifetime.
+Do not persist it.
+Do not log it.
+Do not cache it.
+Do not send it to third parties.
+Mask it where possible.
+Document why browser exposure is necessary.
+REQUIRED DELIVERABLES
+
+After analysis and implementation, produce:
+
+1. Security Architecture Report
+
+Include:
+
+Current architecture
+Current data flows
+Sensitive data inventory
+Current vulnerabilities
+Risk levels
+Implemented controls
+Remaining risks
+2. Changed Files
+
+List every modified/created file.
+
+For each:
+
+file
+purpose
+security impact
+3. Data Exposure Matrix
+
+Create:
+
+Data field
+Database
+Backend
+Network
+React
+Storage
+Logs
+Telemetry
+Required?
+Protection
+4. Security Controls
+
+Document:
+
+Authentication
+Authorization
+Encryption
+Key management
+CSRF
+CORS
+CSP
+HSTS
+Caching
+Logging
+Audit
+Rate limiting
+Validation
+5. Test Results
+
+Report:
+
+unit tests
+integration tests
+security tests
+frontend tests
+build
+static analysis
+
+Do not claim tests passed unless they actually ran.
+
+6. Remaining Limitations
+
+Explicitly state what cannot be guaranteed.
+
+In particular:
+
+If plaintext sensitive data must be delivered to and used by the browser, a web application cannot guarantee that a user controlling that browser cannot inspect the plaintext.
+
+FINAL ACCEPTANCE CRITERIA
+
+The implementation is considered successful only when:
+
+[ ] Sensitive data flow has been mapped
+[ ] Unnecessary sensitive API fields removed
+[ ] Database entities are not directly serialized
+[ ] Authentication is secure
+[ ] Authorization is server-side
+[ ] IDOR/BOLA protections exist
+[ ] Sensitive storage is eliminated
+[ ] Sensitive browser caching is prevented
+[ ] Sensitive console logging is eliminated
+[ ] Backend sensitive logging is eliminated
+[ ] HTTP sensitive logging is controlled
+[ ] Telemetry is sanitized
+[ ] Sensitive DB fields are encrypted where required
+[ ] Encryption keys are externally managed
+[ ] Passwords use secure hashing
+[ ] Errors are sanitized
+[ ] Security headers are implemented
+[ ] CORS is restricted
+[ ] CSRF is addressed
+[ ] XSS risks are addressed
+[ ] Third-party scripts are reviewed
+[ ] Secrets are not bundled into React
+[ ] Database uses least privilege
+[ ] Database is not publicly exposed
+[ ] Security regression tests exist
+[ ] Existing functionality remains operational
+[ ] Build succeeds
+[ ] Tests actually pass
+EXECUTION ORDER
+
+Follow this order:
+
+1. DISCOVER
+2. AUDIT
+3. CLASSIFY DATA
+4. MAP DATA FLOWS
+5. IDENTIFY RISKS
+6. PROPOSE ARCHITECTURE
+7. WAIT/REVIEW IF MAJOR ARCHITECTURAL CHANGE IS REQUIRED
+8. IMPLEMENT BACKEND SECURITY
+9. IMPLEMENT ENCRYPTION
+10. IMPLEMENT AUTHORIZATION
+11. IMPLEMENT FRONTEND DATA MINIMIZATION
+12. IMPLEMENT LOGGING PROTECTION
+13. IMPLEMENT CACHE PROTECTION
+14. IMPLEMENT SECURITY HEADERS
+15. IMPLEMENT TESTS
+16. RUN TESTS
+17. REVIEW DIFF
+18. PRODUCE SECURITY REPORT
+
+Do not skip the discovery/audit phase.
+
+Do not make assumptions about the repository.
+
+Do not claim completion based solely on code changes.
+
+The final implementation must be evidence-based and tested.
+
+One recommendation before you run this
+
+For a real project, don't give Cursor only the implementation prompt and tell it "do everything." The safest workflow is:
+
+Cursor
+  ↓
+AUDIT ONLY
+  ↓
+Security report + data-flow map
+  ↓
+You review architecture
+  ↓
+IMPLEMENT
+  ↓
+Tests
+  ↓
+Security regression audit
+
+That prevents an agent from making a large security-sensitive rewrite based on incorrect assumptions about your existing authentication, APIs, database schema, deployment, or business requirements.
+
+If your project is substantial, I would also split the implementation into 5 Cursor tasks—backend security, encryption/KMS, React/browser isolation, logging/telemetry, and security testing—rather than one enormous agent task. That generally gives you much better control over security-critical changes.

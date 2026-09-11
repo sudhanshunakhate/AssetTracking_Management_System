@@ -2,6 +2,8 @@ package com.caits.config;
 
 import com.caits.domain.entity.*;
 import com.caits.domain.repository.*;
+import com.caits.modules.masters.SystemLocationRole;
+import com.caits.modules.masters.SystemLocationService;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,6 +33,9 @@ public class DataSeeder implements ApplicationRunner {
     private final GentypeMstRepository gentypeRepo;
     private final GenmasterMstRepository genmasterRepo;
     private final HrcDepartmentMstRepository departmentRepo;
+    private final DashWidgetMstRepository widgetRepo;
+    private final DashRoleWidgetDtlRepository roleWidgetRepo;
+    private final SystemLocationService systemLocationService;
     private final PasswordEncoder passwordEncoder;
 
     public DataSeeder(
@@ -43,6 +48,9 @@ public class DataSeeder implements ApplicationRunner {
             GentypeMstRepository gentypeRepo,
             GenmasterMstRepository genmasterRepo,
             HrcDepartmentMstRepository departmentRepo,
+            DashWidgetMstRepository widgetRepo,
+            DashRoleWidgetDtlRepository roleWidgetRepo,
+            SystemLocationService systemLocationService,
             PasswordEncoder passwordEncoder
     ) {
         this.userRepo = userRepo;
@@ -54,6 +62,9 @@ public class DataSeeder implements ApplicationRunner {
         this.gentypeRepo = gentypeRepo;
         this.genmasterRepo = genmasterRepo;
         this.departmentRepo = departmentRepo;
+        this.widgetRepo = widgetRepo;
+        this.roleWidgetRepo = roleWidgetRepo;
+        this.systemLocationService = systemLocationService;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -64,6 +75,7 @@ public class DataSeeder implements ApplicationRunner {
         seedMenusIfEmpty();
         seedAdminMenuPermissionsIfEmpty();
         seedDepartmentsIfEmpty();
+        seedDashboardWidgetsIfNeeded();
         ensureSystemUserFlags();
         seedLookupIfMissing("GTY-DESIG", "Designation", "Employee designations", DESIGNATIONS);
     }
@@ -76,12 +88,20 @@ public class DataSeeder implements ApplicationRunner {
                 .findFirst()
                 .orElse(null);
         if (entityId == null) return;
+
+        // dept_location_id_loc is NOT NULL — ensure MAIN_STORE (and other system locs) exist first.
+        systemLocationService.ensureForEntity(entityId);
+        Integer mainStoreId = systemLocationService
+                .requireSystemLocationForEntity(entityId, SystemLocationRole.MAIN_STORE)
+                .getLocLocationId();
+
         LocalDateTime now = LocalDateTime.now();
         for (String[] row : DEPARTMENT_SEED) {
             HrcDepartmentMst d = new HrcDepartmentMst();
             d.setDeptDepartmentCode(row[0]);
             d.setDeptDepartmentName(row[1]);
             d.setDeptEntityIdEnt(entityId);
+            d.setDeptLocationIdLoc(mainStoreId);
             d.setDeptIsactive(true);
             d.setDeptCreatedBy("system");
             d.setDeptCreatedOn(now);
@@ -194,7 +214,7 @@ public class DataSeeder implements ApplicationRunner {
         SysmUserloginMst user = new SysmUserloginMst();
         user.setUsrEmployeeIdEmp(emp.getEmpEmployeeId());
         user.setUsrLoginId("admin");
-        user.setUsrPasswordHash(passwordEncoder.encode("Admin@123"));
+        user.setUsrPasswordHash(passwordEncoder.encode("micropro123"));
         user.setUsrRoleIdRol(role.getRolRoleId());
         user.setUsrAccountStatus("Active");
         user.setUsrEntityIdEnt(entity.getEntEntityId());
@@ -285,6 +305,44 @@ public class DataSeeder implements ApplicationRunner {
         }
     }
 
+    /** Ensure dashboard catalog + ADMIN layout exist (empty deploys otherwise show a blank home). */
+    private void seedDashboardWidgetsIfNeeded() {
+        LocalDateTime now = LocalDateTime.now();
+        for (WidgetDef def : WIDGET_SEED) {
+            DashWidgetMst w = widgetRepo.findByDshwWidgetCodeIgnoreCase(def.code()).orElseGet(DashWidgetMst::new);
+            boolean isNew = w.getDshwWidgetId() == null;
+            w.setDshwWidgetCode(def.code());
+            w.setDshwWidgetType(def.type());
+            w.setDshwTitle(def.title());
+            w.setDshwSubtitle(def.subtitle());
+            w.setDshwIcon(def.icon());
+            w.setDshwTone(def.tone());
+            w.setDshwLinkPath(def.linkPath());
+            w.setDshwRequiredMenuCode(def.requiredMenu());
+            w.setDshwDefaultColSpan(def.colSpan());
+            w.setDshwDefaultSort(def.sort());
+            w.setDshwIsactive(true);
+            if (isNew) w.setDshwCreatedOn(now);
+            widgetRepo.save(w);
+        }
+
+        SysmRolesMst admin = roleRepo.findByRolRoleCodeIgnoreCase("ADMIN").orElse(null);
+        if (admin == null) return;
+        if (roleWidgetRepo.countByDshrRoleIdRolAndDshrIsVisibleTrue(admin.getRolRoleId()) > 0) return;
+
+        for (AdminWidgetLayout row : ADMIN_WIDGET_LAYOUT) {
+            DashWidgetMst w = widgetRepo.findByDshwWidgetCodeIgnoreCase(row.code()).orElse(null);
+            if (w == null) continue;
+            DashRoleWidgetDtl map = new DashRoleWidgetDtl();
+            map.setDshrRoleIdRol(admin.getRolRoleId());
+            map.setDshrWidgetIdDshw(w.getDshwWidgetId());
+            map.setDshrSortOrder(row.sort());
+            map.setDshrColSpan(row.colSpan());
+            map.setDshrIsVisible(true);
+            roleWidgetRepo.save(map);
+        }
+    }
+
     private static int groupSortFor(String group) {
         if (group == null) return 9;
         return switch (group) {
@@ -321,6 +379,7 @@ public class DataSeeder implements ApplicationRunner {
                 new MenuDef("MNU", "Menu Access", "Access & People", 34, "MNU", null,
                         true, true, true, false, false, false, false, true),
                 master("UAE", "User Access Exception", 35, "Access & People"),
+                master("DEPM", "Department", 36, "Access & People"),
                 txn("OPN", "Opening Stock", 41, "OPENING_STOCK", false, false),
                 txn("SR", "Store Requisitions", 42, "MATERIAL_REQUISITION", false, false),
                 txn("GRN", "Goods Receipt Note", 43, "GRN", true, true),
@@ -328,6 +387,7 @@ public class DataSeeder implements ApplicationRunner {
                 txn("ISS", "Store Issue", 45, "MATERIAL_ISSUE", false, false),
                 txn("TRF", "Material Transfer", 46, "MATERIAL_TRANSFER", false, false),
                 txn("RTN", "Material Return", 47, "MATERIAL_RETURN", false, false),
+                txn("IAPR", "Inspection Approval", 48, "INSPECTION_APPROVAL", true, false),
                 new MenuDef("DASH", "Dashboard", "Reports", 51, null, null,
                         true, false, false, false, false, false, false, true),
                 new MenuDef("STKREG", "Stock Register", "Reports", 52, null, null,
@@ -357,4 +417,59 @@ public class DataSeeder implements ApplicationRunner {
         return new MenuDef(code, label, "Transactions", sort, code, docType,
                 true, true, true, true, approve, reject, true, true);
     }
+
+    private record WidgetDef(
+            String code, String type, String title, String subtitle,
+            String icon, String tone, String linkPath, String requiredMenu,
+            int colSpan, int sort
+    ) {}
+
+    private record AdminWidgetLayout(String code, int sort, int colSpan) {}
+
+    private static final List<WidgetDef> WIDGET_SEED = List.of(
+            new WidgetDef("KPI_ITEMS", "KPI", "Total Items", "Open item master", "itemMaster", "sky",
+                    "/masters/items", "AIM", 1, 10),
+            new WidgetDef("KPI_VENDORS", "KPI", "Vendors", "Open vendor master", "vendorParty", "blue",
+                    "/masters/vendors", "VPM", 1, 20),
+            new WidgetDef("KPI_TXNS", "KPI", "Transactions", "Full document trail", "materialTransfer", "warm",
+                    "/reports/full-report", "FULLRPT", 1, 30),
+            new WidgetDef("KPI_LOW_STOCK", "KPI", "Low Stock", "Needs reorder attention", "lowStockAlert", "danger",
+                    "/reports/stock-register", "STKREG", 1, 40),
+            new WidgetDef("KPI_STOCK_ROWS", "KPI", "Stock Rows", "Stock register positions", "storeWiseStock", "success",
+                    "/reports/stock-register", "STKREG", 1, 50),
+            new WidgetDef("KPI_PENDING_IAPR", "KPI", "Pending Inspections", "Awaiting inspection approval", "storeIssue", "warm",
+                    "/transactions/inspection-approvals", "IAPR", 1, 55),
+            new WidgetDef("KPI_PENDING_SR", "KPI", "Open Requisitions", "Requested — ready to issue", "storeRequisitions", "sky",
+                    "/transactions/issues/pick-requisition", "ISS", 1, 56),
+            new WidgetDef("ALERT_LOW_STOCK", "ALERT", "Low stock alert", "Items at or below reorder", "lowStockAlert", "warm",
+                    "/reports/stock-register", "STKREG", 12, 5),
+            new WidgetDef("CHART_STOCK_BY_STORE", "CHART", "Stock by store", "Who holds the most on-hand quantity", "storeWiseStock", null,
+                    "/reports/stock-register", "STKREG", 7, 100),
+            new WidgetDef("CHART_DOC_BY_TYPE", "CHART", "Documents by type", "Document mix across types", "fullReport", null,
+                    "/reports/full-report", "FULLRPT", 5, 110),
+            new WidgetDef("PANEL_STOCK_HEALTH", "PANEL", "Stock health", "How positions split across status", "stockRegister", null,
+                    "/reports/stock-register", "STKREG", 4, 200),
+            new WidgetDef("LIST_STOCK_FOCUS", "LIST", "Stock focus", "Top or low stock positions", "lowStockAlert", null,
+                    "/reports/stock-register", "STKREG", 4, 210),
+            new WidgetDef("LIST_RECENT_ACTIVITY", "LIST", "Recent activity", "Latest document lines", "materialTransfer", null,
+                    "/reports/full-report", "FULLRPT", 4, 220),
+            new WidgetDef("SHORTCUTS_TXN", "SHORTCUTS", "Quick actions", "Jump to transactions you can use", "dashboard", null,
+                    null, null, 12, 300)
+    );
+
+    private static final List<AdminWidgetLayout> ADMIN_WIDGET_LAYOUT = List.of(
+            new AdminWidgetLayout("ALERT_LOW_STOCK", 5, 12),
+            new AdminWidgetLayout("KPI_ITEMS", 10, 1),
+            new AdminWidgetLayout("KPI_VENDORS", 20, 1),
+            new AdminWidgetLayout("KPI_TXNS", 30, 1),
+            new AdminWidgetLayout("KPI_LOW_STOCK", 40, 1),
+            new AdminWidgetLayout("KPI_STOCK_ROWS", 50, 1),
+            new AdminWidgetLayout("KPI_PENDING_IAPR", 55, 1),
+            new AdminWidgetLayout("CHART_STOCK_BY_STORE", 100, 7),
+            new AdminWidgetLayout("CHART_DOC_BY_TYPE", 110, 5),
+            new AdminWidgetLayout("PANEL_STOCK_HEALTH", 200, 4),
+            new AdminWidgetLayout("LIST_STOCK_FOCUS", 210, 4),
+            new AdminWidgetLayout("LIST_RECENT_ACTIVITY", 220, 4),
+            new AdminWidgetLayout("SHORTCUTS_TXN", 300, 12)
+    );
 }

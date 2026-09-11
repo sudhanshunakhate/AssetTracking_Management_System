@@ -3,7 +3,7 @@ package com.caits.domain.entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "sysm_rolepermission_dtl", schema = "caits_local")
+@Table(name = "sysm_rolepermission_dtl")
 public class SysmRolepermissionDtl {
 
     @Id

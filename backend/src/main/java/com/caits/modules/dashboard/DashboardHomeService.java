@@ -501,7 +501,7 @@ public class DashboardHomeService {
             case "PANEL_STOCK_HEALTH" -> d.stockHealth();
             case "LIST_STOCK_FOCUS" -> d.stockFocus();
             case "LIST_RECENT_ACTIVITY" -> Map.of("rows", d.activity());
-            case "SHORTCUTS_TXN" -> d.shortcuts().isEmpty() ? null : Map.of("items", d.shortcuts());
+            case "SHORTCUTS_TXN" -> Map.of("items", d.shortcuts());
             default -> Map.of();
         };
     }

@@ -1,0 +1,37 @@
+# CAITS Security — Phase A Audit Report
+# Date: 2026-09-10
+# Status: COMPLETE (implementation follows in Phases B–H)
+
+## Top risks (ranked)
+1. JWT in sessionStorage (`caits.token`) — XSS = full session theft
+2. Hardcoded jwt-secret + DB password in application.yml
+3. CSRF disabled (OK for Bearer; required once cookies)
+4. Menu permissions enforced only in React — any JWT can call any API
+5. Employee/User/Vendor getById without object-level scope
+6. WebSocket `/ws` permitAll + origin *
+7. File download by path — authenticated IDOR if URL known
+8. No CSP/HSTS/Cache-Control security headers
+9. S3/S2 fields (PAN/GSTIN/email/phone) returned unmasked on lists
+10. Exception messages returned raw to client (include-message: always)
+
+## Auth today
+- JwtService claims: sub, userId, roleCode
+- Frontend stores token in sessionStorage; sends Authorization Bearer
+- Default API base bypasses Vite proxy (cross-origin) → blocks cookie SameSite
+
+## Storage keys
+sessionStorage: caits.token, caits.tokenExpiresAt, caits.lastActivityAt,
+  caits.auth, caits.menuPermissions, caits.dataScope, caits.favouriteMenus
+localStorage: caits.rememberLoginId
+
+## S2–S4 inventory (high level)
+S4: usrPasswordHash, JWT, VAPID private, push p256dh/auth
+S3: entity/vendor GSTIN+PAN, txn partyGstin
+S2: employee/vendor email+phone, profile contact fields
+
+## Decision for implementation
+- Phase B: HttpOnly cookie + Vite same-origin `/api/v1` + CSRF
+- Phase C: Mask PAN/GSTIN on list DTOs; never return password hash
+- Phase D: Backend menu-permission gate + tighten WS auth
+- Phase E: AES-GCM field encryption for PAN/GSTIN (transparent converter)
+- Phase F–H: Headers, log/error sanitize, regression tests

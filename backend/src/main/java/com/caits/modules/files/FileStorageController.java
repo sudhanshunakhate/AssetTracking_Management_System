@@ -1,6 +1,11 @@
 package com.caits.modules.files;
 
 import com.caits.common.ApiException;
+import com.caits.domain.entity.TxnHeaderMst;
+import com.caits.domain.repository.TxnHeaderMstRepository;
+import com.caits.security.AccessScopeService;
+import com.caits.security.SecurityUtils;
+import com.caits.security.UploadOwnershipRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -18,23 +23,20 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
 /**
  * Local-disk attachment storage for transaction documents.
- * Uploads land in {@code caits.storage.upload-dir} under a yyyy/MM folder and are
- * served back by name; the returned {@code url} is what callers persist
- * (e.g. txn_header_mst.txh_attachment_url).
+ * Downloads require either an unrestricted role, a matching txn the caller can access,
+ * or ownership of a fresh (not yet linked) upload.
  */
 @RestController
 @RequestMapping("/api/v1/files")
 public class FileStorageController {
 
-    /**
-     * Documents and images are accepted. Executables and script files are rejected.
-     */
     private static final Set<String> BLOCKED_EXTENSIONS = Set.of(
             "exe", "bat", "cmd", "com", "scr", "pif", "msi", "msp",
             "js", "mjs", "vbs", "vbe", "ps1", "sh", "bash", "dll",
@@ -45,9 +47,19 @@ public class FileStorageController {
     private static final DateTimeFormatter FOLDER = DateTimeFormatter.ofPattern("yyyy/MM");
 
     private final Path root;
+    private final TxnHeaderMstRepository txnHeaderRepo;
+    private final AccessScopeService accessScope;
+    private final UploadOwnershipRegistry uploadOwnership;
 
-    public FileStorageController(@Value("${caits.storage.upload-dir}") String uploadDir) {
+    public FileStorageController(
+            @Value("${caits.storage.upload-dir}") String uploadDir,
+            TxnHeaderMstRepository txnHeaderRepo,
+            AccessScopeService accessScope,
+            UploadOwnershipRegistry uploadOwnership) {
         this.root = Paths.get(uploadDir).toAbsolutePath().normalize();
+        this.txnHeaderRepo = txnHeaderRepo;
+        this.accessScope = accessScope;
+        this.uploadOwnership = uploadOwnership;
     }
 
     public record UploadResponse(String url, String fileName, String originalName, long size, String message) {}
@@ -82,10 +94,11 @@ public class FileStorageController {
             Files.createDirectories(target.getParent());
             file.transferTo(target);
         } catch (IOException e) {
-            throw ApiException.badRequest("Could not store file: " + e.getMessage());
+            throw ApiException.badRequest("Could not store file");
         }
 
         String key = relativeDir + "/" + storedName;
+        uploadOwnership.register(key, SecurityUtils.requireCurrentUser().userId());
         return new UploadResponse("/api/v1/files/" + key, key, original, file.getSize(), "File uploaded successfully");
     }
 
@@ -99,11 +112,58 @@ public class FileStorageController {
         if (!target.startsWith(root) || !Files.isReadable(target)) {
             throw ApiException.notFound("File not found");
         }
+        assertDownloadAllowed(year + "/" + month + "/" + name);
+
         String contentType = URLConnection.guessContentTypeFromName(name);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType != null ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + name + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(new FileSystemResource(target));
+    }
+
+    private void assertDownloadAllowed(String relativeKey) {
+        AccessScopeService.Scope scope = accessScope.current();
+        if (scope.unrestricted()) {
+            return;
+        }
+        String marker = "/api/v1/files/" + relativeKey;
+        List<TxnHeaderMst> linked = txnHeaderRepo.findByTxhAttachmentUrlContaining(marker);
+        if (linked.isEmpty()) {
+            Integer userId = SecurityUtils.requireCurrentUser().userId();
+            if (uploadOwnership.isOwnedBy(relativeKey, userId)) {
+                return;
+            }
+            throw ApiException.notFound("File not found");
+        }
+        boolean allowed = false;
+        for (TxnHeaderMst txn : linked) {
+            if (canAccessTxn(txn)) {
+                allowed = true;
+                break;
+            }
+        }
+        if (!allowed) {
+            throw ApiException.notFound("File not found");
+        }
+    }
+
+    private boolean canAccessTxn(TxnHeaderMst txn) {
+        AccessScopeService.Scope scope = accessScope.current();
+        if (scope.entityRestricted()
+                && txn.getTxhEntityIdEnt() != null
+                && !txn.getTxhEntityIdEnt().equals(scope.entityId())) {
+            return false;
+        }
+        Integer loc = txn.getTxhLocationIdLoc();
+        Integer from = txn.getTxhFromLocationIdLoc();
+        Integer to = txn.getTxhToLocationIdLoc();
+        if (!scope.locationRestricted()) {
+            return true;
+        }
+        return (loc != null && accessScope.canAccessLocation(loc))
+                || (from != null && accessScope.canAccessLocation(from))
+                || (to != null && accessScope.canAccessLocation(to));
     }
 
     private static String extensionFromContentType(String contentType) {

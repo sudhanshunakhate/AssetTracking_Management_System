@@ -493,8 +493,9 @@ export function DashboardPage() {
 
       {!loading && widgets.length === 0 && !error && (
         <div className="rounded-xl border border-dashed border-[var(--border2)] bg-[var(--surface2)] px-4 py-10 text-center text-[13px] text-[var(--text3)]">
-          No dashboard widgets are assigned for your role and menus.
-          Ask an admin to map widgets in <code>dash_role_widget_dtl</code>.
+          No dashboard widgets to show for your role and menus yet.
+          Sign out and sign in again after widgets are mapped, or click Refresh.
+          Admins can assign widgets in <code>dash_role_widget_dtl</code>.
         </div>
       )}
 

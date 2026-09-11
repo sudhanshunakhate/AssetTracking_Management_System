@@ -338,7 +338,7 @@ function EmployeeForm() {
     setError('')
     try {
       const createLogin = Boolean(values.createLogin) && (isNew || !hasLogin)
-      const body = {
+      const body: Record<string, unknown> = {
         employeeCode: values.code.trim().toUpperCase(),
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim() || null,
@@ -357,9 +357,15 @@ function EmployeeForm() {
         isActive: isActiveFromForm(values.status),
         createLogin,
         loginId: createLogin ? values.loginId.trim().toLowerCase() || null : null,
-        password: createLogin ? values.password : null,
-        confirmPassword: createLogin ? values.confirmPassword : null,
         entityId: createLogin ? numOrUndef(values.entityId) : null,
+      }
+      if (createLogin) {
+        const { encryptAuthPayload } = await import('@/lib/payloadCrypto')
+        const { cipher } = await encryptAuthPayload({
+          password: values.password,
+          confirmPassword: values.confirmPassword,
+        })
+        body.passwordCipher = cipher
       }
 
       if (isNew) await createMaster('employees', body)

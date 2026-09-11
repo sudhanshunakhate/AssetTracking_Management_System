@@ -1,0 +1,14 @@
+﻿#!/usr/bin/env bash
+# Copy to $CATALINA_HOME/bin/setenv.sh, chmod +x, and edit values (Linux)
+export CAITS_DB=2
+export CAITS_CORS_ALLOWED_ORIGINS="http://YOUR_SERVER_HOST:8080"
+export CAITS_SECURITY_JWT_SECRET="CHANGE_ME_TO_A_LONG_RANDOM_STRING_32PLUS"
+export CAITS_SECURITY_FIELD_ENCRYPTION_KEY="CHANGE_ME_TO_A_LONG_RANDOM_STRING_32PLUS"
+export CAITS_SECURITY_COOKIE_SECURE=false
+export CAITS_SECURITY_COOKIE_SAME_SITE=Lax
+export CAITS_STORAGE_UPLOAD_DIR="/var/caits/uploads"
+export CAITS_LOG_FILE="/var/caits/logs/caits-app.log"
+# Optional JDBC overrides:
+# export SPRING_DATASOURCE_URL="jdbc:postgresql://HOST:5432/caits?currentSchema=caits"
+# export SPRING_DATASOURCE_USERNAME="caits"
+# export SPRING_DATASOURCE_PASSWORD="CHANGE_ME"

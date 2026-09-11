@@ -1,0 +1,7 @@
+﻿backend/*.war
+frontend/
+CAITS_SERVER_HANDOFF/
+CAITS_SERVER_HANDOFF.zip
+
+secrets/
+*.secrets.txt

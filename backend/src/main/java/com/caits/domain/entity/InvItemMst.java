@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  * {@code itm_current_location_id_loc} is the item's home store for filtering.
  */
 @Entity
-@Table(name = "inv_item_mst", schema = "caits_local")
+@Table(name = "inv_item_mst")
 public class InvItemMst {
 
     @Id

@@ -12,10 +12,12 @@ import { forgotPasswordApi } from '@/api/client'
 import { useAuth } from './AuthContext'
 
 const LOGO_SRC = '/logo/caits-login.png?v=2'
+const PRESENTS_MARK = '/logo/presents-mark.png'
 const REMEMBER_KEY = 'caits.rememberLoginId'
+const CRAFTED_NAMES = ['Sanika Sapkale', 'Sudhanshu Nakhate'] as const
 
 export function LoginPage() {
-  const { user, login } = useAuth()
+  const { user, sessionReady, login } = useAuth()
   const navigate = useNavigate()
   const [loginId, setLoginId] = useState(() => localStorage.getItem(REMEMBER_KEY) ?? '')
   const [password, setPassword] = useState('')
@@ -24,11 +26,25 @@ export function LoginPage() {
   const [info, setInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [forgotBusy, setForgotBusy] = useState(false)
+  const [craftedIndex, setCraftedIndex] = useState(0)
+  const [craftedVisible, setCraftedVisible] = useState(true)
 
   useEffect(() => {
     if (!remember) localStorage.removeItem(REMEMBER_KEY)
   }, [remember])
 
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setCraftedVisible(false)
+      window.setTimeout(() => {
+        setCraftedIndex((i) => (i + 1) % CRAFTED_NAMES.length)
+        setCraftedVisible(true)
+      }, 280)
+    }, 2800)
+    return () => window.clearInterval(id)
+  }, [])
+
+  if (!sessionReady) return null
   if (user) return <Navigate to="/dashboard" replace />
 
   const onSubmit = async (e: FormEvent) => {
@@ -95,7 +111,7 @@ export function LoginPage() {
         zIndex={5}
       />
 
-      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10 pb-16">
         <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="hidden text-white lg:block">
             <div className="mb-5">
@@ -212,8 +228,31 @@ export function LoginPage() {
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-5 text-center text-[10.5px] text-white/55">
-        CAITS · Centralized Asset and Inventory Tracking System
+      {/* Bottom center: logo + presents CAITS */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex items-center justify-center gap-2 text-[11px] text-white/55">
+        <img
+          src={PRESENTS_MARK}
+          alt=""
+          width={22}
+          height={22}
+          className="h-[22px] w-[22px] rounded-full object-cover"
+        />
+        <span>presents CAITS</span>
+      </div>
+
+      {/* Bottom right: Crafted by rotating names — fixed width so the pill doesn't jump */}
+      <div className="absolute right-4 bottom-4 z-20 sm:right-6 sm:bottom-5">
+        <div className="inline-flex h-7 w-[190px] items-center rounded-full border border-slate-200 bg-white px-2.5 shadow-[0_3px_10px_rgba(15,23,42,0.1)]">
+          <span className="shrink-0 text-[10.5px] text-slate-600">Crafted by&nbsp;</span>
+          <span className="relative min-w-0 flex-1 overflow-hidden text-left">
+            <span
+              className="block truncate text-[10.5px] font-bold text-emerald-800 transition-opacity duration-300"
+              style={{ opacity: craftedVisible ? 1 : 0 }}
+            >
+              {CRAFTED_NAMES[craftedIndex]}
+            </span>
+          </span>
+        </div>
       </div>
     </ClickSpark>
   )

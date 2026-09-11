@@ -1,4 +1,4 @@
-/** Lightweight global loading counter for API calls, navigation, and UI actions. */
+/** Lightweight global loading counter for API calls and navigation. */
 
 type Listener = () => void
 
@@ -21,12 +21,6 @@ export function beginLoading() {
 export function endLoading() {
   pending = Math.max(0, pending - 1)
   notify()
-}
-
-/** Brief busy pulse for clicks/navigation when no API is in flight yet. */
-export function pulseLoading(ms = 450) {
-  beginLoading()
-  window.setTimeout(() => endLoading(), ms)
 }
 
 export function subscribeLoading(listener: Listener) {

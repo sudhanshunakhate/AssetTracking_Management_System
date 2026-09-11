@@ -11,10 +11,12 @@ import java.util.List;
 
 public interface TxnHeaderMstRepository extends JpaRepository<TxnHeaderMst, Integer>, JpaSpecificationExecutor<TxnHeaderMst> {
 
+    List<TxnHeaderMst> findByTxhAttachmentUrlContaining(String fragment);
+
     /** [0]=docType, [1]=count — full header population. */
     @Query(value = """
             SELECT COALESCE(h.txh_doc_type, 'OTHER'), COUNT(*)
-            FROM caits_local.txn_header_mst h
+            FROM txn_header_mst h
             GROUP BY h.txh_doc_type
             ORDER BY COUNT(*) DESC
             """, nativeQuery = true)
@@ -22,7 +24,7 @@ public interface TxnHeaderMstRepository extends JpaRepository<TxnHeaderMst, Inte
 
     @Query(value = """
             SELECT COALESCE(h.txh_doc_type, 'OTHER'), COUNT(*)
-            FROM caits_local.txn_header_mst h
+            FROM txn_header_mst h
             WHERE h.txh_location_id_loc IN (:locationIds)
                OR h.txh_from_location_id_loc IN (:locationIds)
                OR h.txh_to_location_id_loc IN (:locationIds)

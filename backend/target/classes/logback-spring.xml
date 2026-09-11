@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <!-- Redact common secret patterns from log lines. -->
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %replace(%msg){'(?i)(password|passwd|pwd|authorization|bearer|jwt|token|pan|gstin|cookie)\s*[=:]\s*[^,\s]+','$1=***'}%n</pattern>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+    <logger name="com.caits" level="INFO"/>
+    <logger name="com.caits.security.s4" level="INFO"/>
+    <logger name="org.springframework.security" level="WARN"/>
+</configuration>

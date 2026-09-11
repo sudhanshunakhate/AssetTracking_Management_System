@@ -26,6 +26,7 @@ export function Topbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [favouritesOpen, setFavouritesOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const initials =
@@ -83,6 +84,17 @@ export function Topbar() {
     backendOnline === null ? 'Checking…' : backendOnline ? 'Online' : 'Offline'
   const statusOnline = backendOnline === true
 
+  const onSignOut = async () => {
+    if (signingOut) return
+    setSigningOut(true)
+    setMenuOpen(false)
+    try {
+      await logout()
+    } finally {
+      setSigningOut(false)
+    }
+  }
+
   return (
     <header className="sticky top-0 z-[100] flex h-[54px] items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)] px-6 shadow-[var(--sh)]">
       <div className="flex items-center gap-1.5 text-[13px]">
@@ -119,11 +131,12 @@ export function Topbar() {
         {statusLabel}
       </div>
       <NotificationBell />
-      <div className="relative ml-3" ref={menuRef}>
+      <div className="relative ml-3 flex items-center gap-2" ref={menuRef} data-no-loader>
         <button
           type="button"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
+          data-no-loader
           onClick={() => setMenuOpen((v) => !v)}
           className="flex items-center gap-2 rounded-full py-1 pr-2.5 pl-1 transition hover:bg-[var(--warm-lt)]"
         >
@@ -139,15 +152,35 @@ export function Topbar() {
             </span>
             <span className="block text-[10.5px] text-[var(--text3)]">{user?.role}</span>
           </span>
+          <svg
+            aria-hidden
+            viewBox="0 0 20 20"
+            className={`hidden h-3.5 w-3.5 text-[var(--text3)] transition sm:block ${menuOpen ? 'rotate-180' : ''}`}
+            fill="currentColor"
+          >
+            <path d="M5.25 7.5 10 12.25 14.75 7.5" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          data-no-loader
+          disabled={signingOut}
+          onClick={() => void onSignOut()}
+          className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-[12px] font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-lt)] disabled:opacity-60"
+          title="Sign out"
+        >
+          {signingOut ? 'Signing out…' : 'Sign out'}
         </button>
         {menuOpen && (
           <div
             role="menu"
+            data-no-loader
             className="absolute top-[calc(100%+8px)] right-0 z-[250] w-[210px] rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-1.5 shadow-[var(--sh-md)]"
           >
             <button
               type="button"
               role="menuitem"
+              data-no-loader
               className="flex w-full rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-[var(--text2)] hover:bg-[var(--surface2)]"
               onClick={() => {
                 setMenuOpen(false)
@@ -159,6 +192,7 @@ export function Topbar() {
             <button
               type="button"
               role="menuitem"
+              data-no-loader
               className="flex w-full rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-[var(--text2)] hover:bg-[var(--surface2)]"
               onClick={() => {
                 setMenuOpen(false)
@@ -171,13 +205,12 @@ export function Topbar() {
             <button
               type="button"
               role="menuitem"
-              className="flex w-full rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-[var(--danger)] hover:bg-[var(--danger-lt)]"
-              onClick={() => {
-                setMenuOpen(false)
-                void logout()
-              }}
+              data-no-loader
+              disabled={signingOut}
+              className="flex w-full rounded-[7px] px-2.5 py-2 text-left text-[12.5px] font-medium text-[var(--danger)] hover:bg-[var(--danger-lt)] disabled:opacity-60"
+              onClick={() => void onSignOut()}
             >
-              Sign out
+              {signingOut ? 'Signing out…' : 'Sign out'}
             </button>
           </div>
         )}

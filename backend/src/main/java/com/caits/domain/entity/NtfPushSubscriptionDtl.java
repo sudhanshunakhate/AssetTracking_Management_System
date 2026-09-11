@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "ntf_push_subscription_dtl", schema = "caits_local")
+@Table(name = "ntf_push_subscription_dtl")
 public class NtfPushSubscriptionDtl {
 
     @Id
@@ -18,10 +18,12 @@ public class NtfPushSubscriptionDtl {
     @Column(name = "nps_endpoint", nullable = false)
     private String npsEndpoint;
 
-    @Column(name = "nps_p256dh", nullable = false)
+    @Convert(converter = com.caits.security.EncryptedStringConverter.class)
+    @Column(name = "nps_p256dh", nullable = false, columnDefinition = "text")
     private String npsP256dh;
 
-    @Column(name = "nps_auth", nullable = false)
+    @Convert(converter = com.caits.security.EncryptedStringConverter.class)
+    @Column(name = "nps_auth", nullable = false, columnDefinition = "text")
     private String npsAuth;
 
     @Column(name = "nps_user_agent", length = 400)

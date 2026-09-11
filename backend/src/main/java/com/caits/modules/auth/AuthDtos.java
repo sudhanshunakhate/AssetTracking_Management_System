@@ -9,6 +9,9 @@ public final class AuthDtos {
 
     public record LoginRequest(String loginId, String password) {}
 
+    /** Browser sends RSA-OAEP ciphertext only — no plaintext credentials on the wire / Network tab. */
+    public record EncryptedPayloadRequest(String cipher) {}
+
     public record LoginUserDto(
             Integer userId,
             String employeeName,

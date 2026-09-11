@@ -436,7 +436,61 @@
                                            "local":  "2026-09-09",
                                            "dev":  null
                                        }
+                       },
+                       {
+                           "id":  "048-seed-caits-schema-admin",
+                           "file":  "db_approach/048_seed_caits_schema_admin.sql",
+                           "description":  "After cloning empty schema caits from caits_local (see clone-caits-local-structure-to-caits.ps1 / db_dump/caits_schema_from_caits_local.sql), seed single BCrypt admin login (micropro123).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-10"
+                                       }
+                       },
+                       {
+                           "id":  "049-copy-lookups-caits-local-to-caits",
+                           "file":  "db_approach/049_copy_lookups_caits_local_to_caits.sql",
+                           "description":  "Copy gentype_mst / genmaster_mst reference lookups into empty caits schema from caits_local so dropdown APIs work.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-10"
+                                       }
+                       },
+                       {
+                           "id":  "050-widen-encrypted-sensitive-columns",
+                           "file":  "db_approach/050_widen_encrypted_sensitive_columns.sql",
+                           "description":  "Widen vendor/entity/txn PAN+GSTIN columns to varchar(512) so AES-GCM ciphertext (enc:v1:…) fits.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-10"
+                                       }
+                       },
+                       {
+                           "id":  "051-add-missing-menus-depm-iapr-to-caits",
+                           "file":  "db_approach/051_add_missing_menus_depm_iapr_to_caits.sql",
+                           "description":  "Add DEPM (Department) and IAPR (Inspection Approval) menus + ADMIN perms to caits schema (present in caits_local only).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-11"
+                                       }
+                       },
+                       {
+                           "id":  "052-copy-missing-seed-caits-local-to-caits",
+                           "file":  "db_approach/052_copy_missing_seed_caits_local_to_caits.sql",
+                           "description":  "Copy missing roles, permissions, widgets, units, categories, OUs, locations, departments from caits_local into caits.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-11"
+                                       }
+                       },
+                       {
+                           "id":  "053-copy-missing-vendors-items-to-caits",
+                           "file":  "db_approach/053_copy_missing_vendors_items_to_caits.sql",
+                           "description":  "Copy missing vendors, items, and item-location maps from caits_local into caits.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-11"
+                                       }
                        }
                    ],
-    "updated":  "2026-09-09"
+    "updated":  "2026-09-11"
 }

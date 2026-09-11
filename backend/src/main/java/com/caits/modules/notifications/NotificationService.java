@@ -82,25 +82,22 @@ public class NotificationService {
     @Transactional
     public void saveSubscription(PushSubscribeRequest req, String userAgent) {
         Integer userId = SecurityUtils.requireCurrentUser().userId();
-        if (req == null || req.endpoint() == null || req.keys() == null) {
+        if (req == null || req.endpoint() == null || req.endpoint().isBlank() || req.keys() == null) {
             return;
         }
-        NtfPushSubscriptionDtl row = subscriptionRepo.findByNpsEndpoint(req.endpoint())
-                .orElseGet(NtfPushSubscriptionDtl::new);
-        boolean creating = row.getNpsSubscriptionId() == null;
-        row.setNpsUserIdUsr(userId);
-        row.setNpsEndpoint(req.endpoint());
-        row.setNpsP256dh(req.keys().p256dh());
-        row.setNpsAuth(req.keys().auth());
-        row.setNpsUserAgent(userAgent);
-        row.setNpsModifiedOn(LocalDateTime.now());
-        if (creating) {
-            row.setNpsCreatedOn(LocalDateTime.now());
-        }
-        subscriptionRepo.save(row);
+        String endpoint = req.endpoint();
+        LocalDateTime now = LocalDateTime.now();
+        subscriptionRepo.upsertByEndpoint(
+                userId,
+                endpoint,
+                req.keys().p256dh(),
+                req.keys().auth(),
+                userAgent,
+                now);
+
         // Drop other endpoints for this user so reopen/upsert does not fan out to stale rows.
         for (NtfPushSubscriptionDtl other : subscriptionRepo.findByNpsUserIdUsr(userId)) {
-            if (!req.endpoint().equals(other.getNpsEndpoint())) {
+            if (!endpoint.equals(other.getNpsEndpoint())) {
                 subscriptionRepo.delete(other);
             }
         }

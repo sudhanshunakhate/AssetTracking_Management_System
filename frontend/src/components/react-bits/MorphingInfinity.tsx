@@ -24,6 +24,8 @@ export function MorphingInfinity(props: ComponentProps<'svg'>) {
       {...props}
     >
       <motion.path
+        d={circleA}
+        initial={{ d: circleA }}
         animate={{
           d: [circleA, infinity, circleB, infinity, circleA],
         }}

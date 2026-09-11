@@ -10,7 +10,6 @@ import {
 } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Client } from '@stomp/stompjs'
-import { getToken } from '@/api/client'
 import {
   fetchNotifications,
   fetchUnreadCount,
@@ -44,7 +43,11 @@ type NotificationContextValue = {
 const NotificationContext = createContext<NotificationContextValue | null>(null)
 
 function wsUrl() {
-  const api = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8085/api/v1'
+  const api = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+  if (api.startsWith('/')) {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${proto}//${window.location.host}/ws`
+  }
   const origin = api.replace(/\/api\/v1\/?$/, '')
   const u = new URL(origin)
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -69,9 +72,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [ready, setReady] = useState(false)
-  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(() =>
-    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
-  )
+  const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(() => {
+    if (typeof window !== 'undefined' && !window.isSecureContext) return 'unsupported'
+    return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+  })
   const seenIds = useRef(new Set<number>())
   const toastTimers = useRef(new Map<number, number>())
 
@@ -133,27 +137,41 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return
-    const token = getToken()
-    if (!token) return
-    const client = new Client({
-      brokerURL: wsUrl(),
-      connectHeaders: { Authorization: `Bearer ${token}` },
-      reconnectDelay: 4000,
-      heartbeatIncoming: 15000,
-      heartbeatOutgoing: 15000,
-      onConnect: () => {
-        client.subscribe('/user/queue/notifications', (msg) => {
-          try {
-            presentIncoming(JSON.parse(msg.body) as AppNotification)
-          } catch {
-            /* ignore */
-          }
-        })
-      },
-    })
-    client.activate()
+    let cancelled = false
+    let client: Client | null = null
+    let retryTimer: number | null = null
+
+    const connect = () => {
+      if (cancelled) return
+      client = new Client({
+        brokerURL: wsUrl(),
+        // Auth via HttpOnly cookie on the WebSocket handshake (same-origin proxy).
+        reconnectDelay: 8000,
+        heartbeatIncoming: 15000,
+        heartbeatOutgoing: 15000,
+        onConnect: () => {
+          client?.subscribe('/user/queue/notifications', (msg) => {
+            try {
+              presentIncoming(JSON.parse(msg.body) as AppNotification)
+            } catch {
+              /* ignore */
+            }
+          })
+        },
+        onWebSocketError: () => {
+          // Backend may still be starting; STOMP will retry with reconnectDelay.
+        },
+      })
+      client.activate()
+    }
+
+    // Brief delay so Vite proxy / backend are ready after a hard refresh.
+    retryTimer = window.setTimeout(connect, 400)
+
     return () => {
-      void client.deactivate()
+      cancelled = true
+      if (retryTimer != null) window.clearTimeout(retryTimer)
+      if (client) void client.deactivate()
     }
   }, [user, presentIncoming])
 
@@ -198,7 +216,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   /** Explicit user gesture: request permission and (re)subscribe. */
   const enableOsNotifications = useCallback(async () => {
-    if (typeof Notification === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (
+      (typeof window !== 'undefined' && !window.isSecureContext) ||
+      typeof Notification === 'undefined' ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window)
+    ) {
       setPermission('unsupported')
       return false
     }

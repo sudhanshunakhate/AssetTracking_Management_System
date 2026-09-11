@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "inv_vendor_mst", schema = "caits_local")
+@Table(name = "inv_vendor_mst")
 public class InvVendorMst {
 
     @Id
@@ -21,10 +21,12 @@ public class InvVendorMst {
     @Column(name = "vnd_party_type", nullable = false)
     private String vndPartyType;
 
-    @Column(name = "vnd_gstin")
+    @Convert(converter = com.caits.security.EncryptedStringConverter.class)
+    @Column(name = "vnd_gstin", length = 512)
     private String vndGstin;
 
-    @Column(name = "vnd_pan_no")
+    @Convert(converter = com.caits.security.EncryptedStringConverter.class)
+    @Column(name = "vnd_pan_no", length = 512)
     private String vndPanNo;
 
     @Column(name = "vnd_rating")

@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * share one dummy BLS (ibm_is_dummy = true) per item.
  */
 @Entity
-@Table(name = "inv_bls_mst", schema = "caits_local")
+@Table(name = "inv_bls_mst")
 public class InvBlsMst {
 
     @Id

@@ -1,5 +1,7 @@
 package com.caits.common;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,11 +17,13 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, Object>> handleApi(ApiException ex) {
         return ResponseEntity.status(ex.getStatus()).body(Map.of(
                 "status", ex.getStatus().value(),
-                "message", ex.getMessage()
+                "message", sanitizeClientMessage(ex.getMessage(), ex.getStatus().value())
         ));
     }
 
@@ -40,6 +44,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", rootMessage(ex));
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", HttpStatus.CONFLICT.value());
         body.put("message", ConstraintMessages.describe(rootMessage(ex)));
@@ -48,10 +53,24 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleOther(Exception ex) {
+        // Log full detail server-side; never leak stack traces / SQL to the browser.
+        log.error("Unhandled exception", ex);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put("message", ex.getMessage() == null ? "Unexpected error" : ex.getMessage());
+        body.put("message", "Unexpected error");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+    private static String sanitizeClientMessage(String message, int status) {
+        if (message == null || message.isBlank()) {
+            return status >= 500 ? "Unexpected error" : "Request failed";
+        }
+        String lower = message.toLowerCase();
+        if (lower.contains("sql") || lower.contains("exception") || lower.contains("stack")
+                || lower.contains("jdbc") || lower.contains("hibernate")) {
+            return status >= 500 ? "Unexpected error" : "Request failed";
+        }
+        return message;
     }
 
     private static String rootMessage(Throwable ex) {

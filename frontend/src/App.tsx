@@ -38,7 +38,8 @@ import { InspectionApprovalPages } from '@/features/transactions/InspectionAppro
 import { NotificationProvider } from '@/features/notifications/NotificationContext'
 
 function RootRedirect() {
-  const { user } = useAuth()
+  const { user, sessionReady } = useAuth()
+  if (!sessionReady) return null
   return <Navigate to={user ? '/dashboard' : '/login'} replace />
 }
 

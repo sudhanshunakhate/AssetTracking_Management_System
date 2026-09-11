@@ -17,15 +17,28 @@ export default defineConfig({
   optimizeDeps: {
     include: ['@stomp/stompjs'],
   },
+  build: {
+    esbuild: {
+      drop: ['console', 'debugger'],
+    },
+  },
   server: {
     proxy: {
       '/api': {
         target: 'http://localhost:8085',
         changeOrigin: true,
       },
+      // Use http target + ws:true (not ws://) so the proxy upgrades cleanly.
       '/ws': {
-        target: 'ws://localhost:8085',
+        target: 'http://localhost:8085',
+        changeOrigin: true,
         ws: true,
+        // Backend down → log once-friendly; avoid crashing the Vite process.
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.warn('[vite] /ws proxy:', err.message)
+          })
+        },
       },
     },
   },

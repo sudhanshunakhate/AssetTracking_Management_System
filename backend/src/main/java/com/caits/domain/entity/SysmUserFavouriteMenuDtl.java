@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "sysm_user_favourite_menu_dtl", schema = "caits_local")
+@Table(name = "sysm_user_favourite_menu_dtl")
 public class SysmUserFavouriteMenuDtl {
 
     @Id

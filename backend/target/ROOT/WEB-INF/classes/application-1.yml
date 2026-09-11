@@ -1,0 +1,24 @@
+# Profile 1 — schema caits_local (full business data)
+# Activate: CAITS_DB=1  or  spring.profiles.active=1
+spring:
+  config:
+    activate:
+      on-profile: "1"
+  datasource:
+    # Same host/DB; schema selected via currentSchema + Hibernate default_schema.
+    # Optional localhost override:
+    # url: jdbc:postgresql://localhost:5432/postgres?currentSchema=caits_local
+    # username: postgres
+    # password: pass121word
+    url: jdbc:postgresql://192.168.0.223:5432/caits?currentSchema=caits_local
+    username: caits
+    password: caits123
+  jpa:
+    properties:
+      hibernate:
+        default_schema: caits_local
+
+caits:
+  db:
+    id: 1
+    schema: caits_local

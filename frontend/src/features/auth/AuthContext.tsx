@@ -9,9 +9,12 @@ import {
 } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  getToken,
+  ApiError,
+  clearSession,
+  hasSessionHint,
   loginApi,
   logoutApi,
+  markSession,
   markUserActivity,
   maybeRefreshSession,
   meApi,
@@ -19,6 +22,7 @@ import {
   setToken,
   type AccessScope,
   type MenuPermission,
+  type MeResponse,
 } from '@/api/client'
 import { invalidateCache } from '@/api/requestCache'
 import { prefetchCatalogs } from '@/api/prefetchCatalogs'
@@ -50,6 +54,8 @@ const UNRESTRICTED: DataScope = {
 
 type AuthContextValue = {
   user: AuthUser | null
+  /** False until the first cookie session check finishes (avoids login flash on refresh). */
+  sessionReady: boolean
   menuPermissions: MenuPermission[]
   favouriteMenuCodes: string[]
   setFavouriteMenuCodes: (codes: string[]) => void
@@ -122,33 +128,40 @@ function storeFavs(codes: string[]) {
   sessionStorage.setItem(FAVS_KEY, JSON.stringify(codes))
 }
 
+function userFromMe(me: MeResponse, prev: AuthUser | null): AuthUser {
+  return {
+    loginId: me.loginId || prev?.loginId || '',
+    displayName: me.employeeName || prev?.displayName || me.loginId || '',
+    role: me.role || prev?.role || '',
+    userId: me.userId ?? prev?.userId,
+    employeeId: me.employeeId ?? prev?.employeeId,
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const stored = readStored()
-    if (stored && !getToken()) {
-      sessionStorage.removeItem(STORAGE_KEY)
-      sessionStorage.removeItem(PERMS_KEY)
-      sessionStorage.removeItem(SCOPE_KEY)
-      sessionStorage.removeItem(FAVS_KEY)
-      return null
-    }
-    return stored
-  })
+  // Keep cached profile for a seamless refresh; cookie is the real authority via /auth/me.
+  const [user, setUser] = useState<AuthUser | null>(() => readStored())
+  const [sessionReady, setSessionReady] = useState(false)
   const [menuPermissions, setMenuPermissions] = useState<MenuPermission[]>(() =>
-    getToken() ? readStoredPerms() : [],
+    hasSessionHint() || readStored() ? readStoredPerms() : [],
   )
   const [favouriteMenuCodes, setFavouriteMenuCodesState] = useState<string[]>(() =>
-    getToken() ? readStoredFavs() : [],
+    hasSessionHint() || readStored() ? readStoredFavs() : [],
   )
-  const [permissionsReady, setPermissionsReady] = useState(() => !getToken() || readStoredPerms().length > 0)
-  const [scope, setScope] = useState<DataScope>(() => (getToken() ? readStoredScope() : UNRESTRICTED))
+  const [permissionsReady, setPermissionsReady] = useState(
+    () => !(hasSessionHint() || readStored()) || readStoredPerms().length > 0,
+  )
+  const [scope, setScope] = useState<DataScope>(() =>
+    hasSessionHint() || readStored() ? readStoredScope() : UNRESTRICTED,
+  )
 
   const clearLocalSession = useCallback(() => {
     sessionStorage.removeItem(STORAGE_KEY)
     sessionStorage.removeItem(PERMS_KEY)
     sessionStorage.removeItem(SCOPE_KEY)
     sessionStorage.removeItem(FAVS_KEY)
+    clearSession()
     setMenuPermissions([])
     setFavouriteMenuCodesState([])
     setScope(UNRESTRICTED)
@@ -190,15 +203,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
-  const applyMe = useCallback(async () => {
-    if (!getToken()) {
-      setMenuPermissions([])
-      setFavouriteMenuCodesState([])
-      setScope(UNRESTRICTED)
-      setPermissionsReady(true)
-      return
-    }
-    const me = await meApi()
+  const applyMe = useCallback(async (opts?: { silent?: boolean }) => {
+    const me = await meApi({ silent: opts?.silent })
     const perms = me.menuPermissions ?? []
     setMenuPermissions(perms)
     storePerms(perms)
@@ -217,32 +223,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     storeScope(nextScope)
     setPermissionsReady(true)
     setUser((prev) => {
-      if (!prev) return prev
-      const next = {
-        ...prev,
-        displayName: me.employeeName || prev.displayName,
-        role: me.role || prev.role,
-        userId: me.userId ?? prev.userId,
-        employeeId: me.employeeId ?? prev.employeeId,
-        loginId: me.loginId || prev.loginId,
-      }
+      const next = userFromMe(me, prev)
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       return next
     })
+    if (!hasSessionHint()) {
+      markSession(3600)
+    }
     void prefetchCatalogs()
   }, [])
 
   const seesAllLocations = scope.locationAccessScope !== 'SELECTED'
 
+  // Restore session from HttpOnly cookie on every full page load / hard refresh.
   useEffect(() => {
-    if (!getToken()) {
-      setPermissionsReady(true)
-      return
+    let cancelled = false
+    ;(async () => {
+      try {
+        await applyMe({ silent: true })
+      } catch (err) {
+        if (!cancelled) {
+          const status = err instanceof ApiError ? err.status : 0
+          // Only a true unauthenticated response means the cookie session is gone.
+          // Network blips / 403 AuthZ must not wipe a still-valid session hint.
+          if (status === 401 || (status === 0 && !hasSessionHint() && !readStored())) {
+            clearLocalSession()
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setPermissionsReady(true)
+          setSessionReady(true)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
     }
-    void applyMe().catch(() => {
-      setPermissionsReady(true)
-    })
-  }, [applyMe])
+  }, [applyMe, clearLocalSession])
 
   const canViewMenu = useCallback(
     (menuCode: string) => {
@@ -295,6 +313,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      sessionReady,
       menuPermissions,
       favouriteMenuCodes,
       setFavouriteMenuCodes,
@@ -307,14 +326,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canDeleteMenu,
       canApproveMenu,
       canRejectMenu,
-      refreshPermissions: applyMe,
+      refreshPermissions: () => applyMe(),
       login: async (loginId, password) => {
         if (!loginId.trim() || !password) {
           return { ok: false, error: 'Enter Login ID and password to continue.' }
         }
         try {
           const res = await loginApi(loginId.trim(), password)
-          setToken(res.token, res.expiresIn)
+          setToken(null, res.expiresIn)
           markUserActivity()
           invalidateCache('auth:me')
           const next: AuthUser = {
@@ -325,6 +344,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
           setUser(next)
+          setSessionReady(true)
           setPermissionsReady(false)
           try {
             await applyMe()
@@ -344,12 +364,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       logout: async () => {
-        await logoutApi()
-        clearLocalSession()
+        try {
+          await logoutApi()
+        } finally {
+          clearLocalSession()
+          invalidateCache()
+          navigate('/login', { replace: true })
+        }
       },
     }),
     [
       user,
+      sessionReady,
       menuPermissions,
       favouriteMenuCodes,
       setFavouriteMenuCodes,
@@ -364,6 +390,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canRejectMenu,
       applyMe,
       clearLocalSession,
+      navigate,
     ],
   )
 

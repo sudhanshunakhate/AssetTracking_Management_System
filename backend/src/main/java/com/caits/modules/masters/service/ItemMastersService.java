@@ -9,6 +9,8 @@ import com.caits.domain.repository.*;
 import com.caits.modules.masters.dto.MasterDtos.*;
 import com.caits.security.AccessScopeService;
 import com.caits.security.SecurityUtils;
+import com.caits.security.SensitiveAccessAudit;
+import com.caits.security.SensitiveDataMask;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -41,6 +43,7 @@ public class ItemMastersService {
     private final OrgEntityMstRepository entityRepo;
     private final InvBlsMstRepository blsRepo;
     private final AccessScopeService accessScope;
+    private final SensitiveAccessAudit s4Audit;
 
     public ItemMastersService(
             InvItemMstRepository itemRepo,
@@ -54,7 +57,8 @@ public class ItemMastersService {
             OrgBusinessunitMstRepository buRepo,
             OrgEntityMstRepository entityRepo,
             InvBlsMstRepository blsRepo,
-            AccessScopeService accessScope
+            AccessScopeService accessScope,
+            SensitiveAccessAudit s4Audit
     ) {
         this.itemRepo = itemRepo;
         this.vendorRepo = vendorRepo;
@@ -68,6 +72,7 @@ public class ItemMastersService {
         this.entityRepo = entityRepo;
         this.blsRepo = blsRepo;
         this.accessScope = accessScope;
+        this.s4Audit = s4Audit;
     }
 
     // ---- Items ----
@@ -402,12 +407,17 @@ public class ItemMastersService {
                 SpecUtils.searchContains(search, "vndVendorCode", "vndVendorName"));
         Page<InvVendorMst> result = vendorRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
         return PageResponse.of(page, pageSize, result.getTotalElements(),
-                result.getContent().stream().map(e -> toVendorDto(e, null)).toList());
+                result.getContent().stream().map(e -> toVendorDto(e, null, true)).toList());
     }
 
     @Transactional(readOnly = true)
     public VendorDto getVendor(Integer id) {
-        return toVendorDto(findVendor(id), null);
+        VendorDto dto = toVendorDto(findVendor(id), null, false);
+        if ((dto.panNo() != null && !dto.panNo().isBlank())
+                || (dto.gstin() != null && !dto.gstin().isBlank())) {
+            s4Audit.viewedFullS4("vendor", id, "pan,gstin");
+        }
+        return dto;
     }
 
     @Transactional
@@ -422,7 +432,7 @@ public class ItemMastersService {
         applyVendor(e, req);
         e.setVndCreatedBy(SecurityUtils.requireLoginId());
         e.setVndCreatedOn(LocalDateTime.now());
-        return toVendorDto(vendorRepo.save(e), "Vendor created successfully");
+        return toVendorDto(vendorRepo.save(e), "Vendor created successfully", false);
     }
 
     @Transactional
@@ -436,7 +446,7 @@ public class ItemMastersService {
         applyVendor(e, req);
         e.setVndModifiedBy(SecurityUtils.requireLoginId());
         e.setVndModifiedOn(LocalDateTime.now());
-        return toVendorDto(vendorRepo.save(e), "Vendor updated successfully");
+        return toVendorDto(vendorRepo.save(e), "Vendor updated successfully", false);
     }
 
     @Transactional
@@ -475,11 +485,16 @@ public class ItemMastersService {
         e.setVndIsactive(req.isActive() == null || req.isActive());
     }
 
-    private VendorDto toVendorDto(InvVendorMst e, String message) {
+    private VendorDto toVendorDto(InvVendorMst e, String message, boolean maskSensitive) {
+        String gstin = maskSensitive ? SensitiveDataMask.gstin(e.getVndGstin()) : e.getVndGstin();
+        String pan = maskSensitive ? SensitiveDataMask.pan(e.getVndPanNo()) : e.getVndPanNo();
+        String phone = maskSensitive ? SensitiveDataMask.phone(e.getVndPhone()) : e.getVndPhone();
+        String altPhone = maskSensitive ? SensitiveDataMask.phone(e.getVndAltPhone()) : e.getVndAltPhone();
+        String email = maskSensitive ? SensitiveDataMask.email(e.getVndEmail()) : e.getVndEmail();
         return new VendorDto(e.getVndVendorId(), e.getVndVendorCode(), e.getVndVendorName(), e.getVndPartyType(),
-                e.getVndGstin(), e.getVndPanNo(), e.getVndRating(), e.getVndAdd1(), e.getVndAdd2(), e.getVndCity(),
-                e.getVndState(), e.getVndPin(), e.getVndCountry(), e.getVndContactPerson(), e.getVndPhone(),
-                e.getVndAltPhone(), e.getVndEmail(), e.getVndWebsite(), e.getVndNotes(), e.getVndIsactive(),
+                gstin, pan, e.getVndRating(), e.getVndAdd1(), e.getVndAdd2(), e.getVndCity(),
+                e.getVndState(), e.getVndPin(), e.getVndCountry(), e.getVndContactPerson(), phone,
+                altPhone, email, e.getVndWebsite(), e.getVndNotes(), e.getVndIsactive(),
                 e.getVndCreatedBy(), e.getVndCreatedOn(), e.getVndModifiedBy(), e.getVndModifiedOn(), message);
     }
 

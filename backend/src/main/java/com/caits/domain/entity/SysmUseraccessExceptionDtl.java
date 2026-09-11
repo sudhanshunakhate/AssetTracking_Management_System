@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "sysm_useraccess_exception_dtl", schema = "caits_local")
+@Table(name = "sysm_useraccess_exception_dtl")
 public class SysmUseraccessExceptionDtl {
 
     @Id

@@ -1,0 +1,22 @@
+# CAITS Security — Acceptance Notes (2026-09-10)
+
+Implemented phases A–H against wireframe/CAITS_SECURITY_IMPLEMENTATION_PLAN.txt.
+
+## Working controls
+- Auth: HttpOnly CAITS_SESSION cookie; CSRF double-submit; JWT claims = sub+exp only; role/userId from DB
+- No JWT in sessionStorage / no Bearer from React; WebSocket cookie handshake
+- List masking: vendor/entity PAN/GSTIN/phone/email; employee email/phone on list
+- AuthZ: MenuPermissionFilter (mutations + sensitive GETs); employee/user/entity scope; file download ACL via txn location
+- At-rest AES-GCM on vendor/entity PAN & GSTIN (enc:v1:)
+- Headers: nosniff, frame deny, CSP, Permissions-Policy, HSTS when HTTPS; API Cache-Control no-store
+- Errors sanitized; logback redacts password/token/pan-like patterns
+- Login rate limit (30/min/IP); prod Vite drops console
+- Tests: SensitiveDataMask + encryption round-trip; UserDto banned fields; createToken arity
+
+## Inherent web limit (documented)
+Any field the UI intentionally shows can be inspected in that browser's DevTools by the person using it.
+
+## Ops
+- Override CAITS_SECURITY_JWT_SECRET and CAITS_SECURITY_FIELD_ENCRYPTION_KEY in production
+- Use http://localhost:5173 (Vite proxy) so cookies stay same-site; do not point the SPA at :8085 directly
+- Restart backend after these changes; hard-refresh the SPA

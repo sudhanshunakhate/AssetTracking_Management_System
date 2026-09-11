@@ -11,6 +11,8 @@ import com.caits.modules.masters.SystemLocationService;
 import com.caits.modules.masters.dto.MasterDtos.*;
 import com.caits.security.AccessScopeService;
 import com.caits.security.SecurityUtils;
+import com.caits.security.SensitiveAccessAudit;
+import com.caits.security.SensitiveDataMask;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -28,15 +30,17 @@ public class OrgMastersService {
     private final OrgLocationMstRepository locationRepo;
     private final AccessScopeService accessScope;
     private final SystemLocationService systemLocations;
+    private final SensitiveAccessAudit s4Audit;
 
     public OrgMastersService(OrgEntityMstRepository entityRepo, OrgBusinessunitMstRepository buRepo,
                              OrgLocationMstRepository locationRepo, AccessScopeService accessScope,
-                             SystemLocationService systemLocations) {
+                             SystemLocationService systemLocations, SensitiveAccessAudit s4Audit) {
         this.entityRepo = entityRepo;
         this.buRepo = buRepo;
         this.locationRepo = locationRepo;
         this.accessScope = accessScope;
         this.systemLocations = systemLocations;
+        this.s4Audit = s4Audit;
     }
 
     // ---- Entities ----
@@ -48,15 +52,19 @@ public class OrgMastersService {
                 accessScope.entitySpec("entEntityId"));
         Page<OrgEntityMst> result = entityRepo.findAll(spec, PageRequest.of(Math.max(page - 1, 0), pageSize));
         return PageResponse.of(page, pageSize, result.getTotalElements(),
-                result.getContent().stream().map(e -> toEntityDto(e, null)).toList());
+                result.getContent().stream().map(e -> toEntityDto(e, null, true)).toList());
     }
 
     @Transactional(readOnly = true)
     public EntityDto getEntity(Integer id) {
-        EntityDto dto = toEntityDto(findEntity(id), null);
         AccessScopeService.Scope scope = accessScope.current();
         if (scope.entityRestricted() && !Objects.equals(scope.entityId(), id)) {
             throw ApiException.forbidden("You do not have access to this Organization");
+        }
+        EntityDto dto = toEntityDto(findEntity(id), null, false);
+        if ((dto.panNo() != null && !dto.panNo().isBlank())
+                || (dto.gstin() != null && !dto.gstin().isBlank())) {
+            s4Audit.viewedFullS4("entity", id, "pan,gstin");
         }
         return dto;
     }
@@ -71,11 +79,15 @@ public class OrgMastersService {
         applyEntity(e, req);
         e.setEntCreatedBy(SecurityUtils.requireLoginId());
         e.setEntCreatedOn(LocalDateTime.now());
-        return toEntityDto(entityRepo.save(e), "Entity created successfully");
+        return toEntityDto(entityRepo.save(e), "Entity created successfully", false);
     }
 
     @Transactional
     public EntityDto updateEntity(Integer id, EntityRequest req) {
+        AccessScopeService.Scope scope = accessScope.current();
+        if (scope.entityRestricted() && !Objects.equals(scope.entityId(), id)) {
+            throw ApiException.forbidden("You do not have access to this Organization");
+        }
         OrgEntityMst e = findEntity(id);
         if (req.entityCode() != null && !req.entityCode().equalsIgnoreCase(e.getEntEntityCode())
                 && entityRepo.existsByEntEntityCodeIgnoreCase(req.entityCode())) {
@@ -84,11 +96,15 @@ public class OrgMastersService {
         applyEntity(e, req);
         e.setEntModifiedBy(SecurityUtils.requireLoginId());
         e.setEntModifiedOn(LocalDateTime.now());
-        return toEntityDto(entityRepo.save(e), "Entity updated successfully");
+        return toEntityDto(entityRepo.save(e), "Entity updated successfully", false);
     }
 
     @Transactional
     public MessageResponse deleteEntity(Integer id) {
+        AccessScopeService.Scope scope = accessScope.current();
+        if (scope.entityRestricted() && !Objects.equals(scope.entityId(), id)) {
+            throw ApiException.forbidden("You do not have access to this Organization");
+        }
         OrgEntityMst e = findEntity(id);
         e.setEntIsactive(false);
         e.setEntModifiedBy(SecurityUtils.requireLoginId());
@@ -112,9 +128,11 @@ public class OrgMastersService {
         e.setEntIsactive(req.isActive() == null || req.isActive());
     }
 
-    private EntityDto toEntityDto(OrgEntityMst e, String message) {
+    private EntityDto toEntityDto(OrgEntityMst e, String message, boolean maskSensitive) {
+        String gstin = maskSensitive ? SensitiveDataMask.gstin(e.getEntGstin()) : e.getEntGstin();
+        String pan = maskSensitive ? SensitiveDataMask.pan(e.getEntPanNo()) : e.getEntPanNo();
         return new EntityDto(e.getEntEntityId(), e.getEntEntityCode(), e.getEntEntityName(), e.getEntShortName(),
-                e.getEntGstin(), e.getEntPanNo(), e.getEntCity(), e.getEntState(), e.getEntIsactive(),
+                gstin, pan, e.getEntCity(), e.getEntState(), e.getEntIsactive(),
                 e.getEntCreatedBy(), e.getEntCreatedOn(), e.getEntModifiedBy(), e.getEntModifiedOn(), message);
     }
 

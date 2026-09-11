@@ -109,7 +109,7 @@ public class AuthService {
         String employeeName = emp == null ? user.getUsrLoginId()
                 : (emp.getEmpFirstName() + (emp.getEmpLastName() == null ? "" : " " + emp.getEmpLastName())).trim();
 
-        String token = jwtService.createToken(user.getUsrLoginId(), user.getUsrUserId(), role.getRolRoleCode());
+        String token = jwtService.createToken(user.getUsrLoginId());
         LoginUserDto userDto = new LoginUserDto(
                 user.getUsrUserId(), employeeName, role.getRolRoleCode(),
                 user.getUsrEntityIdEnt(), user.getUsrBuAccessScope(),
@@ -139,7 +139,7 @@ public class AuthService {
         HrcEmployeeMst emp = employeeRepo.findById(user.getUsrEmployeeIdEmp()).orElse(null);
         String employeeName = emp == null ? user.getUsrLoginId()
                 : (emp.getEmpFirstName() + (emp.getEmpLastName() == null ? "" : " " + emp.getEmpLastName())).trim();
-        String token = jwtService.createToken(user.getUsrLoginId(), user.getUsrUserId(), role.getRolRoleCode());
+        String token = jwtService.createToken(user.getUsrLoginId());
         LoginUserDto userDto = new LoginUserDto(
                 user.getUsrUserId(), employeeName, role.getRolRoleCode(),
                 user.getUsrEntityIdEnt(), user.getUsrBuAccessScope(),

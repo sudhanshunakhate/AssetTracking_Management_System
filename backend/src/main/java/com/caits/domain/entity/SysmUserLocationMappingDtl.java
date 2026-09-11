@@ -3,7 +3,7 @@ package com.caits.domain.entity;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "sysm_user_location_mapping_dtl", schema = "caits_local")
+@Table(name = "sysm_user_location_mapping_dtl")
 public class SysmUserLocationMappingDtl {
 
     @Id

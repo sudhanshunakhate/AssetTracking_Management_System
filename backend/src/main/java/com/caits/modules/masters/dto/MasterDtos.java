@@ -142,7 +142,9 @@ public final class MasterDtos {
                                   String designation, Integer departmentId, Integer roleId, Integer baseLocationId,
                                   Integer reportingToEmpId, Boolean isActive,
                                   Boolean createLogin, String loginId, String password, String confirmPassword,
-                                  Integer entityId) {}
+                                  Integer entityId,
+                                  /** RSA-OAEP ciphertext of {password,confirmPassword,ts,nonce} — preferred over plaintext. */
+                                  String passwordCipher) {}
     public record SubordinateDto(Integer employeeId, String employeeCode, String firstName, String designation) {}
 
     public record UserDto(Integer userId, Integer employeeId, String loginId, Integer roleId, String accountStatus,
@@ -152,7 +154,8 @@ public final class MasterDtos {
                           String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record UserRequest(Integer employeeId, String loginId, String password, Integer roleId, String accountStatus,
                               Integer entityId, String buAccessScope, Integer locationId, Boolean forcePasswordReset,
-                              Boolean isActive) {}
+                              Boolean isActive,
+                              String passwordCipher) {}
     public record LockStatusRequest(String action) {}
     public record LockStatusResponse(Integer userId, String accountStatus, String message) {}
     public record OuAccessDto(Integer userId, String buAccessScope, List<Integer> buIds,

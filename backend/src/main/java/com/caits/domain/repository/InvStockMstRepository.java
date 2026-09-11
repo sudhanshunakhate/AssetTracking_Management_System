@@ -14,7 +14,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     Optional<InvStockMst> findFirstByStkItemIdItmAndStkLocationIdLoc(Integer itemId, Integer locationId);
 
     @Query(value = """
-            SELECT COUNT(*) FROM caits_local.inv_stock_mst s
+            SELECT COUNT(*) FROM inv_stock_mst s
             WHERE COALESCE(s.stk_isactive, true) = true
               AND s.stk_reorder_level IS NOT NULL AND s.stk_reorder_level > 0
               AND COALESCE(s.stk_current_qty, 0) <= s.stk_reorder_level
@@ -22,7 +22,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     long countLowStockAll();
 
     @Query(value = """
-            SELECT COUNT(*) FROM caits_local.inv_stock_mst s
+            SELECT COUNT(*) FROM inv_stock_mst s
             WHERE COALESCE(s.stk_isactive, true) = true
               AND s.stk_reorder_level IS NOT NULL AND s.stk_reorder_level > 0
               AND COALESCE(s.stk_current_qty, 0) <= s.stk_reorder_level
@@ -31,13 +31,13 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     long countLowStockByLocations(@Param("locationIds") Collection<Integer> locationIds);
 
     @Query(value = """
-            SELECT COUNT(*) FROM caits_local.inv_stock_mst s
+            SELECT COUNT(*) FROM inv_stock_mst s
             WHERE COALESCE(s.stk_isactive, true) = true
             """, nativeQuery = true)
     long countActiveStockRowsAll();
 
     @Query(value = """
-            SELECT COUNT(*) FROM caits_local.inv_stock_mst s
+            SELECT COUNT(*) FROM inv_stock_mst s
             WHERE COALESCE(s.stk_isactive, true) = true
               AND s.stk_location_id_loc IN (:locationIds)
             """, nativeQuery = true)
@@ -57,7 +57,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                   AND (s.stk_reorder_level IS NULL OR s.stk_reorder_level <= 0
                        OR COALESCE(s.stk_current_qty, 0) > s.stk_reorder_level)
               )
-            FROM caits_local.inv_stock_mst s
+            FROM inv_stock_mst s
             WHERE COALESCE(s.stk_isactive, true) = true
             """, nativeQuery = true)
     List<Object[]> stockHealthAll();
@@ -75,7 +75,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                   AND (s.stk_reorder_level IS NULL OR s.stk_reorder_level <= 0
                        OR COALESCE(s.stk_current_qty, 0) > s.stk_reorder_level)
               )
-            FROM caits_local.inv_stock_mst s
+            FROM inv_stock_mst s
             WHERE COALESCE(s.stk_isactive, true) = true
               AND s.stk_location_id_loc IN (:locationIds)
             """, nativeQuery = true)
@@ -85,8 +85,8 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     @Query(value = """
             SELECT COALESCE(l.loc_location_name, l.loc_location_code, CAST(s.stk_location_id_loc AS text)),
                    COALESCE(SUM(s.stk_current_qty), 0)
-            FROM caits_local.inv_stock_mst s
-            LEFT JOIN caits_local.org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
+            FROM inv_stock_mst s
+            LEFT JOIN org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
             WHERE COALESCE(s.stk_isactive, true) = true
             GROUP BY s.stk_location_id_loc, l.loc_location_code, l.loc_location_name
             ORDER BY 2 DESC
@@ -96,8 +96,8 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
     @Query(value = """
             SELECT COALESCE(l.loc_location_name, l.loc_location_code, CAST(s.stk_location_id_loc AS text)),
                    COALESCE(SUM(s.stk_current_qty), 0)
-            FROM caits_local.inv_stock_mst s
-            LEFT JOIN caits_local.org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
+            FROM inv_stock_mst s
+            LEFT JOIN org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
             WHERE COALESCE(s.stk_isactive, true) = true
               AND s.stk_location_id_loc IN (:locationIds)
             GROUP BY s.stk_location_id_loc, l.loc_location_code, l.loc_location_name
@@ -114,9 +114,9 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                    COALESCE(i.itm_item_code, ''), COALESCE(i.itm_item_name, ''),
                    COALESCE(l.loc_location_name, l.loc_location_code, '—'),
                    COALESCE(s.stk_current_qty, 0), s.stk_reorder_level
-            FROM caits_local.inv_stock_mst s
-            LEFT JOIN caits_local.inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
-            LEFT JOIN caits_local.org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
+            FROM inv_stock_mst s
+            LEFT JOIN inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
+            LEFT JOIN org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
             WHERE COALESCE(s.stk_isactive, true) = true
               AND (
                 COALESCE(s.stk_current_qty, 0) <= 0
@@ -133,9 +133,9 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                    COALESCE(i.itm_item_code, ''), COALESCE(i.itm_item_name, ''),
                    COALESCE(l.loc_location_name, l.loc_location_code, '—'),
                    COALESCE(s.stk_current_qty, 0), s.stk_reorder_level
-            FROM caits_local.inv_stock_mst s
-            LEFT JOIN caits_local.inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
-            LEFT JOIN caits_local.org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
+            FROM inv_stock_mst s
+            LEFT JOIN inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
+            LEFT JOIN org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
             WHERE COALESCE(s.stk_isactive, true) = true
               AND s.stk_location_id_loc IN (:locationIds)
               AND (
@@ -155,9 +155,9 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                    COALESCE(i.itm_item_code, ''), COALESCE(i.itm_item_name, ''),
                    COALESCE(l.loc_location_name, l.loc_location_code, '—'),
                    COALESCE(s.stk_current_qty, 0), s.stk_reorder_level
-            FROM caits_local.inv_stock_mst s
-            LEFT JOIN caits_local.inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
-            LEFT JOIN caits_local.org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
+            FROM inv_stock_mst s
+            LEFT JOIN inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
+            LEFT JOIN org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
             WHERE COALESCE(s.stk_isactive, true) = true
             ORDER BY COALESCE(s.stk_current_qty, 0) DESC, i.itm_item_name ASC
             LIMIT :limit
@@ -169,9 +169,9 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                    COALESCE(i.itm_item_code, ''), COALESCE(i.itm_item_name, ''),
                    COALESCE(l.loc_location_name, l.loc_location_code, '—'),
                    COALESCE(s.stk_current_qty, 0), s.stk_reorder_level
-            FROM caits_local.inv_stock_mst s
-            LEFT JOIN caits_local.inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
-            LEFT JOIN caits_local.org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
+            FROM inv_stock_mst s
+            LEFT JOIN inv_item_mst i ON i.itm_item_id = s.stk_item_id_itm
+            LEFT JOIN org_location_mst l ON l.loc_location_id = s.stk_location_id_loc
             WHERE COALESCE(s.stk_isactive, true) = true
               AND s.stk_location_id_loc IN (:locationIds)
             ORDER BY COALESCE(s.stk_current_qty, 0) DESC, i.itm_item_name ASC
@@ -195,7 +195,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                        WHEN s.stk_batch_lot_no IS NULL OR TRIM(s.stk_batch_lot_no) = '' THEN
                          COALESCE(s.stk_available_qty, s.stk_current_qty, 0)
                        WHEN EXISTS (
-                         SELECT 1 FROM caits_local.inv_bls_mst b
+                         SELECT 1 FROM inv_bls_mst b
                          WHERE b.ibm_item_id_itm = s.stk_item_id_itm
                            AND UPPER(TRIM(b.ibm_serial_no)) = UPPER(TRIM(s.stk_batch_lot_no))
                            AND COALESCE(b.ibm_isactive, true) = true
@@ -203,7 +203,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                            AND b.ibm_issued_to_emp_id_emp IS NOT NULL
                        ) THEN 0
                        WHEN EXISTS (
-                         SELECT 1 FROM caits_local.inv_bls_mst b
+                         SELECT 1 FROM inv_bls_mst b
                          WHERE b.ibm_item_id_itm = s.stk_item_id_itm
                            AND UPPER(TRIM(b.ibm_serial_no)) = UPPER(TRIM(s.stk_batch_lot_no))
                            AND COALESCE(b.ibm_isactive, true) = true
@@ -213,7 +213,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                        ELSE COALESCE(s.stk_available_qty, s.stk_current_qty, 0)
                      END
                    ), 0)
-            FROM caits_local.inv_stock_mst s
+            FROM inv_stock_mst s
             WHERE COALESCE(s.stk_isactive, true) = true
               AND s.stk_location_id_loc IN (:locationIds)
             GROUP BY s.stk_item_id_itm, s.stk_location_id_loc
@@ -223,7 +223,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                        WHEN s.stk_batch_lot_no IS NULL OR TRIM(s.stk_batch_lot_no) = '' THEN
                          COALESCE(s.stk_available_qty, s.stk_current_qty, 0)
                        WHEN EXISTS (
-                         SELECT 1 FROM caits_local.inv_bls_mst b
+                         SELECT 1 FROM inv_bls_mst b
                          WHERE b.ibm_item_id_itm = s.stk_item_id_itm
                            AND UPPER(TRIM(b.ibm_serial_no)) = UPPER(TRIM(s.stk_batch_lot_no))
                            AND COALESCE(b.ibm_isactive, true) = true
@@ -231,7 +231,7 @@ public interface InvStockMstRepository extends JpaRepository<InvStockMst, Intege
                            AND b.ibm_issued_to_emp_id_emp IS NOT NULL
                        ) THEN 0
                        WHEN EXISTS (
-                         SELECT 1 FROM caits_local.inv_bls_mst b
+                         SELECT 1 FROM inv_bls_mst b
                          WHERE b.ibm_item_id_itm = s.stk_item_id_itm
                            AND UPPER(TRIM(b.ibm_serial_no)) = UPPER(TRIM(s.stk_batch_lot_no))
                            AND COALESCE(b.ibm_isactive, true) = true

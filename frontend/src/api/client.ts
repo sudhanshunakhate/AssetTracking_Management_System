@@ -1,12 +1,16 @@
 import { beginLoading, endLoading } from '@/loading/loadingStore'
 
 /** Shared API client for CAITS backend (`/api/v1`). */
-import { cachedFetch, invalidateCache } from '@/api/requestCache'
+import { invalidateCache } from '@/api/requestCache'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8085/api/v1'
-const TOKEN_KEY = 'caits.token'
+/**
+ * Same-origin by default so HttpOnly session cookies work via the Vite proxy.
+ * Override with VITE_API_BASE_URL only when you intentionally call another host.
+ */
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 const EXPIRES_AT_KEY = 'caits.tokenExpiresAt'
 const ACTIVITY_KEY = 'caits.lastActivityAt'
+const CSRF_COOKIE = 'XSRF-TOKEN'
 
 /** Refresh when less than this many ms remain on the JWT. */
 const REFRESH_WHEN_REMAINING_MS = 15 * 60 * 1000
@@ -20,8 +24,9 @@ export type PageResponse<T> = {
   data: T[]
 }
 
+/** @deprecated Token is HttpOnly — always null for JS. Kept for WS migration shims. */
 export function getToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY)
+  return null
 }
 
 export function getTokenExpiresAt(): number | null {
@@ -31,15 +36,35 @@ export function getTokenExpiresAt(): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-export function setToken(token: string | null, expiresInSeconds?: number) {
-  if (token) {
-    sessionStorage.setItem(TOKEN_KEY, token)
-    const seconds = expiresInSeconds && expiresInSeconds > 0 ? expiresInSeconds : 3600
-    sessionStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + seconds * 1000))
-  } else {
-    sessionStorage.removeItem(TOKEN_KEY)
+/**
+ * Local hint that a cookie session may still exist.
+ * Never trust this alone — confirm with {@code /auth/me}.
+ */
+export function hasSessionHint(): boolean {
+  return getTokenExpiresAt() != null
+}
+
+/** Tracks session expiry locally; JWT itself lives only in the HttpOnly cookie. */
+export function setToken(_token: string | null, expiresInSeconds?: number) {
+  // Clear any legacy JWT that may still sit in sessionStorage from older builds.
+  sessionStorage.removeItem('caits.token')
+  if (_token === null && (expiresInSeconds === undefined || expiresInSeconds === 0)) {
     sessionStorage.removeItem(EXPIRES_AT_KEY)
+    return
   }
+  const seconds = expiresInSeconds && expiresInSeconds > 0 ? expiresInSeconds : 3600
+  sessionStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + seconds * 1000))
+}
+
+export function markSession(expiresInSeconds?: number) {
+  const seconds = expiresInSeconds && expiresInSeconds > 0 ? expiresInSeconds : 3600
+  sessionStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + seconds * 1000))
+  sessionStorage.removeItem('caits.token')
+}
+
+export function clearSession() {
+  sessionStorage.removeItem('caits.token')
+  sessionStorage.removeItem(EXPIRES_AT_KEY)
 }
 
 export function markUserActivity() {
@@ -50,6 +75,28 @@ export function getLastActivityAt(): number {
   const raw = sessionStorage.getItem(ACTIVITY_KEY)
   const n = raw ? Number(raw) : 0
   return Number.isFinite(n) ? n : 0
+}
+
+function readCookie(name: string): string | null {
+  const parts = document.cookie.split(';')
+  for (const part of parts) {
+    const [k, ...rest] = part.trim().split('=')
+    if (k === name) return decodeURIComponent(rest.join('='))
+  }
+  return null
+}
+
+async function ensureCsrf(): Promise<void> {
+  if (readCookie(CSRF_COOKIE)) return
+  try {
+    await fetch(`${API_BASE}/auth/csrf`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+  } catch {
+    /* ignore — mutating call may still fail with 403 if CSRF missing */
+  }
 }
 
 type SessionExpiredHandler = () => void
@@ -66,7 +113,7 @@ export function setSessionExpiredHandler(handler: SessionExpiredHandler | null) 
 function fireSessionExpired() {
   if (sessionExpiredFired) return
   sessionExpiredFired = true
-  setToken(null)
+  clearSession()
   onSessionExpired?.()
 }
 
@@ -74,12 +121,11 @@ function isSessionExpiredError(status: number, message: string) {
   if (status === 401) return true
   if (status !== 403) return false
   const m = message.trim().toLowerCase()
+  // Do NOT treat generic Forbidden / CSRF / menu AuthZ as "session expired".
   return (
-    !m ||
-    m === 'access denied' ||
-    m === 'forbidden' ||
     m === 'session expired' ||
-    m.includes('full authentication is required')
+    m.includes('full authentication is required') ||
+    m.includes('authentication required')
   )
 }
 
@@ -91,16 +137,12 @@ export async function pingBackend(timeoutMs = 4000): Promise<boolean> {
   const ctrl = new AbortController()
   const timer = window.setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const headers = new Headers()
-    const token = getToken()
-    if (token) headers.set('Authorization', `Bearer ${token}`)
     const res = await fetch(`${API_BASE}/dashboard/summary`, {
       method: 'GET',
-      headers,
+      credentials: 'include',
       signal: ctrl.signal,
       cache: 'no-store',
     })
-    // Any response (incl. 401/403/500) proves the process is listening.
     return res.status > 0
   } catch {
     return false
@@ -118,57 +160,53 @@ export class ApiError extends Error {
 }
 
 /**
- * Extends the JWT when the user is still active and the token is near expiry.
- * Returns true when a new token was stored.
+ * Extends the JWT cookie when the user is still active and the session is near expiry.
+ * Never logs the user out solely because the local expiry hint is stale — try refresh first;
+ * only {@link fireSessionExpired} when the server says the cookie session is gone.
  */
 export async function maybeRefreshSession(): Promise<boolean> {
-  const token = getToken()
-  if (!token) return false
-
-  let expiresAt = getTokenExpiresAt()
-  // Older sessions (before sliding auth) have a token but no expiry stamp — refresh once.
-  if (!expiresAt) {
-    expiresAt = Date.now() + REFRESH_WHEN_REMAINING_MS - 1
-  }
+  const expiresAt = getTokenExpiresAt()
+  // No local hint (e.g. after hard refresh) — let /auth/me decide; don't force refresh.
+  if (!expiresAt) return false
 
   const remaining = expiresAt - Date.now()
   if (remaining > REFRESH_WHEN_REMAINING_MS) return false
 
   const idleFor = Date.now() - getLastActivityAt()
-  if (idleFor > ACTIVITY_WINDOW_MS) return false
-
-  if (remaining <= 0) {
-    fireSessionExpired()
-    return false
-  }
+  // Still try refresh when the hint already expired (remaining <= 0) even if idle clock is cold.
+  if (remaining > 0 && idleFor > ACTIVITY_WINDOW_MS) return false
 
   if (refreshInFlight) return refreshInFlight
 
   refreshInFlight = (async () => {
     try {
-      const headers = new Headers({
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      })
+      await ensureCsrf()
+      const headers = new Headers({ 'Content-Type': 'application/json' })
+      const xsrf = readCookie(CSRF_COOKIE)
+      if (xsrf) headers.set('X-XSRF-TOKEN', xsrf)
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
         headers,
+        credentials: 'include',
         cache: 'no-store',
       })
       const text = await res.text()
-      const body = text ? (JSON.parse(text) as { token?: string; expiresIn?: number; message?: string }) : null
+      let body: { expiresIn?: number; message?: string } | null = null
+      try {
+        body = text ? (JSON.parse(text) as { expiresIn?: number; message?: string }) : null
+      } catch {
+        body = null
+      }
       if (!res.ok) {
-        if (isSessionExpiredError(res.status, String(body?.message ?? res.statusText ?? ''))) {
+        // Only clear session when the cookie JWT is actually rejected.
+        if (res.status === 401) {
           fireSessionExpired()
         }
         return false
       }
-      if (body?.token) {
-        setToken(body.token, body.expiresIn)
-        sessionExpiredFired = false
-        return true
-      }
-      return false
+      markSession(body?.expiresIn)
+      sessionExpiredFired = false
+      return true
     } catch {
       return false
     } finally {
@@ -182,28 +220,49 @@ export async function maybeRefreshSession(): Promise<boolean> {
 export type ApiRequestOptions = RequestInit & {
   /** When true, skip GlobalLoader begin/end — for background catalog fetches. */
   silent?: boolean
+  /** When true, do not attempt sliding JWT refresh (session bootstrap /auth/me). */
+  skipRefresh?: boolean
 }
 
 export async function api<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { silent = false, ...fetchOptions } = options
+  const { silent = false, skipRefresh = false, ...fetchOptions } = options
   if (!silent) beginLoading()
   try {
-    // Proactively slide the session on real API traffic while the user is working.
-    if (!path.startsWith('/auth/login') && !path.startsWith('/auth/refresh')) {
+    const method = (fetchOptions.method ?? 'GET').toUpperCase()
+    const mutating = method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS'
+
+    const skipRefreshPath =
+      path.startsWith('/auth/login') ||
+      path.startsWith('/auth/refresh') ||
+      path.startsWith('/auth/csrf') ||
+      path.startsWith('/auth/public-key') ||
+      path.startsWith('/auth/me')
+
+    if (!skipRefresh && !skipRefreshPath) {
       markUserActivity()
       await maybeRefreshSession()
+    } else if (!skipRefreshPath) {
+      markUserActivity()
+    }
+    if (mutating && !path.startsWith('/auth/login') && !path.startsWith('/auth/forgot-password')) {
+      await ensureCsrf()
     }
 
     const headers = new Headers(fetchOptions.headers)
-    // FormData must keep the browser-generated multipart boundary.
     const isFormData = fetchOptions.body instanceof FormData
     if (!headers.has('Content-Type') && fetchOptions.body && !isFormData) {
       headers.set('Content-Type', 'application/json')
     }
-    const token = getToken()
-    if (token) headers.set('Authorization', `Bearer ${token}`)
+    if (mutating) {
+      const xsrf = readCookie(CSRF_COOKIE)
+      if (xsrf) headers.set('X-XSRF-TOKEN', xsrf)
+    }
 
-    const res = await fetch(`${API_BASE}${path}`, { ...fetchOptions, headers })
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...fetchOptions,
+      headers,
+      credentials: 'include',
+    })
     const text = await res.text()
     const body = text ? (JSON.parse(text) as unknown) : null
 
@@ -224,7 +283,8 @@ export async function api<T>(path: string, options: ApiRequestOptions = {}): Pro
 }
 
 export const http = {
-  get: <T>(path: string, opts?: { silent?: boolean }) => api<T>(path, { silent: opts?.silent }),
+  get: <T>(path: string, opts?: { silent?: boolean; skipRefresh?: boolean }) =>
+    api<T>(path, { silent: opts?.silent, skipRefresh: opts?.skipRefresh }),
   post: <T>(path: string, body?: unknown) =>
     api<T>(path, { method: 'POST', body: body == null ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body?: unknown) =>
@@ -240,6 +300,11 @@ export const http = {
 export function resolveApiUrl(path: string): string {
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
+  if (path.startsWith('/api/')) return path
+  if (API_BASE.startsWith('/')) {
+    const base = API_BASE.replace(/\/$/, '')
+    return `${base}${path.startsWith('/') ? path : `/${path}`}`
+  }
   const origin = API_BASE.replace(/\/api\/v1\/?$/, '')
   return `${origin}${path.startsWith('/') ? '' : '/'}${path}`
 }
@@ -257,19 +322,23 @@ export function toApiRelativePath(storedUrl: string): string {
 }
 
 /**
- * Downloads a protected file with the session JWT. A plain `<a href>` cannot send
- * Authorization, so the API returns "Session expired" in a new tab.
+ * Downloads a protected file with the session cookie.
  */
 export async function fetchAuthenticatedBlob(storedUrl: string): Promise<Blob> {
   beginLoading()
   try {
     markUserActivity()
     await maybeRefreshSession()
+    await ensureCsrf()
     const path = toApiRelativePath(storedUrl)
     const headers = new Headers()
-    const token = getToken()
-    if (token) headers.set('Authorization', `Bearer ${token}`)
-    const res = await fetch(`${API_BASE}${path}`, { headers, cache: 'no-store' })
+    const xsrf = readCookie(CSRF_COOKIE)
+    if (xsrf) headers.set('X-XSRF-TOKEN', xsrf)
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers,
+      credentials: 'include',
+      cache: 'no-store',
+    })
     if (!res.ok) {
       const text = await res.text()
       let msg = res.statusText || 'Could not open file'
@@ -311,7 +380,7 @@ export async function openAuthenticatedFile(storedUrl: string, fileName?: string
 }
 
 export type LoginResponse = {
-  token: string
+  token?: string | null
   expiresIn: number
   mustChangePassword?: boolean
   user: {
@@ -370,7 +439,12 @@ export type ProfileResponse = {
 }
 
 export async function loginApi(loginId: string, password: string) {
-  return http.post<LoginResponse>('/auth/login', { loginId, password })
+  await ensureCsrf()
+  const { encryptAuthPayload } = await import('@/lib/payloadCrypto')
+  const encrypted = await encryptAuthPayload({ loginId, password })
+  const res = await http.post<LoginResponse>('/auth/login', encrypted)
+  markSession(res.expiresIn)
+  return res
 }
 
 export async function logoutApi() {
@@ -379,13 +453,15 @@ export async function logoutApi() {
   } catch {
     // ignore network logout failures
   } finally {
-    setToken(null)
+    clearSession()
     invalidateCache()
   }
 }
 
-export async function meApi() {
-  return cachedFetch('auth:me', () => http.get<MeResponse>('/auth/me'), 30_000)
+export async function meApi(opts?: { silent?: boolean }) {
+  // Always hit the network on bootstrap — never reuse a pre-login cache entry.
+  invalidateCache('auth:me')
+  return http.get<MeResponse>('/auth/me', { silent: opts?.silent, skipRefresh: true })
 }
 
 export async function profileApi() {
@@ -397,11 +473,19 @@ export async function changePasswordApi(body: {
   newPassword: string
   confirmPassword: string
 }) {
-  return http.post<{ message: string }>('/auth/change-password', body)
+  const { encryptAuthPayload } = await import('@/lib/payloadCrypto')
+  const encrypted = await encryptAuthPayload({
+    oldPassword: body.oldPassword,
+    newPassword: body.newPassword,
+    confirmPassword: body.confirmPassword,
+  })
+  return http.post<{ message: string }>('/auth/change-password', encrypted)
 }
 
 export async function forgotPasswordApi(loginId: string) {
-  return http.post<{ message: string }>('/auth/forgot-password', { loginId })
+  const { encryptAuthPayload } = await import('@/lib/payloadCrypto')
+  const encrypted = await encryptAuthPayload({ loginId })
+  return http.post<{ message: string }>('/auth/forgot-password', encrypted)
 }
 
 export async function getFavouritesApi() {
@@ -428,7 +512,6 @@ export type MenuPermission = {
   /** Section order from mtree_group_sort_order. */
   groupSortOrder?: number
 }
-
 
 /** Map backend master DTO (unitId/isActive) → UI row (id/status). */
 export function mapMasterRow<T extends Record<string, unknown>>(

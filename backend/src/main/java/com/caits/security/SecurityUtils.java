@@ -8,11 +8,19 @@ public final class SecurityUtils {
     private SecurityUtils() {}
 
     public static CurrentUser requireCurrentUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !(auth.getPrincipal() instanceof CurrentUser cu)) {
+        CurrentUser cu = currentUserOrNull();
+        if (cu == null) {
             throw ApiException.unauthorized("Not authenticated");
         }
         return cu;
+    }
+
+    public static CurrentUser currentUserOrNull() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof CurrentUser cu) {
+            return cu;
+        }
+        return null;
     }
 
     public static String requireLoginId() {

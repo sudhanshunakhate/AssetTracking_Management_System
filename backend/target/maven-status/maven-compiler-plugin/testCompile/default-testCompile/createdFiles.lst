@@ -1,5 +1,11 @@
-com\caits\modules\transactions\DocTypeTest.class
+com\caits\security\UploadOwnershipRegistryTest.class
+com\caits\security\DtoSecurityContractTest.class
+com\caits\security\PayloadCryptoServiceTest.class
 com\caits\modules\transactions\InspectionApprovalStatusTest.class
-com\caits\modules\transactions\TransferGatepassRulesTest.class
+com\caits\security\MenuPermissionFilterContractTest$SetNames.class
 com\caits\modules\transactions\InspectionRoutingRulesTest.class
 com\caits\modules\transactions\StockPostingRulesTest.class
+com\caits\security\SensitiveDataMaskTest.class
+com\caits\security\MenuPermissionFilterContractTest.class
+com\caits\modules\transactions\DocTypeTest.class
+com\caits\modules\transactions\TransferGatepassRulesTest.class
