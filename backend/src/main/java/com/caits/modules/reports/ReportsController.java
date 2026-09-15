@@ -1,0 +1,2170 @@
+package com.caits.modules.reports;
+
+import com.caits.common.ApiException;
+import com.caits.common.PageResponse;
+import com.caits.domain.entity.HrcDepartmentMst;
+import com.caits.domain.entity.HrcEmployeeMst;
+import com.caits.domain.entity.InvBlsMst;
+import com.caits.domain.entity.InvItemMst;
+import com.caits.domain.entity.InvStockMst;
+import com.caits.domain.entity.InvVendorMst;
+import com.caits.domain.entity.OrgLocationMst;
+import com.caits.domain.entity.TxnDetailDtl;
+import com.caits.domain.entity.TxnHeaderMst;
+import com.caits.domain.repository.HrcDepartmentMstRepository;
+import com.caits.domain.repository.HrcEmployeeMstRepository;
+import com.caits.domain.repository.InvBlsMstRepository;
+import com.caits.domain.repository.InvItemMstRepository;
+import com.caits.domain.repository.InvStockMstRepository;
+import com.caits.domain.repository.InvVendorMstRepository;
+import com.caits.domain.repository.OrgLocationMstRepository;
+import com.caits.domain.repository.TxnDetailDtlRepository;
+import com.caits.domain.repository.TxnHeaderMstRepository;
+import com.caits.domain.repository.UnitMstRepository;
+import com.caits.modules.masters.SystemLocationRole;
+import com.caits.modules.masters.SystemLocationService;
+import com.caits.security.AccessScopeService;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
+/**
+ * Report endpoints aligned to ASSET_TRACKING_ERP.xlsx layouts:
+ * Stock Ledger, Asset Movement Register, Item Ledger.
+ */
+@RestController
+@RequestMapping("/api/v1/reports")
+public class ReportsController {
+
+    private static final Set<String> MOVEMENT_DOC_TYPES = Set.of(
+            "OPENING_STOCK",
+            "GRN",
+            "GATEPASS_INWARD",
+            "GATEPASS_OUTWARD",
+            "MATERIAL_ISSUE",
+            "MATERIAL_TRANSFER",
+            "MATERIAL_RETURN",
+            "INSPECTION_APPROVAL"
+    );
+
+    private static final Set<String> RECEIPT_DOC_TYPES = Set.of(
+            "OPENING_STOCK", "GRN", "GATEPASS_INWARD", "MATERIAL_RETURN"
+    );
+
+    private static final Set<String> ISSUE_DOC_TYPES = Set.of(
+            "MATERIAL_ISSUE", "GATEPASS_OUTWARD"
+    );
+
+    private static final Set<String> LEDGER_DOC_TYPES = Set.of(
+            "OPENING_STOCK",
+            "GRN",
+            "GATEPASS_INWARD",
+            "GATEPASS_OUTWARD",
+            "MATERIAL_ISSUE",
+            "MATERIAL_TRANSFER",
+            "MATERIAL_RETURN",
+            "INSPECTION_APPROVAL"
+    );
+
+    private final InvStockMstRepository stockRepo;
+    private final InvItemMstRepository itemRepo;
+    private final TxnHeaderMstRepository headerRepo;
+    private final TxnDetailDtlRepository detailRepo;
+    private final AccessScopeService accessScope;
+    private final OrgLocationMstRepository locationRepo;
+    private final HrcEmployeeMstRepository employeeRepo;
+    private final UnitMstRepository unitRepo;
+    private final HrcDepartmentMstRepository departmentRepo;
+    private final InvBlsMstRepository blsRepo;
+    private final InvVendorMstRepository vendorRepo;
+    private final SystemLocationService systemLocations;
+
+    public ReportsController(
+            InvStockMstRepository stockRepo,
+            InvItemMstRepository itemRepo,
+            TxnHeaderMstRepository headerRepo,
+            TxnDetailDtlRepository detailRepo,
+            AccessScopeService accessScope,
+            OrgLocationMstRepository locationRepo,
+            HrcEmployeeMstRepository employeeRepo,
+            UnitMstRepository unitRepo,
+            HrcDepartmentMstRepository departmentRepo,
+            InvBlsMstRepository blsRepo,
+            InvVendorMstRepository vendorRepo,
+            SystemLocationService systemLocations
+    ) {
+        this.stockRepo = stockRepo;
+        this.itemRepo = itemRepo;
+        this.headerRepo = headerRepo;
+        this.detailRepo = detailRepo;
+        this.accessScope = accessScope;
+        this.locationRepo = locationRepo;
+        this.employeeRepo = employeeRepo;
+        this.unitRepo = unitRepo;
+        this.departmentRepo = departmentRepo;
+        this.blsRepo = blsRepo;
+        this.vendorRepo = vendorRepo;
+        this.systemLocations = systemLocations;
+    }
+
+    /**
+     * STOCK LEDGER — Sr No, Item Name, UOM, Opening, Receipt, Issue, Closing, Owner.
+     */
+    @GetMapping("/stock-register")
+    public PageResponse<Map<String, Object>> stockRegister(
+            @RequestParam(required = false) Integer locationId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) LocalDate fromDate,
+            @RequestParam(required = false) LocalDate toDate,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize
+    ) {
+        List<Integer> locFilter = accessScope.resolveLocationFilter(locationId);
+        List<InvStockMst> stocks = stockRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            preds.add(cb.isTrue(root.get("stkIsactive")));
+            if (locFilter != null) {
+                preds.add(locFilter.isEmpty() ? cb.disjunction() : root.get("stkLocationIdLoc").in(locFilter));
+            }
+            return cb.and(preds.toArray(Predicate[]::new));
+        });
+
+        Map<Integer, InvItemMst> items = itemMap();
+        Map<Integer, String> uomCodes = unitCodeMap();
+        Map<Integer, HrcEmployeeMst> employees = employeeMap();
+        Map<Integer, OrgLocationMst> locations = locationMap();
+        Map<String, IssueCustody> lastIssue = latestIssueCustodyByItemLocation();
+        Map<Integer, Integer> blsOwnerByItem = blsOwnerByItem();
+        Map<Integer, List<Map<String, Object>>> unitsByItem =
+                stockLedgerUnitsByItem(locFilter, employees, locations, stocks);
+        // Period movements (from–to). Baseline anchors so Opening/Closing stay consistent with live stock
+        // even when historical docs and posting rules don't fully line up.
+        Map<String, PeriodQty> period = periodReceiptIssue(fromDate, toDate, locFilter);
+        Map<String, PeriodQty> throughTo = toDate == null
+                ? periodReceiptIssue(null, null, locFilter)
+                : periodReceiptIssue(null, toDate, locFilter);
+        Map<String, PeriodQty> allTime = periodReceiptIssue(null, null, locFilter);
+        boolean unitsMatchClosing = toDate == null || !toDate.isBefore(LocalDate.now());
+
+        // Aggregate stock by item (sum across matching locations) for ledger rows.
+        Map<Integer, StockLedgerAgg> byItem = new LinkedHashMap<>();
+        for (InvStockMst s : stocks) {
+            InvItemMst item = items.get(s.getStkItemIdItm());
+            if (item == null) continue;
+            if (categoryId != null && !categoryId.equals(item.getItmCategoryIdCat())) continue;
+            if (!matchesItemSearch(item, search)) continue;
+
+            StockLedgerAgg agg = byItem.computeIfAbsent(item.getItmItemId(), id -> {
+                StockLedgerAgg a = new StockLedgerAgg();
+                a.item = item;
+                a.uomId = s.getStkUomIdUnt() != null ? s.getStkUomIdUnt() : item.getItmUomIdUnt();
+                return a;
+            });
+            if (agg.uomId == null) {
+                agg.uomId = s.getStkUomIdUnt() != null ? s.getStkUomIdUnt() : item.getItmUomIdUnt();
+            }
+            agg.closing = agg.closing.add(nz(s.getStkCurrentQty()));
+            if (s.getStkLocationIdLoc() != null) {
+                agg.locationIds.add(s.getStkLocationIdLoc());
+            }
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        int sr = 1;
+        for (StockLedgerAgg agg : byItem.values()) {
+            Integer itemId = agg.item.getItmItemId();
+            BigDecimal liveClosing = agg.closing;
+
+            PeriodQty pq = sumPeriodForItem(period, itemId, agg.locationIds);
+            PeriodQty toDateNet = sumPeriodForItem(throughTo, itemId, agg.locationIds);
+            PeriodQty lifeNet = sumPeriodForItem(allTime, itemId, agg.locationIds);
+
+            // Undocumented / rule-drift stock so that as-of-today closing == live.
+            BigDecimal baseline = liveClosing.subtract(lifeNet.receipt).add(lifeNet.issue);
+            BigDecimal closing = baseline.add(toDateNet.receipt).subtract(toDateNet.issue);
+            BigDecimal receipt = pq.receipt;
+            BigDecimal issue = pq.issue;
+            BigDecimal opening = closing.subtract(receipt).add(issue);
+            if (opening.signum() < 0) {
+                opening = BigDecimal.ZERO;
+            }
+            if (closing.signum() < 0) {
+                closing = BigDecimal.ZERO;
+            }
+
+            if (closing.compareTo(BigDecimal.ZERO) == 0
+                    && receipt.compareTo(BigDecimal.ZERO) == 0
+                    && issue.compareTo(BigDecimal.ZERO) == 0
+                    && opening.compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
+
+            String ownerName = null;
+            Integer blsEmp = blsOwnerByItem.get(itemId);
+            if (blsEmp != null) {
+                ownerName = empLabel(employees.get(blsEmp));
+            }
+            if (ownerName == null) {
+                for (Integer locId : agg.locationIds) {
+                    IssueCustody issued = lastIssue.get(custodyKey(itemId, locId));
+                    if (issued != null && issued.empId != null) {
+                        ownerName = empLabel(employees.get(issued.empId));
+                        break;
+                    }
+                }
+            }
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", itemId);
+            row.put("srNo", sr++);
+            row.put("itemId", itemId);
+            row.put("itemCode", agg.item.getItmItemCode());
+            row.put("itemName", agg.item.getItmItemName());
+            row.put("itemDescription", agg.item.getItmDesc());
+            row.put("itemType", agg.item.getItmItemType());
+            row.put("uomId", agg.uomId);
+            row.put("uomCode", agg.uomId == null ? null : uomCodes.get(agg.uomId));
+            row.put("openingBalance", opening);
+            row.put("receiptDuringPeriod", receipt);
+            row.put("issueDuringPeriod", issue);
+            row.put("closingBalance", closing);
+            row.put("ownerName", ownerName);
+            // Unit serials are always live on-hand — only attach when Closing is also live.
+            row.put("units", unitsMatchClosing ? unitsByItem.getOrDefault(itemId, List.of()) : List.of());
+            row.put("unitsAsOf", unitsMatchClosing ? "LIVE" : "OMITTED_HISTORICAL");
+            rows.add(row);
+        }
+
+        rows.sort(Comparator.comparing(r -> String.valueOf(r.getOrDefault("itemName", "")), String.CASE_INSENSITIVE_ORDER));
+        // Re-number after sort
+        int n = 1;
+        for (Map<String, Object> row : rows) {
+            row.put("srNo", n++);
+        }
+        return pageOf(rows, page, pageSize);
+    }
+
+    /**
+     * Store-centric ownership of current stock (unchanged layout; not in Excel workbook).
+     */
+    @GetMapping("/stock-owner")
+    public PageResponse<Map<String, Object>> stockOwner(
+            @RequestParam(required = false) Integer locationId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer employeeId,
+            @RequestParam(required = false) String custody,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String serialNo,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize
+    ) {
+        List<Integer> locFilter = accessScope.resolveLocationFilter(locationId);
+        List<InvStockMst> stocks = stockRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            preds.add(cb.isTrue(root.get("stkIsactive")));
+            if (locFilter != null) {
+                preds.add(locFilter.isEmpty() ? cb.disjunction() : root.get("stkLocationIdLoc").in(locFilter));
+            }
+            return cb.and(preds.toArray(Predicate[]::new));
+        });
+
+        Map<Integer, InvItemMst> items = itemMap();
+        Map<Integer, OrgLocationMst> locations = locationMap();
+        Map<Integer, HrcEmployeeMst> employees = employeeMap();
+        Map<Integer, String> deptNames = departmentNameMap();
+        Map<String, IssueCustody> lastIssueByBucket = latestIssueCustodyByBucket();
+        Map<String, Integer> blsIssuedTo = blsIssuedToByStockKey();
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (InvStockMst s : stocks) {
+            InvItemMst item = items.get(s.getStkItemIdItm());
+            if (item == null) continue;
+            if (categoryId != null && !categoryId.equals(item.getItmCategoryIdCat())) continue;
+            if (!matchesItemSearch(item, search)) continue;
+            if (!matchesSerialFilter(serialNo, s.getStkBatchLotNo())) continue;
+
+            OrgLocationMst store = locations.get(s.getStkLocationIdLoc());
+            String bucketKey = stockCustodyKey(s.getStkItemIdItm(), s.getStkLocationIdLoc(), s.getStkBatchLotNo());
+            IssueCustody issued = lastIssueByBucket.get(bucketKey);
+            Integer blsEmp = blsIssuedTo.get(bucketKey);
+            if (blsEmp != null) {
+                if (issued == null) {
+                    issued = new IssueCustody(blsEmp, null, null, null, null);
+                } else if (issued.empId == null) {
+                    issued = new IssueCustody(blsEmp, issued.docNo, issued.docDate, issued.docId, issued.toLocationId);
+                }
+            }
+
+            Integer custodianEmpId = issued != null ? issued.empId : null;
+            String custodyMode = custodianEmpId != null ? "ISSUED_TO" : "IN_STORE";
+
+            BigDecimal current = nz(s.getStkCurrentQty());
+            BigDecimal available = s.getStkAvailableQty() != null ? s.getStkAvailableQty() : current;
+            BigDecimal reserved = nz(s.getStkReservedQty());
+            // Drop empty ghost buckets (e.g. zeroed serial rows after stock moved).
+            if (current.compareTo(BigDecimal.ZERO) == 0
+                    && available.compareTo(BigDecimal.ZERO) == 0
+                    && reserved.compareTo(BigDecimal.ZERO) == 0
+                    && "IN_STORE".equals(custodyMode)) {
+                continue;
+            }
+
+            if (employeeId != null && !employeeId.equals(custodianEmpId)
+                    && !employeeId.equals(store == null ? null : store.getLocManagerEmpIdEmp())) {
+                continue;
+            }
+            if (custody != null && !custody.isBlank() && !custody.equalsIgnoreCase(custodyMode)) {
+                continue;
+            }
+
+            HrcEmployeeMst custodian = custodianEmpId == null ? null : employees.get(custodianEmpId);
+            HrcEmployeeMst manager = store == null || store.getLocManagerEmpIdEmp() == null
+                    ? null : employees.get(store.getLocManagerEmpIdEmp());
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", s.getStkStockId());
+            row.put("locationId", s.getStkLocationIdLoc());
+            row.put("storeCode", store == null ? null : store.getLocLocationCode());
+            row.put("storeName", store == null ? null : store.getLocLocationName());
+            row.put("storeType", store == null ? null : store.getLocLocationType());
+            row.put("storeManagerId", store == null ? null : store.getLocManagerEmpIdEmp());
+            row.put("storeManager", empLabel(manager));
+            row.put("itemId", item.getItmItemId());
+            row.put("itemCode", item.getItmItemCode());
+            row.put("itemName", item.getItmItemName());
+            row.put("itemType", item.getItmItemType());
+            row.put("categoryId", item.getItmCategoryIdCat());
+            row.put("uomId", s.getStkUomIdUnt());
+            row.put("batchLotNo", s.getStkBatchLotNo());
+            row.put("bin", s.getStkLocationBin());
+            row.put("currentQty", current);
+            row.put("availableQty", available);
+            row.put("reservedQty", reserved);
+            row.put("issuedQty", s.getStkIssuedQty());
+            row.put("value", s.getStkStockValue());
+            row.put("custodyMode", custodyMode);
+            row.put("custodianEmpId", custodianEmpId);
+            row.put("custodian", empLabel(custodian));
+            row.put("custodianDept", custodian == null ? null : deptNames.get(custodian.getEmpDepartmentIdDept()));
+            row.put("custodianDesignation", custodian == null ? null : custodian.getEmpDesignation());
+            row.put("lastIssueDocNo", issued == null ? null : issued.docNo);
+            row.put("lastIssueDocId", issued == null ? null : issued.docId);
+            row.put("lastIssueDate", issued == null ? null : issued.docDate);
+            row.put("lastTxnDate", s.getStkLastTransactionDate());
+            row.put("status", stockStatus(current, nz(s.getStkReorderLevel())));
+            rows.add(row);
+        }
+
+        rows.sort(Comparator
+                .comparing((Map<String, Object> r) -> String.valueOf(r.getOrDefault("storeCode", "")))
+                .thenComparing(r -> String.valueOf(r.getOrDefault("itemCode", ""))));
+        return pageOf(rows, page, pageSize);
+    }
+
+    /**
+     * Asset Movement Register — Date, Asset ID/Name, From/To Loc & Dept, Custodian, Type, Reason, Document.
+     */
+    @GetMapping("/stock-movement")
+    public PageResponse<Map<String, Object>> stockMovement(
+            @RequestParam(required = false) String docType,
+            @RequestParam(required = false) String direction,
+            @RequestParam(required = false) LocalDate fromDate,
+            @RequestParam(required = false) LocalDate toDate,
+            @RequestParam(required = false) Integer locationId,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer itemId,
+            @RequestParam(required = false) Integer employeeId,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String serialNo,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize
+    ) {
+        List<Integer> locFilter = accessScope.resolveLocationFilter(locationId);
+        Set<Integer> serialHeaderIds = headerIdsMatchingSerial(serialNo);
+        if (serialNo != null && !serialNo.isBlank() && serialHeaderIds.isEmpty()) {
+            return pageOf(List.of(), page, pageSize);
+        }
+        var headerPage = headerRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            preds.add(root.get("txhDocType").in(MOVEMENT_DOC_TYPES));
+            if (!serialHeaderIds.isEmpty()) {
+                preds.add(root.get("txhTxnHeaderId").in(serialHeaderIds));
+            }
+            if (docType != null && !docType.isBlank()) {
+                preds.add(cb.equal(root.get("txhDocType"), docType));
+            }
+            if (fromDate != null) preds.add(cb.greaterThanOrEqualTo(root.get("txhDocDate"), fromDate));
+            if (toDate != null) preds.add(cb.lessThanOrEqualTo(root.get("txhDocDate"), toDate));
+            if (locFilter != null) {
+                if (locFilter.isEmpty()) {
+                    preds.add(cb.disjunction());
+                } else {
+                    preds.add(cb.or(
+                            root.get("txhLocationIdLoc").in(locFilter),
+                            root.get("txhFromLocationIdLoc").in(locFilter),
+                            root.get("txhToLocationIdLoc").in(locFilter)
+                    ));
+                }
+            }
+            return cb.and(preds.toArray(Predicate[]::new));
+        }, PageRequest.of(Math.max(page - 1, 0), Math.min(Math.max(pageSize, 1), 200),
+                Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId")));
+
+        List<TxnHeaderMst> headers = headerPage.getContent();
+
+        Map<Integer, InvItemMst> items = itemMap();
+        Map<Integer, OrgLocationMst> locations = locationMap();
+        Map<Integer, HrcEmployeeMst> employees = employeeMap();
+        Map<Integer, String> deptNames = departmentNameMap();
+
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (TxnHeaderMst h : headers) {
+            if (!isMovementEligibleStatus(h.getTxhStatus())) continue;
+            if (isGatepassLinkedToTransfer(h)) continue;
+            String dir = movementDirection(h.getTxhDocType());
+            if (direction != null && !direction.isBlank() && !direction.equalsIgnoreCase(dir)) continue;
+
+            Integer fromLoc = h.getTxhFromLocationIdLoc() != null
+                    ? h.getTxhFromLocationIdLoc()
+                    : ("OUT".equals(dir) || "TRANSFER".equals(dir) ? h.getTxhLocationIdLoc() : null);
+            Integer toLoc = h.getTxhToLocationIdLoc() != null
+                    ? h.getTxhToLocationIdLoc()
+                    : ("IN".equals(dir) ? h.getTxhLocationIdLoc() : null);
+
+            // Inspection approval posts stock Quarantine → home store (or Rejected).
+            if ("INSPECTION_APPROVAL".equals(h.getTxhDocType())) {
+                Map<Integer, TxnHeaderMst> grnById = Map.of();
+                if (h.getTxhRefTxnHeaderIdTxh() != null) {
+                    TxnHeaderMst grn = headerRepo.findById(h.getTxhRefTxnHeaderIdTxh()).orElse(null);
+                    if (grn != null) {
+                        grnById = Map.of(grn.getTxhTxnHeaderId(), grn);
+                    }
+                }
+                fromLoc = inspectionQuarantineForHeader(h, grnById);
+                boolean rejected = h.getTxhStatus() != null && h.getTxhStatus().toLowerCase().contains("reject");
+                if (rejected) {
+                    toLoc = rejectedLocForGrnRef(h.getTxhRefTxnHeaderIdTxh(), grnById);
+                } else {
+                    toLoc = null; // filled per-line from home store below
+                }
+            }
+
+            Integer fromEmpId = h.getTxhInitiatedByEmpIdEmp();
+            Integer toEmpId = h.getTxhHandedOverToEmpIdEmp() != null
+                    ? h.getTxhHandedOverToEmpIdEmp()
+                    : ("MATERIAL_ISSUE".equals(h.getTxhDocType()) ? h.getTxhInitiatedByEmpIdEmp() : null);
+            // Issue form stores "Issued To" in initiatedBy
+            if ("MATERIAL_ISSUE".equals(h.getTxhDocType())) {
+                toEmpId = h.getTxhInitiatedByEmpIdEmp();
+                fromEmpId = null;
+            }
+
+            if (employeeId != null
+                    && !employeeId.equals(fromEmpId)
+                    && !employeeId.equals(toEmpId)
+                    && !employeeId.equals(h.getTxhInitiatedByEmpIdEmp())
+                    && !employeeId.equals(h.getTxhHandedOverToEmpIdEmp())) {
+                continue;
+            }
+
+            HrcEmployeeMst fromEmp = fromEmpId == null ? null : employees.get(fromEmpId);
+            HrcEmployeeMst toEmp = toEmpId == null ? null : employees.get(toEmpId);
+
+            String fromDept = firstNonBlank(
+                    fromEmp == null ? null : deptNames.get(fromEmp.getEmpDepartmentIdDept()),
+                    deptNames.get(h.getTxhDepartmentIdDept())
+            );
+            String toDept = toEmp == null ? null : deptNames.get(toEmp.getEmpDepartmentIdDept());
+            if (toDept == null && "IN".equals(dir)) {
+                toDept = deptNames.get(h.getTxhDepartmentIdDept());
+            }
+
+            String custodian = custodianArrow(fromEmp, toEmp);
+            String reason = firstNonBlank(h.getTxhPurpose(), h.getTxhRemarks());
+            String movementType = movementTypeLabel(h.getTxhDocType());
+
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+            for (TxnDetailDtl d : lines) {
+                InvItemMst item = items.get(d.getTxdItemIdItm());
+                if (itemId != null && (item == null || !itemId.equals(item.getItmItemId()))) continue;
+                if (categoryId != null && (item == null || !categoryId.equals(item.getItmCategoryIdCat()))) continue;
+                if (item != null && !matchesItemSearch(item, search)) continue;
+                if (search != null && !search.isBlank() && item == null) {
+                    if (!String.valueOf(h.getTxhDocNo()).toLowerCase().contains(search.toLowerCase())) continue;
+                }
+                if (!matchesSerialFilter(serialNo, d.getTxdSerialNo(), d.getTxdBatchLotNo())) continue;
+
+                // Prefer assets; still include serialized lines even if type is missing
+                boolean isAsset = item != null && (
+                        !"consumable".equalsIgnoreCase(nullToEmpty(item.getItmItemType()))
+                                || Boolean.TRUE.equals(item.getItmIsSerialized())
+                                || (d.getTxdSerialNo() != null && !d.getTxdSerialNo().isBlank())
+                );
+                if (!isAsset) continue;
+
+                Integer lineFrom = fromLoc;
+                Integer lineTo = toLoc;
+                Integer lineLoc = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : h.getTxhLocationIdLoc();
+                if ("INSPECTION_APPROVAL".equals(h.getTxhDocType()) && lineTo == null) {
+                    lineTo = d.getTxdLocationIdLoc() != null
+                            ? d.getTxdLocationIdLoc()
+                            : (item == null ? null : item.getItmCurrentLocationIdLoc());
+                }
+                if (lineTo == null && "IN".equals(dir) && lineLoc != null) lineTo = lineLoc;
+                if (lineFrom == null && ("OUT".equals(dir) || "TRANSFER".equals(dir)) && lineLoc != null) lineFrom = lineLoc;
+                // Opening / GRN: destination is the document location
+                if (lineTo == null && lineLoc != null && RECEIPT_DOC_TYPES.contains(h.getTxhDocType())) {
+                    lineTo = lineLoc;
+                }
+
+                OrgLocationMst from = lineFrom == null ? null : locations.get(lineFrom);
+                OrgLocationMst to = lineTo == null ? null : locations.get(lineTo);
+
+                // Per-line issued-to overrides header custodian when present
+                String lineCustodian = custodian;
+                if (d.getTxdIssuedToEmpIdEmp() != null) {
+                    HrcEmployeeMst lineEmp = employees.get(d.getTxdIssuedToEmpIdEmp());
+                    if (lineEmp != null) {
+                        lineCustodian = empLabel(lineEmp);
+                        if (employeeId != null && !employeeId.equals(d.getTxdIssuedToEmpIdEmp())) continue;
+                    }
+                }
+
+                String assetId = firstNonBlank(d.getTxdSerialNo(), item == null ? null : item.getItmItemCode());
+                String assetName = item == null ? null : item.getItmItemName();
+                String fromLabel = locLabel(from);
+                String toLabel = locLabel(to);
+
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", d.getTxdTxnDetailId());
+                row.put("docId", h.getTxhTxnHeaderId());
+                row.put("date", h.getTxhDocDate());
+                row.put("assetId", assetId);
+                row.put("assetName", assetName);
+                row.put("itemId", d.getTxdItemIdItm());
+                row.put("itemCode", item == null ? null : item.getItmItemCode());
+                row.put("itemName", assetName);
+                row.put("fromLocation", fromLabel);
+                row.put("toLocation", toLabel);
+                row.put("fromStore", fromLabel);
+                row.put("toStore", toLabel);
+                row.put("fromLocationId", lineFrom);
+                row.put("toLocationId", lineTo);
+                row.put("fromDept", fromDept);
+                row.put("toDept", toDept);
+                row.put("custodian", lineCustodian);
+                row.put("employee", lineCustodian);
+                row.put("movementType", movementType);
+                row.put("reason", reason);
+                row.put("document", h.getTxhDocNo());
+                row.put("docType", h.getTxhDocType());
+                row.put("docNo", h.getTxhDocNo());
+                row.put("direction", dir);
+                row.put("serialNo", d.getTxdSerialNo());
+                rows.add(row);
+            }
+        }
+        return PageResponse.of(page, Math.min(Math.max(pageSize, 1), 200), headerPage.getTotalElements(), rows);
+    }
+
+    /**
+     * Item Ledger — Date, Doc Type, Doc No, Batch, UOM, Receipt, Issue, running Balance.
+     * When itemId is omitted, returns ledger lines for all items (balance resets per item).
+     */
+    @GetMapping("/item-ledger")
+    public PageResponse<Map<String, Object>> itemLedger(
+            @RequestParam(required = false) Integer itemId,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String serialNo,
+            @RequestParam(required = false) LocalDate fromDate,
+            @RequestParam(required = false) LocalDate toDate,
+            @RequestParam(required = false) Integer locationId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "200") int pageSize
+    ) {
+        Map<Integer, InvItemMst> items = itemMap();
+        Set<Integer> focusIds = new HashSet<>();
+        boolean serialOnly = serialNo != null && !serialNo.isBlank()
+                && itemId == null
+                && (search == null || search.isBlank());
+        if (itemId != null) {
+            if (items.containsKey(itemId)) focusIds.add(itemId);
+        } else if (search != null && !search.isBlank()) {
+            String q = search.trim().toLowerCase();
+            items.values().stream()
+                    .filter(i -> {
+                        String code = nullToEmpty(i.getItmItemCode()).toLowerCase();
+                        String name = nullToEmpty(i.getItmItemName()).toLowerCase();
+                        return code.contains(q) || name.contains(q);
+                    })
+                    .map(InvItemMst::getItmItemId)
+                    .forEach(focusIds::add);
+        } else if (!serialOnly) {
+            focusIds.addAll(items.keySet());
+        }
+        if (focusIds.isEmpty() && !serialOnly) {
+            return pageOf(List.of(), page, pageSize);
+        }
+
+        List<Integer> locFilter = accessScope.resolveLocationFilter(locationId);
+        Set<Integer> serialHeaderIds = headerIdsMatchingSerial(serialNo);
+        if (serialNo != null && !serialNo.isBlank() && serialHeaderIds.isEmpty()) {
+            return pageOf(List.of(), page, pageSize);
+        }
+
+        var headers = headerRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            preds.add(root.get("txhDocType").in(LEDGER_DOC_TYPES));
+            if (!serialHeaderIds.isEmpty()) {
+                preds.add(root.get("txhTxnHeaderId").in(serialHeaderIds));
+            }
+            if (locFilter != null) {
+                if (locFilter.isEmpty()) {
+                    preds.add(cb.disjunction());
+                } else {
+                    preds.add(cb.or(
+                            root.get("txhLocationIdLoc").in(locFilter),
+                            root.get("txhFromLocationIdLoc").in(locFilter),
+                            root.get("txhToLocationIdLoc").in(locFilter)
+                    ));
+                }
+            }
+            return cb.and(preds.toArray(Predicate[]::new));
+        }, PageRequest.of(0,
+                (itemId != null || (search != null && !search.isBlank()) || serialOnly)
+                        ? 2000
+                        : Math.min(800, Math.max(page * Math.min(Math.max(pageSize, 1), 200), 200)),
+                Sort.by(Sort.Direction.ASC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+
+        Map<Integer, OrgLocationMst> locations = locationMap();
+        Map<Integer, TxnHeaderMst> grnById = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            if ("GRN".equals(h.getTxhDocType())) {
+                grnById.put(h.getTxhTxnHeaderId(), h);
+            }
+        }
+        for (TxnHeaderMst h : headers) {
+            if ("INSPECTION_APPROVAL".equals(h.getTxhDocType()) && h.getTxhRefTxnHeaderIdTxh() != null) {
+                grnById.computeIfAbsent(h.getTxhRefTxnHeaderIdTxh(), id ->
+                        headerRepo.findById(id).orElse(null));
+            }
+        }
+
+        Map<Integer, String> uomCodes = unitCodeMap();
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+        List<LedgerEvent> events = new ArrayList<>();
+        for (TxnHeaderMst h : headers) {
+            if (!isLedgerEligibleStatus(h)) continue;
+            if (isGatepassLinkedToTransfer(h)) continue;
+
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+            for (TxnDetailDtl d : lines) {
+                Integer lineItemId = d.getTxdItemIdItm();
+                if (lineItemId == null) continue;
+                if (!serialOnly && !focusIds.contains(lineItemId)) continue;
+                if (!matchesSerialFilter(serialNo, d.getTxdSerialNo(), d.getTxdBatchLotNo())) continue;
+                InvItemMst item = items.get(lineItemId);
+                if (item == null) continue;
+                events.addAll(itemLedgerEvents(h, d, item, grnById, locations, uomCodes, locationId));
+            }
+        }
+
+        events.sort(Comparator
+                .comparing((LedgerEvent e) -> nullToEmpty(e.itemCode), String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(e -> e.date == null ? LocalDate.MIN : e.date)
+                .thenComparing(e -> e.headerId == null ? 0 : e.headerId)
+                .thenComparing(e -> e.detailId == null ? 0 : e.detailId)
+                .thenComparing(e -> e.subOrder));
+
+        Map<String, BigDecimal> balanceByKey = new HashMap<>();
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (LedgerEvent e : events) {
+            boolean beforeFrom = fromDate != null && e.date != null && e.date.isBefore(fromDate);
+            boolean afterTo = toDate != null && e.date != null && e.date.isAfter(toDate);
+            String balKey = ledgerBalanceKey(e.itemId, locationId);
+            BigDecimal bal = balanceByKey.getOrDefault(balKey, BigDecimal.ZERO);
+            if (beforeFrom) {
+                balanceByKey.put(balKey, bal.add(e.receipt).subtract(e.issue));
+                continue;
+            }
+            if (afterTo) continue;
+
+            bal = bal.add(e.receipt).subtract(e.issue);
+            balanceByKey.put(balKey, bal);
+
+            String rowId = e.rowSuffix == null || e.rowSuffix.isBlank()
+                    ? String.valueOf(e.detailId)
+                    : e.detailId + "-" + e.rowSuffix;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", rowId);
+            row.put("docId", e.headerId);
+            row.put("date", e.date);
+            row.put("itemId", e.itemId);
+            row.put("itemCode", e.itemCode);
+            row.put("itemName", e.itemName);
+            row.put("docType", e.docType);
+            row.put("txnType", e.txnType);
+            row.put("docNo", e.docNo);
+            row.put("batch", e.batch);
+            row.put("uomCode", e.uomCode);
+            row.put("locationId", e.locationId);
+            row.put("locationCode", e.locationCode);
+            row.put("locationName", e.locationName);
+            row.put("receipt", e.receipt.compareTo(BigDecimal.ZERO) == 0 ? null : e.receipt);
+            row.put("issue", e.issue.compareTo(BigDecimal.ZERO) == 0 ? null : e.issue);
+            row.put("balance", bal);
+            rows.add(row);
+        }
+
+        return pageOf(rows, page, pageSize);
+    }
+
+    /**
+     * Item master catalog register (legacy; Item Register page now uses Item Ledger).
+     */
+    @GetMapping("/item-register")
+    public PageResponse<Map<String, Object>> itemRegister(
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer subcategoryId,
+            @RequestParam(required = false) String itemType,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String serialNo,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize
+    ) {
+        List<InvItemMst> allItems = itemRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            if (Boolean.TRUE.equals(active)) preds.add(cb.isTrue(root.get("itmIsactive")));
+            if (Boolean.FALSE.equals(active)) preds.add(cb.isFalse(root.get("itmIsactive")));
+            if (categoryId != null) preds.add(cb.equal(root.get("itmCategoryIdCat"), categoryId));
+            if (subcategoryId != null) preds.add(cb.equal(root.get("itmSubcategoryIdScat"), subcategoryId));
+            if (itemType != null && !itemType.isBlank()) preds.add(cb.equal(root.get("itmItemType"), itemType));
+            return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(Predicate[]::new));
+        });
+
+        Map<Integer, OrgLocationMst> locations = locationMap();
+        List<Integer> locFilter = accessScope.resolveLocationFilter(null);
+        Map<Integer, StockAgg> stockByItem = new HashMap<>();
+        List<InvStockMst> stocks = stockRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            preds.add(cb.isTrue(root.get("stkIsactive")));
+            if (locFilter != null) {
+                preds.add(locFilter.isEmpty() ? cb.disjunction() : root.get("stkLocationIdLoc").in(locFilter));
+            }
+            return cb.and(preds.toArray(Predicate[]::new));
+        });
+        for (InvStockMst s : stocks) {
+            StockAgg agg = stockByItem.computeIfAbsent(s.getStkItemIdItm(), id -> new StockAgg());
+            agg.qty = agg.qty.add(nz(s.getStkCurrentQty()));
+            agg.value = agg.value.add(nz(s.getStkStockValue()));
+            agg.storeCount++;
+        }
+
+        Set<Integer> serialItemIds = itemIdsMatchingSerial(serialNo, stocks, Map.of());
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (InvItemMst item : allItems) {
+            if (!matchesItemSearch(item, search)) continue;
+            if (serialItemIds != null && !serialItemIds.contains(item.getItmItemId())) continue;
+            StockAgg agg = stockByItem.getOrDefault(item.getItmItemId(), StockAgg.ZERO);
+            OrgLocationMst curLoc = item.getItmCurrentLocationIdLoc() == null
+                    ? null : locations.get(item.getItmCurrentLocationIdLoc());
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", item.getItmItemId());
+            row.put("itemCode", item.getItmItemCode());
+            row.put("itemName", item.getItmItemName());
+            row.put("itemType", item.getItmItemType());
+            row.put("categoryId", item.getItmCategoryIdCat());
+            row.put("subcategoryId", item.getItmSubcategoryIdScat());
+            row.put("uomId", item.getItmUomIdUnt());
+            row.put("makeBrand", item.getItmMakeBrand());
+            row.put("model", item.getItmModel());
+            row.put("isSerialized", Boolean.TRUE.equals(item.getItmIsSerialized()));
+            row.put("trackBatchLot", Boolean.TRUE.equals(item.getItmTrackBatchLot()));
+            row.put("trackExpiry", Boolean.TRUE.equals(item.getItmTrackExpiry()));
+            row.put("isConsumable", Boolean.TRUE.equals(item.getItmIsConsumable()));
+            row.put("standardCost", item.getItmStandardCost());
+            row.put("currentLocationId", item.getItmCurrentLocationIdLoc());
+            row.put("currentStore", locLabel(curLoc));
+            row.put("totalStockQty", agg.qty);
+            row.put("totalStockValue", agg.value);
+            row.put("storeCount", agg.storeCount);
+            row.put("active", Boolean.TRUE.equals(item.getItmIsactive()));
+            rows.add(row);
+        }
+
+        rows.sort(Comparator.comparing(r -> String.valueOf(r.getOrDefault("itemCode", ""))));
+        return pageOf(rows, page, pageSize);
+    }
+
+    @GetMapping("/full-report")
+    public PageResponse<Map<String, Object>> fullReport(
+            @RequestParam(required = false) String docType,
+            @RequestParam(required = false) LocalDate fromDate,
+            @RequestParam(required = false) LocalDate toDate,
+            @RequestParam(required = false) Integer locationId,
+            @RequestParam(required = false) String serialNo,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "50") int pageSize
+    ) {
+        List<Integer> locFilter = accessScope.resolveLocationFilter(locationId);
+        Set<Integer> serialHeaderIds = headerIdsMatchingSerial(serialNo);
+        if (serialNo != null && !serialNo.isBlank() && serialHeaderIds.isEmpty()) {
+            return pageOf(List.of(), page, pageSize);
+        }
+        var headerPage = headerRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            if (!serialHeaderIds.isEmpty()) {
+                preds.add(root.get("txhTxnHeaderId").in(serialHeaderIds));
+            }
+            if (docType != null && !docType.isBlank()) {
+                preds.add(cb.equal(root.get("txhDocType"), docType));
+            }
+            if (fromDate != null) preds.add(cb.greaterThanOrEqualTo(root.get("txhDocDate"), fromDate));
+            if (toDate != null) preds.add(cb.lessThanOrEqualTo(root.get("txhDocDate"), toDate));
+            if (locFilter != null) {
+                if (locFilter.isEmpty()) {
+                    preds.add(cb.disjunction());
+                } else {
+                    preds.add(cb.or(
+                            root.get("txhLocationIdLoc").in(locFilter),
+                            root.get("txhFromLocationIdLoc").in(locFilter),
+                            root.get("txhToLocationIdLoc").in(locFilter)
+                    ));
+                }
+            }
+            return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(Predicate[]::new));
+        }, PageRequest.of(Math.max(page - 1, 0), Math.min(Math.max(pageSize, 1), 200),
+                Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId")));
+
+        List<TxnHeaderMst> headers = headerPage.getContent();
+
+        Map<Integer, InvItemMst> items = itemMap();
+        Map<Integer, TxnHeaderMst> grnById = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            if ("GRN".equals(h.getTxhDocType())) {
+                grnById.put(h.getTxhTxnHeaderId(), h);
+            }
+        }
+        for (TxnHeaderMst h : headers) {
+            if ("INSPECTION_APPROVAL".equals(h.getTxhDocType()) && h.getTxhRefTxnHeaderIdTxh() != null) {
+                grnById.computeIfAbsent(h.getTxhRefTxnHeaderIdTxh(), id ->
+                        headerRepo.findById(id).orElse(null));
+            }
+        }
+
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+        Map<Integer, OrgLocationMst> locations = locationMap();
+        Map<Integer, InvVendorMst> vendors = vendorMap(headers);
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (TxnHeaderMst h : headers) {
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+            for (TxnDetailDtl d : lines) {
+                if (!matchesSerialFilter(serialNo, d.getTxdSerialNo(), d.getTxdBatchLotNo())) continue;
+                InvItemMst item = items.get(d.getTxdItemIdItm());
+                rows.addAll(fullReportRowsForLine(h, d, item, grnById, locations, vendors));
+            }
+        }
+        // Page by document headers (true DB paging); rows are the expanded lines for that page of headers.
+        return PageResponse.of(page, Math.min(Math.max(pageSize, 1), 200), headerPage.getTotalElements(), rows);
+    }
+
+    /**
+     * Full report rows reflect where stock actually lands (rejected store, quarantine, home store),
+     * not just the document header store and accepted qty.
+     */
+    private List<Map<String, Object>> fullReportRowsForLine(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            Map<Integer, TxnHeaderMst> grnById,
+            Map<Integer, OrgLocationMst> locations,
+            Map<Integer, InvVendorMst> vendors
+    ) {
+        String docType = header.getTxhDocType();
+        if ("GRN".equals(docType)) {
+            return fullReportGrnRows(header, line, item);
+        }
+        if ("INSPECTION_APPROVAL".equals(docType)) {
+            return fullReportInspectionRows(header, line, item, grnById);
+        }
+        if ("GATEPASS_OUTWARD".equals(docType) || "GATEPASS_INWARD".equals(docType)) {
+            return List.of(fullReportGatepassRow(header, line, item, locations, vendors));
+        }
+        BigDecimal qty = line.getTxdQty() != null ? line.getTxdQty() : nz(line.getTxdAcceptedQty());
+        Integer fromLoc = header.getTxhFromLocationIdLoc();
+        Integer toLoc = header.getTxhToLocationIdLoc() != null
+                ? header.getTxhToLocationIdLoc()
+                : header.getTxhLocationIdLoc();
+        if ("MATERIAL_REQUISITION".equals(docType)) {
+            Integer reqLoc = line.getTxdLocationIdLoc() != null
+                    ? line.getTxdLocationIdLoc()
+                    : header.getTxhLocationIdLoc();
+            fromLoc = reqLoc;
+            toLoc = reqLoc;
+        }
+        return List.of(buildFullReportRow(header, line, item, qty, fromLoc, toLoc, header.getTxhStatus(), null));
+    }
+
+    private Map<String, Object> fullReportGatepassRow(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            Map<Integer, OrgLocationMst> locations,
+            Map<Integer, InvVendorMst> vendors
+    ) {
+        BigDecimal qty = line.getTxdQty() != null ? line.getTxdQty() : nz(line.getTxdAcceptedQty());
+        Integer storeId = line.getTxdLocationIdLoc() != null
+                ? line.getTxdLocationIdLoc()
+                : (header.getTxhFromLocationIdLoc() != null
+                        ? header.getTxhFromLocationIdLoc()
+                        : header.getTxhLocationIdLoc());
+        Integer destStoreId = header.getTxhToLocationIdLoc();
+        String party = gatepassPartyLabel(header, vendors);
+        boolean outward = "GATEPASS_OUTWARD".equals(header.getTxhDocType());
+        Integer fromId;
+        Integer toId;
+        String fromName;
+        String toName;
+        if (outward) {
+            fromId = storeId;
+            fromName = locLabel(locations.get(storeId));
+            if (destStoreId != null && !destStoreId.equals(storeId)) {
+                toId = destStoreId;
+                toName = locLabel(locations.get(destStoreId));
+            } else {
+                toId = null;
+                toName = party;
+            }
+        } else {
+            toId = line.getTxdLocationIdLoc() != null ? line.getTxdLocationIdLoc() : header.getTxhLocationIdLoc();
+            toName = locLabel(locations.get(toId));
+            fromId = null;
+            fromName = party;
+        }
+        Map<String, Object> row = buildFullReportRow(header, line, item, qty, fromId, toId, header.getTxhStatus(), null);
+        if (fromName != null && !fromName.isBlank()) {
+            row.put("fromLocation", fromName);
+        }
+        if (toName != null && !toName.isBlank()) {
+            row.put("toLocation", toName);
+        }
+        return row;
+    }
+
+    private String gatepassPartyLabel(TxnHeaderMst header, Map<Integer, InvVendorMst> vendors) {
+        TxnHeaderMst source = header;
+        if ("GATEPASS_INWARD".equals(header.getTxhDocType()) && header.getTxhRefTxnHeaderIdTxh() != null) {
+            TxnHeaderMst linked = headerRepo.findById(header.getTxhRefTxnHeaderIdTxh()).orElse(null);
+            if (linked != null) {
+                source = linked;
+            }
+        }
+        if (source.getTxhPartyIdVnd() != null) {
+            InvVendorMst vendor = vendors.get(source.getTxhPartyIdVnd());
+            if (vendor == null) {
+                vendor = vendorRepo.findById(source.getTxhPartyIdVnd()).orElse(null);
+            }
+            if (vendor != null) {
+                String code = vendor.getVndVendorCode();
+                String name = vendor.getVndVendorName();
+                if (name != null && !name.isBlank()) {
+                    if (code != null && !code.isBlank()) {
+                        return code.trim() + " - " + name.trim();
+                    }
+                    return name.trim();
+                }
+            }
+        }
+        String partyAdd = source.getTxhPartyAdd();
+        if (partyAdd != null && !partyAdd.isBlank()) {
+            return partyAdd.trim();
+        }
+        String contact = source.getTxhPartyContactPerson();
+        if (contact != null && !contact.isBlank()) {
+            return contact.trim();
+        }
+        return "Vendor / Party";
+    }
+
+    private Map<Integer, InvVendorMst> vendorMap(List<TxnHeaderMst> headers) {
+        Set<Integer> ids = new LinkedHashSet<>();
+        for (TxnHeaderMst h : headers) {
+            if (h.getTxhPartyIdVnd() != null) {
+                ids.add(h.getTxhPartyIdVnd());
+            }
+        }
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, InvVendorMst> map = new HashMap<>();
+        for (InvVendorMst v : vendorRepo.findAllById(ids)) {
+            map.put(v.getVndVendorId(), v);
+        }
+        return map;
+    }
+
+    private List<Map<String, Object>> fullReportGrnRows(
+            TxnHeaderMst header, TxnDetailDtl line, InvItemMst item
+    ) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        BigDecimal rejectedQty = nz(line.getTxdRejectedQty());
+        BigDecimal acceptedQty = firstNonNullBigDecimal(
+                line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
+
+        if (rejectedQty.compareTo(BigDecimal.ZERO) > 0) {
+            Integer rejectedLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.REJECTED);
+            rows.add(buildFullReportRow(
+                    header, line, item, rejectedQty, null, rejectedLoc, header.getTxhStatus(), "rej"));
+        }
+        if (acceptedQty.compareTo(BigDecimal.ZERO) > 0) {
+            Integer targetLoc;
+            if (item != null && Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
+                targetLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.QUARANTINE);
+            } else {
+                targetLoc = line.getTxdLocationIdLoc() != null
+                        ? line.getTxdLocationIdLoc()
+                        : header.getTxhLocationIdLoc();
+            }
+            rows.add(buildFullReportRow(
+                    header, line, item, acceptedQty, null, targetLoc, header.getTxhStatus(), "acc"));
+        }
+        return rows;
+    }
+
+    private List<Map<String, Object>> fullReportInspectionRows(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            Map<Integer, TxnHeaderMst> grnById
+    ) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        BigDecimal qty = firstNonNullBigDecimal(line.getTxdQty(), line.getTxdAcceptedQty());
+        if (qty.compareTo(BigDecimal.ZERO) == 0) {
+            return rows;
+        }
+
+        Integer quarantineLoc = inspectionQuarantineForHeader(header, grnById);
+        String status = header.getTxhStatus();
+        boolean rejected = status != null && status.toLowerCase().contains("reject");
+
+        if (rejected) {
+            Integer rejectedLoc = rejectedLocForGrnRef(header.getTxhRefTxnHeaderIdTxh(), grnById);
+            rows.add(buildFullReportRow(header, line, item, qty, quarantineLoc, rejectedLoc, status, "rej"));
+        } else {
+            Integer homeLoc = line.getTxdLocationIdLoc();
+            if (homeLoc == null && item != null) {
+                homeLoc = item.getItmCurrentLocationIdLoc();
+            }
+            if ("Approved".equalsIgnoreCase(status) || isMovementEligibleStatus(status)) {
+                rows.add(buildFullReportRow(header, line, item, qty, quarantineLoc, homeLoc, status, null));
+            } else {
+                rows.add(buildFullReportRow(header, line, item, qty, null, quarantineLoc, status, null));
+            }
+        }
+        return rows;
+    }
+
+    private Map<String, Object> buildFullReportRow(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            BigDecimal qty,
+            Integer fromLocationId,
+            Integer toLocationId,
+            String status,
+            String rowSuffix
+    ) {
+                Map<String, Object> row = new HashMap<>();
+        String id = rowSuffix == null
+                ? String.valueOf(line.getTxdTxnDetailId())
+                : line.getTxdTxnDetailId() + "-" + rowSuffix;
+        row.put("id", id);
+        row.put("docId", header.getTxhTxnHeaderId());
+        row.put("date", header.getTxhDocDate());
+        row.put("txnType", header.getTxhDocType());
+        row.put("txnNo", header.getTxhDocNo());
+        row.put("itemId", line.getTxdItemIdItm());
+                row.put("item", item == null ? null : item.getItmItemName());
+                row.put("categoryId", item == null ? null : item.getItmCategoryIdCat());
+        row.put("qty", qty);
+        row.put("uomId", line.getTxdUomIdUnt());
+        row.put("fromLocationId", fromLocationId);
+        row.put("toLocationId", toLocationId);
+        row.put("entityId", header.getTxhEntityIdEnt());
+        row.put("employeeId", header.getTxhInitiatedByEmpIdEmp());
+        row.put("departmentId", header.getTxhDepartmentIdDept());
+        row.put("status", status);
+        row.put("value", lineValueForQty(line, qty));
+        row.put("serialNo", firstNonBlank(line.getTxdSerialNo(), line.getTxdBatchLotNo()));
+        return row;
+    }
+
+    private BigDecimal lineValueForQty(TxnDetailDtl line, BigDecimal qty) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        if (line.getTxdRate() != null) {
+            return line.getTxdRate().multiply(qty);
+        }
+        BigDecimal totalQty = firstNonNullBigDecimal(
+                line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
+        if (line.getTxdAmount() != null && totalQty.compareTo(BigDecimal.ZERO) > 0) {
+            return line.getTxdAmount()
+                    .multiply(qty)
+                    .divide(totalQty, 2, java.math.RoundingMode.HALF_UP);
+        }
+        return line.getTxdAmount();
+    }
+
+    private Integer systemLocForGrnStore(Integer grnStoreId, SystemLocationRole role) {
+        if (grnStoreId == null) {
+            return null;
+        }
+        try {
+            return systemLocations.requireSystemLocationForStore(grnStoreId, role).getLocLocationId();
+        } catch (ApiException ex) {
+            return null;
+        }
+    }
+
+    private Integer rejectedLocForGrnRef(Integer grnHeaderId, Map<Integer, TxnHeaderMst> grnById) {
+        if (grnHeaderId == null) {
+            return null;
+        }
+        TxnHeaderMst grn = grnById.get(grnHeaderId);
+        if (grn == null) {
+            grn = headerRepo.findById(grnHeaderId).orElse(null);
+        }
+        if (grn == null) {
+            return null;
+        }
+        return systemLocForGrnStore(grn.getTxhLocationIdLoc(), SystemLocationRole.REJECTED);
+    }
+
+    private Integer inspectionQuarantineForHeader(TxnHeaderMst header, Map<Integer, TxnHeaderMst> grnById) {
+        if (header.getTxhRefTxnHeaderIdTxh() != null) {
+            TxnHeaderMst grn = grnById.get(header.getTxhRefTxnHeaderIdTxh());
+            if (grn == null) {
+                grn = headerRepo.findById(header.getTxhRefTxnHeaderIdTxh()).orElse(null);
+            }
+            if (grn != null) {
+                Integer q = systemLocForGrnStore(grn.getTxhLocationIdLoc(), SystemLocationRole.QUARANTINE);
+                if (q != null) {
+                    return q;
+                }
+            }
+        }
+        return header.getTxhLocationIdLoc();
+    }
+
+    private static BigDecimal firstNonNullBigDecimal(BigDecimal... values) {
+        if (values == null) {
+            return BigDecimal.ZERO;
+        }
+        for (BigDecimal v : values) {
+            if (v != null) {
+                return v;
+            }
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private List<LedgerEvent> itemLedgerEvents(
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            Map<Integer, TxnHeaderMst> grnById,
+            Map<Integer, OrgLocationMst> locations,
+            Map<Integer, String> uomCodes,
+            Integer locationFilter
+    ) {
+        String docType = header.getTxhDocType();
+        String batch = firstNonBlank(line.getTxdSerialNo(), line.getTxdBatchLotNo());
+        Integer uomId = line.getTxdUomIdUnt() != null ? line.getTxdUomIdUnt() : item.getItmUomIdUnt();
+        String uomCode = uomId == null ? null : uomCodes.get(uomId);
+
+        if ("GRN".equals(docType)) {
+            List<LedgerEvent> events = new ArrayList<>();
+            BigDecimal rejectedQty = nz(line.getTxdRejectedQty());
+            BigDecimal acceptedQty = firstNonNullBigDecimal(
+                    line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdQty());
+            if (rejectedQty.compareTo(BigDecimal.ZERO) > 0) {
+                Integer rejectedLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.REJECTED);
+                addLedgerReceipt(events, header, line, item, rejectedQty, "GRN · Rejected", batch, uomCode,
+                        rejectedLoc, locations, "rej", 1);
+            }
+            if (acceptedQty.compareTo(BigDecimal.ZERO) > 0) {
+                Integer targetLoc;
+                if (Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
+                    targetLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.QUARANTINE);
+                } else {
+                    targetLoc = line.getTxdLocationIdLoc() != null
+                            ? line.getTxdLocationIdLoc()
+                            : header.getTxhLocationIdLoc();
+                }
+                addLedgerReceipt(events, header, line, item, acceptedQty, docTypeLabel(docType), batch, uomCode,
+                        targetLoc, locations, "acc", 2);
+            }
+            return filterLedgerEventsByLocation(events, locationFilter);
+        }
+
+        if ("INSPECTION_APPROVAL".equals(docType)) {
+            List<LedgerEvent> events = new ArrayList<>();
+            BigDecimal qty = firstNonNullBigDecimal(line.getTxdQty(), line.getTxdAcceptedQty());
+            if (qty.compareTo(BigDecimal.ZERO) == 0) {
+                return events;
+            }
+            Integer quarantineLoc = inspectionQuarantineForHeader(header, grnById);
+            boolean rejected = header.getTxhStatus() != null
+                    && header.getTxhStatus().toLowerCase().contains("reject");
+            if (rejected) {
+                Integer rejectedLoc = rejectedLocForGrnRef(header.getTxhRefTxnHeaderIdTxh(), grnById);
+                addLedgerIssue(events, header, line, item, qty, "Inspection · Rejected", batch, uomCode,
+                        quarantineLoc, locations, "rej-out", 1);
+                addLedgerReceipt(events, header, line, item, qty, "Inspection · Rejected", batch, uomCode,
+                        rejectedLoc, locations, "rej-in", 2);
+            } else if ("Approved".equalsIgnoreCase(header.getTxhStatus())
+                    || isMovementEligibleStatus(header.getTxhStatus())) {
+                Integer homeLoc = line.getTxdLocationIdLoc() != null
+                        ? line.getTxdLocationIdLoc()
+                        : item.getItmCurrentLocationIdLoc();
+                addLedgerIssue(events, header, line, item, qty, "Inspection", batch, uomCode,
+                        quarantineLoc, locations, "out", 1);
+                addLedgerReceipt(events, header, line, item, qty, "Inspection", batch, uomCode,
+                        homeLoc, locations, "in", 2);
+            }
+            return filterLedgerEventsByLocation(events, locationFilter);
+        }
+
+        if ("MATERIAL_TRANSFER".equals(docType)) {
+            List<LedgerEvent> events = new ArrayList<>();
+            BigDecimal qty = firstNonNullBigDecimal(line.getTxdQty(), line.getTxdAcceptedQty());
+            if (locationFilter != null) {
+                if (Objects.equals(locationFilter, header.getTxhToLocationIdLoc())) {
+                    addLedgerReceipt(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                            header.getTxhToLocationIdLoc(), locations, "in", 2);
+                } else if (Objects.equals(locationFilter, header.getTxhFromLocationIdLoc())) {
+                    addLedgerIssue(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                            header.getTxhFromLocationIdLoc(), locations, "out", 1);
+                }
+            } else {
+                addLedgerIssue(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                        header.getTxhFromLocationIdLoc(), locations, "out", 1);
+                addLedgerReceipt(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                        header.getTxhToLocationIdLoc(), locations, "in", 2);
+            }
+            return filterLedgerEventsByLocation(events, locationFilter);
+        }
+
+        List<LedgerEvent> events = new ArrayList<>();
+        BigDecimal qty = firstNonNullBigDecimal(
+                line.getTxdQty(), line.getTxdAcceptedQty(), line.getTxdReceivedQty(), line.getTxdRequestedQty());
+        if (qty.compareTo(BigDecimal.ZERO) == 0) {
+            return events;
+        }
+        if (RECEIPT_DOC_TYPES.contains(docType)) {
+            Integer loc = line.getTxdLocationIdLoc() != null ? line.getTxdLocationIdLoc() : header.getTxhLocationIdLoc();
+            addLedgerReceipt(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                    loc, locations, null, 0);
+        } else if (ISSUE_DOC_TYPES.contains(docType)) {
+            Integer loc = header.getTxhFromLocationIdLoc() != null
+                    ? header.getTxhFromLocationIdLoc()
+                    : header.getTxhLocationIdLoc();
+            addLedgerIssue(events, header, line, item, qty, docTypeLabel(docType), batch, uomCode,
+                    loc, locations, null, 0);
+        }
+        return filterLedgerEventsByLocation(events, locationFilter);
+    }
+
+    private void addLedgerReceipt(
+            List<LedgerEvent> events,
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            BigDecimal qty,
+            String docTypeLabel,
+            String batch,
+            String uomCode,
+            Integer locationId,
+            Map<Integer, OrgLocationMst> locations,
+            String rowSuffix,
+            int subOrder
+    ) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        events.add(new LedgerEvent(
+                header.getTxhDocDate(),
+                header.getTxhTxnHeaderId(),
+                line.getTxdTxnDetailId(),
+                rowSuffix,
+                subOrder,
+                item.getItmItemId(),
+                item.getItmItemCode(),
+                item.getItmItemName(),
+                docTypeLabel,
+                header.getTxhDocType(),
+                header.getTxhDocNo(),
+                batch,
+                uomCode,
+                locationId,
+                ledgerLocationCode(locations, locationId),
+                ledgerLocationName(locations, locationId),
+                qty,
+                BigDecimal.ZERO
+        ));
+    }
+
+    private void addLedgerIssue(
+            List<LedgerEvent> events,
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            BigDecimal qty,
+            String docTypeLabel,
+            String batch,
+            String uomCode,
+            Integer locationId,
+            Map<Integer, OrgLocationMst> locations,
+            String rowSuffix,
+            int subOrder
+    ) {
+        if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        events.add(new LedgerEvent(
+                header.getTxhDocDate(),
+                header.getTxhTxnHeaderId(),
+                line.getTxdTxnDetailId(),
+                rowSuffix,
+                subOrder,
+                item.getItmItemId(),
+                item.getItmItemCode(),
+                item.getItmItemName(),
+                docTypeLabel,
+                header.getTxhDocType(),
+                header.getTxhDocNo(),
+                batch,
+                uomCode,
+                locationId,
+                ledgerLocationCode(locations, locationId),
+                ledgerLocationName(locations, locationId),
+                BigDecimal.ZERO,
+                qty
+        ));
+    }
+
+    private static List<LedgerEvent> filterLedgerEventsByLocation(List<LedgerEvent> events, Integer locationFilter) {
+        if (locationFilter == null) {
+            return events;
+        }
+        return events.stream()
+                .filter(e -> Objects.equals(locationFilter, e.locationId))
+                .toList();
+    }
+
+    private static String ledgerLocationCode(Map<Integer, OrgLocationMst> locations, Integer locationId) {
+        if (locationId == null) {
+            return null;
+        }
+        OrgLocationMst loc = locations.get(locationId);
+        return loc == null ? null : loc.getLocLocationCode();
+    }
+
+    private static String ledgerLocationName(Map<Integer, OrgLocationMst> locations, Integer locationId) {
+        if (locationId == null) {
+            return null;
+        }
+        OrgLocationMst loc = locations.get(locationId);
+        if (loc == null) {
+            return null;
+        }
+        String name = loc.getLocLocationName();
+        if (name != null && !name.isBlank()) {
+            return name.trim();
+        }
+        return loc.getLocLocationCode();
+    }
+
+    private static String ledgerBalanceKey(Integer itemId, Integer locationFilter) {
+        if (locationFilter != null) {
+            return itemId + "|" + locationFilter;
+        }
+        return String.valueOf(itemId);
+    }
+
+    private static boolean isLedgerEligibleStatus(TxnHeaderMst header) {
+        if (isMovementEligibleStatus(header.getTxhStatus())) {
+            return true;
+        }
+        return "INSPECTION_APPROVAL".equals(header.getTxhDocType())
+                && header.getTxhStatus() != null
+                && header.getTxhStatus().toLowerCase().contains("reject");
+    }
+
+    // --- helpers ---
+
+    private Map<String, PeriodQty> periodReceiptIssue(LocalDate fromDate, LocalDate toDate, List<Integer> locFilter) {
+        var headers = headerRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            preds.add(root.get("txhDocType").in(MOVEMENT_DOC_TYPES));
+            if (fromDate != null) preds.add(cb.greaterThanOrEqualTo(root.get("txhDocDate"), fromDate));
+            if (toDate != null) preds.add(cb.lessThanOrEqualTo(root.get("txhDocDate"), toDate));
+            if (locFilter != null) {
+                if (locFilter.isEmpty()) {
+                    preds.add(cb.disjunction());
+                } else {
+                    preds.add(cb.or(
+                            root.get("txhLocationIdLoc").in(locFilter),
+                            root.get("txhFromLocationIdLoc").in(locFilter),
+                            root.get("txhToLocationIdLoc").in(locFilter)
+                    ));
+                }
+            }
+            return cb.and(preds.toArray(Predicate[]::new));
+        }, PageRequest.of(0, 2000, Sort.by(Sort.Direction.ASC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+
+        Map<String, PeriodQty> map = new HashMap<>();
+        Map<Integer, InvItemMst> items = itemMap();
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+        for (TxnHeaderMst h : headers) {
+            if (!isMovementEligibleStatus(h.getTxhStatus())) continue;
+            if (isGatepassLinkedToTransfer(h)) continue;
+            String docType = h.getTxhDocType();
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+
+            if ("GRN".equals(docType)) {
+                Integer headerStore = h.getTxhLocationIdLoc();
+                Integer rejectedLoc = systemLocForGrnStore(headerStore, SystemLocationRole.REJECTED);
+                Integer quarantineLoc = systemLocForGrnStore(headerStore, SystemLocationRole.QUARANTINE);
+                for (TxnDetailDtl d : lines) {
+                    if (d.getTxdItemIdItm() == null) continue;
+                    InvItemMst item = items.get(d.getTxdItemIdItm());
+                    BigDecimal rejectedQty = nz(d.getTxdRejectedQty());
+                    BigDecimal acceptedQty = firstNonNullBigDecimal(
+                            d.getTxdAcceptedQty(), d.getTxdReceivedQty(), d.getTxdQty());
+                    if (rejectedQty.compareTo(BigDecimal.ZERO) == 0 && d.getTxdReceivedQty() != null) {
+                        BigDecimal acc = d.getTxdAcceptedQty() != null ? d.getTxdAcceptedQty() : BigDecimal.ZERO;
+                        rejectedQty = d.getTxdReceivedQty().subtract(acc).max(BigDecimal.ZERO);
+                    }
+                    if (rejectedQty.compareTo(BigDecimal.ZERO) > 0 && rejectedLoc != null) {
+                        addPeriod(map, d.getTxdItemIdItm(), rejectedLoc, rejectedQty, BigDecimal.ZERO);
+                    }
+                    if (acceptedQty.compareTo(BigDecimal.ZERO) > 0) {
+                        Integer targetLoc;
+                        if (item != null && Boolean.TRUE.equals(item.getItmInspectionNeeded())) {
+                            targetLoc = quarantineLoc != null ? quarantineLoc : headerStore;
+                        } else {
+                            targetLoc = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : headerStore;
+                        }
+                        addPeriod(map, d.getTxdItemIdItm(), targetLoc, acceptedQty, BigDecimal.ZERO);
+                    }
+                }
+                continue;
+            }
+
+            if ("MATERIAL_RETURN".equals(docType)) {
+                Integer toLoc = h.getTxhLocationIdLoc();
+                Integer fromLoc = h.getTxhFromLocationIdLoc();
+                for (TxnDetailDtl d : lines) {
+                    if (d.getTxdItemIdItm() == null) continue;
+                    InvItemMst item = items.get(d.getTxdItemIdItm());
+                    boolean asset = item != null
+                            && item.getItmItemType() != null
+                            && !"consumable".equalsIgnoreCase(item.getItmItemType());
+                    if (asset) {
+                        continue;
+                    }
+                    BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
+                    if (qty.compareTo(BigDecimal.ZERO) <= 0) continue;
+                    if (fromLoc != null && toLoc != null && !fromLoc.equals(toLoc)) {
+                        addPeriod(map, d.getTxdItemIdItm(), fromLoc, BigDecimal.ZERO, qty);
+                    }
+                    if (toLoc != null) {
+                        addPeriod(map, d.getTxdItemIdItm(), toLoc, qty, BigDecimal.ZERO);
+                    }
+                }
+                continue;
+            }
+
+            if ("MATERIAL_TRANSFER".equals(docType) || "MATERIAL_ISSUE".equals(docType)) {
+                for (TxnDetailDtl d : lines) {
+                    if (d.getTxdItemIdItm() == null) continue;
+                    BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
+                    if (qty.compareTo(BigDecimal.ZERO) <= 0) continue;
+                    Integer fromLoc = h.getTxhFromLocationIdLoc() != null
+                            ? h.getTxhFromLocationIdLoc()
+                            : h.getTxhLocationIdLoc();
+                    if (fromLoc == null && d.getTxdLocationIdLoc() != null) {
+                        fromLoc = d.getTxdLocationIdLoc();
+                    }
+                    Integer toLoc = h.getTxhToLocationIdLoc();
+                    boolean moved = toLoc != null && fromLoc != null && !toLoc.equals(fromLoc);
+                    if ("MATERIAL_ISSUE".equals(docType) && !moved) {
+                        // Asset same-store issue is custody-only (no on-hand change). Consumables leave stock.
+                        InvItemMst item = items.get(d.getTxdItemIdItm());
+                        boolean asset = item != null
+                                && item.getItmItemType() != null
+                                && !"consumable".equalsIgnoreCase(item.getItmItemType());
+                        if (asset) {
+                            continue;
+                        }
+                        if (fromLoc != null) {
+                            PeriodQty fromPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), fromLoc), k -> new PeriodQty());
+                            fromPq.issue = fromPq.issue.add(qty);
+                        }
+                        continue;
+                    }
+                    if (fromLoc != null) {
+                        PeriodQty fromPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), fromLoc), k -> new PeriodQty());
+                        fromPq.issue = fromPq.issue.add(qty);
+                    }
+                    if (toLoc != null) {
+                        PeriodQty toPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), toLoc), k -> new PeriodQty());
+                        toPq.receipt = toPq.receipt.add(qty);
+                    }
+                }
+                continue;
+            }
+
+            if ("INSPECTION_APPROVAL".equals(docType)) {
+                Map<Integer, TxnHeaderMst> grnById = Map.of();
+                if (h.getTxhRefTxnHeaderIdTxh() != null) {
+                    TxnHeaderMst grn = headerRepo.findById(h.getTxhRefTxnHeaderIdTxh()).orElse(null);
+                    if (grn != null) {
+                        grnById = Map.of(grn.getTxhTxnHeaderId(), grn);
+                    }
+                }
+                Integer quarantineLoc = inspectionQuarantineForHeader(h, grnById);
+                boolean rejected = h.getTxhStatus() != null && h.getTxhStatus().toLowerCase().contains("reject");
+                for (TxnDetailDtl d : lines) {
+                    if (d.getTxdItemIdItm() == null) continue;
+                    BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
+                    if (qty.compareTo(BigDecimal.ZERO) <= 0) continue;
+                    Integer homeOrRejected;
+                    if (rejected) {
+                        homeOrRejected = rejectedLocForGrnRef(h.getTxhRefTxnHeaderIdTxh(), grnById);
+                    } else {
+                        InvItemMst item = items.get(d.getTxdItemIdItm());
+                        homeOrRejected = d.getTxdLocationIdLoc() != null
+                                ? d.getTxdLocationIdLoc()
+                                : (item == null ? null : item.getItmCurrentLocationIdLoc());
+                    }
+                    if (quarantineLoc != null) {
+                        PeriodQty fromPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), quarantineLoc), k -> new PeriodQty());
+                        fromPq.issue = fromPq.issue.add(qty);
+                    }
+                    if (homeOrRejected != null) {
+                        PeriodQty toPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), homeOrRejected), k -> new PeriodQty());
+                        toPq.receipt = toPq.receipt.add(qty);
+                    }
+                }
+                continue;
+            }
+
+            boolean receipt = RECEIPT_DOC_TYPES.contains(docType);
+            boolean issue = ISSUE_DOC_TYPES.contains(docType);
+            if (!receipt && !issue) continue;
+
+            for (TxnDetailDtl d : lines) {
+                if (d.getTxdItemIdItm() == null) continue;
+                BigDecimal qty = nz(d.getTxdQty() != null ? d.getTxdQty() : d.getTxdAcceptedQty());
+                if (qty.compareTo(BigDecimal.ZERO) <= 0) continue;
+                Integer loc = d.getTxdLocationIdLoc() != null
+                        ? d.getTxdLocationIdLoc()
+                        : (issue
+                            ? (h.getTxhFromLocationIdLoc() != null ? h.getTxhFromLocationIdLoc() : h.getTxhLocationIdLoc())
+                            : h.getTxhLocationIdLoc());
+                String key = periodKey(d.getTxdItemIdItm(), loc);
+                PeriodQty pq = map.computeIfAbsent(key, k -> new PeriodQty());
+                if (receipt) pq.receipt = pq.receipt.add(qty);
+                if (issue) pq.issue = pq.issue.add(qty);
+            }
+        }
+        return map;
+    }
+
+    /**
+     * Per-item unit breakdown for Stock Ledger expanders.
+     * One row per on-hand stock bucket (qty &gt; 0), enriched from BLS when present —
+     * so unit count / serials align with Closing, including Rejected / Quarantine / Damaged.
+     */
+    private Map<Integer, List<Map<String, Object>>> stockLedgerUnitsByItem(
+            List<Integer> locFilter,
+            Map<Integer, HrcEmployeeMst> employees,
+            Map<Integer, OrgLocationMst> locations,
+            List<InvStockMst> stocks
+    ) {
+        Map<String, InvBlsMst> blsByBucket = new HashMap<>();
+        Map<String, InvBlsMst> blsByItemSerial = new HashMap<>();
+        for (InvBlsMst bls : blsRepo.findByIbmIsDummyFalseAndIbmIsactiveTrue()) {
+            Integer itemId = bls.getIbmItemIdItm();
+            if (itemId == null) continue;
+            Integer locId = bls.getIbmCurrentLocationIdLoc();
+            String batchKey = firstNonBlank(bls.getIbmSerialNo(), bls.getIbmBatchNo(), bls.getIbmLotNo());
+            if (locId != null) {
+                blsByBucket.putIfAbsent(stockCustodyKey(itemId, locId, batchKey), bls);
+            }
+            if (batchKey != null && !batchKey.isBlank()) {
+                blsByItemSerial.putIfAbsent(itemId + "|" + batchKey.trim().toUpperCase(), bls);
+            }
+        }
+
+        Map<String, IssueCustody> lastIssueByBucket = latestIssueCustodyByBucket();
+        Map<String, IssueCustody> lastIssueByItemSerial = latestIssueCustodyByItemSerial();
+
+        Map<Integer, List<Map<String, Object>>> byItem = new HashMap<>();
+        for (InvStockMst s : stocks) {
+            Integer itemId = s.getStkItemIdItm();
+            Integer locId = s.getStkLocationIdLoc();
+            if (itemId == null || locId == null) continue;
+            if (locFilter != null) {
+                if (locFilter.isEmpty()) continue;
+                if (!locFilter.contains(locId)) continue;
+            }
+            BigDecimal onHand = nz(s.getStkCurrentQty());
+            if (onHand.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            String batch = s.getStkBatchLotNo();
+            String bucketKey = stockCustodyKey(itemId, locId, batch);
+            InvBlsMst bls = blsByBucket.get(bucketKey);
+            if (bls == null && batch != null && !batch.isBlank()) {
+                bls = blsByItemSerial.get(itemId + "|" + batch.trim().toUpperCase());
+            }
+
+            OrgLocationMst loc = locations.get(locId);
+            Integer custodianEmpId = bls == null ? null : bls.getIbmIssuedToEmpIdEmp();
+            HrcEmployeeMst custodian = custodianEmpId == null ? null : employees.get(custodianEmpId);
+
+            // Issued units: show Issue "To" location (target), not only current stock bucket.
+            Integer displayLocId = locId;
+            if (custodianEmpId != null) {
+                IssueCustody issued = null;
+                if (batch != null && !batch.isBlank()) {
+                    issued = lastIssueByItemSerial.get(itemId + "|" + batch.trim().toUpperCase());
+                }
+                if (issued == null) {
+                    issued = lastIssueByBucket.get(bucketKey);
+                }
+                if (issued != null && issued.toLocationId() != null) {
+                    displayLocId = issued.toLocationId();
+                }
+            }
+            OrgLocationMst displayLoc = displayLocId.equals(locId) ? loc : locations.get(displayLocId);
+
+            Map<String, Object> unit = new LinkedHashMap<>();
+            unit.put("blsId", bls == null ? null : bls.getIbmBlsId());
+            unit.put("serialNo", firstNonBlank(bls == null ? null : bls.getIbmSerialNo(), batch));
+            unit.put("batchLotNo", bls == null
+                    ? batch
+                    : firstNonBlank(bls.getIbmBatchNo(), bls.getIbmLotNo(), batch));
+            unit.put("ipAddress", bls == null ? null : bls.getIbmIpAddress());
+            unit.put("macAddress", bls == null ? null : bls.getIbmMacAddress());
+            unit.put("hostname", bls == null ? null : bls.getIbmHostname());
+            unit.put("itemCondition", bls == null ? null : bls.getIbmItemCondition());
+            unit.put("qty", onHand);
+            unit.put("locationId", displayLocId);
+            unit.put("locationCode", displayLoc == null ? null : displayLoc.getLocLocationCode());
+            unit.put("locationName", displayLoc == null ? null : displayLoc.getLocLocationName());
+            unit.put("custodianEmpId", custodianEmpId);
+            unit.put("custodian", empLabel(custodian));
+            unit.put("custodyMode", custodianEmpId != null ? "ISSUED_TO" : "IN_STORE");
+            byItem.computeIfAbsent(itemId, id -> new ArrayList<>()).add(unit);
+        }
+        for (List<Map<String, Object>> units : byItem.values()) {
+            units.sort(Comparator
+                    .comparing((Map<String, Object> u) -> String.valueOf(u.getOrDefault("serialNo", "")), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(u -> String.valueOf(u.getOrDefault("locationCode", "")), String.CASE_INSENSITIVE_ORDER));
+        }
+        return byItem;
+    }
+
+    private Map<Integer, Integer> blsOwnerByItem() {
+        Map<Integer, Integer> map = new HashMap<>();
+        for (InvBlsMst bls : blsRepo.findByIbmIsactiveTrueAndIbmIssuedToEmpIdEmpIsNotNull()) {
+            // Prefer non-dummy serial units
+            if (Boolean.TRUE.equals(bls.getIbmIsDummy()) && map.containsKey(bls.getIbmItemIdItm())) continue;
+            map.put(bls.getIbmItemIdItm(), bls.getIbmIssuedToEmpIdEmp());
+        }
+        return map;
+    }
+
+    private Map<Integer, InvItemMst> itemMap() {
+        Map<Integer, InvItemMst> items = new HashMap<>();
+        itemRepo.findAll().forEach(i -> items.put(i.getItmItemId(), i));
+        return items;
+    }
+
+    private Map<Integer, OrgLocationMst> locationMap() {
+        Map<Integer, OrgLocationMst> map = new HashMap<>();
+        locationRepo.findAll().forEach(l -> map.put(l.getLocLocationId(), l));
+        return map;
+    }
+
+    private Map<Integer, HrcEmployeeMst> employeeMap() {
+        Map<Integer, HrcEmployeeMst> map = new HashMap<>();
+        employeeRepo.findAll().forEach(e -> map.put(e.getEmpEmployeeId(), e));
+        return map;
+    }
+
+    private Map<Integer, String> unitCodeMap() {
+        Map<Integer, String> map = new HashMap<>();
+        unitRepo.findAll().forEach(u -> map.put(u.getUntUnitId(), u.getUntUnitCode()));
+        return map;
+    }
+
+    private Map<Integer, String> departmentNameMap() {
+        Map<Integer, String> map = new HashMap<>();
+        for (HrcDepartmentMst d : departmentRepo.findAll()) {
+            map.put(d.getDeptDepartmentId(), d.getDeptDepartmentName());
+        }
+        return map;
+    }
+
+    private Map<String, IssueCustody> latestIssueCustodyByItemLocation() {
+        var headers = headerRepo.findAll((root, query, cb) -> cb.and(
+                cb.equal(root.get("txhDocType"), "MATERIAL_ISSUE"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%draft%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%reject%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%cancel%")
+        ), PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+        Map<String, IssueCustody> latest = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            Integer empId = h.getTxhHandedOverToEmpIdEmp() != null
+                    ? h.getTxhHandedOverToEmpIdEmp()
+                    : h.getTxhInitiatedByEmpIdEmp();
+            Integer locId = h.getTxhFromLocationIdLoc() != null
+                    ? h.getTxhFromLocationIdLoc()
+                    : h.getTxhLocationIdLoc();
+            if (locId == null) continue;
+            Integer toLoc = h.getTxhToLocationIdLoc() != null
+                    ? h.getTxhToLocationIdLoc()
+                    : locId;
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+            for (TxnDetailDtl d : lines) {
+                if (d.getTxdItemIdItm() == null) continue;
+                Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
+                Integer lineTo = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : toLoc;
+                String key = custodyKey(d.getTxdItemIdItm(), locId);
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId(), lineTo));
+            }
+        }
+        return latest;
+    }
+
+    /** Latest material issue per item + store + serial/batch bucket (not whole item at store). */
+    private Map<String, IssueCustody> latestIssueCustodyByBucket() {
+        var headers = headerRepo.findAll((root, query, cb) -> cb.and(
+                cb.equal(root.get("txhDocType"), "MATERIAL_ISSUE"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%draft%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%reject%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%cancel%")
+        ), PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+        Map<String, IssueCustody> latest = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            Integer empId = h.getTxhHandedOverToEmpIdEmp() != null
+                    ? h.getTxhHandedOverToEmpIdEmp()
+                    : h.getTxhInitiatedByEmpIdEmp();
+            Integer locId = h.getTxhFromLocationIdLoc() != null
+                    ? h.getTxhFromLocationIdLoc()
+                    : h.getTxhLocationIdLoc();
+            if (locId == null) continue;
+            Integer toLoc = h.getTxhToLocationIdLoc() != null
+                    ? h.getTxhToLocationIdLoc()
+                    : locId;
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+            for (TxnDetailDtl d : lines) {
+                if (d.getTxdItemIdItm() == null) continue;
+                Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
+                Integer lineTo = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : toLoc;
+                String batch = firstNonBlank(d.getTxdSerialNo(), d.getTxdBatchLotNo());
+                String key = stockCustodyKey(d.getTxdItemIdItm(), locId, batch);
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId(), lineTo));
+            }
+        }
+        return latest;
+    }
+
+    /** Latest material issue per item + serial/batch (for issued units whose stock loc may already be To). */
+    private Map<String, IssueCustody> latestIssueCustodyByItemSerial() {
+        var headers = headerRepo.findAll((root, query, cb) -> cb.and(
+                cb.equal(root.get("txhDocType"), "MATERIAL_ISSUE"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%draft%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%reject%"),
+                cb.notLike(cb.lower(root.get("txhStatus")), "%cancel%")
+        ), PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId"))).getContent();
+
+        Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
+                headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
+        Map<String, IssueCustody> latest = new HashMap<>();
+        for (TxnHeaderMst h : headers) {
+            Integer empId = h.getTxhHandedOverToEmpIdEmp() != null
+                    ? h.getTxhHandedOverToEmpIdEmp()
+                    : h.getTxhInitiatedByEmpIdEmp();
+            Integer fromLoc = h.getTxhFromLocationIdLoc() != null
+                    ? h.getTxhFromLocationIdLoc()
+                    : h.getTxhLocationIdLoc();
+            Integer toLoc = h.getTxhToLocationIdLoc() != null ? h.getTxhToLocationIdLoc() : fromLoc;
+            List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
+            for (TxnDetailDtl d : lines) {
+                if (d.getTxdItemIdItm() == null) continue;
+                String batch = firstNonBlank(d.getTxdSerialNo(), d.getTxdBatchLotNo());
+                if (batch == null || batch.isBlank()) continue;
+                Integer lineEmp = d.getTxdIssuedToEmpIdEmp() != null ? d.getTxdIssuedToEmpIdEmp() : empId;
+                Integer lineTo = d.getTxdLocationIdLoc() != null ? d.getTxdLocationIdLoc() : toLoc;
+                String key = d.getTxdItemIdItm() + "|" + batch.trim().toUpperCase();
+                latest.putIfAbsent(key, new IssueCustody(lineEmp, h.getTxhDocNo(), h.getTxhDocDate(), h.getTxhTxnHeaderId(), lineTo));
+            }
+        }
+        return latest;
+    }
+
+    private Map<String, Integer> blsIssuedToByStockKey() {
+        Map<String, Integer> map = new HashMap<>();
+        for (InvBlsMst bls : blsRepo.findByIbmIsactiveTrueAndIbmIssuedToEmpIdEmpIsNotNull()) {
+            if (Boolean.TRUE.equals(bls.getIbmIsDummy())) continue;
+            String batchKey = firstNonBlank(bls.getIbmSerialNo(), bls.getIbmBatchNo());
+            if (batchKey == null) continue;
+            map.put(
+                    stockCustodyKey(bls.getIbmItemIdItm(), bls.getIbmCurrentLocationIdLoc(), batchKey),
+                    bls.getIbmIssuedToEmpIdEmp());
+        }
+        return map;
+    }
+
+    /** One query for all detail lines belonging to the given headers (avoids N+1 in reports). */
+    private Map<Integer, List<TxnDetailDtl>> linesByHeaderIds(Collection<Integer> headerIds) {
+        if (headerIds == null || headerIds.isEmpty()) {
+            return Map.of();
+        }
+        List<TxnDetailDtl> all = detailRepo.findByTxdTxnHeaderIdTxhInOrderByTxdTxnHeaderIdTxhAscTxdSrNoAsc(headerIds);
+        Map<Integer, List<TxnDetailDtl>> map = new HashMap<>();
+        for (TxnDetailDtl d : all) {
+            map.computeIfAbsent(d.getTxdTxnHeaderIdTxh(), k -> new ArrayList<>()).add(d);
+        }
+        return map;
+    }
+
+    private static String stockCustodyKey(Integer itemId, Integer locationId, String batchOrSerial) {
+        String batch = batchOrSerial == null || batchOrSerial.isBlank() ? "" : batchOrSerial.trim();
+        return itemId + "|" + (locationId == null ? "_" : locationId) + "|" + batch;
+    }
+
+    private static String custodyKey(Integer itemId, Integer locationId) {
+        return itemId + "|" + locationId;
+    }
+
+    private static PeriodQty sumPeriodForItem(
+            Map<String, PeriodQty> period,
+            Integer itemId,
+            @SuppressWarnings("unused") Set<Integer> locationIds
+    ) {
+        if (period == null || period.isEmpty() || itemId == null) {
+            return PeriodQty.ZERO;
+        }
+        // Sum every location bucket for the item. Emptied stores (e.g. quarantine after
+        // inspection) must still contribute to period Issue/Receipt. When the report is
+        // location-scoped, periodReceiptIssue already filtered the map.
+        PeriodQty pq = PeriodQty.ZERO;
+        String prefix = itemId + "|";
+        for (Map.Entry<String, PeriodQty> e : period.entrySet()) {
+            if (e.getKey().startsWith(prefix)) {
+                pq = pq.add(e.getValue());
+            }
+        }
+        return pq;
+    }
+
+    private static void addPeriod(
+            Map<String, PeriodQty> map,
+            Integer itemId,
+            Integer locationId,
+            BigDecimal receipt,
+            BigDecimal issue
+    ) {
+        if (itemId == null || locationId == null) {
+            return;
+        }
+        PeriodQty pq = map.computeIfAbsent(periodKey(itemId, locationId), k -> new PeriodQty());
+        if (receipt != null && receipt.signum() > 0) {
+            pq.receipt = pq.receipt.add(receipt);
+        }
+        if (issue != null && issue.signum() > 0) {
+            pq.issue = pq.issue.add(issue);
+        }
+    }
+
+    private static String periodKey(Integer itemId, Integer locationId) {
+        return itemId + "|" + (locationId == null ? "_" : locationId);
+    }
+
+    private static String movementDirection(String docType) {
+        if (docType == null) return "IN";
+        return switch (docType) {
+            case "MATERIAL_ISSUE", "GATEPASS_OUTWARD" -> "OUT";
+            case "MATERIAL_TRANSFER", "INSPECTION_APPROVAL" -> "TRANSFER";
+            default -> "IN";
+        };
+    }
+
+    private static String movementTypeLabel(String docType) {
+        if (docType == null) return "";
+        return switch (docType) {
+            case "OPENING_STOCK" -> "Opening";
+            case "GRN" -> "GRN";
+            case "GATEPASS_INWARD" -> "Gatepass In";
+            case "GATEPASS_OUTWARD" -> "Gatepass Out";
+            case "MATERIAL_ISSUE" -> "Issue";
+            case "MATERIAL_TRANSFER" -> "Transfer";
+            case "MATERIAL_RETURN" -> "Return";
+            case "INSPECTION_APPROVAL" -> "Inspection";
+            default -> docType;
+        };
+    }
+
+    private static String docTypeLabel(String docType) {
+        return movementTypeLabel(docType);
+    }
+
+    private static boolean isMovementEligibleStatus(String status) {
+        if (status == null || status.isBlank()) return true;
+        String s = status.toLowerCase();
+        // Stock already moved on transfer while waiting for outward gatepass.
+        if (s.contains("pending for outward")) {
+            return true;
+        }
+        return !s.contains("draft") && !s.contains("reject") && !s.contains("cancel")
+                && !s.contains("pending") && !s.equals("in pending");
+    }
+
+    /** Outward linked to a transfer is gate paperwork — stock already moved on the transfer. */
+    private boolean isGatepassLinkedToTransfer(TxnHeaderMst header) {
+        if (header == null || !"GATEPASS_OUTWARD".equals(header.getTxhDocType())) {
+            return false;
+        }
+        Integer refId = header.getTxhRefTxnHeaderIdTxh();
+        if (refId == null) {
+            return false;
+        }
+        return headerRepo.findById(refId)
+                .map(t -> "MATERIAL_TRANSFER".equals(t.getTxhDocType()))
+                .orElse(false);
+    }
+
+    private static boolean matchesItemSearch(InvItemMst item, String search) {
+        if (search == null || search.isBlank()) return true;
+        String q = search.toLowerCase();
+        String code = item.getItmItemCode() == null ? "" : item.getItmItemCode().toLowerCase();
+        String name = item.getItmItemName() == null ? "" : item.getItmItemName().toLowerCase();
+        return code.contains(q) || name.contains(q);
+    }
+
+    private static boolean matchesSerialFilter(String serialNo, String... candidates) {
+        if (serialNo == null || serialNo.isBlank()) return true;
+        String q = serialNo.trim().toLowerCase();
+        for (String candidate : candidates) {
+            if (candidate == null || candidate.isBlank()) continue;
+            if (candidate.toLowerCase().contains(q)) return true;
+        }
+        return false;
+    }
+
+    private Set<Integer> headerIdsMatchingSerial(String serialNo) {
+        if (serialNo == null || serialNo.isBlank()) return Set.of();
+        String pattern = "%" + serialNo.trim().toLowerCase() + "%";
+        List<TxnDetailDtl> lines = detailRepo.findAll((root, query, cb) -> cb.or(
+                cb.like(cb.lower(cb.coalesce(root.get("txdSerialNo"), "")), pattern),
+                cb.like(cb.lower(cb.coalesce(root.get("txdBatchLotNo"), "")), pattern)
+        ));
+        Set<Integer> ids = new HashSet<>();
+        for (TxnDetailDtl d : lines) {
+            if (d.getTxdTxnHeaderIdTxh() != null) {
+                ids.add(d.getTxdTxnHeaderIdTxh());
+            }
+        }
+        return ids;
+    }
+
+    private Set<Integer> itemIdsMatchingSerial(
+            String serialNo,
+            List<InvStockMst> stocks,
+            Map<Integer, List<Map<String, Object>>> unitsByItem
+    ) {
+        if (serialNo == null || serialNo.isBlank()) return null;
+        Set<Integer> ids = new HashSet<>();
+        for (InvStockMst s : stocks) {
+            if (matchesSerialFilter(serialNo, s.getStkBatchLotNo()) && s.getStkItemIdItm() != null) {
+                ids.add(s.getStkItemIdItm());
+            }
+        }
+        for (Map.Entry<Integer, List<Map<String, Object>>> e : unitsByItem.entrySet()) {
+            for (Map<String, Object> unit : e.getValue()) {
+                if (matchesSerialFilter(serialNo,
+                        stringOrNull(unit.get("serialNo")),
+                        stringOrNull(unit.get("batchLotNo")))) {
+                    ids.add(e.getKey());
+                    break;
+                }
+            }
+        }
+        for (InvBlsMst bls : blsRepo.findByIbmIsDummyFalseAndIbmIsactiveTrue()) {
+            if (bls.getIbmItemIdItm() == null) continue;
+            if (matchesSerialFilter(serialNo, bls.getIbmSerialNo(), bls.getIbmBatchNo(), bls.getIbmLotNo())) {
+                ids.add(bls.getIbmItemIdItm());
+            }
+        }
+        return ids;
+    }
+
+    private static String stringOrNull(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private static String stockStatus(BigDecimal current, BigDecimal reorder) {
+        if (current.compareTo(BigDecimal.ZERO) <= 0) return "Out of Stock";
+        if (reorder.compareTo(BigDecimal.ZERO) > 0 && current.compareTo(reorder) <= 0) return "Low Stock";
+        return "In Stock";
+    }
+
+    private static String empLabel(HrcEmployeeMst e) {
+        if (e == null) return null;
+        String last = e.getEmpLastName() == null ? "" : e.getEmpLastName().trim();
+        String name = (e.getEmpFirstName() + (last.isEmpty() ? "" : " " + last)).trim();
+        if (e.getEmpEmployeeCode() != null && !e.getEmpEmployeeCode().isBlank()) {
+            return name + " (" + e.getEmpEmployeeCode() + ")";
+        }
+        return name.isEmpty() ? null : name;
+    }
+
+    private static String locLabel(OrgLocationMst loc) {
+        if (loc == null) return null;
+        String name = loc.getLocLocationName();
+        if (name != null && !name.isBlank()) return name.trim();
+        return loc.getLocLocationCode();
+    }
+
+    private static String custodianArrow(HrcEmployeeMst from, HrcEmployeeMst to) {
+        String a = empShort(from);
+        String b = empShort(to);
+        if (a != null && b != null) return a + " → " + b;
+        if (b != null) return b;
+        return a;
+    }
+
+    private static String empShort(HrcEmployeeMst e) {
+        if (e == null) return null;
+        String last = e.getEmpLastName() == null ? "" : e.getEmpLastName().trim();
+        String name = (nullToEmpty(e.getEmpFirstName()) + (last.isEmpty() ? "" : " " + last)).trim();
+        return name.isEmpty() ? e.getEmpEmployeeCode() : name;
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String v : values) {
+            if (v != null && !v.isBlank()) return v.trim();
+        }
+        return null;
+    }
+
+    private static String nullToEmpty(String v) {
+        return v == null ? "" : v;
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
+    }
+
+    private static PageResponse<Map<String, Object>> pageOf(List<Map<String, Object>> rows, int page, int pageSize) {
+        int p = Math.max(page, 1);
+        int size = Math.min(Math.max(pageSize, 1), 200);
+        int from = Math.min((p - 1) * size, rows.size());
+        int to = Math.min(from + size, rows.size());
+        return PageResponse.of(p, size, rows.size(), rows.subList(from, to));
+    }
+
+    private record IssueCustody(Integer empId, String docNo, LocalDate docDate, Integer docId, Integer toLocationId) {}
+
+    private record LedgerEvent(
+            LocalDate date,
+            Integer headerId,
+            Integer detailId,
+            String rowSuffix,
+            int subOrder,
+            Integer itemId,
+            String itemCode,
+            String itemName,
+            String docType,
+            String txnType,
+            String docNo,
+            String batch,
+            String uomCode,
+            Integer locationId,
+            String locationCode,
+            String locationName,
+            BigDecimal receipt,
+            BigDecimal issue
+    ) {}
+
+    private static final class PeriodQty {
+        static final PeriodQty ZERO = new PeriodQty();
+        BigDecimal receipt = BigDecimal.ZERO;
+        BigDecimal issue = BigDecimal.ZERO;
+
+        PeriodQty add(PeriodQty other) {
+            if (other == null) return this;
+            PeriodQty n = new PeriodQty();
+            n.receipt = this.receipt.add(other.receipt);
+            n.issue = this.issue.add(other.issue);
+            return n;
+        }
+    }
+
+    private static final class StockLedgerAgg {
+        InvItemMst item;
+        Integer uomId;
+        BigDecimal closing = BigDecimal.ZERO;
+        final Set<Integer> locationIds = new LinkedHashSet<>();
+    }
+
+    private static final class StockAgg {
+        static final StockAgg ZERO = new StockAgg();
+        BigDecimal qty = BigDecimal.ZERO;
+        BigDecimal value = BigDecimal.ZERO;
+        int storeCount = 0;
+    }
+}

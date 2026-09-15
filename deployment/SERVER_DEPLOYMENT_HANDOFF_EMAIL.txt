@@ -1,0 +1,224 @@
+Subject: CAITS — Server deployment requirements, deliverables & configuration (Tomcat + PostgreSQL)
+
+---
+
+Dear Team,
+
+Please find below the complete specifications and deliverables required to deploy the **CAITS (Centralized Asset and Inventory Tracking System)** web application on the company server as a fully functional production setup.
+
+We have already validated this deployment model locally on **Apache Tomcat 10.1** with a single WAR that embeds both the UI and the API.
+
+---
+
+1) APPLICATION OVERVIEW
+
+• Application name: CAITS  
+• Type: Web application (React SPA + Spring Boot REST API)  
+• Packaging: Single deployable WAR — ROOT.war  
+• Context path: / (root)  
+• Access URL after deploy: http://<SERVER_HOST>:<PORT>/  
+• API base URL (same origin): http://<SERVER_HOST>:<PORT>/api/v1/  
+• WebSocket path: /ws  
+
+Technology stack (for information):
+
+| Layer     | Technology                         | On production server?                          |
+|-----------|------------------------------------|------------------------------------------------|
+| Frontend  | React 19 + Vite 8 (SPA)            | NO — already compiled into ROOT.war as static files (HTML/JS/CSS) |
+| Backend   | Spring Boot 3.3.5 (Java 21)        | YES — runs inside Tomcat from ROOT.war         |
+| App server| Apache Tomcat 10.1.x               | YES — must be installed                        |
+| Database  | PostgreSQL                         | YES — separate DB server / service             |
+| Build tools | Node.js / npm / Maven            | NO — used only on developer machine to produce ROOT.war |
+
+Important about React:
+• React is the UI framework, but the deployment team does NOT install React or Node.js on the server.
+• We build the React app first; the production files are packed inside ROOT.war.
+• Tomcat only serves those built files + the Java API. Users never run React separately.
+
+Architecture:
+
+  Browser
+     ↓
+  Apache Tomcat (serves React UI + Spring Boot API from ROOT.war)
+     ↓
+  PostgreSQL database
+
+
+2) SERVER SOFTWARE SPECIFICATIONS (MANDATORY)
+
+Please provision / confirm the following on the application server:
+
+| Component              | Required version / note                                      |
+|------------------------|--------------------------------------------------------------|
+| OS                     | Windows Server or Linux (either is fine)                     |
+| JDK                    | Java 21 (LTS) — required for Tomcat / Spring Boot            |
+| Application server     | Apache Tomcat 10.1.x (Jakarta EE / Servlet 5+)               |
+| Database               | PostgreSQL (server must be reachable from app server)        |
+| React / Node.js / npm  | NOT required on the production server (UI is pre-built)      |
+| Maven                  | NOT required on the production server (build is done by us)  |
+
+Important:
+• Do NOT use Tomcat 9 — it is incompatible (javax vs jakarta).  
+• Tomcat 10.1.x + JDK 21 is the tested combination.  
+• Recommended HTTP port: 8080 (or reverse-proxy via IIS/Nginx on 80/443).
+
+
+3) HARDWARE / CAPACITY (MINIMUM SUGGESTED)
+
+| Resource   | Minimum (small team)     | Recommended                |
+|------------|--------------------------|----------------------------|
+| CPU        | 2 vCPU                   | 4 vCPU                     |
+| RAM        | 4 GB                     | 8 GB                       |
+| Disk       | 20 GB free               | 40 GB+ (logs + uploads)    |
+| Network    | App server ↔ DB server connectivity (TCP 5432)             |
+
+Also create writable folders on the app server for:
+• File uploads (attachments)  
+• Application logs  
+
+
+4) DATABASE CONNECTION DETAILS
+
+The application uses PostgreSQL with schema selection via profile:
+
+• CAITS_DB=1  → schema: caits_local  
+• CAITS_DB=2  → schema: caits   (default / recommended for clean structure + admin)
+
+Current development / shared DB reference (for network allowlisting — replace with production values on server):
+
+• Host (dev reference): 192.168.0.223  
+• Port: 5432  
+• Database name: caits  
+• Schema (default profile): caits  
+• App JDBC style URL:
+  jdbc:postgresql://<DB_HOST>:5432/caits?currentSchema=caits
+
+What IT / DBA must provide for production:
+• Production DB host / port  
+• Database name  
+• Schema name to use (caits or caits_local, or a new production schema)  
+• Username & password (do not share in email if policy forbids — use secure channel)  
+• Firewall rule: application server → PostgreSQL port 5432  
+• Confirmation that required migrations / schema objects are applied before go-live  
+
+Notes:
+• Hibernate ddl-auto is validate — schema must already exist and match the application.  
+• Time zone used by JDBC: Asia/Kolkata.  
+• Connection pool: HikariCP (max ~20 connections).
+
+
+5) WHAT WE WILL SEND (DEPLOYMENT PACKAGE)
+
+For a fully functional deployment, we will provide:
+
+A. Application artifact
+   • ROOT.war  
+     (contains frontend production build + backend API in one file)
+
+B. Configuration templates (no secrets)
+   • environment.example  
+   • setenv.bat.example (Windows Tomcat)  
+   • setenv.sh.example (Linux Tomcat)  
+   • Deployment README with exact steps  
+
+C. Optional (if requested)
+   • Separate frontend/dist static files (not required if ROOT.war is used)  
+   • Smoke-test checklist / URLs  
+
+We will NOT send:
+• Source code (unless separately requested)  
+• Node_modules  
+• Real production passwords / JWT secrets in plain email (share via secure channel)
+
+
+6) ENVIRONMENT VARIABLES TO SET ON THE SERVER
+
+Configure these in Tomcat setenv (bin/setenv.bat or setenv.sh) or as OS environment variables:
+
+# Database profile
+CAITS_DB=2
+
+# JDBC overrides (use production values)
+SPRING_DATASOURCE_URL=jdbc:postgresql://<DB_HOST>:5432/caits?currentSchema=caits
+SPRING_DATASOURCE_USERNAME=<DB_USER>
+SPRING_DATASOURCE_PASSWORD=<DB_PASSWORD>
+
+# Security (generate new values for production — do not reuse local/dev)
+CAITS_SECURITY_JWT_SECRET=<LONG_RANDOM_STRING_32+_CHARS>
+CAITS_SECURITY_FIELD_ENCRYPTION_KEY=<LONG_RANDOM_STRING_32+_CHARS>
+CAITS_SECURITY_COOKIE_SECURE=false          # set true if HTTPS is enabled
+CAITS_SECURITY_COOKIE_SAME_SITE=Lax         # Strict preferred on HTTPS same-site
+
+# CORS — include the public URL users open in the browser
+CAITS_CORS_ALLOWED_ORIGINS=http://<SERVER_HOST>:8080
+
+# Storage & logs (absolute paths on server)
+CAITS_STORAGE_UPLOAD_DIR=<e.g. C:/caits/uploads or /var/caits/uploads>
+CAITS_LOG_FILE=<e.g. C:/caits/logs/caits-app.log or /var/caits/logs/caits-app.log>
+
+
+7) DEPLOYMENT STEPS (SUMMARY FOR SERVER ADMIN)
+
+1. Install JDK 21 and Apache Tomcat 10.1.x.  
+2. Place setenv with production environment variables under Tomcat bin/.  
+3. Create upload and log directories; grant Tomcat process write access.  
+4. Ensure DB is reachable and schema is ready.  
+5. Copy ROOT.war to:  
+      $CATALINA_HOME/webapps/ROOT.war  
+6. Start Tomcat.  
+7. Open: http://<SERVER_HOST>:8080/  
+8. Smoke test:
+   • http://<SERVER_HOST>:8080/login  
+   • http://<SERVER_HOST>:8080/api/v1/auth/csrf  
+   • http://<SERVER_HOST>:8080/api/v1/auth/public-key  
+   • Login with provided admin credentials (shared separately)  
+   • Confirm dashboard loads and menus appear  
+
+
+8) PORTS / FIREWALL
+
+| Direction                         | Port | Purpose                          |
+|-----------------------------------|------|----------------------------------|
+| Users → App server                | 8080 | HTTP (or 80/443 via reverse proxy) |
+| App server → PostgreSQL           | 5432 | Database                         |
+| Optional: WSS/WS through same HTTP port | — | WebSocket /ws on Tomcat   |
+
+If HTTPS will be used (recommended for production):
+• Terminate TLS at reverse proxy / load balancer, or configure Tomcat SSL.  
+• Set CAITS_SECURITY_COOKIE_SECURE=true.  
+• Update CAITS_CORS_ALLOWED_ORIGINS to https://<public-host>.
+
+Note on HTTP LAN access (e.g. http://192.168.x.x:9090):
+• Modern browsers block Web Crypto on non-HTTPS IP URLs.
+• Current ROOT.war includes a login encryption fallback so HTTP LAN login works.
+• Prefer HTTPS for production when possible.
+
+
+9) WHAT WE NEED BACK FROM YOU (IT / INFRA)
+
+Kindly confirm / share:
+
+1. Application server hostname / IP and OS  
+2. Whether Tomcat 10.1 + JDK 21 can be installed (or already available)  
+3. Public URL / port users will use  
+4. Production PostgreSQL host, DB name, schema, and credentials (secure channel)  
+5. Preferred upload/log disk paths  
+6. Whether HTTPS / reverse proxy will be used  
+7. Target go-live date and who will perform the WAR copy + Tomcat restart  
+8. Any corporate proxy / firewall constraints between app and DB  
+
+
+10) SUPPORT / CONTACT
+
+For deployment support during installation, please contact:
+• Name: <YOUR_NAME>  
+• Email / Phone: <YOUR_CONTACT>  
+• Attachment: ROOT.war + config templates (to follow / attached)
+
+Thank you.  
+Please acknowledge once the server prerequisites above are available so we can share the final WAR and schedule deployment.
+
+Regards,  
+<YOUR_NAME>  
+<YOUR_DESIGNATION>  
+CAITS Project Team

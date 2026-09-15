@@ -1,0 +1,55 @@
+---
+description: How to make and track CAITS database changes across the local and dev databases
+alwaysApply: true
+---
+
+# Database changes
+
+Two databases hold the `caits_local` schema. `application.yml` points at one at a time:
+
+- **local** — `localhost:5432/postgres` (currently active)
+- **dev** — `192.168.0.223:5432/caits` (commented out in `application.yml`)
+
+`metadata/db/migrations.json` is the ledger of every change and which database has it.
+
+## Making a change
+
+1. Write the SQL as a new file in `db_approach/`. Never apply an ad-hoc statement straight
+   to a database — if it is not in a file, the other environment will never get it.
+2. Make it re-runnable: `IF NOT EXISTS`, `ON CONFLICT DO NOTHING`, or a guarded `DO` block
+   that warns and skips instead of failing. Existing scripts follow this.
+3. Apply it to **local** only.
+4. Append an entry to `metadata/db/migrations.json` with `applied.local` set to today and
+   `applied.dev` set to `null`.
+
+```json
+{
+  "id": "012-add-item-warranty-vendor",
+  "file": "db_approach/add_item_warranty_vendor.sql",
+  "description": "One line on what it changes and why.",
+  "applied": { "local": "2026-08-02", "dev": null }
+}
+```
+
+## Syncing to dev
+
+**Always ask the user before running anything against dev.** It is shared, and a bad script
+affects other people.
+
+Show what is pending first, then apply only once they agree:
+
+```powershell
+cd db_approach
+.\sync-migrations.ps1                 # dry run: lists pending on dev
+$env:CAITS_DEV_PW = '<password>'
+.\sync-migrations.ps1 -Apply          # prompts before executing
+```
+
+The script stops on the first failure and still records whatever succeeded, so a partial
+run can be resumed. It stamps `applied.dev` itself — do not hand-edit those dates after a run.
+
+## After switching `application.yml` between databases
+
+The backend runs `ddl-auto: validate`, so it refuses to start if the target schema is behind.
+Run the dry run for the new environment before starting the backend, and sync if anything
+is pending.

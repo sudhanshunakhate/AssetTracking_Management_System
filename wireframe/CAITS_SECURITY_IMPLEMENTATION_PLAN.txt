@@ -1,0 +1,327 @@
+# CAITS Data Security — Implementation Plan (Phased)
+# Stack: Java 21 + Spring Boot + React (Vite)
+# Source of truth for principles: wireframe/planfordatasecurity.txt
+# Created: 2026-09-10
+#
+# RULE ZERO (non-negotiable):
+#   If plaintext must reach the browser so React can display/use it,
+#   a user who controls that browser CAN inspect it (Network, React state,
+#   memory, modified JS, external proxies). No DevTools-blocker, obfuscation,
+#   or client-side encryption can change that.
+#
+# Achievable goal for CAITS (redefine "100%"):
+#   100% of SENSITIVE data never reaches the browser unless the business
+#   feature absolutely requires display — and then only minimized, non-persisted,
+#   non-logged, short-lived. Everything else is server-authoritative.
+
+================================================================================
+0. HARD BOUNDARY — WHAT "100%" CAN AND CANNOT MEAN
+================================================================================
+
+| Claim | Possible? | Why |
+|-------|-----------|-----|
+| Hide JWT from JS | YES | HttpOnly cookie |
+| Hide password hashes from API | YES | Never return them |
+| Hide PAN/GSTIN/full account # from UI unless needed | YES | Mask / omit in DTO |
+| Encrypt DB columns at rest | YES | Envelope encryption / KMS |
+| TLS so network sniffers can't read | YES | TLS 1.3 + HSTS |
+| Zero sensitive logs | YES | Structured redaction |
+| Zero data in DevTools for everything UI shows | NO | Browser must decrypt TLS |
+| Client decrypts payload, user can't see key | NO | Key would be in JS |
+| Disable F12 / right-click = security | NO | Trivial to bypass |
+
+Design motto:
+  BROWSER = UNTRUSTED
+  SPRING  = AUTHORITY
+  Don't send the secret to React.
+
+================================================================================
+1. CURRENT CAITS GAP SNAPSHOT (evidence-based)
+================================================================================
+
+AUTH / TOKEN
+  - JWT in sessionStorage (`caits.token`) → readable in Application tab
+  - Bearer header on every API + WebSocket → visible in Network tab
+  - JWT claims include loginId, userId, roleCode (readable if token stolen)
+  - CSRF disabled; CORS allowCredentials=true with Bearer (OK for Bearer,
+    becomes critical once cookies are used)
+  - JWT secret in application.yml (dev) — must move to env/secret store for prod
+
+API / DATA
+  - Many master DTOs return full business fields (expected for ERP)
+  - Password hashes never returned (good — keep)
+  - AccessScopeService exists; must be enforced on EVERY mutating/sensitive read
+  - Need explicit "sensitive field inventory" (PAN, GSTIN, email, phone, serials)
+
+FRONTEND
+  - Token + activity timestamps in sessionStorage
+  - Some console.error paths
+  - No CSP / security headers documented in frontend hosting
+
+LOGGING
+  - Need audit: no request/response body dumps of credentials
+  - show-sql=false already (good)
+
+================================================================================
+2. TARGET ARCHITECTURE (CAITS)
+================================================================================
+
+  Browser (UNTRUSTED)
+    │  only: UI state, opaque IDs, masked values, non-sensitive lists
+    │  NO: JWT in JS, passwords, full PII unless screen requires it
+    │
+    │  HTTPS (TLS 1.3)
+    ▼
+  Reverse proxy (optional Nginx)
+    │  HSTS, CSP, rate limit, strip server headers
+    ▼
+  Spring Boot API (AUTHORITY)
+    │  AuthN → AuthZ (menu + object + OU/location scope) → validate → operate
+    │  Decrypt sensitive DB fields only in memory for the operation
+    │  Return minimal DTOs (never entities)
+    ▼
+  PostgreSQL
+    │  least-privilege role; encrypt selected columns at rest
+    ▼
+  External secrets (env / vault) — never in git, never in VITE_* bundle
+
+Session model (target):
+  __Host-CAITS_SESSION = opaque OR short-lived JWT in HttpOnly;Secure;SameSite=Strict
+  Refresh via rotating cookie (not readable by React)
+  React only knows: "am I logged in?" via /api/v1/auth/me (non-sensitive profile)
+
+================================================================================
+3. DATA CLASSIFICATION (do this BEFORE coding)
+================================================================================
+
+Classify every field that crosses API → React:
+
+  S0 PUBLIC     — labels, menu codes, lookup names
+  S1 INTERNAL   — item codes, qty, txn status, location names (authz-gated)
+  S2 PII        — email, phone, employee name, address
+  S3 SECRET     — password, password hash, JWT, VAPID private, API keys
+  S4 REGULATED  — PAN, GSTIN, bank details (if any), government IDs
+
+Rules by class:
+  S3  → NEVER to browser. Never in logs. Hash or vault only.
+  S4  → Prefer omit; else mask (XXXXX1234A); encrypt at rest; audit access
+  S2  → Only on screens that need it; no console; no cache; no analytics
+  S1  → AuthZ + scope checks; DTO allowlist
+  S0  → OK
+
+Deliverable of Phase A: Data Exposure Matrix spreadsheet
+  Field | Class | DB | API | Network | React | Storage | Logs | Required on screen?
+
+================================================================================
+4. PHASED IMPLEMENTATION (constraint-safe)
+================================================================================
+
+Principles for every phase:
+  - One concern per phase
+  - Feature flags / dual-path where auth changes
+  - Regression tests before merge
+  - NEVER remove a NOT NULL / FK / business rule to "add security"
+  - Prefer omit/mask over client encryption
+  - No DevTools disable / right-click block / JS obfuscation-as-security
+
+--------------------------------------------------------------------------------
+PHASE A — DISCOVER & FREEZE (no behavior change)
+Duration: 2–4 days | Risk: none
+--------------------------------------------------------------------------------
+A1. Inventory all REST endpoints + WebSocket topics
+A2. Inventory DTOs returned to React (grep records / response types)
+A3. Inventory frontend storage keys (sessionStorage/localStorage/IndexedDB)
+A4. Inventory console.* and logging of requests
+A5. List S2–S4 fields in entities (PAN, GSTIN, email, phone, password hash, etc.)
+A6. Produce Data Exposure Matrix + Current Architecture Report
+A7. STOP for human review before Phase B
+
+Exit criteria:
+  [ ] Matrix reviewed and signed off
+  [ ] Sensitive screens listed (Vendor PAN, Employee email, User password reset, etc.)
+
+--------------------------------------------------------------------------------
+PHASE B — HARDEN AUTH (biggest win, careful rollout)
+Duration: 1–2 weeks | Risk: medium (login/session)
+Constraint: keep login UX; dual-support Bearer during migration
+--------------------------------------------------------------------------------
+B1. Introduce HttpOnly Secure SameSite cookie session
+    Option preferred for CAITS (minimal rewrite):
+      - Keep JWT but store ONLY in HttpOnly cookie (not sessionStorage)
+      - Remove Authorization header from client after cutover
+      - Enable CSRF token for cookie-authenticated mutating requests
+    Alternative (stronger):
+      - Opaque server-side session (Redis/DB) + cookie
+B2. Shrink JWT claims to sub + exp only (look up role/scopes server-side)
+B3. Rotate jwt-secret from application.yml → env / secret manager
+B4. Short access TTL + sliding refresh endpoint (cookie-based)
+B5. WebSocket auth: cookie or short-lived ticket (not long-lived token in JS)
+B6. Frontend: delete TOKEN_KEY from sessionStorage; credentials: 'include'
+B7. Feature flag CAITS_AUTH_COOKIE=true; keep Bearer for one release then remove
+
+Exit criteria:
+  [ ] Application tab shows no caits.token
+  [ ] Network still shows JSON business data (expected) but NOT auth token in JS
+  [ ] Login / logout / refresh / multi-tab work
+  [ ] CSRF tests pass for POST/PUT/DELETE
+  [ ] Existing AccessScope + role checks still pass
+
+DO NOT in this phase:
+  - Encrypt all API payloads
+  - Change every DTO
+  - Break mobile clients if any rely on Bearer (document first)
+
+--------------------------------------------------------------------------------
+PHASE C — API DATA MINIMIZATION (DTO allowlists)
+Duration: 1–2 weeks | Risk: medium (UI fields missing)
+Constraint: screen-by-screen; never strip fields a screen still needs
+--------------------------------------------------------------------------------
+C1. Rule: Controllers return DTOs only — never JPA entities (audit & enforce)
+C2. Per-module response profiles:
+      ListDto   — codes, names, status, ids
+      DetailDto — fields needed for that form only
+      SensitiveDetailDto — S2/S4 only for roles that need them + audit log
+C3. Never return: usr_password_hash, secrets, internal flags unless needed
+C4. Mask S4 on list endpoints (PAN → XXXXX1234A); full only on edit with permission
+C5. Add DTO regression tests: "UserDto must not contain passwordHash"
+C6. Frontend: stop logging response bodies; strip debug dumps
+
+Exit criteria:
+  [ ] Network tab on list pages shows no full PAN/GSTIN/password fields
+  [ ] Edit Vendor still works for authorized users
+  [ ] Unit tests fail if forbidden field reappears on DTO
+
+--------------------------------------------------------------------------------
+PHASE D — AUTHORIZATION DEPTH (server is authority)
+Duration: 1–2 weeks | Risk: medium (403 on edge cases)
+Constraint: mirror existing menu permissions + OU/location scope
+--------------------------------------------------------------------------------
+D1. Centralize permission checks (menu code + canView/Create/Edit/Approve)
+D2. Object-level checks on every getById / update / delete (IDOR/BOLA)
+D3. Never trust roleCode from client; always load from DB session
+D4. Rate-limit login + password reset
+D5. Lockout already partially exists (failed_attempts) — verify end-to-end
+
+Exit criteria:
+  [ ] User A cannot read/update User B's restricted records by ID guessing
+  [ ] Cross-OU access blocked for scoped users
+  [ ] Integration tests for IDOR on users, items, txns
+
+--------------------------------------------------------------------------------
+PHASE E — ENCRYPTION AT REST (server-side only)
+Duration: 1–2 weeks | Risk: high if done wrong — isolate
+Constraint: encrypt only classified S3/S4 columns; keep searchability strategy
+--------------------------------------------------------------------------------
+E1. Choose envelope encryption:
+      DEK per record or per column family, wrapped by KEK in vault/KMS
+E2. Columns candidates (CAITS):
+      - Already hashed: passwords (BCrypt) — DO NOT encrypt hashes further
+      - Consider encrypt: vendor PAN, GSTIN, employee phone/email (if policy requires)
+E3. Decrypt ONLY inside service layer for authorized operations
+E4. Key versioning + rotation procedure
+E5. NEVER put DEK/KEK in React or VITE_*
+
+Exit criteria:
+  [ ] DB raw select shows ciphertext for chosen columns
+  [ ] App screens still work for authorized users
+  [ ] Key not in repo / frontend bundle
+  [ ] Backup/restore + key rotation runbook documented
+
+--------------------------------------------------------------------------------
+PHASE F — TRANSPORT & BROWSER HARDENING
+Duration: 3–5 days | Risk: low–medium (CSP can break UI)
+--------------------------------------------------------------------------------
+F1. Force HTTPS; HSTS
+F2. Security headers: CSP (start Report-Only), X-Content-Type-Options,
+    Referrer-Policy, Permissions-Policy, frame-ancestors
+F3. Cache-Control: no-store for authenticated API responses
+F4. Disable sensitive caching in service workers if any
+F5. Frontend build: ensure no secrets in import.meta.env beyond public VAPID key
+F6. Remove / gate console.* in production builds
+
+Exit criteria:
+  [ ] Headers present on API and static host
+  [ ] CSP Report-Only clean for 1 week then enforce
+  [ ] Prod build has no token/secret strings
+
+--------------------------------------------------------------------------------
+PHASE G — LOGGING / TELEMETRY SANITIZATION
+Duration: 3–5 days | Risk: low
+--------------------------------------------------------------------------------
+G1. Structured logging with field redaction (password, token, pan, authorization)
+G2. Never log full request/response bodies in prod
+G3. GlobalExceptionHandler: no stack traces to client
+G4. Audit trail for S4 access (who viewed full PAN, when)
+
+Exit criteria:
+  [ ] Grep logs after login flow: no password, no Bearer token, no full PAN
+  [ ] Client errors are generic
+
+--------------------------------------------------------------------------------
+PHASE H — SECURITY TESTS & REGRESSION GATE
+Duration: ongoing | Risk: none
+--------------------------------------------------------------------------------
+H1. Backend tests: auth, CSRF, IDOR, DTO forbidden fields, encryption round-trip
+H2. Frontend tests: no sessionStorage token key; no sensitive console in prod
+H3. CI gate: fail build if DTO contains banned field names
+H4. Periodic security checklist from planfordatasecurity.txt acceptance criteria
+
+Exit criteria:
+  [ ] CI green with security suite
+  [ ] Checklist signed for release
+
+================================================================================
+5. WHAT WE WILL NOT IMPLEMENT (false security)
+================================================================================
+
+  ✗ Disable F12 / DevTools / right-click / Ctrl+Shift+I
+  ✗ Client-side payload encryption with key in React
+  ✗ Base64 / "hidden" fields as protection
+  ✗ Obfuscated JS as a security control
+  ✗ Trusting CORS as authorization
+  ✗ Returning encrypted blobs to React "so Network looks safe" then decrypting in JS
+  ✗ Putting secrets in VITE_* env vars
+
+================================================================================
+6. RECOMMENDED EXECUTION ORDER FOR CURSOR / TEAM
+================================================================================
+
+  Task 1  → Phase A only (audit report)          ← REVIEW GATE
+  Task 2  → Phase B (cookie auth + CSRF)
+  Task 3  → Phase C + D (DTO minimize + AuthZ)
+  Task 4  → Phase E (encryption at rest)
+  Task 5  → Phase F + G + H (headers, logs, tests)
+
+Do NOT run all phases in one agent session.
+
+================================================================================
+7. ACCEPTANCE DEFINITION FOR CAITS ("100% working")
+================================================================================
+
+We accept the system as meeting the security goal when:
+
+  [ ] S3 secrets never appear in Network/Application/console
+  [ ] Auth token not accessible to JavaScript
+  [ ] S4 fields omitted or masked on list APIs; full value only when justified
+  [ ] Every sensitive read/write is AuthN + AuthZ + object-scope checked
+  [ ] DB sensitive columns encrypted (where classified)
+  [ ] Logs redacted; errors sanitized
+  [ ] Security headers + no-store on auth APIs
+  [ ] Regression tests prevent re-introduction
+  [ ] All existing business constraints (FK, NOT NULL, stock rules, menus) intact
+  [ ] Explicit remaining limitation documented:
+
+      "Any field intentionally shown in the UI will be visible in DevTools
+       to the person using that browser. That is inherent to web apps."
+
+================================================================================
+8. FIRST ACTION TO TAKE NEXT
+================================================================================
+
+Start Phase A only:
+  1. Build the Data Exposure Matrix for CAITS (auth token, password, PAN, GSTIN,
+     employee email/phone, JWT claims, VAPID keys, upload paths).
+  2. Review matrix with you.
+  3. Then implement Phase B (HttpOnly cookie auth) as the highest-ROI change.
+
+Say "start Phase A" to begin the audit against the live codebase.

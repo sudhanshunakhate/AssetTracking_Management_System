@@ -1,0 +1,13 @@
+{
+  "path": "frontend/src/components/react-bits",
+  "purpose": "React Bits–inspired animated components used on login and dashboard, tuned to IT blue palette.",
+  "key_files": {
+    "Aurora.tsx": "ogl shader background for login",
+    "GhostCursor.tsx": "three.js ghost trail cursor on login (React Bits)",
+    "CountUp.tsx": "Dashboard KPI counters",
+    "index.ts": "Barrel exports for all vendored bits"
+  },
+  "depends_on": ["ogl", "motion", "gsap", "three"],
+  "used_by": ["frontend/src/features/auth", "frontend/src/features/dashboard", "frontend/src/components/layout"],
+  "updated": "2026-07-29"
+}

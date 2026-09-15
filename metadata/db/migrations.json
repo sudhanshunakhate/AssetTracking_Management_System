@@ -1,0 +1,496 @@
+{
+    "purpose":  "Ledger of every SQL change made to the CAITS schema, and which database has it. Keeps the local Postgres and the shared dev server in step.",
+    "environments":  {
+                         "local":  {
+                                       "label":  "Local Postgres (commented out in application.yml)",
+                                       "url":  "jdbc:postgresql://localhost:5432/postgres",
+                                       "schema":  "caits_local"
+                                   },
+                         "dev":  {
+                                     "label":  "Shared dev server (active in application.yml)",
+                                     "url":  "jdbc:postgresql://192.168.0.223:5432/caits",
+                                     "schema":  "caits_local"
+                                 }
+                     },
+    "rules":  [
+                  "Every schema or seed change goes in a file under db_approach/ ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â never as an ad-hoc psql statement.",
+                  "Scripts must be re-runnable: use IF NOT EXISTS / ON CONFLICT / guarded DO blocks.",
+                  "Apply to local first, set applied.local, and leave applied.dev null.",
+                  "Never run anything against dev without asking the user first."
+              ],
+    "baseline":  {
+                     "date":  "2026-08-01",
+                     "note":  "Both databases were compared and matched at this point: 21 tables, 25 menus, 27 general types, 134 general masters, 10 categories. Everything below predates the ledger and is recorded as already applied to both.",
+                     "local_snapshot":  {
+                                            "tables":  21,
+                                            "columns":  389,
+                                            "indexes":  46,
+                                            "menus":  25,
+                                            "gentypes":  27,
+                                            "genmasters":  134,
+                                            "categories":  10
+                                        }
+                 },
+    "migrations":  [
+                       {
+                           "id":  "001-seed-menus-and-role-access",
+                           "file":  "db_approach/seed_menus_and_role_access.sql",
+                           "description":  "Seeds sysm_menutree_mst and grants ADMIN full role permissions.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "002-seed-general-types-and-masters",
+                           "file":  "db_approach/seed_general_types_and_masters.sql",
+                           "description":  "Base gentype_mst / genmaster_mst lookup values.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "003-seed-general-lookups-extended",
+                           "file":  "db_approach/seed_general_lookups_extended.sql",
+                           "description":  "Additional lookup values for transaction and item screens.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "004-seed-department-designation-lookups",
+                           "file":  "db_approach/seed_department_designation_lookups.sql",
+                           "description":  "Department and designation lookups used by Employee Master.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "005-seed-categories-and-subcategories",
+                           "file":  "db_approach/seed_categories_and_subcategories.sql",
+                           "description":  "Inventory category / sub-category seed data.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-29"
+                                       }
+                       },
+                       {
+                           "id":  "006-alter-txn-header-add-prepared-by",
+                           "file":  "db_approach/alter_txn_header_add_prepared_by.sql",
+                           "description":  "Adds prepared-by column to txn_header_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-30"
+                                       }
+                       },
+                       {
+                           "id":  "007-alter-item-inspection-needed",
+                           "file":  "db_approach/alter_item_inspection_needed.sql",
+                           "description":  "Adds inspection-needed flag to inv_item_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-30"
+                                       }
+                       },
+                       {
+                           "id":  "008-migrate-roleperm-menu-fk",
+                           "file":  "db_approach/migrate_roleperm_menu_fk.sql",
+                           "description":  "Foreign key from sysm_rolepermission_dtl to sysm_menutree_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-30"
+                                       }
+                       },
+                       {
+                           "id":  "009-migrate-user-location-mapping",
+                           "file":  "db_approach/migrate_user_location_mapping.sql",
+                           "description":  "Adds sysm_user_location_mapping_dtl and usr_location_access_scope for multi-location user access.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-30"
+                                       }
+                       },
+                       {
+                           "id":  "010-migrate-item-hardware-network-fields",
+                           "file":  "db_approach/migrate_item_hardware_network_fields.sql",
+                           "description":  "Item Master gap fields from the Assets workbook: RAM/storage/processor, IP/MAC/hostname, asset condition, parent asset.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-31"
+                                       }
+                       },
+                       {
+                           "id":  "011-migrate-master-integrity-constraints",
+                           "file":  "db_approach/migrate_master_integrity_constraints.sql",
+                           "description":  "Unique indexes uq_item_serial_no and uq_access_exception plus lowercase lookup indexes, backing the master form validation.",
+                           "applied":  {
+                                           "local":  "2026-08-01 (baseline)",
+                                           "dev":  "2026-07-31"
+                                       }
+                       },
+                       {
+                           "id":  "012-migrate-txn-line-instance-fields",
+                           "file":  "db_approach/migrate_txn_line_instance_fields.sql",
+                           "description":  "Adds serial/IP/MAC/hostname on txn_detail_dtl so each asset unit line can store instance identity (Item Master stays catalog-only).",
+                           "applied":  {
+                                           "local":  "2026-08-02",
+                                           "dev":  "2026-08-03"
+                                       }
+                       },
+                       {
+                           "id":  "013-migrate-inv-bls-mst",
+                           "file":  "db_approach/migrate_inv_bls_mst.sql",
+                           "description":  "Adds inv_bls_mst (Batch/Lot/Serial register) and txn_detail_dtl.txd_bls_id_ibm FK. Dummy BLS per non-tracked item; serial/batch uniqueness.",
+                           "applied":  {
+                                           "local":  "2026-08-02",
+                                           "dev":  "2026-08-03"
+                                       }
+                       },
+                       {
+                           "id":  "014-migrate-menu-group-sort-order",
+                           "file":  "db_approach/migrate_menu_group_sort_order.sql",
+                           "description":  "Adds mtree_group_sort_order so sidebar sections can be reordered from Role \u0026 Menu Mapping.",
+                           "applied":  {
+                                           "local":  "2026-08-03",
+                                           "dev":  "2026-08-03"
+                                       }
+                       },
+                       {
+                           "id":  "015-create-user-favourite-menus",
+                           "file":  "db_approach/create_user_favourite_menus.sql",
+                           "description":  "Adds sysm_user_favourite_menu_dtl for per-user sidebar favourite menu pins.",
+                           "applied":  {
+                                           "local":  "2026-08-03",
+                                           "dev":  "2026-08-03"
+                                       }
+                       },
+                       {
+                           "id":  "016-simplify-menu-sequences",
+                           "file":  "db_approach/simplify_menu_sequences.sql",
+                           "description":  "Renumbers sections 1-5 and menus as N1/N2/N3 (e.g. Master Setup 11-17, Organization 21-23).",
+                           "applied":  {
+                                           "local":  "2026-08-03",
+                                           "dev":  "2026-08-04"
+                                       }
+                       },
+                       {
+                           "id":  "017-seed-report-menus-owner-movement-item",
+                           "file":  "db_approach/seed_report_menus_owner_movement_item.sql",
+                           "description":  "Adds Reports menus STKOWN / STKMOV / ITEMREG and ADMIN view+export permissions.",
+                           "applied":  {
+                                           "local":  "2026-08-05",
+                                           "dev":  "2026-08-04"
+                                       }
+                       },
+                       {
+                           "id":  "018-requisition-drop-pending-approval",
+                           "file":  "db_approach/requisition_drop_pending_approval.sql",
+                           "description":  "Convert MATERIAL_REQUISITION Pending Approval rows to Submitted; SR has no approval step.",
+                           "applied":  {
+                                           "local":  "2026-08-05",
+                                           "dev":  "2026-08-04"
+                                       }
+                       },
+                       {
+                           "id":  "019-remap-txn-status-labels",
+                           "file":  "db_approach/remap_txn_status_labels.sql",
+                           "description":  "Remap draft/submit statuses: In Pending/Completed (GRN/OST), Pending/Requested/Issued (SR), Pending/Issued (Issue), Pending/Transferred, Pending/Returned.",
+                           "applied":  {
+                                           "local":  "2026-08-05",
+                                           "dev":  "2026-08-04"
+                                       }
+                       },
+                       {
+                           "id":  "020-seed-unit-master",
+                           "file":  "db_approach/seed_unit_master.sql",
+                           "description":  "Seed Unit Master UOMs (NOS, PCS, RM, BOX, SET, MTR, ROL, PAC, BTL, LIC, CORE, KG, LTR, PAIR, CAN).",
+                           "applied":  {
+                                           "local":  "2026-08-05",
+                                           "dev":  "2026-08-05"
+                                       }
+                       },
+                       {
+                           "id":  "021-seed-office-item-master",
+                           "file":  "db_approach/seed_office_item_master.sql",
+                           "description":  "Seed Item Master catalog from office assets workbook (laptops, desktops, peripherals, consumables).",
+                           "applied":  {
+                                           "local":  "2026-08-05",
+                                           "dev":  "2026-08-05"
+                                       }
+                       },
+                       {
+                           "id":  "022-drop-item-mst-instance-fields",
+                           "file":  "db_approach/drop_item_mst_instance_fields.sql",
+                           "description":  "Drop instance-level columns from inv_item_mst (serial/IP/MAC/hostname/condition/batch/expiry/purchase/assigned); keep home location.",
+                           "applied":  {
+                                           "local":  "2026-08-05",
+                                           "dev":  "2026-08-05"
+                                       }
+                       },
+                       {
+                           "id":  "023-delete-mreq-miss-transactions",
+                           "file":  "db_approach/delete_mreq_miss_transactions.sql",
+                           "description":  "Delete MATERIAL_REQUISITION and MATERIAL_ISSUE headers/lines; restore stock for Issued issues.",
+                           "applied":  {
+                                           "local":  "2026-08-06",
+                                           "dev":  "2026-08-06"
+                                       }
+                       },
+                       {
+                           "id":  "024-trim-items-seed-opening-stock",
+                           "file":  "db_approach/trim_items_seed_opening_stock.sql",
+                           "description":  "Replace Item Master with 10 DEMO scenario items and seed completed Opening Stock (assets + consumables) with full line fields.",
+                           "applied":  {
+                                           "local":  "2026-08-06",
+                                           "dev":  "2026-08-07"
+                                       }
+                       },
+                       {
+                           "id":  "025-sync-local-dev-baseline",
+                           "file":  "db_approach/025_sync_local_dev_baseline.sql",
+                           "description":  "Force identical demo baseline on local and dev: wipe txn/stock, remove demo-only stores, re-seed 10 items + OST-DEMO.",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-11"
+                                       }
+                       },
+                       {
+                           "id":  "026-system-locations-inspection",
+                           "file":  "db_approach/026_system_locations_inspection.sql",
+                           "description":  "System locations per org (Main Store, Rejected, Quarantine, Damaged, Scrap), print location name, Inspection Approval menu.",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-11"
+                                       }
+                       },
+                       {
+                           "id":  "027-system-locations-per-ou",
+                           "file":  "db_approach/027_system_locations_per_ou.sql",
+                           "description":  "Seed system locations per Operating Unit (five stores per OU).",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-12"
+                                       }
+                       },
+                       {
+                           "id":  "028-drop-role-level",
+                           "file":  "db_approach/028_drop_role_level.sql",
+                           "description":  "Drop rol_role_level from sysm_roles_mst; role level removed from Role \u0026 Menu Mapping.",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-12"
+                                       }
+                       },
+                       {
+                           "id":  "029-department-master",
+                           "file":  "db_approach/029_department_master.sql",
+                           "description":  "Dedicated hrc_department_mst with Head of Department; migrate txn/employee FKs off genmaster.",
+                           "applied":  {
+                                           "local":  "2026-08-11",
+                                           "dev":  "2026-08-12"
+                                       }
+                       },
+                       {
+                           "id":  "030-grant-iapr-to-grn-roles",
+                           "file":  "db_approach/030_grant_iapr_to_grn_roles.sql",
+                           "description":  "Grant Inspection Approval menu to roles that can view GRN (not only ADMIN).",
+                           "applied":  {
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-17"
+                                       }
+                       },
+                       {
+                           "id":  "031-migrate-txn-line-issued-to",
+                           "file":  "db_approach/migrate_txn_line_issued_to.sql",
+                           "description":  "Adds issued-to employee FK on txn_detail_dtl and inv_bls_mst for Opening Stock when Condition is Issued.",
+                           "applied":  {
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-05"
+                                       }
+                       },
+                       {
+                           "id":  "032-delete-demo-data",
+                           "file":  "db_approach/031_delete_demo_data.sql",
+                           "description":  "Remove DEMO-* items, masters, stock/BLS, and all transactions tied to demo data.",
+                           "applied":  {
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-17"
+                                       }
+                       },
+                       {
+                           "id":  "033-department-operating-unit",
+                           "file":  "db_approach/033_department_operating_unit.sql",
+                           "description":  "Optional Operating Unit FK on hrc_department_mst.",
+                           "applied":  {
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-18"
+                                       }
+                       },
+                       {
+                           "id":  "034-employee-role-nullable",
+                           "file":  "db_approach/034_employee_role_nullable.sql",
+                           "description":  "Make emp_role_id_rol nullable so employees without login do not require a role.",
+                           "applied":  {
+                                           "local":  "2026-08-17",
+                                           "dev":  "2026-08-18"
+                                       }
+                       },
+                       {
+                           "id":  "035-api-performance-indexes",
+                           "file":  "db_approach/035_api_performance_indexes.sql",
+                           "description":  "Indexes on txn headers/details, stock, BLS, and auth tables for faster API list and report queries.",
+                           "applied":  {
+                                           "local":  "2026-08-19",
+                                           "dev":  "2026-09-07"
+                                       }
+                       },
+                       {
+                           "id":  "038-create-notifications",
+                           "file":  "db_approach/038_create_notifications.sql",
+                           "description":  "Per-user notifications and Web Push subscriptions for role-based real-time and OS alerts.",
+                           "applied":  {
+                                           "local":  "2026-08-25",
+                                           "dev":  "2026-08-25"
+                                       }
+                       },
+                       {
+                           "id":  "039-dashboard-role-widgets",
+                           "file":  "db_approach/039_dashboard_role_widgets.sql",
+                           "description":  "Role-based dashboard widget catalog and role mappings so each role sees a different home layout.",
+                           "applied":  {
+                                           "local":  "2026-08-26",
+                                           "dev":  "2026-08-26"
+                                       }
+                       },
+                       {
+                           "id":  "040-repair-same-loc-issue-stock",
+                           "file":  "db_approach/040_repair_same_loc_issue_stock.sql",
+                           "description":  "Restore on-hand qty for assets issued at the same store after a bug depleted stock while BLS still showed issued-to.",
+                           "applied":  {
+                                           "local":  "2026-09-07",
+                                           "dev":  "2026-08-26"
+                                       }
+                       },
+                       {
+                           "id":  "041-repair-negative-ledger-opening",
+                           "file":  "db_approach/041_repair_negative_ledger_opening.sql",
+                           "description":  "Restore zeroed issued/Acer stock and add recon batches so Stock Ledger Opening is non-negative.",
+                           "applied":  {
+                                           "local":  "2026-09-07",
+                                           "dev":  "2026-08-26"
+                                       }
+                       },
+                       {
+                           "id":  "042-department-location",
+                           "file":  "db_approach/042_department_location.sql",
+                           "description":  "Map each department to a mandatory operational location (store).",
+                           "applied":  {
+                                           "local":  "2026-09-07",
+                                           "dev":  "2026-08-28"
+                                       }
+                       },
+                       {
+                           "id":  "043-sync-bls-location-to-stock",
+                           "file":  "db_approach/sync_bls_location_to_stock.sql",
+                           "description":  "Repair BLS current location to match the store holding on-hand stock for that serial (transfer custody sync).",
+                           "applied":  {
+                                           "local":  "2026-09-07",
+                                           "dev":  "2026-09-03"
+                                       }
+                       },
+                       {
+                           "id":  "044-non-negative-stock",
+                           "file":  "db_approach/044_non_negative_stock.sql",
+                           "description":  "Restore zeroed asset serials, remove ledger recon batches, and CHECK stock qty cannot go negative.",
+                           "applied":  {
+                                           "local":  "2026-09-06",
+                                           "dev":  "2026-09-07"
+                                       }
+                       },
+                       {
+                           "id":  "045-rename-full-report-to-log-report",
+                           "file":  "db_approach/045_rename_full_report_to_log_report.sql",
+                           "description":  "Rename FULLRPT menu label from Full Report to Log Report.",
+                           "applied":  {
+                                           "local":  "2026-09-06",
+                                           "dev":  "2026-09-07"
+                                       }
+                       },
+                       {
+                           "id":  "046-wipe-keep-system-admin",
+                           "file":  "db_approach/046_wipe_keep_system_admin.sql",
+                           "description":  "Delete all transaction/inventory/business data; keep system admin user, ADMIN role/menus/permissions, lookups, and system locations.",
+                           "applied":  {
+                                           "local":  "2026-09-08",
+                                           "dev":  "2026-09-08"
+                                       }
+                       },
+                       {
+                           "id":  "047-deactivate-legacy-ou-system-locations",
+                           "file":  "db_approach/047_deactivate_legacy_ou_system_locations.sql",
+                           "description":  "Deactivate legacy OU-scoped system locations when org-global SYS-ENT rows exist, fixing NonUniqueResultException on GRN post.",
+                           "applied":  {
+                                           "local":  "2026-09-09",
+                                           "dev":  null
+                                       }
+                       },
+                       {
+                           "id":  "048-seed-caits-schema-admin",
+                           "file":  "db_approach/048_seed_caits_schema_admin.sql",
+                           "description":  "After cloning empty schema caits from caits_local (see clone-caits-local-structure-to-caits.ps1 / db_dump/caits_schema_from_caits_local.sql), seed single BCrypt admin login (micropro123).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-10"
+                                       }
+                       },
+                       {
+                           "id":  "049-copy-lookups-caits-local-to-caits",
+                           "file":  "db_approach/049_copy_lookups_caits_local_to_caits.sql",
+                           "description":  "Copy gentype_mst / genmaster_mst reference lookups into empty caits schema from caits_local so dropdown APIs work.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-10"
+                                       }
+                       },
+                       {
+                           "id":  "050-widen-encrypted-sensitive-columns",
+                           "file":  "db_approach/050_widen_encrypted_sensitive_columns.sql",
+                           "description":  "Widen vendor/entity/txn PAN+GSTIN columns to varchar(512) so AES-GCM ciphertext (enc:v1:…) fits.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-10"
+                                       }
+                       },
+                       {
+                           "id":  "051-add-missing-menus-depm-iapr-to-caits",
+                           "file":  "db_approach/051_add_missing_menus_depm_iapr_to_caits.sql",
+                           "description":  "Add DEPM (Department) and IAPR (Inspection Approval) menus + ADMIN perms to caits schema (present in caits_local only).",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-11"
+                                       }
+                       },
+                       {
+                           "id":  "052-copy-missing-seed-caits-local-to-caits",
+                           "file":  "db_approach/052_copy_missing_seed_caits_local_to_caits.sql",
+                           "description":  "Copy missing roles, permissions, widgets, units, categories, OUs, locations, departments from caits_local into caits.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-11"
+                                       }
+                       },
+                       {
+                           "id":  "053-copy-missing-vendors-items-to-caits",
+                           "file":  "db_approach/053_copy_missing_vendors_items_to_caits.sql",
+                           "description":  "Copy missing vendors, items, and item-location maps from caits_local into caits.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-11"
+                                       }
+                       }
+                   ],
+    "updated":  "2026-09-11"
+}

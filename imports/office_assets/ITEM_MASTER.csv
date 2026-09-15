@@ -1,0 +1,150 @@
+itemCode,itemName,itemType,categoryCode,subcategoryCode,uomCode,makeBrand,model,ram,storage,isSerialized,isActive,description
+CAM-ARDUCAM-UC-733,ARDUCAM UC -733,asset,CAT-IT,SC-PERIPH,NOS,Arducam,UC -733,,,Y,Y,USB CAMERA MODULE catalog from office assets workbook
+CAM-BAUMER-VCXU-123C,BAUMER VCXU-123c,asset,CAT-IT,SC-PERIPH,NOS,Baumer,VCXU-123c,,,Y,Y,CAMERA catalog from office assets workbook
+CAM-BAUMER-VCXU-2-241C,BAUMER VCXU.2-241C,asset,CAT-IT,SC-PERIPH,NOS,Baumer,VCXU.2-241C,,,Y,Y,CAMERA catalog from office assets workbook
+CAM-HIKVISIS-DS-UD,HIKVISISION DS-UD,asset,CAT-IT,SC-PERIPH,NOS,Hikvisision,DS-UD,,,Y,Y,USB TYPE CAMERA catalog from office assets workbook
+CAM-LAPCARE-LWC-009,LAPCARE LWC-009,asset,CAT-IT,SC-PERIPH,NOS,Lapcare,LWC-009,,,Y,Y,USB TYPE CAMERA catalog from office assets workbook
+CAM-LAPCARE-LWC-042,LAPCARE LWC-042,asset,CAT-IT,SC-PERIPH,NOS,Lapcare,LWC-042,,,Y,Y,USB TYPE CAMERA catalog from office assets workbook
+CAM-UNKNOWN-,UNKNOWN,asset,CAT-IT,SC-PERIPH,NOS,,,,,Y,Y,CAMERA catalog from office assets workbook
+CAM-UNKNOWN-IMX179,UNKNOWN IMX179,asset,CAT-IT,SC-PERIPH,NOS,,IMX179,,,Y,Y,CAMERA WITH EMBEDDED MIC catalog from office assets workbook
+DESK-1-DELL-MONITOR-27-IN,1 Dell Monitor 27 Inch TFT - S2721QS,asset,CAT-IT,SC-DESKTOP,NOS,1,Dell Monitor 27 Inch TFT - S2721QS,,,Y,Y,DESKTOP catalog from office assets workbook
+DESK-2-ACER-MONITOR27-INC,2 Acer Monitor27 Inch KA270,asset,CAT-IT,SC-DESKTOP,NOS,2,Acer Monitor27 Inch KA270,,,Y,Y,DESKTOP catalog from office assets workbook
+DESK-3-ACER-MONITOR27-INC,3 Acer Monitor27 Inch KA270,asset,CAT-IT,SC-DESKTOP,NOS,3,Acer Monitor27 Inch KA270,,,Y,Y,DESKTOP catalog from office assets workbook
+DESK-4-AOC-MONITER27-INCH,4 AOC Moniter27 Inch 27B2H,asset,CAT-IT,SC-DESKTOP,NOS,4,AOC Moniter27 Inch 27B2H,,,Y,Y,DESKTOP catalog from office assets workbook
+DESK-5-AOC-MONITER27-INCH,5 AOC Moniter27 Inch27B2H,asset,CAT-IT,SC-DESKTOP,NOS,5,AOC Moniter27 Inch27B2H,,,Y,Y,DESKTOP catalog from office assets workbook
+DESK-6-ACER-MONITER27-INC,6 Acer Moniter27 Inch27B2H,asset,CAT-IT,SC-DESKTOP,NOS,6,Acer Moniter27 Inch27B2H,,,Y,Y,DESKTOP catalog from office assets workbook
+DESK-7-AOC-E2239FWT-215LM,7 AOC E2239FWT (215LM00005),asset,CAT-IT,SC-DESKTOP,NOS,7,AOC E2239FWT (215LM00005),,,Y,Y,DESKTOP catalog from office assets workbook
+DESK-ACER-VERITON-SERIES,ACER Veriton Series,asset,CAT-IT,SC-DESKTOP,NOS,Acer,Veriton Series,4 GB,320 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-ASUS-A-F-K31AN,ASUS A_F_K31AN,asset,CAT-IT,SC-DESKTOP,NOS,Asus,A_F_K31AN,8 GB,240 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-COMPAQ-DX2480,HP COMPAQ DX2480,asset,CAT-IT,SC-DESKTOP,NOS,Hp,COMPAQ DX2480,5 GB,380GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-COMPAQ-6200-PRO,HP HP Compaq 6200 Pro SFF PC,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Compaq 6200 Pro SFF PC,8 GB,240 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-COMPAQ-6300-PRO,HP HP Compaq 6300 Pro SFF PC,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Compaq 6300 Pro SFF PC,8 GB,500 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-COMPAQ-8000-ELI,HP HP Compaq 8000 Elite SFF PC,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Compaq 8000 Elite SFF PC,4 GB,150 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-COMPAQ-8200-ELI,HP HP Compaq 8200 Elite SFF PC,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Compaq 8200 Elite SFF PC,8 GB,250 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-COMPAQ-DC5750-S,HP HP Compaq DC5750 Small Form Factor,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Compaq DC5750 Small Form Factor,4 GB,240 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-COMPAQ-ELITE-83,HP HP Compaq Elite 8300 SFF,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Compaq Elite 8300 SFF,16 GB,320 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-COMPAQ-PRO-6300,HP HP Compaq Pro 6300 SFF,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Compaq Pro 6300 SFF,16 GB,500 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-COMPAQ4000PRO,HP HP Compaq4000pro,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Compaq4000pro,8 GB,380GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-ELITE-800-G1-SF,HP HP Elite 800 G1 SFF,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Elite 800 G1 SFF,5 GB,250 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-ELITEDESK-800-G,HP HP EliteDesk 800 G2 SFF,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP EliteDesk 800 G2 SFF,8 GB,240 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-ELITEDESK-800-G-2,HP HP EliteDesk 800 G1 SFF,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP EliteDesk 800 G1 SFF,8 GB,256 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-PRO-2110,HP HP Pro 2110,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Pro 2110,4 GB,320 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-PRO-3005-3085,HP HP Pro 3005/3085,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Pro 3005/3085,8 GB,500 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-PRO-3090-MICROT,HP HP Pro 3090 Microtower PC,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Pro 3090 Microtower PC,8 GB,320 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-PRO-3090-MT,HP HP Pro 3090 MT,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Pro 3090 MT,4 GB,150 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-PRO-3335-MT,HP HP Pro 3335 MT,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP Pro 3335 MT,10 GB,500 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-PRODESK-400-G4-,HP HP ProDesk 400 G4 SFF,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP ProDesk 400 G4 SFF,8 GB,256 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-HP-PRODESK-600-G1-,HP HP ProDesk 600 G1 SFF,asset,CAT-IT,SC-DESKTOP,NOS,Hp,HP ProDesk 600 G1 SFF,16 GB,240 GB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-HP-PROLIANT-MICROSERV,HP ProLiant MicroServer,asset,CAT-IT,SC-DESKTOP,NOS,Hp,ProLiant MicroServer,8 GB,2.13 TB,Y,Y,DESKTOP catalog from office assets workbook
+DESK-SR-NO-MONITOR-SCREEN,SR.NO Monitor - Screen,asset,CAT-IT,SC-DESKTOP,NOS,Sr.No,Monitor - Screen,,,Y,Y,DESKTOP catalog from office assets workbook
+IT-BAUMER-KSG-U2,BAUMER KSG U2,asset,CAT-IT,SC-PERIPH,NOS,Baumer,KSG U2,,,Y,Y,CABLE catalog from office assets workbook
+IT-RASPBERR-,RASPBERRY PI,asset,CAT-IT,SC-PERIPH,NOS,Raspberry Pi,,,,Y,Y,RASPBERRY PI 3WITH INCLOUSER catalog from office assets workbook
+IT-RASPBERR-16MM,RASPBERRY PI 16mm,asset,CAT-IT,SC-PERIPH,NOS,Raspberry Pi,16mm,,,Y,Y,TELEPHOTO LENS catalog from office assets workbook
+IT-RASPBERR-3MP-HD,RASPBERRY PI 3MP-HD,asset,CAT-IT,SC-PERIPH,NOS,Raspberry Pi,3MP-HD,,,Y,Y,CCTV LENS catalog from office assets workbook
+IT-RASPBERR-MODEL-B,RASPBERRY PI Model B,asset,CAT-IT,SC-PERIPH,NOS,Raspberry Pi,Model B,,,Y,Y,RASPBERRY PI -4 catalog from office assets workbook
+IT-TAMRON-12MEGAPIXEL,TAMRON 12Megapixel,asset,CAT-IT,SC-PERIPH,NOS,Tamron,12Megapixel,,,Y,Y,LENS catalog from office assets workbook
+IT-TAMRON-LM25XC,TAMRON LM25xc,asset,CAT-IT,SC-PERIPH,NOS,Tamron,LM25xc,,,Y,Y,LENS catalog from office assets workbook
+IT-UNKNOWN-,UNKNOWN,asset,CAT-IT,SC-PERIPH,NOS,,,,,Y,Y,BEZGLE Y - AI catalog from office assets workbook
+LAP-ACER-ACER-ONE-14-Z2-485,ACER Acer One 14 Z2-485,asset,CAT-IT,SC-LAPTOP,NOS,Acer,Acer One 14 Z2-485,8 GB,1TB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-ACER-NITRO-5-AN15-58-79,ACER Nitro 5(AN15-58-79X9),asset,CAT-IT,SC-LAPTOP,NOS,Acer,Nitro 5(AN15-58-79X9),16 GB,1024GB(NVMe),Y,Y,LAPTOP catalog from office assets workbook
+LAP-APPLE-MAC-BOOK-AIR,APPLE Mac Book Air,asset,CAT-IT,SC-LAPTOP,NOS,Apple,Mac Book Air,8 GB,256 GBG SSD,Y,Y,LAPTOP catalog from office assets workbook
+LAP-APPLE-MAC-BOOK-PRO,APPLE Mac Book pro,asset,CAT-IT,SC-LAPTOP,NOS,Apple,Mac Book pro,,,Y,Y,LAPTOP catalog from office assets workbook
+LAP-ASUS-ASUS-EXPERTBOOK,ASUS Asus Expertbook,asset,CAT-IT,SC-LAPTOP,NOS,Asus,Asus Expertbook,16GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-ASUS-ASUS-EXPERTBOOK-B1,ASUS Asus Expertbook(B1402CBA-EK0170),asset,CAT-IT,SC-LAPTOP,NOS,Asus,Asus Expertbook(B1402CBA-EK0170),16GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-ASUS-ASUSPRO-P1440FA-P1,ASUS ASUSPRO P1440FA_P1440FA,asset,CAT-IT,SC-LAPTOP,NOS,Asus,ASUSPRO P1440FA_P1440FA,4 GB,1 TB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-ASUS-EXPERT-BOOK-B1503C,ASUS Expert book (B1503CVA),asset,CAT-IT,SC-LAPTOP,NOS,Asus,Expert book (B1503CVA),8GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-ASUS-EXPERTBOOK,ASUS Expertbook,asset,CAT-IT,SC-LAPTOP,NOS,Asus,Expertbook,24 GB,512GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-ASUS-VIVOBOOK-ASUSLAPTO,ASUS VivoBook_ASUSLaptop X510QA_X510QA,asset,CAT-IT,SC-LAPTOP,NOS,Asus,VivoBook_ASUSLaptop X510QA_X510QA,8 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-DELL-LATITUDE-3400,DELL Latitude 3400,asset,CAT-IT,SC-LAPTOP,NOS,Dell,Latitude 3400,16 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-DELL-LATITUDE-3510,DELL Latitude 3510,asset,CAT-IT,SC-LAPTOP,NOS,Dell,Latitude 3510,12 GB,512GB(NVMV) +230GB SSD,Y,Y,LAPTOP catalog from office assets workbook
+LAP-DELL-LATITUDE-5420,DELL Latitude 5420,asset,CAT-IT,SC-LAPTOP,NOS,Dell,Latitude 5420,16GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-DELL-LATITUDE-7320,DELL Latitude 7320,asset,CAT-IT,SC-LAPTOP,NOS,Dell,Latitude 7320,16GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-DELL-LATITUDE-7321,DELL Latitude 7321,asset,CAT-IT,SC-LAPTOP,NOS,Dell,Latitude 7321,16GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-DELL-LATITUDE-E6230,DELL Latitude E6230,asset,CAT-IT,SC-LAPTOP,NOS,Dell,Latitude E6230,8 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-DELL-LATITUDE-E6410,DELL Latitude E6410,asset,CAT-IT,SC-LAPTOP,NOS,Dell,Latitude E6410,8 GB,240 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-DELL-LATITUDE-E7240,DELL Latitude E7240,asset,CAT-IT,SC-LAPTOP,NOS,Dell,Latitude E7240,4 GB,250GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HONOR-HONOR-MAGICBOOK-BR,HONOR Honor Magicbook(BRN-F56),asset,CAT-IT,SC-LAPTOP,NOS,Honor,Honor Magicbook(BRN-F56),16GB,512GBPCle SSD,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-ELITE-X2-1012-G1,HP Elite X2 1012 G1,asset,CAT-IT,SC-LAPTOP,NOS,Hp,Elite X2 1012 G1,4GB,120 GB SSD,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-240-G8-NOTEBOOK,HP HP 240 G8 Notebook PC,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP 240 G8 Notebook PC,8 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-245-G7-NOTEBOOK,HP HP 245 G7 Notebook PC,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP 245 G7 Notebook PC,16 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-430-NOTEBOOK-PC,HP HP 430 Notebook PC,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP 430 Notebook PC,4 GB,320 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-ELITEBOOK-840-G,HP HP EliteBook 840 G3,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP EliteBook 840 G3,16 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-ELITEBOOK-840-G-2,HP HP EliteBook 840 G4,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP EliteBook 840 G4,16 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-ELITEBOOK-840-G-3,HP HP EliteBook 840 G1,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP EliteBook 840 G1,16 GB,238 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-ELITEBOOK-840-G-4,HP HP EliteBook 840 G2,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP EliteBook 840 G2,8 GB,256 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-ELITEBOOK-FOLIO,HP HP EliteBook Folio 9480m,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP EliteBook Folio 9480m,8 GB,250 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-EXPERTBOOK-840-,HP HP Expertbook 840 G1,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP Expertbook 840 G1,8 GB,512 GB SSD,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-PROBOOK-430-G2,HP HP ProBook 430 G2,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP ProBook 430 G2,8 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-PROBOOK-440-G5,HP HP ProBook 440 G5,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP ProBook 440 G5,16 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-PROBOOK-440-G5-2,HP HP Probook 440-G5,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP Probook 440-G5,16 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-PROBOOK-440-G8,HP Hp Probook 440 G8,asset,CAT-IT,SC-LAPTOP,NOS,Hp,Hp Probook 440 G8,8 GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-PROBOOK-640-G1,HP HP ProBook 640 G1,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP ProBook 640 G1,8 GB,700 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-PROBOOK440-G9,HP Hp probook440-G9,asset,CAT-IT,SC-LAPTOP,NOS,Hp,Hp probook440-G9,16GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-HP-HP-ZBOOK-14U-G6,HP HP ZBook 14u G6,asset,CAT-IT,SC-LAPTOP,NOS,Hp,HP ZBook 14u G6,16 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-LENOVO-80Q7,LENOVO 80Q7,asset,CAT-IT,SC-LAPTOP,NOS,Lenovo,80Q7,8 GB,1 TB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-LENOVO-82TT,LENOVO 82TT,asset,CAT-IT,SC-LAPTOP,NOS,Lenovo,82TT,16 GB,480 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-LENOVO-LENOVO-MODEL-V15-G,LENOVO Lenovo Model -V15 G3 IAP,asset,CAT-IT,SC-LAPTOP,NOS,Lenovo,Lenovo Model -V15 G3 IAP,16GB,512GB (Nvme),Y,Y,LAPTOP catalog from office assets workbook
+LAP-LENOVO-LENOVO-V15-G3,LENOVO Lenovo V15 G3,asset,CAT-IT,SC-LAPTOP,NOS,Lenovo,Lenovo V15 G3,16 GB,512GBSSD(NVMV),Y,Y,LAPTOP catalog from office assets workbook
+LAP-LENOVO-LENOVO-V15G3,LENOVO Lenovo-V15G3,asset,CAT-IT,SC-LAPTOP,NOS,Lenovo,Lenovo-V15G3,16GB,512GBSSD(Nvme),Y,Y,LAPTOP catalog from office assets workbook
+LAP-TOSHIBA-SATELLITE-C640,TOSHIBA Satellite C640,asset,CAT-IT,SC-LAPTOP,NOS,Toshiba,Satellite C640,4 GB,620 GB,Y,Y,LAPTOP catalog from office assets workbook
+LAP-UNKNOWN-ONLINE-ODER,UNKNOWN (Online Oder),asset,CAT-IT,SC-LAPTOP,NOS,,(Online Oder),,,Y,Y,LAPTOP catalog from office assets workbook
+CONS-1,1,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-10,10,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-11,11,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-12,12,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-13,13,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-15,15,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-16,16,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-17,17,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-18,18,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-19,19,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-2,2,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-20,20,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-21,21,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-22,22,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-23,23,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-24,24,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-25,25,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-26,26,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-27,27,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-28,28,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-29,29,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-3,3,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-30,30,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-31,31,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-32,32,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-33,33,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-34,34,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-35,35,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-36,36,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-37,37,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-38,38,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-39,39,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-4,4,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-40,40,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-41,41,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-42,42,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-43,43,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-44,44,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-45,45,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-46,46,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-47,47,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-48,48,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-49,49,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-5,5,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-50,50,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-51,51,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-52,52,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-53,53,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-54,54,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-55,55,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-56,56,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-6,6,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-7,7,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-8,8,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-9,9,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-FOR-PI-HIGHT-QUALITY,for Pi hight quality camera,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-LB36418279,LB36418279,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-MICRO-SD-32-GB-S-N-3,"Micro SD 32 GB , S/N -3B2311HIA &power Adpter Cable ,",consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-RASPBERRY-PI-6MM-CCT,Raspberry pi 6mm CCTV Lens 3MP-HD,consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet
+CONS-S-N-LB36418234-LB364,"S/N-LB36418234,LB36418265,LB36418265,",consumable,CAT-CONS,SC-CONSGEN,PCS,,,,,N,Y,From Instock Material sheet

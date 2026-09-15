@@ -1,0 +1,23 @@
+﻿# Example environment for Tomcat / production (do NOT commit real secrets)
+# Set these as OS environment variables or Tomcat setenv.bat / setenv.sh
+
+# Database profile: 1 = caits_local, 2 = caits
+CAITS_DB=2
+
+# Optional JDBC overrides (else application-1.yml / application-2.yml defaults apply)
+# SPRING_DATASOURCE_URL=jdbc:postgresql://HOST:5432/caits?currentSchema=caits
+# SPRING_DATASOURCE_USERNAME=caits
+# SPRING_DATASOURCE_PASSWORD=CHANGE_ME
+
+# Security
+CAITS_SECURITY_JWT_SECRET=CHANGE_ME_TO_A_LONG_RANDOM_STRING_32PLUS
+CAITS_SECURITY_FIELD_ENCRYPTION_KEY=CHANGE_ME_TO_A_LONG_RANDOM_STRING_32PLUS
+CAITS_SECURITY_COOKIE_SECURE=false
+CAITS_SECURITY_COOKIE_SAME_SITE=Lax
+
+# CORS (same-origin Tomcat ROOT usually does not need extras; keep for multi-origin)
+CAITS_CORS_ALLOWED_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+
+# Uploads + logs (absolute paths recommended on server)
+CAITS_STORAGE_UPLOAD_DIR=C:/caits/uploads
+CAITS_LOG_FILE=C:/caits/logs/caits-app.log

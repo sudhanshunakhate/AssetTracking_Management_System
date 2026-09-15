@@ -1,0 +1,28 @@
+{
+  "id": "transactions-phase2",
+  "status": "done",
+  "description": "Phase 2 transaction UIs wired to live /api/v1 lists + draft create: Opening Stock, Requisitions, GRN, Gatepass inward/outward, Issues, Transfers, Returns. Dropdowns from masters APIs. Saves require at least one line (item+qty) as SAVE_DRAFT.",
+  "files": [
+    "frontend/src/features/transactions/TransactionPages.tsx",
+    "frontend/src/features/transactions/GatepassPage.tsx",
+    "frontend/src/api/transactions.ts",
+    "frontend/src/types/transactions.ts",
+    "frontend/src/config/navigation.ts",
+    "frontend/src/features/masters/SimpleMasterModule.tsx"
+  ],
+  "api_endpoints": [
+    "GET/POST/PUT /opening-stock",
+    "GET /opening-stock/{docId}",
+    "GET/POST/PUT /requisitions",
+    "GET/POST/PUT /grn",
+    "GET/POST /gatepass/inward",
+    "GET/POST /gatepass/outward",
+    "GET/POST /material-issues",
+    "GET/POST /transfers",
+    "GET/POST /returns"
+  ],
+  "db_tables": ["txn_header_mst", "txn_detail_dtl", "inv_stock_mst"],
+  "depends_on": ["app-shell", "masters-phase1", "auth-login"],
+  "notes": "Opening Stock form maps all API/DB line fields (qty, rate, mrp, batchLotNo, mfgDate, expiryDate, locationBin). Edit loads GET /opening-stock/{docId}. Entry No is auto OST-yyyy-####. List includes entityId. Store Requisition has since moved out of TransactionPages.tsx into its own full-featured page — see features/store-requisition.json.",
+  "updated": "2026-08-01"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "auth-login",
+  "status": "done",
+  "description": "Mock login UI with React Bits (Aurora, BlurText, TextType, StarBorder, Magnet, ShinyText, ClickSpark). Any password signs in; session stored in sessionStorage.",
+  "files": [
+    "frontend/src/features/auth/LoginPage.tsx",
+    "frontend/src/features/auth/AuthContext.tsx"
+  ],
+  "api_endpoints": [],
+  "db_tables": [],
+  "depends_on": [],
+  "notes": "No backend auth yet. Demo Login ID prefilled as aditya.kulkarni.",
+  "updated": "2026-07-29"
+}

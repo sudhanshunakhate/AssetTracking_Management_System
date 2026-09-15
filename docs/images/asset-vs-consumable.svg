@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="260" viewBox="0 0 860 260" role="img" aria-label="Assets versus consumables">
+  <rect width="860" height="260" rx="16" fill="#f8fafb"/>
+  <text x="28" y="36" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" fill="#0f3d45">Assets vs consumables</text>
+
+  <rect x="28" y="60" width="380" height="170" rx="14" fill="#e6fcf5" stroke="#0d7377" stroke-width="2"/>
+  <circle cx="70" cy="100" r="22" fill="#0d7377"/>
+  <text x="70" y="106" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#fff">=�</text>
+  <text x="108" y="96" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#0d7377">Asset</text>
+  <text x="108" y="116" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#14919b">One unit � one serial</text>
+  <text x="48" y="150" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#0f3d45">" Serial required on receive / issue / return</text>
+  <text x="48" y="172" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#0f3d45">" Tracked on BLS (custody, IP/MAC&)</text>
+  <text x="48" y="194" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#0f3d45">" Same-store issue often keeps qty</text>
+  <text x="48" y="216" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#0f3d45">" Example: laptop, printer, tool</text>
+
+  <rect x="452" y="60" width="380" height="170" rx="14" fill="#e7f5ff" stroke="#1c7ed6" stroke-width="2"/>
+  <circle cx="494" cy="100" r="22" fill="#1c7ed6"/>
+  <text x="494" y="106" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#fff">=�</text>
+  <text x="532" y="96" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#1c7ed6">Consumable</text>
+  <text x="532" y="116" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#4dabf7">Qty � optional batch</text>
+  <text x="472" y="150" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#0f3d45">" Quantity in / out at locations</text>
+  <text x="472" y="172" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#0f3d45">" Stock ledger is the main view</text>
+  <text x="472" y="194" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#0f3d45">" Issue decreases store qty</text>
+  <text x="472" y="216" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#0f3d45">" Example: cable, toner, stationery</text>
+</svg>

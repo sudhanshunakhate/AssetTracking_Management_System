@@ -1,0 +1,11 @@
+{
+  "path": "frontend/src/features/auth",
+  "purpose": "Login page and mock auth session context.",
+  "key_files": {
+    "LoginPage.tsx": "Attractive login with React Bits backgrounds/text; demo mode",
+    "AuthContext.tsx": "sessionStorage-backed mock login/logout"
+  },
+  "depends_on": ["frontend/src/components/react-bits"],
+  "used_by": ["frontend/src/App.tsx", "frontend/src/components/layout/AppShell.tsx"],
+  "updated": "2026-07-29"
+}

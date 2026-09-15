@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CAITS — Product Functional Guide</title>
+  <style>
+    :root {
+      --ink: #0f3d45;
+      --muted: #5a6b73;
+      --teal: #0d7377;
+      --line: #d8e2e6;
+      --bg: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Calibri, Arial, sans-serif;
+      color: var(--ink);
+      line-height: 1.55;
+      font-size: 11pt;
+      margin: 0;
+      padding: 28px 36px 48px;
+      background: var(--bg);
+    }
+    h1 {
+      font-size: 26pt;
+      color: var(--teal);
+      margin: 0 0 12px;
+      page-break-after: avoid;
+    }
+    h2 {
+      font-size: 16pt;
+      color: var(--teal);
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 6px;
+      margin-top: 28px;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 13pt;
+      color: #14919b;
+      margin-top: 20px;
+      page-break-after: avoid;
+    }
+    h4 {
+      font-size: 11.5pt;
+      color: #1c4b82;
+      page-break-after: avoid;
+    }
+    p, li { orphans: 3; widows: 3; }
+    a { color: #0d7377; text-decoration: none; }
+    img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 12px 0 18px;
+      border-radius: 8px;
+      page-break-inside: avoid;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px;
+      font-size: 10pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 7px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #e8f4f5;
+      color: var(--teal);
+      font-weight: 700;
+    }
+    blockquote {
+      margin: 12px 0;
+      padding: 10px 14px;
+      border-left: 4px solid var(--teal);
+      background: #f0f7f8;
+      color: var(--muted);
+    }
+    hr {
+      border: none;
+      border-top: 1px solid var(--line);
+      margin: 24px 0;
+    }
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+      background: #f1f3f5;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    pre:not(.mermaid) {
+      background: #f1f3f5;
+      padding: 12px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 9.5pt;
+    }
+    pre.mermaid {
+      background: #f7fafb;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      page-break-inside: avoid;
+      margin: 14px 0 20px;
+    }
+    .mermaid svg { max-width: 100%; height: auto; }
+    @page {
+      size: A4;
+      margin: 14mm 12mm 16mm;
+    }
+    @media print {
+      body { padding: 0; }
+      a[href]::after { content: ""; }
+    }
+  </style>
+</head>
+<body>
+<h1>CAITS — Product Functional Guide</h1>
+<p><img src="images/caits-guide-cover.png" alt="CAITS Asset & Inventory Tracking cover"></p>
+<p><strong>CAITS</strong> (Centralized Asset and Inventory Tracking System) helps teams manage inventory and serialized assets across organizations, operating units, and store locations — from receipt and inspection through issue, transfer, return, and gatepass.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>🖥️ <strong>Frontend</strong></td>
+<td>React + Vite (<code>http://localhost:5173</code>)</td>
+</tr>
+<tr>
+<td>⚙️ <strong>Backend</strong></td>
+<td>Spring Boot + JWT (<code>http://localhost:8085/api/v1</code>)</td>
+</tr>
+<tr>
+<td>🗄️ <strong>Database</strong></td>
+<td>PostgreSQL schema <code>caits_local</code></td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>This guide focuses on <strong>flows and functionality</strong>. For schema/API depth, see <a href="CAITS_FULL_SYSTEM_DOCUMENTATION.md"><code>CAITS_FULL_SYSTEM_DOCUMENTATION.md</code></a>.</p>
+</blockquote>
+<hr>
+<h2>📑 Contents</h2>
+<ol>
+<li><a href="#1--who-uses-it">Who uses it</a></li>
+<li><a href="#2--core-concepts">Core concepts</a></li>
+<li><a href="#3--master-setup-recommended-order">Master setup</a></li>
+<li><a href="#4--end-to-end-business-flows">End-to-end business flows</a></li>
+<li><a href="#5--reports--dashboard">Reports &amp; Dashboard</a></li>
+<li><a href="#6--common-business-rules-cheat-sheet">Business rules cheat sheet</a></li>
+<li><a href="#7--suggested-demo-walkthrough">Suggested demo walkthrough</a></li>
+<li><a href="#8--related-docs-in-this-repo">Related docs</a></li>
+</ol>
+<hr>
+<h2>1. 👥 Who uses it</h2>
+<p><img src="images/caits-user-roles.png" alt="User roles: Store, Gate, Quality, Admin"></p>
+<table>
+<thead>
+<tr>
+<th align="center">Icon</th>
+<th>Role area</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">📦</td>
+<td><strong>Store / inventory</strong></td>
+<td>Opening stock, GRN, issue, transfer, return, stock ledgers</td>
+</tr>
+<tr>
+<td align="center">🚧</td>
+<td><strong>Gate / logistics</strong></td>
+<td>Gatepass inward &amp; outward, returnable materials</td>
+</tr>
+<tr>
+<td align="center">🔍</td>
+<td><strong>Quality</strong></td>
+<td>Inspection approval (quarantine → home store / rejected)</td>
+</tr>
+<tr>
+<td align="center">🛡️</td>
+<td><strong>Admin</strong></td>
+<td>Masters, roles, users, location access, exceptions</td>
+</tr>
+</tbody></table>
+<p>Access is controlled by <strong>Role &amp; Menu Mapping</strong> (view / create / edit / delete / approve / print / export), plus optional <strong>User Access Exceptions</strong> and <strong>OU / location scope</strong> on the user.</p>
+<pre><code class="language-mermaid">flowchart LR
+  U[👤 User login] --&gt; R[🎭 Role]
+  R --&gt; M[📋 Menu ACL]
+  U --&gt; S[📍 OU / Location scope]
+  M --&gt; A[Allowed screens &amp; actions]
+  S --&gt; A
+</code></pre>
+<hr>
+<h2>2. 🧩 Core concepts</h2>
+<h3>2.1 Assets vs consumables</h3>
+<p><img src="images/asset-vs-consumable.svg" alt="Assets vs consumables comparison"></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Tracking</th>
+<th>Typical behaviour</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>🖥 Asset</strong></td>
+<td>Often serialized (1 unit = 1 serial)</td>
+<td>Serial on receive/issue/return/outward; custody on BLS</td>
+</tr>
+<tr>
+<td><strong>📦 Consumable</strong></td>
+<td>Qty / optional batch</td>
+<td>Stock quantity increases/decreases at locations</td>
+</tr>
+</tbody></table>
+<h3>2.2 Stock vs BLS</h3>
+<pre><code class="language-mermaid">flowchart TB
+  subgraph Stock[&quot;📊 Stock register&quot;]
+    S1[&quot;Item + Location (+ batch)&quot;]
+    S2[&quot;Quantity on hand&quot;]
+  end
+  subgraph BLS[&quot;🏷️ BLS register&quot;]
+    B1[&quot;Serial / lot / unit&quot;]
+    B2[&quot;Location · Issued-to · IP/MAC&quot;]
+  end
+  Stock -. qty view .-&gt; Ops[Transactions]
+  BLS -. unit view .-&gt; Ops
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Register</th>
+<th>What it answers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Stock</strong> (<code>inv_stock_mst</code>)</td>
+<td><em>How much</em> is at a location?</td>
+</tr>
+<tr>
+<td><strong>BLS</strong> (<code>inv_bls_mst</code>)</td>
+<td><em>Which unit / serial</em> is where, and who holds it?</td>
+</tr>
+</tbody></table>
+<h3>2.3 Organization &amp; system locations</h3>
+<p><img src="images/org-hierarchy.svg" alt="Organization hierarchy and system locations"></p>
+<table>
+<thead>
+<tr>
+<th>System location</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>🏪 <strong>MAIN_STORE</strong></td>
+<td>Default system store</td>
+</tr>
+<tr>
+<td>⏸️ <strong>QUARANTINE</strong></td>
+<td>Inspection-needed receipts wait here</td>
+</tr>
+<tr>
+<td>⚠️ <strong>DAMAGED</strong></td>
+<td>Damaged material</td>
+</tr>
+<tr>
+<td>🗑️ <strong>SCRAP</strong></td>
+<td>Scrap</td>
+</tr>
+<tr>
+<td>❌ <strong>REJECTED</strong></td>
+<td>Rejected at GRN or after failed inspection</td>
+</tr>
+</tbody></table>
+<p>Operational <strong>Locations</strong> belong to Operating Units and are used for day-to-day store work.</p>
+<h3>2.4 Inspection needed</h3>
+<p><img src="images/inspection-flow.svg" alt="Inspection needed workflow"></p>
+<p>On <strong>Item Master</strong>, set <strong>Inspection Needed</strong>. On GRN / Gatepass Inward submit:</p>
+<ol>
+<li>Accepted qty → <strong>Quarantine</strong></li>
+<li><strong>Pending Inspection Approval</strong> for the assigned inspector</li>
+<li><strong>Approve</strong> → item <strong>home store</strong> · <strong>Reject</strong> → <strong>Rejected</strong></li>
+</ol>
+<h3>2.5 Document lifecycle</h3>
+<p><img src="images/document-lifecycle.svg" alt="Document lifecycle: draft, submit, final"></p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>💾 <strong>Save Draft</strong></td>
+<td>Editable draft / pending</td>
+</tr>
+<tr>
+<td>✅ <strong>Submit</strong></td>
+<td>Posts stock (where applicable) and finalizes</td>
+</tr>
+</tbody></table>
+<p>Document numbers: <code>PREFIX-YEAR-NNNN</code> — e.g. <code>GRN-2026-0001</code>, <code>GPO-2026-0003</code>.</p>
+<hr>
+<h2>3. 🧱 Master setup (recommended order)</h2>
+<p>Set masters in this order so transactions have the data they need:</p>
+<pre><code class="language-mermaid">flowchart LR
+  A[1️⃣ Units] --&gt; B[2️⃣ Categories]
+  B --&gt; C[3️⃣ General Master]
+  C --&gt; D[4️⃣ Org → OU → Location]
+  D --&gt; E[5️⃣ Items]
+  E --&gt; F[6️⃣ Vendors]
+  F --&gt; G[7️⃣ Roles]
+  G --&gt; H[8️⃣ Employees]
+  H --&gt; I[9️⃣ Users]
+  I --&gt; J[🔟 Exceptions]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th align="center">Step</th>
+<th>Master</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1️⃣</td>
+<td><strong>Unit Master</strong></td>
+<td>UOMs</td>
+</tr>
+<tr>
+<td align="center">2️⃣</td>
+<td><strong>Inventory Category / Sub-Category</strong></td>
+<td>Item classification</td>
+</tr>
+<tr>
+<td align="center">3️⃣</td>
+<td><strong>General Type / General Master</strong></td>
+<td>Lookups (returnable, purposes…)</td>
+</tr>
+<tr>
+<td align="center">4️⃣</td>
+<td><strong>Organization → OU → Location</strong></td>
+<td>Structure + system stores</td>
+</tr>
+<tr>
+<td align="center">5️⃣</td>
+<td><strong>Item Master</strong></td>
+<td>Type, serial/batch, home store, inspection</td>
+</tr>
+<tr>
+<td align="center">6️⃣</td>
+<td><strong>Vendor / Party</strong></td>
+<td>Suppliers &amp; parties</td>
+</tr>
+<tr>
+<td align="center">7️⃣</td>
+<td><strong>Role &amp; Menu Mapping</strong></td>
+<td>Screen permissions</td>
+</tr>
+<tr>
+<td align="center">8️⃣</td>
+<td><strong>Employee / Department</strong></td>
+<td>People &amp; teams</td>
+</tr>
+<tr>
+<td align="center">9️⃣</td>
+<td><strong>User Access Mapping</strong></td>
+<td>Login, role, scope</td>
+</tr>
+<tr>
+<td align="center">🔟</td>
+<td><strong>User Access Exception</strong></td>
+<td>Optional overrides</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. 🔄 End-to-end business flows</h2>
+<h3>4.1 High-level stock journey</h3>
+<p><img src="images/stock-journey.svg" alt="End-to-end stock journey diagram"></p>
+<pre><code class="language-mermaid">flowchart TD
+  OS[Opening Stock] --&gt; ONHAND[Stock / BLS on hand]
+  GRN[GRN] --&gt; ONHAND
+  GPI[Gatepass Inward] --&gt; ONHAND
+  ONHAND --&gt;|Inspection needed| Q[Quarantine]
+  Q --&gt; IAPR[Inspection Approval]
+  IAPR --&gt;|Approve| HOME[Home store]
+  IAPR --&gt;|Reject| REJ[Rejected]
+  ONHAND --&gt; SR[Requisition]
+  SR --&gt; ISS[Store Issue]
+  ISS --&gt; RTN[Material Return]
+  ONHAND --&gt; TRF[Material Transfer]
+  TRF --&gt;|OU| PFO[Pending for Outward]
+  PFO --&gt; GPO[Gatepass Outward]
+  GPO --&gt;|Returnable| GPI2[Gatepass Inward]
+</code></pre>
+<hr>
+<h3>4.2 📥 Opening Stock (OPN)</h3>
+<p><strong>Purpose:</strong> Seed opening balances.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Step</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1️⃣</td>
+<td>Create entry: organization, store, date, item lines</td>
+</tr>
+<tr>
+<td align="center">2️⃣</td>
+<td>Assets → serials · Consumables → qty (+ optional batch)</td>
+</tr>
+<tr>
+<td align="center">3️⃣</td>
+<td>Submit → stock <strong>increases</strong>; BLS created/resolved</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>⚠️ Duplicate serials already in the system are rejected (first-time inbound).</p>
+</blockquote>
+<hr>
+<h3>4.3 🧾 Goods Receipt Note — GRN</h3>
+<p><strong>Purpose:</strong> Receive material from a <strong>supplier / vendor</strong>.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Step</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1️⃣</td>
+<td>Header: supplier, invoice/PO refs, store, inspector if needed</td>
+</tr>
+<tr>
+<td align="center">2️⃣</td>
+<td>Lines: received / accepted / rejected qty; serials for assets</td>
+</tr>
+<tr>
+<td align="center">3️⃣</td>
+<td>Submit</td>
+</tr>
+</tbody></table>
+<p><strong>Where accepted / rejected qty goes:</strong></p>
+<pre><code class="language-mermaid">flowchart LR
+  SUB[Submit GRN] --&gt; REJ[❌ Rejected qty → Rejected store]
+  SUB --&gt; ACC{Accepted?}
+  ACC --&gt;|Inspection needed| Q[⏸️ Quarantine + IAPR]
+  ACC --&gt;|Normal| ST[🏪 GRN / line store]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Qty</th>
+<th>Destination</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Rejected</td>
+<td><strong>Rejected</strong> system store</td>
+</tr>
+<tr>
+<td>Accepted + Inspection Needed</td>
+<td><strong>Quarantine</strong> (+ pending Inspection Approval)</td>
+</tr>
+<tr>
+<td>Accepted otherwise</td>
+<td>GRN / line store</td>
+</tr>
+</tbody></table>
+<p><strong>Requires:</strong> Inspected By when any accepted line needs inspection; item must have a <strong>home store</strong>.</p>
+<hr>
+<h3>4.4 🔍 Inspection Approval (IAPR)</h3>
+<p><strong>Purpose:</strong> Clear quarantine after GRN or Gatepass Inward.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Step</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1️⃣</td>
+<td>System creates <strong>Pending</strong> approval linked to source document</td>
+</tr>
+<tr>
+<td align="center">2️⃣</td>
+<td>Assigned inspector opens Inspection Approvals</td>
+</tr>
+<tr>
+<td align="center">3️⃣</td>
+<td><strong>Approve</strong> → Quarantine → home store</td>
+</tr>
+<tr>
+<td align="center">4️⃣</td>
+<td><strong>Reject</strong> → Quarantine → Rejected store</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>🔐 Only the assigned inspector (or ADMIN) may approve/reject.</p>
+</blockquote>
+<hr>
+<h3>4.5 📝 Store Requisition (SR)</h3>
+<p><strong>Purpose:</strong> Request material — <strong>does not move stock</strong>.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Step</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1️⃣</td>
+<td>Return-from type: Employee or Department</td>
+</tr>
+<tr>
+<td align="center">2️⃣</td>
+<td>Select items/locations with available stock</td>
+</tr>
+<tr>
+<td align="center">3️⃣</td>
+<td>Submit → status <strong>Requested</strong></td>
+</tr>
+</tbody></table>
+<p>Downstream: Store Issue picks <strong>Requested</strong> requisitions → after issue, requisition becomes <strong>Issued</strong>.</p>
+<hr>
+<h3>4.6 📤 Store Issue (ISS)</h3>
+<p><img src="images/issue-return-cycle.svg" alt="Request → Issue → Return cycle"></p>
+<p><strong>Purpose:</strong> Issue material from a store against a requisition.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Step</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1️⃣</td>
+<td>New Issue → pick a <strong>Requested</strong> requisition</td>
+</tr>
+<tr>
+<td align="center">2️⃣</td>
+<td>Confirm From Location, Issued To, To Location</td>
+</tr>
+<tr>
+<td align="center">3️⃣</td>
+<td>Lines: issue qty; assets need free serials at From Location</td>
+</tr>
+<tr>
+<td align="center">4️⃣</td>
+<td>Submit → <strong>Issued</strong></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Item type</th>
+<th>On submit</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>📦 Consumables</td>
+<td>Quantity leaves the issuing store</td>
+</tr>
+<tr>
+<td>🖥 Assets (same store)</td>
+<td>On-hand qty often unchanged; BLS <strong>issued-to</strong> employee</td>
+</tr>
+<tr>
+<td>📍 Different destination</td>
+<td>Stock moves From → To</td>
+</tr>
+</tbody></table>
+<p>Sidebar highlights <strong>Store Issue</strong> for all <code>/transactions/issues/*</code> routes.</p>
+<hr>
+<h3>4.7 🔀 Material Transfer (TRF)</h3>
+<p><strong>Purpose:</strong> Move stock between locations.</p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>🏠 <strong>INTERNAL</strong></td>
+<td>Submit → stock moves → <strong>Transferred</strong></td>
+</tr>
+<tr>
+<td>🏢 <strong>OU</strong></td>
+<td>Submit → stock moves → <strong>Pending for Outward</strong> until Gatepass Outward → <strong>Transferred</strong></td>
+</tr>
+</tbody></table>
+<pre><code class="language-mermaid">sequenceDiagram
+  participant User
+  participant Transfer as Material Transfer
+  participant Stock
+  participant Gate as Gatepass Outward
+  User-&gt;&gt;Transfer: Submit OU transfer
+  Transfer-&gt;&gt;Stock: Move qty / BLS
+  Transfer--&gt;&gt;User: Pending for Outward
+  User-&gt;&gt;Gate: Complete outward
+  Gate--&gt;&gt;Transfer: Status → Transferred
+  Note over Gate: Gate docs only — no second stock post
+</code></pre>
+<p><strong>Rules:</strong></p>
+<ul>
+<li>Cannot transfer inspection-needed items <strong>into Damaged/Scrap</strong> (use Quarantine / inspection).</li>
+<li>Linked Gatepass Outward is <strong>gate documentation only</strong> (does not post stock again).</li>
+</ul>
+<hr>
+<h3>4.8 ↩️ Material Return (RTN)</h3>
+<p><strong>Purpose:</strong> Return allotted material to store.</p>
+<table>
+<thead>
+<tr>
+<th align="center">Step</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1️⃣</td>
+<td>Return From: Employee or Department</td>
+</tr>
+<tr>
+<td align="center">2️⃣</td>
+<td>Pick allotted item (and serial for assets)</td>
+</tr>
+<tr>
+<td align="center">3️⃣</td>
+<td>Return-to store = Item Master home store</td>
+</tr>
+<tr>
+<td align="center">4️⃣</td>
+<td>Submit → <strong>Returned</strong>; stock back; BLS custody cleared</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>4.9 🚧 Gatepass (GP)</h3>
+<p>One menu covers <strong>Outward</strong> and <strong>Inward</strong>.</p>
+<p><img src="images/gatepass-cycle.svg" alt="Gatepass and OU transfer / returnable cycle"></p>
+<h4>Outward ➡️</h4>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>New / standalone</strong></td>
+<td>From a <strong>system</strong> location to a vendor/party; Returnable Y/N</td>
+</tr>
+<tr>
+<td><strong>Against transfer</strong></td>
+<td>Completes OU transfer; party/store from transfer</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>✅ Mandatory</td>
+<td>Vendor / Party / Customer (free text)</td>
+</tr>
+<tr>
+<td>✨ Prefill</td>
+<td>Party can come from source GRN / Opening Stock vendor</td>
+</tr>
+<tr>
+<td>🚫 Block</td>
+<td>Inspection-needed items from Quarantine / Damaged / Scrap until inspected</td>
+</tr>
+</tbody></table>
+<h4>Inward ⬅️</h4>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Against Returnable Outward</strong></td>
+<td>Bring returnable material back</td>
+</tr>
+<tr>
+<td><strong>New Inward</strong></td>
+<td>Fresh gate receipt from Item Master</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>✅ Mandatory</td>
+<td>Vendor / Party / Customer · Serial for assets</td>
+</tr>
+<tr>
+<td>👤 Inspector list</td>
+<td>Employees who have a <strong>role</strong> assigned</td>
+</tr>
+</tbody></table>
+<p><strong>Receive location:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>New inward, no inspection</td>
+<td>Item home store</td>
+</tr>
+<tr>
+<td>Inspection needed (new <strong>or</strong> returnable)</td>
+<td><strong>Quarantine</strong> (+ Inspection Approval)</td>
+</tr>
+<tr>
+<td>Returnable, no inspection</td>
+<td>Outward system store</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5. 📊 Reports &amp; Dashboard</h2>
+<table>
+<thead>
+<tr>
+<th align="center">Icon</th>
+<th>Screen</th>
+<th>What you get</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">🏠</td>
+<td><strong>Dashboard</strong></td>
+<td>KPIs, pending work, low stock, recent activity</td>
+</tr>
+<tr>
+<td align="center">📒</td>
+<td><strong>Stock Ledger</strong></td>
+<td>Opening / receipts / issues / closing; expand units</td>
+</tr>
+<tr>
+<td align="center">📜</td>
+<td><strong>Log Report</strong></td>
+<td>Transaction activity (filters include serial)</td>
+</tr>
+<tr>
+<td align="center">👤</td>
+<td><strong>Stock Owner Report</strong></td>
+<td>Where stock sits and who holds custody</td>
+</tr>
+<tr>
+<td align="center">🗺️</td>
+<td><strong>Asset Movement Register</strong></td>
+<td>How assets moved across locations/custodians</td>
+</tr>
+<tr>
+<td align="center">📈</td>
+<td><strong>Item Ledger</strong></td>
+<td>Running balance by document for an item</td>
+</tr>
+</tbody></table>
+<pre><code class="language-mermaid">flowchart LR
+  D[Dashboard] --&gt; P[Pending work]
+  D --&gt; L[Low stock]
+  R1[Stock Ledger] --&gt; Bal[Balances]
+  R2[Stock Owner] --&gt; Cust[Custody]
+  R3[Asset Movement] --&gt; Trail[Movement trail]
+</code></pre>
+<hr>
+<h2>6. ✅ Common business rules (cheat sheet)</h2>
+<table>
+<thead>
+<tr>
+<th align="center">Icon</th>
+<th>Topic</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">🔢</td>
+<td>Serials</td>
+<td>Required for serialized/asset lines on receive, issue, return, gatepass</td>
+</tr>
+<tr>
+<td align="center">🚫</td>
+<td>Duplicate serial</td>
+<td>Blocked on GRN / Opening Stock; Return &amp; GPI reuse BLS</td>
+</tr>
+<tr>
+<td align="center">⏸️</td>
+<td>Inspection</td>
+<td>Quarantine → Inspection Approval → Home or Rejected</td>
+</tr>
+<tr>
+<td align="center">✍️</td>
+<td>Gatepass party</td>
+<td>Mandatory on inward and outward</td>
+</tr>
+<tr>
+<td align="center">🏢</td>
+<td>OU transfer</td>
+<td>Needs Gatepass Outward to finish</td>
+</tr>
+<tr>
+<td align="center">🔁</td>
+<td>Returnable outward</td>
+<td>Paired later with Gatepass Inward</td>
+</tr>
+<tr>
+<td align="center">📍</td>
+<td>Location access</td>
+<td>Users only see/post to allowed OUs/locations (ADMIN exempt)</td>
+</tr>
+<tr>
+<td align="center">💾</td>
+<td>Drafts</td>
+<td>Editable until submitted</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>7. 🎬 Suggested demo walkthrough</h2>
+<p>Follow this path for a short end-to-end demo:</p>
+<pre><code class="language-mermaid">flowchart LR
+  M[1 Masters] --&gt; R[2 Receive]
+  R --&gt; Q[3 Inspect]
+  Q --&gt; I[4 Req + Issue]
+  I --&gt; T[5 Return]
+  T --&gt; G[6 Transfer + GP]
+  G --&gt; V[7 Verify reports]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th align="center">Step</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="center">1️⃣</td>
+<td><strong>Masters</strong> — org, OU, location, units, one asset + one consumable, vendor, employee with role + login</td>
+</tr>
+<tr>
+<td align="center">2️⃣</td>
+<td><strong>Opening Stock</strong> or <strong>GRN</strong> — receive asset with serial and consumable qty</td>
+</tr>
+<tr>
+<td align="center">3️⃣</td>
+<td>If inspection-needed — <strong>Inspection Approval</strong> → home store</td>
+</tr>
+<tr>
+<td align="center">4️⃣</td>
+<td><strong>Requisition</strong> → <strong>Store Issue</strong> (pick serial for asset)</td>
+</tr>
+<tr>
+<td align="center">5️⃣</td>
+<td><strong>Material Return</strong> — return the allotted asset</td>
+</tr>
+<tr>
+<td align="center">6️⃣</td>
+<td><strong>Transfer (OU)</strong> → <strong>Gatepass Outward</strong> (returnable) → <strong>Gatepass Inward</strong></td>
+</tr>
+<tr>
+<td align="center">7️⃣</td>
+<td>Open <strong>Stock Ledger</strong> / <strong>Stock Owner</strong> / <strong>Dashboard</strong> to verify</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>8. 📚 Related docs in this repo</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="CAITS_PRODUCT_FUNCTIONAL_GUIDE.pdf"><code>CAITS_PRODUCT_FUNCTIONAL_GUIDE.pdf</code></a></td>
+<td>Printable PDF (diagrams + images)</td>
+</tr>
+<tr>
+<td><a href="CAITS_PRODUCT_FUNCTIONAL_GUIDE.md"><code>CAITS_PRODUCT_FUNCTIONAL_GUIDE.md</code></a></td>
+<td>This guide (flows, diagrams, images)</td>
+</tr>
+<tr>
+<td><a href="images/"><code>images/</code></a></td>
+<td>Cover, role art, and SVG flow diagrams</td>
+</tr>
+<tr>
+<td><a href="CAITS_FULL_SYSTEM_DOCUMENTATION.md"><code>CAITS_FULL_SYSTEM_DOCUMENTATION.md</code></a></td>
+<td>Deeper technical / schema write-up</td>
+</tr>
+<tr>
+<td><a href="DEMO_UI_WORKFLOW_RUN.md"><code>DEMO_UI_WORKFLOW_RUN.md</code></a></td>
+<td>Demo UI workflow notes</td>
+</tr>
+<tr>
+<td><a href="../db_approach/CAIMS_Relational_Schema.md"><code>../db_approach/CAIMS_Relational_Schema.md</code></a></td>
+<td>Relational schema notes</td>
+</tr>
+<tr>
+<td><a href="../README.md"><code>../README.md</code></a></td>
+<td>Project entry / run instructions</td>
+</tr>
+</tbody></table>
+<hr>
+<h3>Viewing tips</h3>
+<table>
+<thead>
+<tr>
+<th>Viewer</th>
+<th>What works best</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>GitHub / GitLab</strong></td>
+<td>PNGs, SVGs, and Mermaid diagrams</td>
+</tr>
+<tr>
+<td><strong>VS Code / Cursor</strong></td>
+<td>Open preview (<code>Markdown: Open Preview</code>) for Mermaid + images</td>
+</tr>
+<tr>
+<td><strong>PDF export</strong></td>
+<td>Use a Markdown→PDF tool that supports Mermaid (or rely on the SVG images)</td>
+</tr>
+</tbody></table>
+<hr>
+<p><em>Aligned with current CAITS behaviour (masters, transactions, quarantine/inspection, gatepass, reports). Update this file and <code>docs/images/</code> when major workflows change.</em></p>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: 'loose',
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#e6fcf5',
+      primaryTextColor: '#0f3d45',
+      primaryBorderColor: '#0d7377',
+      lineColor: '#5a6b73',
+      secondaryColor: '#e7f5ff',
+      tertiaryColor: '#fff7ed',
+      fontFamily: 'Segoe UI, Arial, sans-serif'
+    }
+  });
+  await mermaid.run();
+  document.documentElement.setAttribute('data-mermaid-ready', 'true');
+</script>
+</body>
+</html>

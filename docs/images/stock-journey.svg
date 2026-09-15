@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="560" viewBox="0 0 980 560" role="img" aria-label="Stock journey overview">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#5a6b73"/>
+    </marker>
+    <filter id="s" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.14"/>
+    </filter>
+  </defs>
+  <rect width="980" height="560" rx="16" fill="#f7fafb"/>
+  <text x="32" y="38" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700" fill="#0f3d45">End-to-end stock journey</text>
+  <text x="32" y="60" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#5a6b73">From receipt to issue, transfer, return, and gate</text>
+
+  <!-- Inbound -->
+  <text x="32" y="100" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#0d7377">INBOUND</text>
+  <rect x="32" y="112" width="150" height="48" rx="10" fill="#0d7377" filter="url(#s)"/>
+  <text x="107" y="141" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#fff">Opening Stock</text>
+  <rect x="202" y="112" width="110" height="48" rx="10" fill="#0d7377" filter="url(#s)"/>
+  <text x="257" y="141" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#fff">GRN</text>
+  <rect x="332" y="112" width="150" height="48" rx="10" fill="#0d7377" filter="url(#s)"/>
+  <text x="407" y="141" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#fff">Gatepass Inward</text>
+
+  <path d="M107 160 L107 190" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M257 160 L257 190" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M407 160 L407 190" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Stock pool -->
+  <rect x="150" y="196" width="280" height="64" rx="12" fill="#fff" stroke="#14919b" stroke-width="2.5" filter="url(#s)"/>
+  <text x="290" y="224" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700" fill="#0d7377">Stock / BLS on hand</text>
+  <text x="290" y="244" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#5a6b73">Qty + serial units at locations</text>
+
+  <!-- Inspection branch -->
+  <path d="M430 228 L500 228" stroke="#c45c26" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="508" y="196" width="140" height="64" rx="12" fill="#fff7ed" stroke="#c45c26" stroke-width="2" filter="url(#s)"/>
+  <text x="578" y="224" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#c45c26">Quarantine</text>
+  <text x="578" y="244" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#9a5b2e">If inspection needed</text>
+
+  <path d="M648 228 L700 228" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="708" y="196" width="160" height="64" rx="12" fill="#fff" stroke="#b8860b" stroke-width="2" filter="url(#s)"/>
+  <text x="788" y="224" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#8a6d1b">Inspection</text>
+  <text x="788" y="244" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#8a6d1b">Approve / Reject</text>
+
+  <path d="M788 260 L788 300" stroke="#5a6b73" stroke-width="2"/>
+  <path d="M720 300 L856 300" stroke="#5a6b73" stroke-width="2"/>
+  <path d="M720 300 L720 320" stroke="#2f9e44" stroke-width="2" marker-end="url(#arrow)"/>
+  <path d="M856 300 L856 320" stroke="#c92a2a" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="660" y="324" width="120" height="40" rx="8" fill="#ebfbee" stroke="#2f9e44" stroke-width="1.5"/>
+  <text x="720" y="349" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#2f9e44">Home store</text>
+  <rect x="796" y="324" width="120" height="40" rx="8" fill="#fff5f5" stroke="#c92a2a" stroke-width="1.5"/>
+  <text x="856" y="349" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#c92a2a">Rejected</text>
+
+  <!-- Outbound chain -->
+  <text x="32" y="300" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#1c4b82">OUTBOUND / MOVEMENT</text>
+  <path d="M290 260 L290 320" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="32" y="328" width="130" height="48" rx="10" fill="#1c4b82" filter="url(#s)"/>
+  <text x="97" y="357" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#fff">Requisition</text>
+  <path d="M162 352 L190 352" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="198" y="328" width="130" height="48" rx="10" fill="#1c4b82" filter="url(#s)"/>
+  <text x="263" y="357" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#fff">Store Issue</text>
+  <path d="M328 352 L356 352" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="364" y="328" width="150" height="48" rx="10" fill="#495057" filter="url(#s)"/>
+  <text x="439" y="357" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#fff">Material Return</text>
+
+  <path d="M263 376 L263 420" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="32" y="428" width="160" height="48" rx="10" fill="#5c3d8a" filter="url(#s)"/>
+  <text x="112" y="457" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#fff">Material Transfer</text>
+  <path d="M192 452 L220 452" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="228" y="428" width="160" height="48" rx="10" fill="#862e9c" filter="url(#s)"/>
+  <text x="308" y="450" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">Gatepass Outward</text>
+  <text x="308" y="466" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10" fill="#f3d9fa">(OU / returnable)</text>
+  <path d="M388 452 L416 452" stroke="#5a6b73" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="424" y="428" width="150" height="48" rx="10" fill="#0d7377" filter="url(#s)"/>
+  <text x="499" y="457" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600" fill="#fff">Gatepass Inward</text>
+
+  <text x="32" y="520" font-family="Segoe UI, Arial, sans-serif" font-size="12" fill="#5a6b73">Tip: Requisition does not move stock  Store Issue does. OU transfer finishes with Gatepass Outward.</text>
+</svg>
