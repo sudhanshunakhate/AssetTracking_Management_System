@@ -14,6 +14,7 @@ import {
 } from '@/features/transactions/MasterSearchLookup'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
+import { ReportTableScroll, reportThClass } from './ReportTableScroll'
 
 type MovementRow = {
   id: string
@@ -173,39 +174,43 @@ export function StockMovementReportPage() {
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading asset movements…</div>}
 
-      <Card className="mb-3">
+      <Card className="mb-3 overflow-visible">
         <CardHeader title="Filters" subtitle="Narrow by date range, serial no., asset, owner, or location" />
-        <CardBody>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
-            <Field label="From Date">
+        <CardBody className="overflow-visible">
+          <div className="grid grid-cols-1 items-end gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <Field label="From Date" className="min-w-0">
               <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />
             </Field>
-            <Field label="To Date">
+            <Field label="To Date" className="min-w-0">
               <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
             </Field>
-            <Field label="Serial No.">
+            <Field label="Serial No." className="min-w-0">
               <Input
                 value={draft.serialNo}
                 onChange={(e) => set('serialNo', e.target.value)}
                 placeholder="Track serial…"
               />
             </Field>
-            <Field label="Item">
+            <Field label="Item" className="relative z-30 min-w-0">
               <MasterItemSearchLookup
                 value={draft.itemId}
                 onChange={(v) => set('itemId', v)}
                 placeholder="All Assets"
+                allowClear
+                className="w-full"
               />
             </Field>
-            <Field label="Owner">
+            <Field label="Owner" className="relative z-20 min-w-0">
               <MasterEmployeeSearchLookup
                 value={draft.employeeId}
                 onChange={(v) => set('employeeId', v)}
                 placeholder="All Owners"
+                allowClear
+                className="w-full"
               />
             </Field>
-            <Field label="Location">
-              <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
+            <Field label="Location" className="relative z-10 min-w-0">
+              <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)} className="w-full">
                 <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -214,32 +219,31 @@ export function StockMovementReportPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Search">
+            <Field label="Search" className="min-w-0 sm:col-span-2 lg:col-span-1 xl:col-span-1">
               <Input
                 value={draft.search}
                 onChange={(e) => set('search', e.target.value)}
                 placeholder="Asset / document…"
               />
             </Field>
-          </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="ghost" onClick={clearFilters}>Clear</Button>
-            <Button onClick={applyFilters}>Apply</Button>
+            <div className="flex items-end justify-end gap-2 sm:col-span-2 lg:col-span-3 xl:col-span-4">
+              <Button variant="ghost" onClick={clearFilters}>
+                Clear
+              </Button>
+              <Button onClick={applyFilters}>Apply</Button>
+            </div>
           </div>
         </CardBody>
       </Card>
 
-      <Card>
-        <CardBody>
-          <div className="overflow-x-auto">
+      <Card className="overflow-visible">
+        <CardBody className="p-0">
+          <ReportTableScroll>
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-[var(--surface2)]">
+                <tr>
                   {headers.map((h) => (
-                    <th
-                      key={h}
-                      className="border-b-2 border-[var(--border)] px-[11px] py-[7px] text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase whitespace-nowrap"
-                    >
+                    <th key={h} className={reportThClass}>
                       {h}
                     </th>
                   ))}
@@ -282,9 +286,9 @@ export function StockMovementReportPage() {
                 )}
               </tbody>
             </table>
-          </div>
+          </ReportTableScroll>
 
-          <div className="mt-3.5 flex flex-wrap gap-7 border-t border-[var(--border)] pt-3 text-[12.5px] text-[var(--text2)]">
+          <div className="flex flex-wrap gap-7 border-t border-[var(--border)] px-3.5 py-3 text-[12.5px] text-[var(--text2)]">
             <div>
               Movements: <strong>{rows.length}</strong>
             </div>

@@ -458,6 +458,31 @@ export async function fetchAvailableSerials(itemId: number, locationId?: number)
   return http.get<AvailableSerialUnit[]>(`/issues/available-serials?${qs}`)
 }
 
+/** Distinct serial / batch numbers for an item (stock rows + available serial units). */
+export async function fetchSerialOptionsForItem(itemId: number, locationId?: number): Promise<string[]> {
+  if (!Number.isFinite(itemId) || itemId <= 0) return []
+  const loc =
+    locationId != null && Number.isFinite(locationId) && locationId > 0 ? locationId : undefined
+  const stockQs = new URLSearchParams({ itemId: String(itemId), page: '1', pageSize: '500' })
+  if (loc != null) stockQs.set('locationId', String(loc))
+
+  const [units, stockPage] = await Promise.all([
+    fetchAvailableSerials(itemId, loc).catch(() => [] as AvailableSerialUnit[]),
+    http.get<PageResponse<StockRow>>(`/stock?${stockQs}`).catch(() => ({ data: [] as StockRow[] })),
+  ])
+
+  const found = new Set<string>()
+  for (const u of units) {
+    const sn = String(u.serialNo ?? u.batchLotNo ?? '').trim()
+    if (sn) found.add(sn)
+  }
+  for (const r of stockPage.data ?? []) {
+    const sn = String(r.batchLotNo ?? '').trim()
+    if (sn) found.add(sn)
+  }
+  return [...found].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
+
 /** Vendor / party from GRN or Opening Stock for Gatepass Outward item selection. */
 export async function fetchInboundParty(opts: {
   blsId?: number

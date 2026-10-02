@@ -1,4 +1,4 @@
-{
+﻿{
     "purpose":  "Ledger of every SQL change made to the CAITS schema, and which database has it. Keeps the local Postgres and the shared dev server in step.",
     "environments":  {
                          "local":  {
@@ -13,7 +13,7 @@
                                  }
                      },
     "rules":  [
-                  "Every schema or seed change goes in a file under db_approach/ ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â never as an ad-hoc psql statement.",
+                  "Every schema or seed change goes in a file under db_approach/ ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â never as an ad-hoc psql statement.",
                   "Scripts must be re-runnable: use IF NOT EXISTS / ON CONFLICT / guarded DO blocks.",
                   "Apply to local first, set applied.local, and leave applied.dev null.",
                   "Never run anything against dev without asking the user first."
@@ -458,7 +458,7 @@
                        {
                            "id":  "050-widen-encrypted-sensitive-columns",
                            "file":  "db_approach/050_widen_encrypted_sensitive_columns.sql",
-                           "description":  "Widen vendor/entity/txn PAN+GSTIN columns to varchar(512) so AES-GCM ciphertext (enc:v1:…) fits.",
+                           "description":  "Widen vendor/entity/txn PAN+GSTIN columns to varchar(512) so AES-GCM ciphertext (enc:v1:â€¦) fits.",
                            "applied":  {
                                            "local":  null,
                                            "dev":  "2026-09-10"
@@ -490,7 +490,34 @@
                                            "local":  null,
                                            "dev":  "2026-09-11"
                                        }
+                       },
+                       {
+                           "id":  "054-seed-micropro-employees",
+                           "file":  "db_approach/054_seed_micropro_employees.sql",
+                           "description":  "Seed 129 Micropro employees into caits hrc_employee_mst (depts + reporting managers) from employee import CSV.",
+                           "applied":  {
+                                           "local":  null,
+                                           "dev":  "2026-09-15"
+                                       }
+                       },
+                       {
+                           "id":  "055-catalog-need-request",
+                           "file":  "db_approach/055_catalog_need_request.sql",
+                           "description":  "Catalog Need Request: itm_common_name, standalone CNR tables, menu CNR — applied to caits_local and caits schemas.",
+                           "applied":  {
+                                           "local":  "2026-09-23",
+                                           "dev":  "2026-09-23"
+                                       }
+                       },
+                       {
+                           "id":  "056-deactivate-catalog-need-menu",
+                           "file":  "db_approach/056_deactivate_catalog_need_menu.sql",
+                           "description":  "Deactivate CNR menu on caits_local and caits; keep catalog need tables for future.",
+                           "applied":  {
+                                           "local":  "2026-10-01",
+                                           "dev":  "2026-10-01"
+                                       }
                        }
                    ],
-    "updated":  "2026-09-11"
+    "updated":  "2026-10-01"
 }

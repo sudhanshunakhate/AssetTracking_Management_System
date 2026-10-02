@@ -95,7 +95,6 @@ export function InspectionItemLines({
     // lines intentionally omitted — stockKey covers item/batch/location without looping on stock patches
   }, [stockKey, linesLocked, lookup, sourceQuarantineId])
 
-  const addLine = () => onChange((prev) => [...prev, emptyInspectionLine()])
   const removeLine = (key: string) =>
     onChange((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)))
 
@@ -215,8 +214,8 @@ export function InspectionItemLines({
           </table>
         </div>
         {!linesLocked && (
-          <div className="mt-2">
-            <Button variant="ghost" className="text-xs" onClick={addLine}>+ Add line</Button>
+          <div className="mt-2 text-[11px] text-[var(--text3)]">
+            Lines come from the linked GRN / Gatepass — add/remove is not available here.
           </div>
         )}
         <ItemCodeOptions id={DATALIST_ID} items={items} />

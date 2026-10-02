@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+  const overflow = /\boverflow-/.test(className) ? '' : 'overflow-hidden'
   return (
     <div
-      className={`mb-2.5 overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--sh)] ${className}`}
+      className={`mb-2.5 ${overflow} rounded-[10px] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--sh)] ${className}`}
     >
       {children}
     </div>

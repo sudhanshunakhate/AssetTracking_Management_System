@@ -65,6 +65,42 @@ function urlBase64ToUint8Array(base64String: string) {
   return output
 }
 
+/** Windows/OS tray while the tab is open (secure context + permission). */
+async function showOsTrayNotification(n: AppNotification) {
+  if (typeof window === 'undefined' || !window.isSecureContext) return
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+  const path = n.linkUrl && n.linkUrl.startsWith('/') ? n.linkUrl : '/'
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready
+      await reg.showNotification(n.title || 'CAITS', {
+        body: n.body || '',
+        icon: '/favicon.png',
+        badge: '/favicon.png',
+        tag: n.id ? `caits-${n.id}` : `caits-ntf-${Date.now()}`,
+        renotify: true,
+        data: { url: path },
+      })
+      return
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    const note = new Notification(n.title || 'CAITS', {
+      body: n.body || '',
+      icon: '/favicon.png',
+      tag: n.id ? `caits-${n.id}` : undefined,
+    })
+    note.onclick = () => {
+      window.focus()
+      note.close()
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -127,6 +163,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (!n.read) setUnreadCount((c) => c + 1)
       setToasts((prev) => [...prev.slice(-4), { id: n.id, title: n.title, body: n.body }])
       scheduleToastDismiss(n.id)
+      // Foreground OS tray (works when HTTPS/localhost + permission granted; complements Web Push).
+      void showOsTrayNotification(n)
     },
     [scheduleToastDismiss],
   )

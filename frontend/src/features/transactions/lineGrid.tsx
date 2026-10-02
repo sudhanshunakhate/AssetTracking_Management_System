@@ -414,7 +414,7 @@ export function FilterableLookup({
   }
 
   return (
-    <div ref={rootRef} className="relative min-w-[200px]">
+    <div ref={rootRef} className="relative w-full min-w-0">
       <button
         type="button"
         disabled={disabled}
@@ -434,8 +434,8 @@ export function FilterableLookup({
       </button>
 
       {open && (
-        <div className="absolute left-0 z-50 mt-0.5 w-[min(420px,calc(100vw-2rem))] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-lg">
-          <div className="border-b border-[var(--border)] p-1.5">
+        <div className="absolute left-0 top-full z-[200] mt-0.5 flex max-h-[280px] w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border border-[var(--border)] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
+          <div className="shrink-0 border-b border-[var(--border)] bg-white p-1.5">
             <Input
               value={query}
               onChange={(e) => {
@@ -454,7 +454,8 @@ export function FilterableLookup({
           </div>
           <ul
             role="listbox"
-            className="max-h-[220px] overflow-y-auto py-0.5 text-[12px]"
+            className="min-h-0 flex-1 overflow-y-scroll overscroll-contain bg-white py-0.5 text-[12px] [scrollbar-gutter:stable]"
+            style={{ maxHeight: 180 }}
           >
             {searching ? (
               <li className="px-2.5 py-2 text-[var(--text3)]">Searching…</li>
@@ -477,17 +478,17 @@ export function FilterableLookup({
             )}
           </ul>
           {!remote && options.length > maxVisible && !query.trim() && (
-            <div className="border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+            <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
               Showing {filtered.length} of {options.length} — type to search
             </div>
           )}
           {!remote && query.trim() && filtered.length >= maxVisible && (
-            <div className="border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+            <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
               First {maxVisible} matches — refine your search
             </div>
           )}
           {remote && (
-            <div className="border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+            <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
               Type to search the catalog
             </div>
           )}

@@ -27,7 +27,8 @@ import {
   OST_CONSUMABLE_IMPORT_SAMPLE,
   importOpeningStockLines,
 } from './lineCsvImport'
-import { locLabel } from './txnLookups'
+import { locLabel, empLabel } from './txnLookups'
+import { MasterEmployeeSearchLookup } from './MasterSearchLookup'
 
 export type ItemKind = 'asset' | 'consumable'
 
@@ -125,6 +126,15 @@ export function OpeningStockItemLines({
 }) {
   const isAsset = itemType === 'asset'
   const linesLocked = readOnly || !headerReady
+  const employeeOptions = useMemo(
+    () =>
+      (employees ?? []).map((e) => ({
+        value: e.id,
+        label: empLabel(e),
+        searchText: empLabel(e),
+      })),
+    [employees],
+  )
   const filteredItems = useMemo(
     () => items.filter((i) => (i.itemType === 'consumable' ? 'consumable' : 'asset') === itemType),
     [items, itemType],
@@ -467,20 +477,15 @@ export function OpeningStockItemLines({
                             </td>
                             {showIssuedTo && (
                               <td className={gridCell}>
-                                <Select
+                                <MasterEmployeeSearchLookup
                                   value={line.issuedToEmpId}
-                                  onChange={(e) => patch(line.key, { issuedToEmpId: e.target.value })}
+                                  onChange={(v) => patch(line.key, { issuedToEmpId: v })}
+                                  options={employeeOptions}
+                                  placeholder="— Select Employee —"
                                   disabled={linesLocked}
                                   invalid={showLineErrors && issuedToMissing}
                                   className={gridInput}
-                                >
-                                  <option value="">— Select Employee —</option>
-                                  {employees.map((e) => (
-                                    <option key={e.id} value={e.id}>
-                                      {e.code} – {e.firstName} {e.lastName}
-                                    </option>
-                                  ))}
-                                </Select>
+                                />
                               </td>
                             )}
                           </>

@@ -110,8 +110,11 @@ export interface FullReportRow {
   id: string
   docId: string
   date: string
+  /** When the document was logged — preferred for journey order. */
+  createdOn?: string
   txnType: string
   txnNo: string
+  itemId?: string
   item: string
   category: string
   qty: number

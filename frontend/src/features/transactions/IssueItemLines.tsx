@@ -295,7 +295,6 @@ export function IssueItemLines({
     setPickerLineKey(null)
   }
 
-  const addLine = () => onChange((prev) => [...prev, emptyLine()])
   const removeLine = (key: string) =>
     onChange((prev) => {
       const next = prev.filter((l) => l.key !== key)
@@ -587,9 +586,6 @@ export function IssueItemLines({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
-            <Button variant="ghost" onClick={addLine} disabled={linesLocked}>
-              + Add Line
-            </Button>
             {error && <span className="text-[11px] font-medium text-[var(--danger)]">{error}</span>}
             <div className="flex-1" />
             <span className="text-[11px] font-semibold text-[var(--text2)]">

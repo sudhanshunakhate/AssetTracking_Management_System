@@ -233,7 +233,23 @@ export const systemLocationOptions = (rows: ApiMasterRow[]) =>
 export { itemsForLocation } from '@/api/masters'
 
 export const employeeOptions = (rows: ApiMasterRow[]) =>
-  rows.map((e) => ({ value: e.id, label: empLabel(e) }))
+  rows.map((e) => ({ value: e.id, label: empLabel(e), searchText: empLabel(e) }))
+
+/** Active employees that have a system login (users). */
+export function userEmployees(rows: ApiMasterRow[]) {
+  return rows.filter((e) => e.status !== 'Inactive' && Boolean(e.hasLogin))
+}
+
+/**
+ * Inspectors / “Inspected By” list — only employees with a login.
+ * Optionally prefer those whose base store matches the document location.
+ */
+export function inspectorEmployees(rows: ApiMasterRow[], locationId?: string) {
+  const withLogin = userEmployees(rows)
+  if (!locationId) return withLogin
+  const atLoc = withLogin.filter((e) => String(e.baseStore ?? '') === String(locationId))
+  return atLoc.length > 0 ? atLoc : withLogin
+}
 export const locationOptions = (rows: ApiMasterRow[]) =>
   rows.map((l) => ({ value: l.id, label: locLabel(l) }))
 export const operationalLocationOptions = (rows: ApiMasterRow[]) =>

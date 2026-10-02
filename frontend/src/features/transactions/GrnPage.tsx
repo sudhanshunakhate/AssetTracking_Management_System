@@ -8,6 +8,7 @@ import { DataTable, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LookupSelect } from '@/components/form/LookupSelect'
+import { MasterEmployeeSearchLookup } from './MasterSearchLookup'
 import {
   createTxn,
   fetchTxn,
@@ -27,9 +28,9 @@ import { enrichLinesFromItems, money, toNum, wholeQtyStr } from './lineGrid'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   employeeOptions as toEmployeeOptions,
+  inspectorEmployees,
   locLabel,
   operationalLocationOptions,
-  quickAddEmployee,
   quickAddVendor,
   resolveTxnHeaderFromLines,
   useTxnFormLookups,
@@ -451,10 +452,18 @@ function GrnForm() {
   }
 
   /* ---- quick-add configs ---- */
-  const addEmployee = quickAddEmployee(employees.reload)
   const addSupplier = quickAddVendor(vendors.reload)
 
+  const primaryLineLocationId = useMemo(() => {
+    const line = lines.find((l) => l.locationId)
+    return line?.locationId || ''
+  }, [lines])
+  const inspectorRows = useMemo(
+    () => inspectorEmployees(employees.rows, primaryLineLocationId || undefined),
+    [employees.rows, primaryLineLocationId],
+  )
   const employeeOptions = toEmployeeOptions(employees.rows)
+  const inspectorOptions = toEmployeeOptions(inspectorRows)
   const locationOptions = operationalLocationOptions(locations.rows)
 
   const supplierOptions = toVendorOptions(vendors.rows)
@@ -503,7 +512,7 @@ function GrnForm() {
         </Button>
       </div>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader title="Header" subtitle="Reference numbers, supplier, purchase order and inspection details" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
@@ -573,17 +582,20 @@ function GrnForm() {
               />
             </Field>
 
-            <LookupSelect
+            <Field
               label="To Be Inspected By"
-              value={form.inspectedBy}
-              onChange={(v) => set('inspectedBy', v)}
-              onBlur={() => touch('inspectedBy')}
-              options={employeeOptions}
-              placeholder="— Select —"
               error={err('inspectedBy')}
-              disabled={readOnly}
-              quickAdd={addEmployee}
-            />
+              hint="Only employees with a system login; prefers the line store’s base location"
+            >
+              <MasterEmployeeSearchLookup
+                value={form.inspectedBy}
+                onChange={(v) => set('inspectedBy', v)}
+                options={inspectorOptions}
+                placeholder="— Select —"
+                disabled={readOnly}
+                invalid={Boolean(err('inspectedBy'))}
+              />
+            </Field>
 
             <Field label="Inspection Date" error={err('inspectionDate')}>
               <Input

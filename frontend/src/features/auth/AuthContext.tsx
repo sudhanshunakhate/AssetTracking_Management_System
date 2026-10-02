@@ -26,6 +26,7 @@ import {
 } from '@/api/client'
 import { invalidateCache } from '@/api/requestCache'
 import { prefetchCatalogs } from '@/api/prefetchCatalogs'
+import { clearLoginNotificationPopupState } from '@/features/notifications/loginNtfPopupState'
 
 type AuthUser = {
   loginId: string
@@ -157,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const clearLocalSession = useCallback(() => {
+    clearLoginNotificationPopupState(user?.userId)
     sessionStorage.removeItem(STORAGE_KEY)
     sessionStorage.removeItem(PERMS_KEY)
     sessionStorage.removeItem(SCOPE_KEY)
@@ -167,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setScope(UNRESTRICTED)
     setPermissionsReady(true)
     setUser(null)
-  }, [])
+  }, [user?.userId])
 
   const setFavouriteMenuCodes = useCallback((codes: string[]) => {
     setFavouriteMenuCodesState(codes)
@@ -342,6 +344,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: res.user.roleCode,
             userId: res.user.userId,
           }
+          clearLoginNotificationPopupState(res.user.userId)
           sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
           setUser(next)
           setSessionReady(true)

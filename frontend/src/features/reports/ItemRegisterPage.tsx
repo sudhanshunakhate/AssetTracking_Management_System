@@ -12,6 +12,7 @@ import { formatStockQty } from '@/features/transactions/lineGrid'
 import { MasterItemSearchLookup } from '@/features/transactions/MasterSearchLookup'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
+import { ReportTableScroll, reportThAlign } from './ReportTableScroll'
 
 type LedgerRow = {
   id: string
@@ -228,18 +229,16 @@ export function ItemRegisterPage() {
         </CardBody>
       </Card>
 
-      <Card>
-        <CardBody>
-          <div className="overflow-x-auto">
+      <Card className="overflow-visible">
+        <CardBody className="p-0">
+          <ReportTableScroll>
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-[var(--surface2)]">
+                <tr>
                   {headers.map((h) => (
                     <th
                       key={h}
-                      className={`border-b-2 border-[var(--border)] px-[11px] py-[7px] text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase whitespace-nowrap ${
-                        numericHeaders.has(h) ? 'text-right' : 'text-left'
-                      }`}
+                      className={reportThAlign(numericHeaders.has(h) ? 'right' : 'left')}
                     >
                       {h}
                     </th>
@@ -306,10 +305,10 @@ export function ItemRegisterPage() {
                 )}
               </tbody>
             </table>
-          </div>
+          </ReportTableScroll>
 
           {rows.length > 0 && (
-            <div className="mt-3.5 flex flex-wrap gap-7 border-t border-[var(--border)] pt-3 text-[12.5px] text-[var(--text2)]">
+            <div className="flex flex-wrap gap-7 border-t border-[var(--border)] px-3.5 py-3 text-[12.5px] text-[var(--text2)]">
               <div>
                 Lines: <strong>{rows.length}</strong>
               </div>

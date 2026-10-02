@@ -63,8 +63,21 @@ caits:
     cookie-same-site: ${CAITS_SECURITY_COOKIE_SAME_SITE:Lax}
     # Roles that bypass OU / Location scoping and see every record.
     location-scope-exempt-roles: ADMIN
+    # Self-signed HTTPS for LAN servers without a purchased certificate.
+    # Browsers require HTTPS (or localhost) for Windows/OS push notifications.
+    # Embedded Tomcat: CAITS_TLS_ENABLED=true  (optional CAITS_TLS_HOST=192.168.x.x, CAITS_TLS_PORT=8443)
+    # Keystore is auto-created at {upload-dir}/caits-tls.p12 (password: caits-tls).
+    # External Tomcat: point an HTTPS connector at that PKCS12 file instead.
+    tls:
+      enabled: ${CAITS_TLS_ENABLED:false}
+      # When true (e.g. WAR on external Tomcat), only create uploads/caits-tls.p12 for the connector.
+      prepare-keystore: ${CAITS_TLS_PREPARE_KEYSTORE:false}
+      host: ${CAITS_TLS_HOST:localhost}
+      port: ${CAITS_TLS_PORT:0}
+      keystore: ${CAITS_TLS_KEYSTORE:}
   cors:
-    # Dev Vite + Tomcat same-origin. Override via CAITS_CORS_ALLOWED_ORIGINS on server.
+    # Dev Vite + Tomcat same-origin. On LAN server include https://YOUR_IP:PORT (and http if needed).
+    # Use "*" to allow any browser origin for API CORS / WebSocket (auth still required).
     allowed-origins: "${CAITS_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080}"
   storage:
     upload-dir: "${CAITS_STORAGE_UPLOAD_DIR:./uploads}"

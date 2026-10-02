@@ -6,22 +6,51 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Field, Input, Select } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { fetchFullReport } from '@/api/transactions'
+import { fetchFullReport, fetchSerialOptionsForItem } from '@/api/transactions'
 import { mapEmployee, mapEntity, mapLocation, mapDepartment, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import type { FullReportRow } from '@/types/transactions'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 import { formatStockQty } from '@/features/transactions/lineGrid'
+import { MasterItemSearchLookup } from '@/features/transactions/MasterSearchLookup'
+import { ReportTableScroll, reportThClass } from './ReportTableScroll'
+import { ItemJourneyStrip, type JourneyStep } from './ItemJourneyStrip'
 
 const emptyFilters = {
   search: '',
+  itemId: '',
   serialNo: '',
-  txnType: '',
   status: '',
   loc: '',
   from: '',
   to: '',
+}
+
+/** Lifecycle phase for same-day tie-break: entry → inspection → later movements. */
+function journeyPhase(txnType: string): number {
+  switch ((txnType || '').trim().toUpperCase()) {
+    case 'OPENING_STOCK':
+      return 0
+    case 'GRN':
+      return 1
+    case 'INSPECTION_APPROVAL':
+      return 2
+    case 'GATEPASS_INWARD':
+      return 3
+    case 'MATERIAL_TRANSFER':
+      return 4
+    case 'GATEPASS_OUTWARD':
+      return 5
+    case 'MATERIAL_REQUISITION':
+      return 6
+    case 'MATERIAL_ISSUE':
+      return 7
+    case 'MATERIAL_RETURN':
+      return 8
+    default:
+      return 50
+  }
 }
 
 export function FullReportPage() {
@@ -32,6 +61,8 @@ export function FullReportPage() {
   const [rows, setRows] = useState<FullReportRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [serialOptions, setSerialOptions] = useState<string[]>([])
+  const [serialsLoading, setSerialsLoading] = useState(false)
 
   const mapLoc = useCallback(mapLocation, [])
   const mapEnt = useCallback(mapEntity, [])
@@ -46,13 +77,37 @@ export function FullReportPage() {
   const { rows: orgs } = useMasterList('entities', mapEnt)
   const { rows: employees } = useMasterList('employees', mapEmp)
   const { rows: departments } = useMasterList('departments', mapDept)
-  const { options: docTypeOpts } = useGenValues(GEN_TYPE.DOC_TYPE, 'code')
   const { options: docStatusOpts } = useGenValues(GEN_TYPE.DOC_STATUS)
 
   const storeById = useMemo(() => Object.fromEntries(stores.map((s) => [s.id, s])), [stores])
   const orgById = useMemo(() => Object.fromEntries(orgs.map((o) => [o.id, o])), [orgs])
   const empById = useMemo(() => Object.fromEntries(employees.map((e) => [e.id, e])), [employees])
   const deptById = useMemo(() => Object.fromEntries(departments.map((d) => [d.id, d])), [departments])
+
+  useEffect(() => {
+    const itemId = Number(f.itemId)
+    if (!Number.isFinite(itemId) || itemId <= 0) {
+      setSerialOptions([])
+      setSerialsLoading(false)
+      return
+    }
+    let cancelled = false
+    setSerialsLoading(true)
+    const locId = f.loc ? Number(f.loc) : undefined
+    void fetchSerialOptionsForItem(itemId, locId)
+      .then((opts) => {
+        if (!cancelled) setSerialOptions(opts)
+      })
+      .catch(() => {
+        if (!cancelled) setSerialOptions([])
+      })
+      .finally(() => {
+        if (!cancelled) setSerialsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [f.itemId, f.loc])
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -61,10 +116,10 @@ export function FullReportPage() {
       const page = await fetchFullReport({
         page: 1,
         pageSize: 200,
-        docType: f.txnType || undefined,
         fromDate: f.from || undefined,
         toDate: f.to || undefined,
         locationId: f.loc || undefined,
+        itemId: f.itemId || undefined,
         serialNo: f.serialNo || undefined,
       })
       setRows(
@@ -80,8 +135,10 @@ export function FullReportPage() {
             id: String(r.id ?? `${r.txnNo}-${r.itemId}`),
             docId: String(r.docId ?? ''),
             date: String(r.date ?? ''),
+            createdOn: String(r.createdOn ?? ''),
             txnType: String(r.txnType ?? ''),
             txnNo: String(r.txnNo ?? ''),
+            itemId: r.itemId != null ? String(r.itemId) : '',
             item: String(r.item ?? r.itemId ?? ''),
             category: String(r.categoryId ?? '—'),
             qty: Number(r.qty ?? 0),
@@ -111,7 +168,7 @@ export function FullReportPage() {
     } finally {
       setLoading(false)
     }
-  }, [f.txnType, f.from, f.to, f.loc, f.serialNo, storeById, orgById, empById, deptById])
+  }, [f.from, f.to, f.loc, f.itemId, f.serialNo, storeById, orgById, empById, deptById])
 
   useEffect(() => {
     void reload()
@@ -120,11 +177,69 @@ export function FullReportPage() {
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       const term = f.search.trim().toLowerCase()
-      if (term && !`${r.txnNo} ${r.item} ${r.status} ${r.department} ${r.fromLocation} ${r.toLocation} ${r.serialNo}`.toLowerCase().includes(term)) return false
+      if (
+        term &&
+        !`${r.txnNo} ${r.item} ${r.status} ${r.department} ${r.fromLocation} ${r.toLocation} ${r.serialNo}`
+          .toLowerCase()
+          .includes(term)
+      ) {
+        return false
+      }
       if (f.status && r.status !== f.status) return false
       return true
     })
   }, [rows, f.search, f.status])
+
+  const journeyItemLabel = useMemo(() => {
+    if (!f.itemId) return ''
+    const hit = rows.find((r) => r.itemId === f.itemId && r.item)
+    return hit?.item || f.itemId
+  }, [rows, f.itemId])
+
+  const journeySteps = useMemo((): JourneyStep[] => {
+    if (!f.itemId) return []
+    const serial = f.serialNo.trim().toLowerCase()
+    const matched = rows
+      .filter((r) => {
+        if (r.itemId !== f.itemId) return false
+        if (serial && r.serialNo.trim().toLowerCase() !== serial) return false
+        return true
+      })
+      .slice()
+      .sort((a, b) => {
+        // Log fill order: when created → doc date → doc id → lifecycle phase (GRN → Inspection → …)
+        const byCreated = String(a.createdOn || '').localeCompare(String(b.createdOn || ''))
+        if (byCreated !== 0) return byCreated
+        const byDate = String(a.date).localeCompare(String(b.date))
+        if (byDate !== 0) return byDate
+        const aDoc = Number(a.docId) || 0
+        const bDoc = Number(b.docId) || 0
+        if (aDoc !== bDoc) return aDoc - bDoc
+        const byPhase = journeyPhase(a.txnType) - journeyPhase(b.txnType)
+        if (byPhase !== 0) return byPhase
+        return String(a.id).localeCompare(String(b.id))
+      })
+
+    // One step per document (same txn can appear as multiple line variants).
+    const seen = new Set<string>()
+    const steps: JourneyStep[] = []
+    for (const r of matched) {
+      const key = `${r.txnType}|${r.docId}|${r.txnNo}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      steps.push({
+        id: r.id,
+        docId: r.docId,
+        date: r.date,
+        txnType: r.txnType,
+        txnNo: r.txnNo,
+        status: r.status,
+        fromLocation: r.fromLocation,
+        toLocation: r.toLocation,
+      })
+    }
+    return steps
+  }, [rows, f.itemId, f.serialNo])
 
   const summary = useMemo(() => {
     const itemSet = new Set(filtered.map((r) => r.item))
@@ -136,6 +251,11 @@ export function FullReportPage() {
       value: filtered.reduce((s, r) => s + r.value, 0),
     }
   }, [filtered])
+
+  const clearFilters = () => {
+    setF(emptyFilters)
+    setSerialOptions([])
+  }
 
   return (
     <FadeContent>
@@ -194,35 +314,50 @@ export function FullReportPage() {
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading log report…</div>}
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader title="Filters" subtitle="Narrow the report down to exactly what you need to see" />
-        <CardBody>
-          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
-            <Field label="Search" className="md:col-span-2">
+        <CardBody className="overflow-visible">
+          <div className="grid grid-cols-1 gap-x-3 gap-y-3 md:grid-cols-2 xl:grid-cols-4">
+            <Field label="Search">
               <Input
                 value={f.search}
                 onChange={(e) => set('search', e.target.value)}
-                placeholder="Txn no., item, remarks…"
+                placeholder="Txn no., remarks…"
               />
             </Field>
-            <Field label="Serial No.">
-              <Input
+            <Field label="Item" className="relative z-40">
+              <MasterItemSearchLookup
+                value={f.itemId}
+                onChange={(v) => {
+                  setF((prev) => ({ ...prev, itemId: v, serialNo: '' }))
+                }}
+                placeholder="All Items"
+                allowClear
+              />
+            </Field>
+            <Field label="Serial No." className="relative z-10">
+              <Select
                 value={f.serialNo}
+                disabled={!f.itemId || serialsLoading}
                 onChange={(e) => set('serialNo', e.target.value)}
-                placeholder="Track serial…"
-              />
-            </Field>
-            <Field label="Transaction Type">
-              <Select value={f.txnType} onChange={(e) => set('txnType', e.target.value)}>
-                <option value="">All Types</option>
-                {docTypeOpts.map((t) => (
-                  <option key={t.code} value={t.value}>
-                    {t.label}
+              >
+                <option value="">
+                  {!f.itemId
+                    ? 'Select an item first'
+                    : serialsLoading
+                      ? 'Loading serials…'
+                      : serialOptions.length === 0
+                        ? 'No serials found'
+                        : 'All Serials'}
+                </option>
+                {serialOptions.map((sn) => (
+                  <option key={sn} value={sn}>
+                    {sn}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Status">
+            <Field label="Status" className="relative z-10">
               <Select value={f.status} onChange={(e) => set('status', e.target.value)}>
                 <option value="">All Status</option>
                 {docStatusOpts.map((s) => (
@@ -232,7 +367,7 @@ export function FullReportPage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Location">
+            <Field label="Location" className="relative z-10">
               <Select value={f.loc} onChange={(e) => set('loc', e.target.value)}>
                 <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
                 {stores.map((s) => (
@@ -250,7 +385,7 @@ export function FullReportPage() {
             </Field>
           </div>
           <div className="mt-3 flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setF(emptyFilters)}>
+            <Button variant="ghost" onClick={clearFilters}>
               Clear
             </Button>
             <Button onClick={() => void reload()}>Apply</Button>
@@ -276,21 +411,31 @@ export function FullReportPage() {
         </div>
       </div>
 
-      <Card>
-        <CardBody className="overflow-x-auto p-0">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="bg-[var(--surface2)]">
-                {['Date', 'Type', 'Txn No', 'Item', 'Serial No.', 'Qty', 'From', 'To', 'Org', 'Dept', 'Employee', 'Status', 'Amount'].map((h) => (
-                  <th
-                    key={h}
-                    className="border-b-2 border-[var(--border)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+      {f.itemId && (
+        <ItemJourneyStrip
+          itemLabel={journeyItemLabel}
+          serialNo={f.serialNo || undefined}
+          steps={journeySteps}
+          onOpenDoc={(docId, txnType) => {
+            const path = txnDetailPath(txnType, docId)
+            if (path) navigate(path)
+          }}
+        />
+      )}
+
+      <Card className="overflow-visible">
+        <CardBody className="p-0">
+          <ReportTableScroll className="px-0">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr>
+                  {['Date', 'Type', 'Txn No', 'Item', 'Serial No.', 'Qty', 'From', 'To', 'Org', 'Dept', 'Employee', 'Status', 'Amount'].map((h) => (
+                    <th key={h} className={`${reportThClass} px-3 py-2`}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
             <tbody>
               {filtered.map((r) => {
                 const detailPath = txnDetailPath(r.txnType, r.docId)
@@ -331,6 +476,7 @@ export function FullReportPage() {
               })}
             </tbody>
           </table>
+          </ReportTableScroll>
         </CardBody>
       </Card>
     </FadeContent>

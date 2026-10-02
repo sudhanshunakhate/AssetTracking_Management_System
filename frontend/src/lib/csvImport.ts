@@ -33,7 +33,16 @@ function detectDelimiter(headerLine: string) {
 
 /** Parse CSV text into row objects (first row = headers). */
 export function parseCsvText(text: string): Record<string, string>[] {
-  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((l) => l.trim() !== '')
+  const rawLines = text.replace(/^\uFEFF/, '').split(/\r?\n/)
+  const lines = rawLines
+    .map((l) => l.trimEnd())
+    .filter((l) => {
+      const t = l.trim()
+      if (!t) return false
+      // Skip Excel separator directive (with or without quotes).
+      if (/^"?sep\s*=/i.test(t)) return false
+      return true
+    })
   if (lines.length < 2) return []
 
   const delimiter = detectDelimiter(lines[0])
@@ -91,6 +100,15 @@ export async function readCsvFile(file: File): Promise<Record<string, string>[]>
   return parseCsvText(new TextDecoder('utf-8').decode(bytes))
 }
 
-export function downloadCsvTemplate(filename: string, headers: string[], sampleRow?: string[]) {
-  downloadCsv(filename, headers, sampleRow ? [sampleRow] : [])
+export function downloadCsvTemplate(
+  filename: string,
+  headers: string[],
+  sampleRow?: string[] | string[][],
+) {
+  const rows: string[][] = !sampleRow
+    ? []
+    : Array.isArray(sampleRow[0])
+      ? (sampleRow as string[][])
+      : [sampleRow as string[]]
+  downloadCsv(filename, headers, rows)
 }

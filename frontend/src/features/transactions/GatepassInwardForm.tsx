@@ -21,7 +21,8 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { wholeQtyStr } from './lineGrid'
 import { AttachmentFields, attachmentPayload } from './AttachmentSection'
 import { GATEPASS_BASE } from './gatepassNavigation'
-import { quickAddVendor, systemLocations, vendorOptions as toVendorOptions } from './txnLookups'
+import { quickAddVendor, inspectorEmployees, systemLocations, vendorOptions as toVendorOptions, employeeOptions as toEmployeeOptions } from './txnLookups'
+import { MasterEmployeeSearchLookup } from './MasterSearchLookup'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
   GatepassInwardItemLines,
@@ -72,19 +73,6 @@ export function GatepassInwardForm() {
 
   const sessionEmpId = user?.employeeId != null ? String(user.employeeId) : ''
 
-  /** Inspectors must have a role assigned in Employee Master. */
-  const inspectors = useMemo(
-    () =>
-      employees.filter(
-        (e) => e.status !== 'Inactive' && String(e.role ?? '').trim() !== '',
-      ),
-    [employees],
-  )
-  const defaultInspectorId = useMemo(() => {
-    if (sessionEmpId && inspectors.some((e) => e.id === sessionEmpId)) return sessionEmpId
-    return inspectors[0]?.id ?? ''
-  }, [inspectors, sessionEmpId])
-
   const returnableOutwards = useMemo(() => {
     const inwardLinkedOutwardIds = new Set(
       inward.rows.map((r) => r.refTxnHeaderId).filter((id) => Boolean(id)),
@@ -110,6 +98,18 @@ export function GatepassInwardForm() {
     attachmentName: '',
   })
   const [lines, setLines] = useState<GatepassInwardLine[]>([emptyGatepassInwardLine()])
+
+  /** Inspectors: employees with a login; prefer those based at the selected store. */
+  const inspectors = useMemo(
+    () => inspectorEmployees(employees, inwardForm.store || undefined),
+    [employees, inwardForm.store],
+  )
+  const inspectorOptions = useMemo(() => toEmployeeOptions(inspectors), [inspectors])
+  const employeeSelectOptions = useMemo(() => toEmployeeOptions(employees), [employees])
+  const defaultInspectorId = useMemo(() => {
+    if (sessionEmpId && inspectors.some((e) => e.id === sessionEmpId)) return sessionEmpId
+    return inspectors[0]?.id ?? ''
+  }, [inspectors, sessionEmpId])
 
   useEffect(() => {
     if (!sessionEmpId && !defaultInspectorId) return
@@ -453,7 +453,7 @@ export function GatepassInwardForm() {
         </CardBody>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader
           title={inwardType === 'returnable' ? 'Returnable Inward' : 'Inward Details'}
           subtitle={
@@ -509,36 +509,26 @@ export function GatepassInwardForm() {
                   </div>
                 </Field>
                 <Field label="Received By" required hint="Who received the material at the gate">
-                  <Select
+                  <MasterEmployeeSearchLookup
                     value={inwardForm.preparedBy}
-                    onChange={(e) => setIn('preparedBy', e.target.value)}
+                    onChange={(v) => setIn('preparedBy', v)}
+                    options={employeeSelectOptions}
+                    placeholder="- Select Employee -"
                     disabled={!returnableInwardLocked}
-                  >
-                    <option value="">- Select Employee -</option>
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.code} - {String(e.firstName ?? '')} {String(e.lastName ?? '')}
-                      </option>
-                    ))}
-                  </Select>
+                  />
                 </Field>
                 {needsInspection && (
                   <Field
                     label="To Be Inspected By"
                     required
-                    hint="Assigned on the pending Inspection Approval"
+                    hint="Only employees with a system login; prefers this store’s base location"
                   >
-                    <Select
+                    <MasterEmployeeSearchLookup
                       value={inwardForm.inspectedBy}
-                      onChange={(e) => setIn('inspectedBy', e.target.value)}
-                    >
-                      <option value="">- Select Inspector -</option>
-                      {inspectors.map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.code} - {String(e.firstName ?? '')} {String(e.lastName ?? '')}
-                        </option>
-                      ))}
-                    </Select>
+                      onChange={(v) => setIn('inspectedBy', v)}
+                      options={inspectorOptions}
+                      placeholder="- Select Inspector -"
+                    />
                   </Field>
                 )}
               </>
@@ -551,19 +541,14 @@ export function GatepassInwardForm() {
                   <Field
                     label="To Be Inspected By"
                     required
-                    hint="Assigned on the pending Inspection Approval"
+                    hint="Only employees with a system login; prefers this store’s base location"
                   >
-                    <Select
+                    <MasterEmployeeSearchLookup
                       value={inwardForm.inspectedBy}
-                      onChange={(e) => setIn('inspectedBy', e.target.value)}
-                    >
-                      <option value="">- Select Inspector -</option>
-                      {inspectors.map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.code} - {String(e.firstName ?? '')} {String(e.lastName ?? '')}
-                        </option>
-                      ))}
-                    </Select>
+                      onChange={(v) => setIn('inspectedBy', v)}
+                      options={inspectorOptions}
+                      placeholder="- Select Inspector -"
+                    />
                   </Field>
                 )}
               </>

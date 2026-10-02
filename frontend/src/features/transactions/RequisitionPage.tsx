@@ -8,6 +8,7 @@ import { DataTable, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LookupSelect } from '@/components/form/LookupSelect'
+import { MasterEmployeeSearchLookup } from './MasterSearchLookup'
 import { GEN_TYPE, mapDepartment, useMasterList } from '@/api/masters'
 import {
   createTxn,
@@ -30,7 +31,6 @@ import {
   employeeOptions as toEmployeeOptions,
   locLabel,
   nonSystemLocations,
-  quickAddEmployee,
   quickAddGenValue,
   useGenLookup,
   useTxnFormLookups,
@@ -75,7 +75,7 @@ function blankForm(): FormState {
     reqType: 'DEPARTMENT',
     reqNo: AUTO_DOC_NO_LABEL,
     reqDate: todayIso(),
-    requiredDate: '',
+    requiredDate: todayIso(),
     departmentId: '',
     departmentName: '',
     requestedBy: '',
@@ -443,7 +443,6 @@ function RequisitionForm() {
   }
 
   /* ---- quick-add configs ---- */
-  const addEmployee = quickAddEmployee(employees.reload)
   const addDesignation = quickAddGenValue('Add Designation', GEN_TYPE.DESIGNATION, designations)
 
   const employeeOptions = toEmployeeOptions(employees.rows)
@@ -509,7 +508,7 @@ function RequisitionForm() {
         </CardBody>
       </Card>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader title="Requisition Details" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
@@ -553,18 +552,16 @@ function RequisitionForm() {
                 disabled={readOnly}
               />
             ) : (
-              <LookupSelect
-                label="Requested By"
-                required
-                value={form.requestedBy}
-                onChange={onRequestedByChange}
-                onBlur={() => touch('requestedBy')}
-                options={employeeOptions}
-                placeholder="— Select Employee —"
-                error={err('requestedBy')}
-                disabled={readOnly}
-                quickAdd={addEmployee}
-              />
+              <Field label="Requested By" required error={err('requestedBy')}>
+                <MasterEmployeeSearchLookup
+                  value={form.requestedBy}
+                  onChange={onRequestedByChange}
+                  options={employeeOptions}
+                  placeholder="— Select Employee —"
+                  disabled={readOnly}
+                  invalid={Boolean(err('requestedBy'))}
+                />
+              </Field>
             )}
 
             {form.reqType === 'EMPLOYEE' && (

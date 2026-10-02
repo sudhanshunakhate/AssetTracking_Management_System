@@ -23,6 +23,10 @@ public class InvItemMst {
     @Column(name = "itm_item_name", nullable = false)
     private String itmItemName;
 
+    /** Shared catalog label (Laptop, A4 Paper, …) — used by Catalog Need Request. */
+    @Column(name = "itm_common_name")
+    private String itmCommonName;
+
     @Column(name = "itm_item_type", nullable = false)
     private String itmItemType;
 
@@ -145,6 +149,9 @@ public class InvItemMst {
 
     public String getItmItemName() { return itmItemName; }
     public void setItmItemName(String itmItemName) { this.itmItemName = itmItemName; }
+
+    public String getItmCommonName() { return itmCommonName; }
+    public void setItmCommonName(String itmCommonName) { this.itmCommonName = itmCommonName; }
 
     public String getItmItemType() { return itmItemType; }
     public void setItmItemType(String itmItemType) { this.itmItemType = itmItemType; }

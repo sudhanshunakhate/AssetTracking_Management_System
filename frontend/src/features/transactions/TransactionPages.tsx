@@ -34,7 +34,10 @@ import { filterRowsByStatus, txnStatusFilterOptions } from '@/lib/listOrder'
 import { ReturnAllottedPickerModal } from './ReturnAllottedPickerModal'
 
 function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} – ${r.name}`) {
-  return rows.map((r) => ({ value: r.id, label: label(r) }))
+  return rows.map((r) => {
+    const text = label(r)
+    return { value: r.id, label: text, searchText: text }
+  })
 }
 
 function ListStatus({ loading, error, label }: { loading: boolean; error: string | null; label: string }) {
@@ -507,11 +510,12 @@ export function ReturnsPages() {
     {
       name: 'returnedBy',
       label: 'Returned By (Employee)',
-      type: 'select',
+      type: 'employee',
       required: true,
       span: 2,
       options: opt(employees.rows, (e) => `${e.code} – ${e.firstName} ${e.lastName}`),
-      hint: 'Loads items currently allotted to this employee from Issue / Opening Stock / BLS.',
+      placeholder: '— Select Employee —',
+      hint: 'Loads items currently allotted to this employee from Issue / Opening Stock / BLS. Type to search.',
       visibleWhen: (v) => String(v.returnType ?? 'EMPLOYEE') !== 'DEPARTMENT',
     },
     {

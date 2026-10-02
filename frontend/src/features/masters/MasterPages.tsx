@@ -50,6 +50,36 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { SimpleMasterModule, type FieldDef } from './SimpleMasterModule'
 import { RULES, notBefore } from './validation'
 import { RoleMenuAccessPanel, type PermFlags } from './RoleMenuAccessPanel'
+import { CsvImportButton } from '@/components/ui/CsvImportButton'
+import { MasterCsvImportPanel } from './MasterCsvImportPanel'
+import { useMasterCsvImportPreview } from './useMasterCsvImportPreview'
+import {
+  CATEGORY_IMPORT_HEADERS,
+  CATEGORY_IMPORT_SAMPLE,
+  GENMASTER_IMPORT_HEADERS,
+  GENMASTER_IMPORT_SAMPLE,
+  GENTYPE_IMPORT_HEADERS,
+  GENTYPE_IMPORT_SAMPLE,
+  SUBCATEGORY_IMPORT_HEADERS,
+  SUBCATEGORY_IMPORT_SAMPLE,
+  UNIT_IMPORT_HEADERS,
+  UNIT_IMPORT_SAMPLE,
+  parseCategoriesFromCsv,
+  parseGenmastersFromCsv,
+  parseGentypesFromCsv,
+  parseSubcategoriesFromCsv,
+  parseUnitsFromCsv,
+  saveCategoriesFromDrafts,
+  saveGenmastersFromDrafts,
+  saveGentypesFromDrafts,
+  saveSubcategoriesFromDrafts,
+  saveUnitsFromDrafts,
+  type CategoryImportDraft,
+  type GenmasterImportDraft,
+  type GentypeImportDraft,
+  type SubcategoryImportDraft,
+  type UnitImportDraft,
+} from './masterSetupCsvImport'
 
 function MastersRoutes({
   base,
@@ -71,6 +101,8 @@ function MastersRoutes({
   listLoading = false,
   addLabel,
   validateForm,
+  listActions,
+  extraListContent,
 }: {
   base: string
   title: string
@@ -99,6 +131,8 @@ function MastersRoutes({
   listLoading?: boolean
   addLabel?: string
   validateForm?: (values: Record<string, unknown>, recordId: string) => Record<string, string>
+  listActions?: ReactNode
+  extraListContent?: ReactNode
 }) {
   const shared = {
     title,
@@ -120,6 +154,8 @@ function MastersRoutes({
     listLoading,
     addLabel,
     validateForm,
+    listActions,
+    extraListContent,
   }
   return (
     <Routes>
@@ -145,6 +181,18 @@ function opt(rows: ApiMasterRow[], label = (r: ApiMasterRow) => `${r.code} · ${
 export function UnitsMaster() {
   const mapUnitStable = useCallback(mapUnit, [])
   const { rows, loading, error, reload } = useMasterList('units', mapUnitStable)
+  const {
+    previewRows,
+    importResult,
+    importing,
+    savingImport,
+    setDrafts,
+    removePreviewRow,
+    clearPreview,
+    runUpload,
+    runSave,
+  } = useMasterCsvImportPreview<UnitImportDraft>()
+
   const columns: Column<Unit>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -172,6 +220,35 @@ export function UnitsMaster() {
         searchPlaceholder="Search unit code / name?"
         saveLabel="Save Unit"
         formTitle="Unit Information"
+        listActions={
+          <CsvImportButton
+            label={importing ? 'Uploading…' : 'Upload CSV'}
+            templateFilename="unit_import_template.csv"
+            templateHeaders={UNIT_IMPORT_HEADERS}
+            sampleRow={UNIT_IMPORT_SAMPLE}
+            disabled={importing || savingImport}
+            onRows={(csvRows) =>
+              void runUpload(() => {
+                setDrafts(parseUnitsFromCsv(csvRows, rows).drafts)
+              })
+            }
+          />
+        }
+        extraListContent={
+          <MasterCsvImportPanel
+            drafts={previewRows}
+            columns={[
+              { key: 'code', header: 'Code', render: (r) => <span className="font-mono">{r.unitCode || '—'}</span> },
+              { key: 'name', header: 'Name', render: (r) => r.unitName || '—' },
+              { key: 'desc', header: 'Description', render: (r) => r.desc || '—' },
+            ]}
+            saving={savingImport}
+            result={importResult}
+            onRemove={removePreviewRow}
+            onClear={clearPreview}
+            onSave={() => void runSave(saveUnitsFromDrafts, reload)}
+          />
+        }
         onSave={async (id, values) => {
           const body = {
             unitCode: String(values.code ?? ''),
@@ -470,6 +547,18 @@ export function StoresMaster() {
 export function InventoryCategoriesMaster() {
   const mapCategoryStable = useCallback(mapCategory, [])
   const { rows, loading, error, reload } = useMasterList('categories', mapCategoryStable)
+  const {
+    previewRows,
+    importResult,
+    importing,
+    savingImport,
+    setDrafts,
+    removePreviewRow,
+    clearPreview,
+    runUpload,
+    runSave,
+  } = useMasterCsvImportPreview<CategoryImportDraft>()
+
   const columns: Column<InventoryCategory>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -496,6 +585,35 @@ export function InventoryCategoriesMaster() {
         fields={fields}
         saveLabel="Save Category"
         formTitle="Category Information"
+        listActions={
+          <CsvImportButton
+            label={importing ? 'Uploading…' : 'Upload CSV'}
+            templateFilename="category_import_template.csv"
+            templateHeaders={CATEGORY_IMPORT_HEADERS}
+            sampleRow={CATEGORY_IMPORT_SAMPLE}
+            disabled={importing || savingImport}
+            onRows={(csvRows) =>
+              void runUpload(() => {
+                setDrafts(parseCategoriesFromCsv(csvRows, rows).drafts)
+              })
+            }
+          />
+        }
+        extraListContent={
+          <MasterCsvImportPanel
+            drafts={previewRows}
+            columns={[
+              { key: 'code', header: 'Code', render: (r) => <span className="font-mono">{r.categoryCode || '—'}</span> },
+              { key: 'name', header: 'Name', render: (r) => r.categoryName || '—' },
+              { key: 'desc', header: 'Description', render: (r) => r.desc || '—' },
+            ]}
+            saving={savingImport}
+            result={importResult}
+            onRemove={removePreviewRow}
+            onClear={clearPreview}
+            onSave={() => void runSave(saveCategoriesFromDrafts, reload)}
+          />
+        }
         onSave={async (id, values) => {
           const body = {
             categoryCode: String(values.code ?? ''),
@@ -517,6 +635,17 @@ export function InventorySubCategoriesMaster() {
   const mapCatStable = useCallback(mapCategory, [])
   const { rows, loading, error, reload } = useMasterList('subcategories', mapSubStable)
   const { rows: categories } = useMasterList('categories', mapCatStable)
+  const {
+    previewRows,
+    importResult,
+    importing,
+    savingImport,
+    setDrafts,
+    removePreviewRow,
+    clearPreview,
+    runUpload,
+    runSave,
+  } = useMasterCsvImportPreview<SubcategoryImportDraft>()
 
   const columns: Column<InventorySubCategory>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
@@ -545,6 +674,35 @@ export function InventorySubCategoriesMaster() {
         fields={fields}
         saveLabel="Save Sub-Category"
         formTitle="Sub-Category Information"
+        listActions={
+          <CsvImportButton
+            label={importing ? 'Uploading…' : 'Upload CSV'}
+            templateFilename="subcategory_import_template.csv"
+            templateHeaders={SUBCATEGORY_IMPORT_HEADERS}
+            sampleRow={SUBCATEGORY_IMPORT_SAMPLE}
+            disabled={importing || savingImport}
+            onRows={(csvRows) =>
+              void runUpload(() => {
+                setDrafts(parseSubcategoriesFromCsv(csvRows, { existing: rows, categories }).drafts)
+              })
+            }
+          />
+        }
+        extraListContent={
+          <MasterCsvImportPanel
+            drafts={previewRows}
+            columns={[
+              { key: 'code', header: 'Code', render: (r) => <span className="font-mono">{r.subcategoryCode || '—'}</span> },
+              { key: 'name', header: 'Name', render: (r) => r.subcategoryName || '—' },
+              { key: 'parent', header: 'Category', render: (r) => r.categoryCode || '—' },
+            ]}
+            saving={savingImport}
+            result={importResult}
+            onRemove={removePreviewRow}
+            onClear={clearPreview}
+            onSave={() => void runSave(saveSubcategoriesFromDrafts, reload)}
+          />
+        }
         onSave={async (id, values) => {
           const body = {
             subcategoryCode: String(values.code ?? ''),
@@ -565,6 +723,18 @@ export function InventorySubCategoriesMaster() {
 export function GeneralTypesMaster() {
   const mapGentypeStable = useCallback(mapGentype, [])
   const { rows, loading, error, reload } = useMasterList('general-types', mapGentypeStable)
+  const {
+    previewRows,
+    importResult,
+    importing,
+    savingImport,
+    setDrafts,
+    removePreviewRow,
+    clearPreview,
+    runUpload,
+    runSave,
+  } = useMasterCsvImportPreview<GentypeImportDraft>()
+
   const columns: Column<GeneralType>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono">{r.code}</span> },
     { key: 'name', header: 'Name', searchText: (r) => r.name, render: (r) => r.name },
@@ -591,6 +761,35 @@ export function GeneralTypesMaster() {
         fields={fields}
         saveLabel="Save Type"
         formTitle="Type Information"
+        listActions={
+          <CsvImportButton
+            label={importing ? 'Uploading…' : 'Upload CSV'}
+            templateFilename="general_type_import_template.csv"
+            templateHeaders={GENTYPE_IMPORT_HEADERS}
+            sampleRow={GENTYPE_IMPORT_SAMPLE}
+            disabled={importing || savingImport}
+            onRows={(csvRows) =>
+              void runUpload(() => {
+                setDrafts(parseGentypesFromCsv(csvRows, rows).drafts)
+              })
+            }
+          />
+        }
+        extraListContent={
+          <MasterCsvImportPanel
+            drafts={previewRows}
+            columns={[
+              { key: 'code', header: 'Code', render: (r) => <span className="font-mono">{r.typeCode || '—'}</span> },
+              { key: 'name', header: 'Name', render: (r) => r.typeName || '—' },
+              { key: 'desc', header: 'Description', render: (r) => r.desc || '—' },
+            ]}
+            saving={savingImport}
+            result={importResult}
+            onRemove={removePreviewRow}
+            onClear={clearPreview}
+            onSave={() => void runSave(saveGentypesFromDrafts, reload)}
+          />
+        }
         onSave={async (id, values) => {
           const body = {
             typeCode: String(values.code ?? ''),
@@ -612,6 +811,17 @@ export function GeneralMastersMaster() {
   const mapGtStable = useCallback(mapGentype, [])
   const { rows, loading, error, reload } = useMasterList('general-masters', mapGmStable)
   const { rows: types } = useMasterList('general-types', mapGtStable)
+  const {
+    previewRows,
+    importResult,
+    importing,
+    savingImport,
+    setDrafts,
+    removePreviewRow,
+    clearPreview,
+    runUpload,
+    runSave,
+  } = useMasterCsvImportPreview<GenmasterImportDraft>()
 
   const typeById = useMemo(() => Object.fromEntries(types.map((t) => [t.id, t])), [types])
 
@@ -661,6 +871,36 @@ export function GeneralMastersMaster() {
         fields={fields}
         saveLabel="Save Value"
         formTitle="Value Information"
+        listActions={
+          <CsvImportButton
+            label={importing ? 'Uploading…' : 'Upload CSV'}
+            templateFilename="general_master_import_template.csv"
+            templateHeaders={GENMASTER_IMPORT_HEADERS}
+            sampleRow={GENMASTER_IMPORT_SAMPLE}
+            disabled={importing || savingImport}
+            onRows={(csvRows) =>
+              void runUpload(() => {
+                setDrafts(parseGenmastersFromCsv(csvRows, { existing: rows, types }).drafts)
+              })
+            }
+          />
+        }
+        extraListContent={
+          <MasterCsvImportPanel
+            drafts={previewRows}
+            columns={[
+              { key: 'code', header: 'Code', render: (r) => <span className="font-mono">{r.valueCode || '—'}</span> },
+              { key: 'name', header: 'Name', render: (r) => r.valueName || '—' },
+              { key: 'type', header: 'Type', render: (r) => r.typeCode || '—' },
+              { key: 'sort', header: 'Sort', render: (r) => r.sortOrder },
+            ]}
+            saving={savingImport}
+            result={importResult}
+            onRemove={removePreviewRow}
+            onClear={clearPreview}
+            onSave={() => void runSave(saveGenmastersFromDrafts, reload)}
+          />
+        }
         onSave={async (id, values) => {
           const body = {
             valueCode: String(values.code ?? ''),
@@ -767,11 +1007,12 @@ export function DepartmentsMaster() {
     {
       name: 'headEmpId',
       label: 'Head of Department',
-      type: 'select',
+      type: 'employee',
       options: () =>
         employees.map((e) => ({
           value: e.id,
           label: `${e.code} · ${e.firstName ?? e.name}${e.lastName ? ` ${e.lastName}` : ''}`,
+          searchText: `${e.code} ${e.firstName ?? e.name}${e.lastName ? ` ${e.lastName}` : ''}`,
         })),
       placeholder: '— Optional —',
     },
@@ -973,6 +1214,7 @@ export function UsersMaster() {
         .map((e) => ({
           value: e.id,
           label: `${e.code} · ${e.firstName} ${e.lastName}`,
+          searchText: `${e.code} ${e.firstName} ${e.lastName}`,
         })),
     [employees],
   )
@@ -989,7 +1231,7 @@ export function UsersMaster() {
     {
       name: 'employeeCode',
       label: 'Employee',
-      type: 'select',
+      type: 'employee',
       span: 2,
       options: empOptions,
       hint: 'Select employee ? Login ID and Role fill automatically',
@@ -1421,11 +1663,12 @@ export function ExceptionsMaster() {
     {
       name: 'employeeCode',
       label: 'Employee',
-      type: 'select',
+      type: 'employee',
       span: 2,
       options: employees.map((e) => ({
         value: e.id,
         label: `${e.code} · ${e.firstName} ${e.lastName}`,
+        searchText: `${e.code} ${e.firstName} ${e.lastName}`,
       })),
       ...RULES.select(),
     },

@@ -10,6 +10,7 @@ import { mapLocation, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { downloadCsv } from '@/lib/csvExport'
 import { formatStockQty } from '@/features/transactions/lineGrid'
+import { ReportTableScroll, reportThClass } from './ReportTableScroll'
 
 type UnitRow = {
   blsId: string
@@ -307,17 +308,14 @@ export function StockRegisterPage() {
         </CardBody>
       </Card>
 
-      <Card>
-        <CardBody>
-          <div className="overflow-x-auto">
+      <Card className="overflow-visible">
+        <CardBody className="p-0">
+          <ReportTableScroll>
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-[var(--surface2)]">
+                <tr>
                   {headers.map((h) => (
-                    <th
-                      key={h}
-                      className="border-b-2 border-[var(--border)] px-[11px] py-[7px] text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
-                    >
+                    <th key={h} className={reportThClass}>
                       {h}
                     </th>
                   ))}
@@ -478,9 +476,9 @@ export function StockRegisterPage() {
                 )}
               </tbody>
             </table>
-          </div>
+          </ReportTableScroll>
 
-          <div className="mt-3.5 flex flex-wrap gap-7 border-t border-[var(--border)] pt-3 text-[12.5px] text-[var(--text2)]">
+          <div className="flex flex-wrap gap-7 border-t border-[var(--border)] px-3.5 py-3 text-[12.5px] text-[var(--text2)]">
             <div>
               Items: <strong>{totals.items}</strong>
             </div>

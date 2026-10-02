@@ -828,6 +828,7 @@ public class ReportsController {
             @RequestParam(required = false) LocalDate fromDate,
             @RequestParam(required = false) LocalDate toDate,
             @RequestParam(required = false) Integer locationId,
+            @RequestParam(required = false) Integer itemId,
             @RequestParam(required = false) String serialNo,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int pageSize
@@ -837,10 +838,22 @@ public class ReportsController {
         if (serialNo != null && !serialNo.isBlank() && serialHeaderIds.isEmpty()) {
             return pageOf(List.of(), page, pageSize);
         }
+        Set<Integer> itemHeaderIds = headerIdsForItem(itemId);
+        if (itemId != null && itemHeaderIds.isEmpty()) {
+            return pageOf(List.of(), page, pageSize);
+        }
+        // Item/serial focus = full lifecycle for the journey strip (oldest log first).
+        boolean journeyFocus = itemId != null || (serialNo != null && !serialNo.isBlank());
+        Sort headerSort = journeyFocus
+                ? Sort.by(Sort.Direction.ASC, "txhCreatedOn", "txhDocDate", "txhTxnHeaderId")
+                : Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId");
         var headerPage = headerRepo.findAll((root, query, cb) -> {
             List<Predicate> preds = new ArrayList<>();
             if (!serialHeaderIds.isEmpty()) {
                 preds.add(root.get("txhTxnHeaderId").in(serialHeaderIds));
+            }
+            if (!itemHeaderIds.isEmpty()) {
+                preds.add(root.get("txhTxnHeaderId").in(itemHeaderIds));
             }
             if (docType != null && !docType.isBlank()) {
                 preds.add(cb.equal(root.get("txhDocType"), docType));
@@ -859,8 +872,7 @@ public class ReportsController {
                 }
             }
             return preds.isEmpty() ? cb.conjunction() : cb.and(preds.toArray(Predicate[]::new));
-        }, PageRequest.of(Math.max(page - 1, 0), Math.min(Math.max(pageSize, 1), 200),
-                Sort.by(Sort.Direction.DESC, "txhDocDate", "txhTxnHeaderId")));
+        }, PageRequest.of(Math.max(page - 1, 0), Math.min(Math.max(pageSize, 1), 200), headerSort));
 
         List<TxnHeaderMst> headers = headerPage.getContent();
 
@@ -887,10 +899,16 @@ public class ReportsController {
         for (TxnHeaderMst h : headers) {
             List<TxnDetailDtl> lines = linesByHeader.getOrDefault(h.getTxhTxnHeaderId(), List.of());
             for (TxnDetailDtl d : lines) {
+                if (itemId != null && (d.getTxdItemIdItm() == null || !itemId.equals(d.getTxdItemIdItm()))) {
+                    continue;
+                }
                 if (!matchesSerialFilter(serialNo, d.getTxdSerialNo(), d.getTxdBatchLotNo())) continue;
                 InvItemMst item = items.get(d.getTxdItemIdItm());
                 rows.addAll(fullReportRowsForLine(h, d, item, grnById, locations, vendors));
             }
+        }
+        if (journeyFocus) {
+            rows.sort(fullReportJourneyComparator());
         }
         // Page by document headers (true DB paging); rows are the expanded lines for that page of headers.
         return PageResponse.of(page, Math.min(Math.max(pageSize, 1), 200), headerPage.getTotalElements(), rows);
@@ -1109,6 +1127,7 @@ public class ReportsController {
         row.put("id", id);
         row.put("docId", header.getTxhTxnHeaderId());
         row.put("date", header.getTxhDocDate());
+        row.put("createdOn", header.getTxhCreatedOn());
         row.put("txnType", header.getTxhDocType());
         row.put("txnNo", header.getTxhDocNo());
         row.put("itemId", line.getTxdItemIdItm());
@@ -1125,6 +1144,46 @@ public class ReportsController {
         row.put("value", lineValueForQty(line, qty));
         row.put("serialNo", firstNonBlank(line.getTxdSerialNo(), line.getTxdBatchLotNo()));
         return row;
+    }
+
+    /** Log order: when filled → doc date → doc id → entry (GRN/Opening) → Inspection (if any) → later movements. */
+    private static Comparator<Map<String, Object>> fullReportJourneyComparator() {
+        return Comparator
+                .comparing((Map<String, Object> r) -> stringOrEmpty(r.get("createdOn")))
+                .thenComparing(r -> stringOrEmpty(r.get("date")))
+                .thenComparingInt(r -> intOrZero(r.get("docId")))
+                .thenComparingInt(r -> journeyPhase(stringOrEmpty(r.get("txnType"))))
+                .thenComparing(r -> stringOrEmpty(r.get("id")));
+    }
+
+    private static int journeyPhase(String txnType) {
+        if (txnType == null) return 50;
+        return switch (txnType.trim().toUpperCase()) {
+            case "OPENING_STOCK" -> 0;
+            case "GRN" -> 1;
+            case "INSPECTION_APPROVAL" -> 2;
+            case "GATEPASS_INWARD" -> 3;
+            case "MATERIAL_TRANSFER" -> 4;
+            case "GATEPASS_OUTWARD" -> 5;
+            case "MATERIAL_REQUISITION" -> 6;
+            case "MATERIAL_ISSUE" -> 7;
+            case "MATERIAL_RETURN" -> 8;
+            default -> 50;
+        };
+    }
+
+    private static String stringOrEmpty(Object v) {
+        return v == null ? "" : String.valueOf(v);
+    }
+
+    private static int intOrZero(Object v) {
+        if (v instanceof Number n) return n.intValue();
+        if (v == null) return 0;
+        try {
+            return Integer.parseInt(String.valueOf(v).trim());
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 
     private BigDecimal lineValueForQty(TxnDetailDtl line, BigDecimal qty) {
@@ -2011,6 +2070,20 @@ public class ReportsController {
                 cb.like(cb.lower(cb.coalesce(root.get("txdSerialNo"), "")), pattern),
                 cb.like(cb.lower(cb.coalesce(root.get("txdBatchLotNo"), "")), pattern)
         ));
+        Set<Integer> ids = new HashSet<>();
+        for (TxnDetailDtl d : lines) {
+            if (d.getTxdTxnHeaderIdTxh() != null) {
+                ids.add(d.getTxdTxnHeaderIdTxh());
+            }
+        }
+        return ids;
+    }
+
+    /** All documents that mention this item on a line — used so GRN/entry is not dropped by newest-first paging. */
+    private Set<Integer> headerIdsForItem(Integer itemId) {
+        if (itemId == null) return Set.of();
+        List<TxnDetailDtl> lines = detailRepo.findAll((root, query, cb) ->
+                cb.equal(root.get("txdItemIdItm"), itemId));
         Set<Integer> ids = new HashSet<>();
         for (TxnDetailDtl d : lines) {
             if (d.getTxdTxnHeaderIdTxh() != null) {

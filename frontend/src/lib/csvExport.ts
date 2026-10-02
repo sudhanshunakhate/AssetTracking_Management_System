@@ -1,9 +1,9 @@
 /** Download tabular data as a CSV file (UTF-8 with BOM for Excel). */
 
 function escapeCell(value: unknown): string {
+  // Always quote so Excel / regional locales keep each value in its own column.
   const s = value == null ? '' : String(value)
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
+  return `"${s.replace(/"/g, '""')}"`
 }
 
 export function downloadCsv(
@@ -14,6 +14,8 @@ export function downloadCsv(
 ) {
   const cols = keys ?? headers
   const lines = [
+    // Excel list-separator hint so comma-separated files open as separate columns.
+    'sep=,',
     headers.map(escapeCell).join(','),
     ...rows.map((row) => {
       if (Array.isArray(row)) return row.map(escapeCell).join(',')

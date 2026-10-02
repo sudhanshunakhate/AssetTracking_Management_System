@@ -594,7 +594,17 @@ function InspectionApprovalForm() {
             {assigneeMismatch && statusEditable && (
               <Field label="Note" className="md:col-span-2">
                 <div className="text-[12px] text-[var(--warning)]">
-                  This task is assigned to another inspector. Only they (or ADMIN) can approve or reject.
+                  Assigned inspector is {assigneeLabel}. You can still approve or reject if your role
+                  has IAPR/GRN Approve or Edit. Link your login to the assigned employee for the
+                  default “Mine” filter.
+                </div>
+              </Field>
+            )}
+            {!user?.employeeId && statusEditable && (
+              <Field label="Note" className="md:col-span-2">
+                <div className="text-[12px] text-[var(--warning)]">
+                  Your login is not linked to an employee. Ask an admin to link User Master → Employee,
+                  or use a role with IAPR/GRN Approve/Edit.
                 </div>
               </Field>
             )}

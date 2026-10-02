@@ -218,11 +218,6 @@ export function TransferItemLines({
       return next.length ? next : [emptyTransferLine()]
     })
 
-  const addLine = () => {
-    onChange((prev) => [...prev, emptyTransferLine()])
-    openPicker()
-  }
-
   const fromLabel = fromStoreId
     ? (() => {
         const loc = locationById.get(fromStoreId)
@@ -470,9 +465,6 @@ export function TransferItemLines({
 
           {!readOnly && (
             <div className="flex flex-wrap items-center gap-2 px-3.5 py-2.5">
-              <Button variant="ghost" disabled={!detailsReady} onClick={addLine}>
-                + Add Line
-              </Button>
               {error && <span className="text-[11px] font-medium text-[var(--danger)]">{error}</span>}
               <div className="flex-1" />
               <span className="text-[11px] font-semibold text-[var(--text2)]">

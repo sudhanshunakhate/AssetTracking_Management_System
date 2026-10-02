@@ -3,6 +3,7 @@ package com.caits.config;
 import com.caits.security.AuthCookieService;
 import com.caits.security.JwtService;
 import com.caits.security.StompPrincipal;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -24,6 +25,7 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.util.Arrays;
 import java.util.Map;
 
 @Configuration
@@ -35,10 +37,21 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final JwtService jwtService;
     private final AuthCookieService authCookieService;
+    private final String[] allowedOriginPatterns;
 
-    public WebSocketConfig(JwtService jwtService, AuthCookieService authCookieService) {
+    public WebSocketConfig(
+            JwtService jwtService,
+            AuthCookieService authCookieService,
+            @Value("${caits.cors.allowed-origins}") String allowedOrigins) {
         this.jwtService = jwtService;
         this.authCookieService = authCookieService;
+        String[] parsed = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
+        // "*" (or empty) → any origin; auth still enforced on STOMP CONNECT via JWT cookie.
+        boolean any = parsed.length == 0 || Arrays.asList(parsed).contains("*");
+        this.allowedOriginPatterns = any ? new String[]{"*"} : parsed;
     }
 
     @Override
@@ -52,7 +65,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .addInterceptors(cookieHandshakeInterceptor())
-                .setAllowedOriginPatterns("http://localhost:5173", "http://127.0.0.1:5173");
+                .setAllowedOriginPatterns(allowedOriginPatterns);
     }
 
     @Override

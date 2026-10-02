@@ -33,6 +33,26 @@ import { http, resolveApiUrl } from '@/api/client'
 import type { Item, Vendor } from '@/types/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { MSG, PATTERNS, RULES, validateFields } from './validation'
+import { CsvImportButton } from '@/components/ui/CsvImportButton'
+import { MasterCsvImportPanel } from './MasterCsvImportPanel'
+import { useMasterCsvImportPreview } from './useMasterCsvImportPreview'
+import {
+  ITEM_IMPORT_HEADERS,
+  ASSET_ITEM_IMPORT_HEADERS,
+  CONSUMABLE_ITEM_IMPORT_HEADERS,
+  buildItemImportSampleRows,
+  buildAssetItemImportSampleRows,
+  buildConsumableItemImportSampleRows,
+  VENDOR_IMPORT_HEADERS,
+  VENDOR_IMPORT_SAMPLE,
+  parseItemsFromCsv,
+  parseVendorsFromCsv,
+  saveItemsFromDrafts,
+  saveVendorsFromDrafts,
+  withItemDraftLocation,
+  type ItemImportDraft,
+  type VendorImportDraft,
+} from './masterSetupCsvImport'
 
 const URL_RE = /^https?:\/\/[^\s]+$/i
 
@@ -1167,18 +1187,75 @@ function ItemFormPage() {
 
 function ItemList() {
   const navigate = useNavigate()
-  const { canCreateMenu } = useAuth()
+  const { canCreateMenu, scope } = useAuth()
   const mapItemStable = useCallback(mapItem, [])
   const mapCatStable = useCallback(mapCategory, [])
+  const mapSubStable = useCallback(mapSubcategory, [])
   const mapUnitStable = useCallback(mapUnit, [])
   const mapLocStable = useCallback(mapLocation, [])
-  const { rows, loading, error } = useMasterList('items', mapItemStable)
+  const mapEntityStable = useCallback(mapEntity, [])
+  const { rows, loading, error, reload } = useMasterList('items', mapItemStable)
   const { rows: categories } = useMasterList('categories', mapCatStable)
+  const { rows: subcategories } = useMasterList('subcategories', mapSubStable)
   const { rows: units } = useMasterList('units', mapUnitStable)
   const { rows: locations } = useMasterList('locations', mapLocStable)
+  const { rows: entities } = useMasterList('entities', mapEntityStable)
   const catById = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c])), [categories])
   const uomById = useMemo(() => Object.fromEntries(units.map((u) => [u.id, u])), [units])
   const locById = useMemo(() => Object.fromEntries(locations.map((l) => [l.id, l])), [locations])
+  const accessibleLocations = useMemo(() => {
+    const selectable = itemSelectableLocations(locations).filter((l) => l.status === 'Active')
+    if (scope.locationAccessScope !== 'SELECTED') return selectable
+    const allowed = new Set((scope.allowedLocationIds ?? []).map(String))
+    return selectable.filter((l) => allowed.has(String(l.id)))
+  }, [locations, scope.allowedLocationIds, scope.locationAccessScope])
+  const defaultEntityCode = useMemo(() => {
+    if (scope.entityId == null) return String(entities[0]?.code ?? '')
+    return String(entities.find((e) => String(e.id) === String(scope.entityId))?.code ?? '')
+  }, [entities, scope.entityId])
+  const defaultLocationCode = useMemo(() => {
+    if (scope.defaultLocationId != null) {
+      const hit = accessibleLocations.find((l) => String(l.id) === String(scope.defaultLocationId))
+      if (hit?.code) return String(hit.code)
+    }
+    return String(accessibleLocations[0]?.code ?? '')
+  }, [accessibleLocations, scope.defaultLocationId])
+  const itemImportSamples = useMemo(
+    () =>
+      buildItemImportSampleRows({
+        entityCode: defaultEntityCode,
+        locationCode: defaultLocationCode,
+      }),
+    [defaultEntityCode, defaultLocationCode],
+  )
+  const consumableImportSample = useMemo(
+    () =>
+      buildConsumableItemImportSampleRows({
+        entityCode: defaultEntityCode,
+        locationCode: defaultLocationCode,
+      }),
+    [defaultEntityCode, defaultLocationCode],
+  )
+  const assetImportSample = useMemo(
+    () =>
+      buildAssetItemImportSampleRows({
+        entityCode: defaultEntityCode,
+        locationCode: defaultLocationCode,
+      }),
+    [defaultEntityCode, defaultLocationCode],
+  )
+  const {
+    previewRows,
+    importResult,
+    importing,
+    savingImport,
+    setDrafts,
+    removePreviewRow,
+    updateDraft,
+    clearPreview,
+    runUpload,
+    runSave,
+  } = useMasterCsvImportPreview<ItemImportDraft>()
 
   const columns: Column<Item>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono font-semibold">{r.code}</span> },
@@ -1233,9 +1310,96 @@ function ItemList() {
         description="All registered assets and consumables."
         actions={
           canCreateMenu('AIM') ? (
-            <Button onClick={() => navigate('/masters/items/new')}>Add Item</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <CsvImportButton
+                label={importing ? 'Uploading…' : 'Upload CSV'}
+                templateFilename="item_import_template.csv"
+                templateHeaders={ITEM_IMPORT_HEADERS}
+                sampleRow={itemImportSamples}
+                extraTemplates={[
+                  {
+                    label: 'Consumable template',
+                    filename: 'item_consumable_import_template.csv',
+                    headers: CONSUMABLE_ITEM_IMPORT_HEADERS,
+                    sampleRow: consumableImportSample,
+                  },
+                  {
+                    label: 'Asset template',
+                    filename: 'item_asset_import_template.csv',
+                    headers: ASSET_ITEM_IMPORT_HEADERS,
+                    sampleRow: assetImportSample,
+                  },
+                ]}
+                disabled={importing || savingImport}
+                onRows={(csvRows) =>
+                  void runUpload(() => {
+                    const keys = new Set(Object.keys(csvRows[0] ?? {}))
+                    const forceItemType =
+                      keys.has('consumabletype') && !keys.has('assettype')
+                        ? ('consumable' as const)
+                        : keys.has('assettype') && !keys.has('consumabletype')
+                          ? ('asset' as const)
+                          : undefined
+                    setDrafts(
+                      parseItemsFromCsv(csvRows, {
+                        existing: rows,
+                        entities,
+                        units,
+                        categories,
+                        subcategories,
+                        locations: accessibleLocations,
+                        defaultEntityCode,
+                        defaultLocationCode,
+                        forceItemType,
+                      }).drafts,
+                    )
+                  })
+                }
+              />
+              <Button onClick={() => navigate('/masters/items/new')}>Add Item</Button>
+            </div>
           ) : undefined
         }
+      />
+      <MasterCsvImportPanel
+        drafts={previewRows}
+        columns={[
+          { key: 'code', header: 'Code', render: (r) => <span className="font-mono">{r.itemCode || '—'}</span> },
+          { key: 'name', header: 'Name', render: (r) => r.itemName || '—' },
+          { key: 'type', header: 'Type', render: (r) => r.itemType || '—' },
+          { key: 'entity', header: 'Entity', render: (r) => r.entityCode || '—' },
+          { key: 'uom', header: 'UOM', render: (r) => r.uomCode || '—' },
+          {
+            key: 'loc',
+            header: 'Location',
+            render: (r) => (
+              <Select
+                className="min-w-[160px]"
+                disabled={savingImport}
+                value={r.currentLocationId != null ? String(r.currentLocationId) : ''}
+                onChange={(e) => {
+                  const loc =
+                    accessibleLocations.find((l) => String(l.id) === e.target.value) ?? null
+                  updateDraft(r.key, (row) => withItemDraftLocation(row, loc))
+                }}
+              >
+                <option value="">— Select location —</option>
+                {accessibleLocations.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.code} – {l.name}
+                  </option>
+                ))}
+              </Select>
+            ),
+          },
+          { key: 'cat', header: 'Category', render: (r) => r.categoryCode || '—' },
+          { key: 'sub', header: 'Sub-Cat', render: (r) => r.subcategoryCode || '—' },
+        ]}
+        saving={savingImport}
+        result={importResult}
+        onRemove={removePreviewRow}
+        onClear={clearPreview}
+        onSave={() => void runSave(saveItemsFromDrafts, reload)}
       />
       <Card>
         <CardBody>
@@ -1798,7 +1962,19 @@ function VendorList() {
   const navigate = useNavigate()
   const { canCreateMenu } = useAuth()
   const mapVendorStable = useCallback(mapVendor, [])
-  const { rows, loading, error } = useMasterList('vendors', mapVendorStable)
+  const { rows, loading, error, reload } = useMasterList('vendors', mapVendorStable)
+  const { options: partyTypeOpts } = useGenValues(GEN_TYPE.PARTY_TYPE)
+  const {
+    previewRows,
+    importResult,
+    importing,
+    savingImport,
+    setDrafts,
+    removePreviewRow,
+    clearPreview,
+    runUpload,
+    runSave,
+  } = useMasterCsvImportPreview<VendorImportDraft>()
 
   const columns: Column<Vendor>[] = [
     { key: 'code', header: 'Code', searchText: (r) => r.code, render: (r) => <span className="font-mono font-semibold">{r.code}</span> },
@@ -1830,9 +2006,43 @@ function VendorList() {
         description="All registered vendors, suppliers and contractors."
         actions={
           canCreateMenu('VPM') ? (
-            <Button onClick={() => navigate('/masters/vendors/new')}>Add Vendor</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <CsvImportButton
+                label={importing ? 'Uploading…' : 'Upload CSV'}
+                templateFilename="vendor_import_template.csv"
+                templateHeaders={VENDOR_IMPORT_HEADERS}
+                sampleRow={VENDOR_IMPORT_SAMPLE}
+                disabled={importing || savingImport}
+                onRows={(csvRows) =>
+                  void runUpload(() => {
+                    setDrafts(
+                      parseVendorsFromCsv(csvRows, {
+                        existing: rows,
+                        partyTypes: partyTypeOpts.map((o) => o.value),
+                      }).drafts,
+                    )
+                  })
+                }
+              />
+              <Button onClick={() => navigate('/masters/vendors/new')}>Add Vendor</Button>
+            </div>
           ) : undefined
         }
+      />
+      <MasterCsvImportPanel
+        drafts={previewRows}
+        columns={[
+          { key: 'code', header: 'Code', render: (r) => <span className="font-mono">{r.vendorCode || '—'}</span> },
+          { key: 'name', header: 'Name', render: (r) => r.vendorName || '—' },
+          { key: 'type', header: 'Type', render: (r) => r.partyType || '—' },
+          { key: 'phone', header: 'Phone', render: (r) => r.phone || '—' },
+          { key: 'city', header: 'City', render: (r) => r.city || '—' },
+        ]}
+        saving={savingImport}
+        result={importResult}
+        onRemove={removePreviewRow}
+        onClear={clearPreview}
+        onSave={() => void runSave(saveVendorsFromDrafts, reload)}
       />
       <Card>
         <CardBody>

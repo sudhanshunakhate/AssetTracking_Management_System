@@ -1,5 +1,6 @@
 com\caits\config\DataSeeder$AdminWidgetLayout.class
 com\caits\config\WebSocketConfig$2.class
+com\caits\config\SelfSignedTlsSupport.class
 com\caits\security\AuthCookieService.class
 com\caits\security\SensitiveAccessAudit.class
 com\caits\domain\repository\InvItemBuMappingDtlRepository.class
@@ -127,6 +128,7 @@ com\caits\domain\entity\OrgBusinessunitMst.class
 com\caits\modules\masters\dto\MasterDtos$SubordinateDto.class
 com\caits\modules\masters\dto\MasterDtos.class
 com\caits\modules\notifications\NotificationService$PushSubscribeRequest.class
+com\caits\config\SelfSignedTlsKeystorePreparer.class
 com\caits\domain\entity\SysmUserLocationMappingDtl.class
 com\caits\modules\auth\AuthDtos$LoginRequest.class
 com\caits\modules\masters\dto\MasterDtos$OuAccessDto.class
@@ -147,6 +149,7 @@ com\caits\modules\transactions\TxnDocumentService$1.class
 com\caits\domain\repository\DashWidgetMstRepository.class
 com\caits\modules\reports\ReportsController$IssueCustody.class
 com\caits\modules\masters\dto\MasterDtos$RoleRequest.class
+com\caits\config\SelfSignedTlsCustomizer.class
 com\caits\domain\entity\InvItemLocationMappingDtl.class
 com\caits\domain\repository\UnitMstRepository.class
 com\caits\modules\transactions\TxnDtos$LineRequest.class

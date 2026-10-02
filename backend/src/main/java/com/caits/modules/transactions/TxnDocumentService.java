@@ -1385,19 +1385,34 @@ public class TxnDocumentService {
         }
     }
 
-    /** Only the GRN-assigned inspector (or ADMIN) may approve / reject a pending inspection. */
+    /**
+     * Assigned inspector may always approve/reject. Users with IAPR/GRN Approve or Edit
+     * (and ADMIN / scope-exempt roles) may also act — so linked logins with menu rights work
+     * even when the GRN assigned a different Inspected By employee.
+     */
     private void requireInspectionApprovalActor(TxnHeaderMst header) {
         if (accessScope.isRoleExempt()) {
             return;
         }
         Integer assignee = header.getTxhInitiatedByEmpIdEmp();
         Integer actor = accessScope.currentEmployeeId();
+        if (assignee != null && actor != null && assignee.equals(actor)) {
+            return;
+        }
+        if (accessScope.canApproveOrEditInspection()) {
+            return;
+        }
         if (assignee == null) {
             throw ApiException.conflict("Inspection approval has no assigned inspector");
         }
-        if (actor == null || !assignee.equals(actor)) {
-            throw ApiException.forbidden("Only the assigned inspector can approve or reject this inspection");
+        if (actor == null) {
+            throw ApiException.forbidden(
+                    "Your login is not linked to an employee and your role cannot approve inspections (need IAPR/GRN Approve or Edit)");
         }
+        throw ApiException.forbidden(
+                "Only the assigned inspector (employee id "
+                        + assignee
+                        + ") or a user with IAPR/GRN Approve/Edit may approve or reject this inspection");
     }
 
     private String draftStatus(DocType docType) {

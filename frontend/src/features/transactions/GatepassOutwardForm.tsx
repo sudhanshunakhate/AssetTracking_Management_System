@@ -16,17 +16,9 @@ import {
   useTxnList,
   type TxnRow,
 } from '@/api/transactions'
-import {
-  mapBusinessUnit,
-  mapEmployee,
-  mapItem,
-  mapLocation,
-  mapUnit,
-  GEN_TYPE,
-  useGenValues,
-  useMasterList,
-} from '@/api/masters'
+import { mapBusinessUnit, mapEmployee, mapItem, mapLocation, mapUnit, mapVendor, GEN_TYPE, useGenValues, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
+import { LookupSelect } from '@/components/form/LookupSelect'
 import { AttachmentFields, attachmentPayload } from './AttachmentSection'
 import {
   GATEPASS_BASE,
@@ -49,7 +41,7 @@ import {
   type OutwardPickerBatch,
 } from './GatepassNormalOutwardPickerModal'
 import { normalizeTransferType, transferTypeLabel } from './transferTypes'
-import { locLabel, systemLocations } from './txnLookups'
+import { locLabel, systemLocations, quickAddVendor, vendorOptions as toVendorOptions } from './txnLookups'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import { toNum } from './lineGrid'
 
@@ -88,11 +80,15 @@ export function GatepassOutwardForm() {
   const mapItm = useCallback(mapItem, [])
   const mapUnt = useCallback(mapUnit, [])
   const mapBu = useCallback(mapBusinessUnit, [])
+  const mapVend = useCallback(mapVendor, [])
   const { rows: employees } = useMasterList('employees', mapEmp)
   const { rows: stores } = useMasterList('locations', mapLoc)
   const { rows: items } = useMasterList('items', mapItm)
   const { rows: units } = useMasterList('units', mapUnt)
   const { rows: ous } = useMasterList('business-units', mapBu)
+  const vendors = useMasterList('vendors', mapVend)
+  const vendorOptions = useMemo(() => toVendorOptions(vendors.rows), [vendors.rows])
+  const addVendor = useMemo(() => quickAddVendor(vendors.reload), [vendors.reload])
   const { options: retFlagOpts } = useGenValues(GEN_TYPE.RETURNABLE_FLAG, 'code')
   const outward = useTxnList('gatepass/outward')
   const pendingTransfers = useTxnList('transfers', {
@@ -109,6 +105,7 @@ export function GatepassOutwardForm() {
     transferType: 'INTERNAL',
     returnFlag: 'N',
     party: '',
+    partyId: '',
     item: '',
     qty: '1',
     uom: '',
@@ -130,9 +127,29 @@ export function GatepassOutwardForm() {
     [stores],
   )
 
+  const resolveVendorFromName = useCallback(
+    (name: string) => {
+      const n = name.trim().toLowerCase()
+      if (!n) return { partyId: '', party: '' }
+      const hit = vendors.rows.find((v) => {
+        const label = `${String(v.code ?? '')} - ${String(v.name ?? '')}`.toLowerCase()
+        const vn = String(v.name ?? '').trim().toLowerCase()
+        return vn === n || label === n || label.includes(n) || vn.includes(n)
+      })
+      return hit
+        ? {
+            partyId: hit.id,
+            party: `${String(hit.code ?? '')} - ${String(hit.name ?? '')}`.replace(/^ - | - $/g, '').trim(),
+          }
+        : { partyId: '', party: name.trim() }
+    },
+    [vendors.rows],
+  )
+
   const applyPrefill = useCallback(
     (prefill: GatepassOutwardPrefill) => {
       const first = prefill.lines[0]
+      const vendor = resolveVendorFromName(prefill.party || '')
       setMode('against-transfer')
       setTransferOutwardLink(prefill)
       setLinkedTransferId(prefill.transferDocId || '')
@@ -142,7 +159,8 @@ export function GatepassOutwardForm() {
         preparedBy: sessionEmpId,
         transferType: normalizeTransferType(prefill.transferType || 'INTERNAL'),
         returnFlag: prefill.returnFlag || 'N',
-        party: prefill.party || '',
+        party: vendor.party,
+        partyId: vendor.partyId,
         item: first?.itemId || '',
         qty: first?.qty || '1',
         uom: first?.uomId || '',
@@ -159,7 +177,7 @@ export function GatepassOutwardForm() {
       )
       setError('')
     },
-    [sessionEmpId],
+    [sessionEmpId, resolveVendorFromName],
   )
 
   useEffect(() => {
@@ -234,14 +252,16 @@ export function GatepassOutwardForm() {
               break
             }
           } catch {
-            // Keep party blank if inbound lookup fails; user can type it.
+            // Keep party blank if inbound lookup fails; user can pick from dropdown.
           }
         }
       }
+      const vendor = resolveVendorFromName(party)
       setOutwardForm((p) => ({
         ...p,
         store: batch.locationId,
-        party: party || p.party,
+        party: vendor.party || p.party,
+        partyId: vendor.partyId || p.partyId,
       }))
       setNormalLines(mapped.length ? mapped : [emptyGatepassOutwardLine()])
       setPickerOpen(false)
@@ -264,6 +284,7 @@ export function GatepassOutwardForm() {
       transferType: 'INTERNAL',
       returnFlag: 'N',
       party: '',
+      partyId: '',
       item: '',
       qty: '1',
       uom: '',
@@ -322,7 +343,7 @@ export function GatepassOutwardForm() {
       setError('Returnable / Non Returnable is required')
       return
     }
-    if (!outwardForm.party.trim()) {
+    if (!outwardForm.partyId && !outwardForm.party.trim()) {
       setError('Vendor / Party / Customer is required')
       return
     }
@@ -378,7 +399,8 @@ export function GatepassOutwardForm() {
         initiatedByEmpId: numOrUndef(outwardForm.preparedBy),
         returnFlag: outwardForm.returnFlag,
         // Normal outward has no transfer subtype — leave blank (linked transfer still sends subtype).
-        partyAdd: outwardForm.party.trim(),
+        partyId: numOrUndef(outwardForm.partyId),
+        partyAdd: outwardForm.party.trim() || undefined,
         remarks: outwardForm.remarks || undefined,
         ...attachmentPayload(outwardForm.attachmentUrl, outwardForm.attachmentName),
         docSubmitAction: action,
@@ -411,7 +433,7 @@ export function GatepassOutwardForm() {
       setError('Returnable / Non Returnable is required')
       return
     }
-    if (!outwardForm.party.trim()) {
+    if (!outwardForm.partyId && !outwardForm.party.trim()) {
       setError('Vendor / Party / Customer is required')
       return
     }
@@ -440,7 +462,8 @@ export function GatepassOutwardForm() {
         returnFlag: outwardForm.returnFlag,
         docSubtype: normalizeTransferType(outwardForm.transferType),
         refTxnHeaderId: numOrUndef(linkedTransferId),
-        partyAdd: outwardForm.party.trim(),
+        partyId: numOrUndef(outwardForm.partyId),
+        partyAdd: outwardForm.party.trim() || undefined,
         remarks: outwardForm.remarks || undefined,
         ...attachmentPayload(outwardForm.attachmentUrl, outwardForm.attachmentName),
         docSubmitAction: action,
@@ -621,13 +644,22 @@ export function GatepassOutwardForm() {
                 <Field label="Prepared By" required hint="Logged-in user">
                   <Input value={preparedByLabel} readOnly disabled />
                 </Field>
-                <Field label="Vendor / Party / Customer" required className="md:col-span-2">
-                  <Input
-                    placeholder="Vendor, party or customer name"
-                    value={outwardForm.party}
-                    onChange={(e) => setOut('party', e.target.value)}
-                  />
-                </Field>
+                <LookupSelect
+                  label="Vendor / Party / Customer"
+                  required
+                  className="md:col-span-2"
+                  value={outwardForm.partyId}
+                  onChange={(v) => {
+                    const row = vendors.rows.find((x) => x.id === v)
+                    const label = row
+                      ? `${String(row.code ?? '')} - ${String(row.name ?? '')}`.replace(/^ - | - $/g, '').trim()
+                      : ''
+                    setOutwardForm((p) => ({ ...p, partyId: v, party: label }))
+                  }}
+                  options={vendorOptions}
+                  placeholder="— Select Vendor —"
+                  quickAdd={addVendor}
+                />
                 <Field label="Remarks" className="md:col-span-2 xl:col-span-4">
                   <Input
                     placeholder="Remarks…"
@@ -758,13 +790,22 @@ export function GatepassOutwardForm() {
                 <Field label="Store (From)" required>
                   <Input value={linkedStoreLabel} readOnly disabled />
                 </Field>
-                <Field label="Vendor / Party / Customer" required className="md:col-span-2">
-                  <Input
-                    placeholder="Vendor, party or customer name"
-                    value={outwardForm.party}
-                    onChange={(e) => setOut('party', e.target.value)}
-                  />
-                </Field>
+                <LookupSelect
+                  label="Vendor / Party / Customer"
+                  required
+                  className="md:col-span-2"
+                  value={outwardForm.partyId}
+                  onChange={(v) => {
+                    const row = vendors.rows.find((x) => x.id === v)
+                    const label = row
+                      ? `${String(row.code ?? '')} - ${String(row.name ?? '')}`.replace(/^ - | - $/g, '').trim()
+                      : ''
+                    setOutwardForm((p) => ({ ...p, partyId: v, party: label }))
+                  }}
+                  options={vendorOptions}
+                  placeholder="— Select Vendor —"
+                  quickAdd={addVendor}
+                />
                 <div className="md:col-span-4 overflow-x-auto rounded-md border border-[var(--border)]">
                   <div className="border-b border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-[11px] font-semibold text-[var(--text2)]">
                     Linked transfer lines

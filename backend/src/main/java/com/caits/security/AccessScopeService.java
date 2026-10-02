@@ -3,10 +3,15 @@ package com.caits.security;
 import com.caits.common.ApiException;
 import com.caits.common.spec.SpecUtils;
 import com.caits.domain.entity.OrgLocationMst;
+import com.caits.domain.entity.SysmMenutreeMst;
+import com.caits.domain.entity.SysmRolepermissionDtl;
 import com.caits.domain.entity.SysmUserBuMappingDtl;
 import com.caits.domain.entity.SysmUserLocationMappingDtl;
 import com.caits.domain.entity.SysmUserloginMst;
 import com.caits.domain.repository.OrgLocationMstRepository;
+import com.caits.domain.repository.SysmMenutreeMstRepository;
+import com.caits.domain.repository.SysmRolepermissionDtlRepository;
+import com.caits.domain.repository.SysmRolesMstRepository;
 import com.caits.domain.repository.SysmUserBuMappingDtlRepository;
 import com.caits.domain.repository.SysmUserLocationMappingDtlRepository;
 import com.caits.domain.repository.SysmUserloginMstRepository;
@@ -53,6 +58,9 @@ public class AccessScopeService {
     private final SysmUserBuMappingDtlRepository buMappingRepo;
     private final SysmUserLocationMappingDtlRepository locationMappingRepo;
     private final OrgLocationMstRepository locationMasterRepo;
+    private final SysmRolesMstRepository roleRepo;
+    private final SysmRolepermissionDtlRepository rolePermRepo;
+    private final SysmMenutreeMstRepository menuRepo;
     private final JwtProperties properties;
 
     public AccessScopeService(
@@ -60,11 +68,17 @@ public class AccessScopeService {
             SysmUserBuMappingDtlRepository buMappingRepo,
             SysmUserLocationMappingDtlRepository locationMappingRepo,
             OrgLocationMstRepository locationMasterRepo,
+            SysmRolesMstRepository roleRepo,
+            SysmRolepermissionDtlRepository rolePermRepo,
+            SysmMenutreeMstRepository menuRepo,
             JwtProperties properties) {
         this.userRepo = userRepo;
         this.buMappingRepo = buMappingRepo;
         this.locationMappingRepo = locationMappingRepo;
         this.locationMasterRepo = locationMasterRepo;
+        this.roleRepo = roleRepo;
+        this.rolePermRepo = rolePermRepo;
+        this.menuRepo = menuRepo;
         this.properties = properties;
     }
 
@@ -161,6 +175,38 @@ public class AccessScopeService {
         return userRepo.findById(cu.userId())
                 .map(SysmUserloginMst::getUsrEmployeeIdEmp)
                 .orElse(null);
+    }
+
+    /**
+     * True when the caller may approve/reject inspection approvals via role menu flags
+     * on IAPR or GRN (edit or approve). Used together with assignee matching.
+     */
+    @Transactional(readOnly = true)
+    public boolean canApproveOrEditInspection() {
+        if (isRoleExempt()) {
+            return true;
+        }
+        CurrentUser cu = SecurityUtils.requireCurrentUser();
+        Integer roleId = roleRepo.findByRolRoleCodeIgnoreCase(cu.roleCode())
+                .map(r -> r.getRolRoleId())
+                .orElse(null);
+        if (roleId == null) {
+            return false;
+        }
+        List<SysmRolepermissionDtl> perms = rolePermRepo.findByRlpmRoleIdRol(roleId);
+        Integer iaprId = menuRepo.findByMtreeMenuCodeIgnoreCase("IAPR")
+                .map(SysmMenutreeMst::getMtreeMenuId)
+                .orElse(null);
+        Integer grnId = menuRepo.findByMtreeMenuCodeIgnoreCase("GRN")
+                .map(SysmMenutreeMst::getMtreeMenuId)
+                .orElse(null);
+        return perms.stream()
+                .filter(p -> {
+                    Integer mid = p.getRlpmMenuIdMtree();
+                    return mid != null && (mid.equals(iaprId) || mid.equals(grnId));
+                })
+                .anyMatch(p -> Boolean.TRUE.equals(p.getRlpmCanApprove())
+                        || Boolean.TRUE.equals(p.getRlpmCanEdit()));
     }
 
     /** Rejects a write that targets a location outside the caller's allow-list. */

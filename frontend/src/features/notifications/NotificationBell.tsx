@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAuth } from '@/features/auth/AuthContext'
 import { useNotifications } from './NotificationContext'
 import { sendTestPush } from '@/api/notifications'
+import {
+  readLoginNtfPopupLastShownMaxId,
+  writeLoginNtfPopupLastShownMaxId,
+} from './loginNtfPopupState'
 
 function timeAgo(iso: string) {
   const then = new Date(iso).getTime()
@@ -118,32 +123,33 @@ export function NotificationBell() {
   )
 }
 
-const POPUP_MS = 15_000
+const POPUP_MS = 7_000
 
 export function LoginNotificationPopup() {
+  const { user } = useAuth()
   const { items, unreadCount, ready, openItem, permission, enableOsNotifications } = useNotifications()
   const [open, setOpen] = useState(false)
   const [paused, setPaused] = useState(false)
-  const prevUnread = useRef<number | null>(null)
 
   const unread = items.filter((n) => !n.read)
+  const maxUnreadId = unread.reduce((max, n) => Math.max(max, n.id), 0)
 
   useEffect(() => {
-    if (!ready) return
-    const previous = prevUnread.current
-    prevUnread.current = unreadCount
-    if (previous === null) {
-      if (unreadCount > 0) setOpen(true)
-      return
-    }
-    if (unreadCount > previous) setOpen(true)
-  }, [ready, unreadCount])
+    if (!ready || !user) return
+    if (unread.length === 0 || maxUnreadId <= 0) return
+    const lastShown = readLoginNtfPopupLastShownMaxId(user.userId)
+    // Show only for notifications newer than what this login session already presented.
+    // Survives refresh; resets on logout/login (key cleared).
+    if (maxUnreadId <= lastShown) return
+    writeLoginNtfPopupLastShownMaxId(user.userId, maxUnreadId)
+    setOpen(true)
+  }, [ready, user, unread.length, maxUnreadId, unreadCount])
 
   useEffect(() => {
     if (!open || paused) return
     const id = window.setTimeout(() => setOpen(false), POPUP_MS)
     return () => window.clearTimeout(id)
-  }, [open, paused, unreadCount])
+  }, [open, paused])
 
   useEffect(() => {
     if (!open) return
@@ -168,7 +174,7 @@ export function LoginNotificationPopup() {
         <div>
           <div className="text-[13px] font-bold text-[var(--text)]">New notifications</div>
           <div className="text-[11px] text-[var(--text3)]">
-            {unread.length} unread · closes in 15s
+            {unread.length} unread · closes in 7s
           </div>
         </div>
         <button
@@ -255,7 +261,7 @@ export function WindowsPushPrompt() {
       </div>
       <p className="mt-1 text-[12px] text-[var(--text2)]">
         {insecure
-          ? 'Browser push alerts need HTTPS (or localhost). In-app bell notifications still work over HTTP.'
+          ? 'Windows/OS alerts need a secure page (HTTPS or localhost). In-app bell and toasts still work over HTTP. On your server without a purchased certificate: enable CAITS self-signed TLS (CAITS_TLS_ENABLED=true), open the https:// URL, accept the browser warning once, then allow notifications — or in Chrome set chrome://flags → “Insecure origins treated as secure” to this http:// host.'
           : permission === 'denied'
             ? 'Blocked in the browser. Click the lock icon in the address bar, allow Notifications, then refresh — or dismiss this message.'
             : 'Allow once so CAITS can alert you on the Windows tray even if this tab or Chrome is closed.'}

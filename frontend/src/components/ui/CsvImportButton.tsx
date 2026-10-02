@@ -6,14 +6,14 @@ type TemplateLink = {
   label: string
   filename: string
   headers: string[]
-  sampleRow?: string[]
+  sampleRow?: string[] | string[][]
 }
 
 type Props = {
   label?: string
   templateFilename: string
   templateHeaders: string[]
-  sampleRow?: string[]
+  sampleRow?: string[] | string[][]
   extraTemplates?: TemplateLink[]
   disabled?: boolean
   onRows: (rows: Record<string, string>[]) => void | Promise<void>
@@ -67,25 +67,25 @@ export function CsvImportButton({
         {busy ? 'Importing…' : label}
       </Button>
       {extraTemplates.length === 0 ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           disabled={disabled || busy}
           onClick={() => downloadCsvTemplate(templateFilename, templateHeaders, sampleRow)}
-          className="text-[11px] font-semibold text-[var(--accent)] underline disabled:opacity-40"
         >
           Download template
-        </button>
+        </Button>
       ) : (
         extraTemplates.map((t) => (
-          <button
+          <Button
             key={t.filename}
             type="button"
+            variant="ghost"
             disabled={disabled || busy}
             onClick={() => downloadCsvTemplate(t.filename, t.headers, t.sampleRow)}
-            className="text-[11px] font-semibold text-[var(--accent)] underline disabled:opacity-40"
           >
             {t.label}
-          </button>
+          </Button>
         ))
       )}
     </div>

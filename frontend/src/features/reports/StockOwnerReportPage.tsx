@@ -11,6 +11,9 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { txnDetailPath } from '@/features/transactions/txnDetailPath'
 import { downloadCsv } from '@/lib/csvExport'
 import { formatStockQty } from '@/features/transactions/lineGrid'
+import { ReportTableScroll, reportThClass } from './ReportTableScroll'
+import { MasterEmployeeSearchLookup } from '@/features/transactions/MasterSearchLookup'
+import { empLabel } from '@/features/transactions/txnLookups'
 
 type OwnerRow = {
   id: string
@@ -192,7 +195,7 @@ export function StockOwnerReportPage() {
       />
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading stock owner report…</div>}
-      <Card>
+      <Card className="overflow-visible">
         <CardBody>
           <div className="mb-2.5 flex flex-wrap items-center gap-2">
             <input
@@ -231,18 +234,19 @@ export function StockOwnerReportPage() {
                 </option>
               ))}
             </select>
-            <select
-              value={employee}
-              onChange={(e) => setEmployee(e.target.value)}
-              className="rounded-[7px] border border-[var(--border2)] px-2.5 py-1.5 text-xs text-[var(--text2)]"
-            >
-              <option value="">All Employees</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {String(e.firstName ?? '')} {String(e.lastName ?? '')}
-                </option>
-              ))}
-            </select>
+            <div className="min-w-[200px]">
+              <MasterEmployeeSearchLookup
+                value={employee}
+                onChange={setEmployee}
+                options={employees.map((e) => ({
+                  value: e.id,
+                  label: empLabel(e),
+                  searchText: empLabel(e),
+                }))}
+                placeholder="All Employees"
+                allowClear
+              />
+            </div>
             <select
               value={custody}
               onChange={(e) => setCustody(e.target.value)}
@@ -268,10 +272,10 @@ export function StockOwnerReportPage() {
             </Button>
           </div>
 
-          <div className="overflow-x-auto">
+          <ReportTableScroll>
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-[var(--surface2)]">
+                <tr>
                   {[
                     'Store',
                     'Store Name',
@@ -289,10 +293,7 @@ export function StockOwnerReportPage() {
                     'Last Issue',
                     'Status',
                   ].map((h) => (
-                    <th
-                      key={h}
-                      className="border-b-2 border-[var(--border)] px-[11px] py-[7px] text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase"
-                    >
+                    <th key={h} className={reportThClass}>
                       {h}
                     </th>
                   ))}
@@ -365,7 +366,7 @@ export function StockOwnerReportPage() {
                 )}
               </tbody>
             </table>
-          </div>
+          </ReportTableScroll>
 
           <div className="mt-3.5 flex flex-wrap gap-7 border-t border-[var(--border)] pt-3 text-[12.5px] text-[var(--text2)]">
             <div>

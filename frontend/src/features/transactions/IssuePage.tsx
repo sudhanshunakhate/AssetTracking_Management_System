@@ -8,7 +8,7 @@ import { DataTable, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Modal } from '@/components/ui/Modal'
-import { LookupSelect } from '@/components/form/LookupSelect'
+import { MasterEmployeeSearchLookup } from './MasterSearchLookup'
 import { api, type PageResponse } from '@/api/client'
 import { fetchDepartmentMappedLocation, mapDepartment, useMasterList } from '@/api/masters'
 import {
@@ -34,10 +34,7 @@ import {
   employeeOptions as toEmployeeOptions,
   itemsForLocation,
   locLabel,
-  locationOptions as toLocationOptions,
   nonSystemLocations,
-  quickAddEmployee,
-  quickAddLocation,
   useTxnFormLookups,
 } from './txnLookups'
 import { RequisitionPickerModal } from './IssueRequisitionPicker'
@@ -253,22 +250,8 @@ function IssueForm() {
     return hit ? `${hit.docNo} · ${hit.docDate || ''}` : `Req #${form.requisitionId}`
   })()
 
-  const locationOptions = useMemo(() => {
-    const base = toLocationOptions(nonSystemLocations(locations.rows))
-    if (deptToLocationOption && !base.some((o) => o.value === deptToLocationOption.value)) {
-      return [deptToLocationOption, ...base]
-    }
-    if (form.toLocationId && !base.some((o) => o.value === form.toLocationId)) {
-      const loc = locations.rows.find((l) => l.id === form.toLocationId)
-      if (loc) return [{ value: loc.id, label: locLabel(loc) }, ...base]
-    }
-    return base
-  }, [locations.rows, deptToLocationOption, form.toLocationId])
   const lineLocations = useMemo(() => nonSystemLocations(locations.rows), [locations.rows])
   const employeeOptions = useMemo(() => toEmployeeOptions(employees.rows), [employees.rows])
-
-  const addLocation = quickAddLocation(locations.reload)
-  const addEmployee = quickAddEmployee(employees.reload)
 
   /* ---- pending requisitions for display labels on existing issues ---- */
   useEffect(() => {
@@ -343,15 +326,24 @@ function IssueForm() {
           attachmentName: doc.attachmentName ?? '',
           status: doc.status ?? '',
         })
-        if (
-          (doc.docSubtype ?? '').toUpperCase() === 'DEPARTMENT' &&
-          doc.departmentId != null
-        ) {
+        if (doc.departmentId != null) {
           void applyDepartmentToLocation(String(doc.departmentId), doc.departmentLocationId).then(
             (locId) => {
               if (locId) setForm((p) => (p.toLocationId ? p : { ...p, toLocationId: locId }))
             },
           )
+        } else if (
+          (doc.docSubtype ?? '').toUpperCase() === 'EMPLOYEE' &&
+          doc.initiatedByEmpId != null
+        ) {
+          void resolveEmployeeDepartmentLocation(String(doc.initiatedByEmpId)).then((resolved) => {
+            setForm((p) => ({
+              ...p,
+              departmentId: p.departmentId || resolved.departmentId,
+              departmentName: p.departmentName || resolved.departmentName,
+              toLocationId: p.toLocationId || resolved.toLocationId,
+            }))
+          })
         } else {
           setDeptToLocationOption(null)
         }
@@ -389,10 +381,11 @@ function IssueForm() {
     }
   }, [issueId, deptById])
 
-  /** Keep To Location aligned with the department's mapped location (department master). */
+  /** Keep To Location aligned with the department mapped to the employee / department. */
   useEffect(() => {
     if (!isNew || !form.departmentId) return
-    if ((form.reqSubtype ?? '').toUpperCase() !== 'DEPARTMENT') return
+    const subtype = (form.reqSubtype ?? '').toUpperCase()
+    if (subtype !== 'DEPARTMENT' && subtype !== 'EMPLOYEE') return
     let cancelled = false
     ;(async () => {
       const mapped = await fetchDepartmentMappedLocation(form.departmentId, deptById)
@@ -432,6 +425,23 @@ function IssueForm() {
     return targetId
   }
 
+  /** Employee → department → department location (not item / base store). */
+  const resolveEmployeeDepartmentLocation = async (empId: string): Promise<{
+    departmentId: string
+    departmentName: string
+    toLocationId: string
+  }> => {
+    const emp = employees.rows.find((e) => e.id === empId)
+    const departmentId = String(emp?.departmentId ?? '')
+    const dept = departmentId ? deptById.get(departmentId) : undefined
+    const departmentName = dept?.name ? String(dept.name) : String(emp?.department ?? '')
+    let toLocationId = ''
+    if (departmentId) {
+      toLocationId = await applyDepartmentToLocation(departmentId)
+    }
+    return { departmentId, departmentName, toLocationId }
+  }
+
   const onRequisitionChange = async (reqId: string) => {
     set('requisitionId', reqId)
     if (!reqId) return
@@ -439,17 +449,18 @@ function IssueForm() {
       const doc = await fetchTxn('requisitions', reqId)
       const subtype = (doc.docSubtype ?? '').toUpperCase()
       let toLocationId = ''
+      let deptId = doc.departmentId != null ? String(doc.departmentId) : ''
+      let deptName = ''
       if (subtype === 'EMPLOYEE' && doc.initiatedByEmpId != null) {
-        const emp = employees.rows.find((e) => e.id === String(doc.initiatedByEmpId))
-        toLocationId = String(emp?.baseStore ?? '')
-        setDeptToLocationOption(null)
-      }
-      const deptId = doc.departmentId != null ? String(doc.departmentId) : ''
-      if (!toLocationId && deptId && subtype !== 'EMPLOYEE') {
+        const resolved = await resolveEmployeeDepartmentLocation(String(doc.initiatedByEmpId))
+        deptId = resolved.departmentId || deptId
+        deptName = resolved.departmentName
+        toLocationId = resolved.toLocationId
+        if (!toLocationId && deptId) {
+          toLocationId = await applyDepartmentToLocation(deptId, doc.departmentLocationId)
+        }
+      } else if (deptId) {
         toLocationId = await applyDepartmentToLocation(deptId, doc.departmentLocationId)
-      }
-      if (!toLocationId && doc.locationId != null) {
-        toLocationId = String(doc.locationId)
       }
       const deptRow = deptId ? deptById.get(deptId) : undefined
       setForm((p) => ({
@@ -460,8 +471,8 @@ function IssueForm() {
         issuedTo: doc.initiatedByEmpId != null ? String(doc.initiatedByEmpId) : p.issuedTo,
         reqSubtype: subtype || p.reqSubtype,
         departmentId: deptId || p.departmentId,
-        departmentName: deptRow?.name ? String(deptRow.name) : p.departmentName,
-        toLocationId: toLocationId || p.toLocationId,
+        departmentName: deptName || (deptRow?.name ? String(deptRow.name) : p.departmentName),
+        toLocationId: toLocationId || '',
       }))
       const storeLoc = doc.locationId != null ? String(doc.locationId) : ''
       const mapped = (doc.lines ?? []).map((l) => {
@@ -702,7 +713,7 @@ function IssueForm() {
         </Button>
       </div>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader title="Issue Details" />
         <CardBody>
           <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
@@ -751,65 +762,83 @@ function IssueForm() {
                 />
               </Field>
             ) : (
-              <LookupSelect
-                label="Issued To"
-                required
-                value={form.issuedTo}
-                onChange={(v) => {
-                  setForm((p) => {
-                    const emp = employees.rows.find((e) => e.id === v)
-                    const next = { ...p, issuedTo: v }
-                    if (p.reqSubtype === 'EMPLOYEE' && emp?.baseStore) {
-                      next.toLocationId = String(emp.baseStore)
+              <Field label="Issued To" required error={err('issuedTo')}>
+                <MasterEmployeeSearchLookup
+                  value={form.issuedTo}
+                  onChange={(v) => {
+                    if ((form.reqSubtype ?? '').toUpperCase() !== 'EMPLOYEE') {
+                      setForm((p) => ({ ...p, issuedTo: v }))
+                      return
                     }
-                    return next
-                  })
-                }}
-                onBlur={() => touch('issuedTo')}
-                options={employeeOptions}
-                placeholder="— Select Employee —"
-                error={err('issuedTo')}
-                disabled={readOnly}
-                quickAdd={addEmployee}
-              />
-            )}
-
-            {(form.reqSubtype ?? '').toUpperCase() === 'DEPARTMENT' ? (
-              <Field
-                label="To Location"
-                required
-                error={err('toLocationId')}
-                hint="Taken from the department master — cannot be changed"
-              >
-                <Input
-                  value={
-                    deptToLocationOption?.value === form.toLocationId
-                      ? deptToLocationOption.label
-                      : (() => {
-                          const loc = locations.rows.find((l) => l.id === form.toLocationId)
-                          return loc ? locLabel(loc) : form.toLocationId || ''
-                        })()
-                  }
-                  readOnly
-                  placeholder="From department mapping"
-                  invalid={Boolean(err('toLocationId'))}
+                    if (!v) {
+                      setDeptToLocationOption(null)
+                      setForm((p) => ({
+                        ...p,
+                        issuedTo: '',
+                        departmentId: '',
+                        departmentName: '',
+                        toLocationId: '',
+                      }))
+                      setError(null)
+                      return
+                    }
+                    void (async () => {
+                      const resolved = await resolveEmployeeDepartmentLocation(v)
+                      setForm((p) => ({
+                        ...p,
+                        issuedTo: v,
+                        departmentId: resolved.departmentId,
+                        departmentName: resolved.departmentName,
+                        toLocationId: resolved.toLocationId,
+                      }))
+                      if (!resolved.departmentId) {
+                        setDeptToLocationOption(null)
+                        setError('Selected employee has no department — assign a department in Employee Master.')
+                      } else if (!resolved.toLocationId) {
+                        setError(
+                          'Employee’s department has no mapped location — set location on Department Master.',
+                        )
+                      } else {
+                        setError(null)
+                      }
+                    })()
+                  }}
+                  options={employeeOptions}
+                  placeholder="— Select Employee —"
+                  disabled={readOnly}
+                  invalid={Boolean(err('issuedTo'))}
                 />
               </Field>
-            ) : (
-              <LookupSelect
-                label="To Location"
-                required
-                value={form.toLocationId}
-                onChange={(v) => set('toLocationId', v)}
-                onBlur={() => touch('toLocationId')}
-                options={locationOptions}
-                placeholder="— Select Location —"
-                error={err('toLocationId')}
-                disabled={readOnly}
-                hint="Defaults to the employee’s base location"
-                quickAdd={addLocation}
-              />
             )}
+
+            <Field
+              label="To Location"
+              required
+              error={err('toLocationId')}
+              hint={
+                (form.reqSubtype ?? '').toUpperCase() === 'DEPARTMENT'
+                  ? 'Taken from the department master — cannot be changed'
+                  : 'From the employee’s department location — cannot be changed'
+              }
+            >
+              <Input
+                value={
+                  deptToLocationOption?.value === form.toLocationId
+                    ? deptToLocationOption.label
+                    : (() => {
+                        const loc = locations.rows.find((l) => l.id === form.toLocationId)
+                        return loc ? locLabel(loc) : form.toLocationId || ''
+                      })()
+                }
+                readOnly
+                placeholder={
+                  (form.reqSubtype ?? '').toUpperCase() === 'EMPLOYEE'
+                    ? 'From employee → department → location'
+                    : 'From department mapping'
+                }
+                invalid={Boolean(err('toLocationId'))}
+              />
+            </Field>
 
             <Field label="Remark" className="md:col-span-2 xl:col-span-3">
               <Textarea

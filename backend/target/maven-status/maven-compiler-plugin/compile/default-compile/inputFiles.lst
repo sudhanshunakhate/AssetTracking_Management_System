@@ -8,6 +8,9 @@ D:\AssetTracking_Management_System\backend\src\main\java\com\caits\common\PageSi
 D:\AssetTracking_Management_System\backend\src\main\java\com\caits\common\spec\SpecUtils.java
 D:\AssetTracking_Management_System\backend\src\main\java\com\caits\config\AsyncConfig.java
 D:\AssetTracking_Management_System\backend\src\main\java\com\caits\config\DataSeeder.java
+D:\AssetTracking_Management_System\backend\src\main\java\com\caits\config\SelfSignedTlsCustomizer.java
+D:\AssetTracking_Management_System\backend\src\main\java\com\caits\config\SelfSignedTlsKeystorePreparer.java
+D:\AssetTracking_Management_System\backend\src\main\java\com\caits\config\SelfSignedTlsSupport.java
 D:\AssetTracking_Management_System\backend\src\main\java\com\caits\config\SpaForwardController.java
 D:\AssetTracking_Management_System\backend\src\main\java\com\caits\config\WebMvcSecurityConfig.java
 D:\AssetTracking_Management_System\backend\src\main\java\com\caits\config\WebSocketConfig.java

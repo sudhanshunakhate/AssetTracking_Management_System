@@ -7,18 +7,19 @@ import { DataTable, statusColumn, type Column } from '@/components/ui/DataTable'
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import { useAuth } from '@/features/auth/AuthContext'
+import { FilterableLookup } from '@/features/transactions/lineGrid'
 import { confirmClearForm, scrollToFirstInvalid } from '@/lib/csvExport'
 import { validateFields, areRequiredFieldsFilled, HEADER_BEFORE_LINES_HINT, type ValidationRules } from './validation'
 
 export type FieldDef = ValidationRules & {
   name: string
   label: string
-  type?: 'text' | 'number' | 'select' | 'textarea' | 'switch' | 'date'
+  type?: 'text' | 'number' | 'select' | 'employee' | 'textarea' | 'switch' | 'date'
   hint?: string
   span?: 1 | 2 | 3 | 4
   options?:
-    | { value: string; label: string }[]
-    | ((values: Record<string, unknown>) => { value: string; label: string }[])
+    | { value: string; label: string; searchText?: string }[]
+    | ((values: Record<string, unknown>) => { value: string; label: string; searchText?: string }[])
   uppercase?: boolean
   /** Shown as the empty option label for select fields. */
   placeholder?: string
@@ -55,6 +56,8 @@ interface SimpleMasterProps<T extends Row> {
   /** True while the parent list is still loading (avoids empty edit form). */
   listLoading?: boolean
   getDefaults?: () => Record<string, unknown>
+  /** Extra buttons rendered next to Add New on the list page (e.g. CSV import). */
+  listActions?: ReactNode
   extraListContent?: ReactNode
   renderExtraForm?: (
     values: Record<string, unknown>,
@@ -105,7 +108,7 @@ function toFormValues(initial: Record<string, unknown>, fields: FieldDef[]): Rec
     const v = next[f.name]
     if (f.type === 'switch') {
       next[f.name] = Boolean(v)
-    } else if (f.type === 'select') {
+    } else if (f.type === 'select' || f.type === 'employee') {
       next[f.name] = v == null || v === '' ? '' : String(v)
     } else if (v == null) {
       next[f.name] = ''
@@ -130,6 +133,7 @@ export function SimpleMasterModule<T extends Row>({
   menuCode,
   listLoading = false,
   getDefaults,
+  listActions,
   extraListContent,
   renderExtraForm,
   onSave,
@@ -268,9 +272,15 @@ export function SimpleMasterModule<T extends Row>({
         title={title}
         description={description}
         actions={
-          canCreate ? <Button onClick={() => navigate(`${basePath}/new`)}>{addLabel}</Button> : undefined
+          canCreate ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {listActions}
+              <Button onClick={() => navigate(`${basePath}/new`)}>{addLabel}</Button>
+            </div>
+          ) : undefined
         }
       />
+      {extraListContent}
       <Card>
         <CardBody>
           <DataTable
@@ -282,7 +292,6 @@ export function SimpleMasterModule<T extends Row>({
           />
         </CardBody>
       </Card>
-      {extraListContent}
     </FadeContent>
   )
 }
@@ -452,7 +461,7 @@ function MasterForm({
         </Button>
       </div>
 
-      <Card>
+      <Card className="overflow-visible">
         <CardHeader title={formTitle} />
         <CardBody>
           <div className={gridClass}>
@@ -503,6 +512,26 @@ function MasterForm({
                       maxLength={f.maxLength}
                       invalid={Boolean(fieldError)}
                       disabled={fieldReadOnly}
+                    />
+                  ) : f.type === 'employee' ? (
+                    <FilterableLookup
+                      value={String(values[f.name] ?? '')}
+                      onChange={(v) => {
+                        markTouched(f.name)
+                        set(f.name, v)
+                      }}
+                      options={(typeof f.options === 'function' ? f.options(values) : f.options ?? []).map(
+                        (o) => ({
+                          value: String(o.value),
+                          label: o.label,
+                          searchText: o.searchText ?? o.label,
+                        }),
+                      )}
+                      placeholder={f.placeholder ?? '— Select Employee —'}
+                      searchPlaceholder="Search employee code or name…"
+                      disabled={fieldReadOnly}
+                      invalid={Boolean(fieldError)}
+                      maxVisible={300}
                     />
                   ) : f.type === 'select' ? (
                     (() => {
