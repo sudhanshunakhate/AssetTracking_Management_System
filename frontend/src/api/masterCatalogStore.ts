@@ -5,41 +5,47 @@
 
 type CatalogStatus = 'idle' | 'loading' | 'ready' | 'error'
 
-export type CatalogEntry<T = unknown> = {
+export type CatalogSnapshot<T = unknown> = {
   status: CatalogStatus
   rows: T[]
   error: string | null
   updatedAt: number
-  subscribers: Set<() => void>
   inflight: Promise<T[]> | null
 }
 
-const catalogs = new Map<string, CatalogEntry>()
+type CatalogEntry<T = unknown> = {
+  snapshot: CatalogSnapshot<T>
+  subscribers: Set<() => void>
+}
+
+const catalogs = new Map<string, CatalogEntry<any>>()
 
 function entry(resource: string): CatalogEntry {
   let e = catalogs.get(resource)
   if (!e) {
     e = {
-      status: 'idle',
-      rows: [],
-      error: null,
-      updatedAt: 0,
+      snapshot: {
+        status: 'idle',
+        rows: [],
+        error: null,
+        updatedAt: 0,
+        inflight: null,
+      },
       subscribers: new Set(),
-      inflight: null,
     }
     catalogs.set(resource, e)
   }
   return e
 }
 
-function notify(resource: string) {
-  const e = catalogs.get(resource)
-  if (!e) return
+function updateSnapshot<T>(resource: string, changes: Partial<CatalogSnapshot<T>>) {
+  const e = entry(resource)
+  e.snapshot = { ...e.snapshot, ...changes }
   for (const fn of e.subscribers) fn()
 }
 
-export function getCatalogSnapshot(resource: string): CatalogEntry {
-  return entry(resource)
+export function getCatalogSnapshot(resource: string): CatalogSnapshot {
+  return entry(resource).snapshot
 }
 
 export function subscribeCatalog(resource: string, listener: () => void): () => void {
@@ -55,44 +61,56 @@ export async function ensureCatalog<T>(
   loader: () => Promise<T[]>,
   opts?: { force?: boolean },
 ): Promise<T[]> {
-  const e = entry(resource) as CatalogEntry<T>
+  const e = entry(resource)
+  let snap = e.snapshot as CatalogSnapshot<T>
+
   if (opts?.force) {
-    e.status = 'idle'
-    e.rows = []
-    e.error = null
-    e.inflight = null
-    e.updatedAt = 0
+    snap = {
+      ...snap,
+      status: 'idle',
+      rows: [],
+      error: null,
+      inflight: null,
+      updatedAt: 0,
+    }
+    updateSnapshot(resource, snap)
   }
-  if (e.status === 'ready' && !opts?.force) {
-    return e.rows
+
+  snap = entry(resource).snapshot as CatalogSnapshot<T>
+
+  if (snap.status === 'ready' && !opts?.force) {
+    return snap.rows
   }
-  if (e.inflight) return e.inflight
+  if (snap.inflight) return snap.inflight
 
-  e.status = 'loading'
-  e.error = null
-  notify(resource)
-
-  const inflight = loader()
+  const inflightPromise = loader()
     .then((rows) => {
-      e.rows = rows
-      e.status = 'ready'
-      e.error = null
-      e.updatedAt = Date.now()
-      e.inflight = null
-      notify(resource)
+      updateSnapshot(resource, {
+        rows,
+        status: 'ready',
+        error: null,
+        updatedAt: Date.now(),
+        inflight: null,
+      })
       return rows
     })
     .catch((err) => {
-      e.status = 'error'
-      e.error = err instanceof Error ? err.message : 'Failed to load'
-      e.rows = []
-      e.inflight = null
-      notify(resource)
+      updateSnapshot(resource, {
+        status: 'error',
+        error: err instanceof Error ? err.message : 'Failed to load',
+        rows: [],
+        inflight: null,
+      })
       throw err
     })
 
-  e.inflight = inflight
-  return inflight
+  updateSnapshot(resource, {
+    status: 'loading',
+    error: null,
+    inflight: inflightPromise,
+  })
+
+  return inflightPromise
 }
 
 export function invalidateCatalog(resource?: string) {
@@ -102,12 +120,11 @@ export function invalidateCatalog(resource?: string) {
     }
     return
   }
-  const e = catalogs.get(resource)
-  if (!e) return
-  e.status = 'idle'
-  e.rows = []
-  e.error = null
-  e.inflight = null
-  e.updatedAt = 0
-  notify(resource)
+  updateSnapshot(resource, {
+    status: 'idle',
+    rows: [],
+    error: null,
+    inflight: null,
+    updatedAt: 0,
+  })
 }

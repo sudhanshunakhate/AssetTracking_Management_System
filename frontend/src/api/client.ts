@@ -482,10 +482,21 @@ export async function changePasswordApi(body: {
   return http.post<{ message: string }>('/auth/change-password', encrypted)
 }
 
-export async function forgotPasswordApi(loginId: string) {
+export async function forgotPasswordOtpApi(email: string) {
   const { encryptAuthPayload } = await import('@/lib/payloadCrypto')
-  const encrypted = await encryptAuthPayload({ loginId })
-  return http.post<{ message: string }>('/auth/forgot-password', encrypted)
+  const encrypted = await encryptAuthPayload({ email })
+  return http.post<{ message: string }>('/auth/forgot-password-otp', encrypted)
+}
+
+export async function resetPasswordOtpApi(body: {
+  email: string
+  otp: string
+  newPassword: string
+  confirmPassword: string
+}) {
+  const { encryptAuthPayload } = await import('@/lib/payloadCrypto')
+  const encrypted = await encryptAuthPayload(body)
+  return http.post<{ message: string }>('/auth/reset-password', encrypted)
 }
 
 export async function getFavouritesApi() {

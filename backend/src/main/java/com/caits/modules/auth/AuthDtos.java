@@ -28,6 +28,10 @@ public final class AuthDtos {
 
     public record ForgotPasswordRequest(String loginId) {}
 
+    public record ForgotPasswordOtpRequest(String email) {}
+
+    public record ResetPasswordOtpRequest(String email, String otp, String newPassword, String confirmPassword) {}
+
     public record MenuPermissionDto(
             String menuCode,
             boolean view,

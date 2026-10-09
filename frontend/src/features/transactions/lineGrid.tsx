@@ -434,7 +434,7 @@ export function FilterableLookup({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-[200] mt-0.5 flex max-h-[280px] w-[min(420px,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border border-[var(--border)] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
+        <div className="absolute left-0 top-full z-[9999] mt-0.5 flex max-h-[280px] w-full min-w-[240px] flex-col overflow-hidden rounded-md border border-[var(--border)] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
           <div className="shrink-0 border-b border-[var(--border)] bg-white p-1.5">
             <Input
               value={query}

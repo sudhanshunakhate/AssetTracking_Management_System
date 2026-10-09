@@ -20,6 +20,11 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 @Service
 public class NotificationService {
@@ -29,6 +34,10 @@ public class NotificationService {
     private final SysmUserloginMstRepository userRepo;
     private final SimpMessagingTemplate messagingTemplate;
     private final WebPushService webPushService;
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${caits.notifications.webhook-url:}")
+    private String webhookUrl;
 
     public NotificationService(
             NtfNotificationMstRepository notificationRepo,
@@ -162,6 +171,7 @@ public class NotificationService {
         Runnable send = () -> {
             messagingTemplate.convertAndSendToUser(String.valueOf(userId), "/queue/notifications", dto);
             webPushService.sendAsync(userId, dto);
+            sendToWebhook(userId, dto);
         };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -174,6 +184,34 @@ public class NotificationService {
             send.run();
         }
     }
+
+    private void sendToWebhook(Integer userId, NotificationDto dto) {
+        if (webhookUrl == null || webhookUrl.isBlank()) {
+            return;
+        }
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            // Optionally add auth headers if the server team requires it
+            // headers.set("Authorization", "Bearer your-token");
+            
+            WebhookPayload payload = new WebhookPayload(userId, dto);
+            HttpEntity<WebhookPayload> request = new HttpEntity<>(payload, headers);
+            
+            // Dispatch async so it doesn't block
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    restTemplate.postForObject(webhookUrl, request, String.class);
+                } catch (Exception e) {
+                    System.err.println("Webhook dispatch failed: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("Failed to build webhook request: " + e.getMessage());
+        }
+    }
+
+    private record WebhookPayload(Integer userId, NotificationDto notification) {}
 
     private NotificationDto toDto(NtfNotificationMst n) {
         return new NotificationDto(

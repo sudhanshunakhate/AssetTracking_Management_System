@@ -9,6 +9,8 @@ import com.caits.security.AccessScopeService;
 import com.caits.security.CurrentUser;
 import com.caits.security.JwtService;
 import com.caits.security.SecurityUtils;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,13 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AccessScopeService accessScope;
+    private final JavaMailSender mailSender;
+    
+    @org.springframework.beans.factory.annotation.Value("${spring.mail.username:noreply@microproindia.com}")
+    private String mailFromAddress;
+
+    private record OtpDetails(String otp, java.time.LocalDateTime expiryTime) {}
+    private final java.util.Map<String, OtpDetails> otpCache = new java.util.concurrent.ConcurrentHashMap<>();
 
     public AuthService(
             SysmUserloginMstRepository userRepo,
@@ -49,7 +58,8 @@ public class AuthService {
             HrcDepartmentMstRepository departmentRepo,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            AccessScopeService accessScope) {
+            AccessScopeService accessScope,
+            JavaMailSender mailSender) {
         this.userRepo = userRepo;
         this.employeeRepo = employeeRepo;
         this.roleRepo = roleRepo;
@@ -62,6 +72,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.accessScope = accessScope;
+        this.mailSender = mailSender;
     }
 
     @Transactional
@@ -375,8 +386,91 @@ public class AuthService {
         return MessageResponse.of("Password changed successfully");
     }
 
-    public MessageResponse forgotPassword(ForgotPasswordRequest req) {
-        return MessageResponse.of("Password reset link sent to registered email");
+    @Transactional
+    public MessageResponse forgotPasswordOtp(ForgotPasswordOtpRequest req) {
+        System.out.println("DEBUG: Received forgotPasswordOtp request for email: [" + (req != null ? req.email() : "null") + "]");
+        if (req == null || req.email() == null || req.email().isBlank()) {
+            throw ApiException.badRequest("Email is required");
+        }
+        
+        String cleanEmail = req.email().replaceAll("^\"|\"$", "").trim();
+        System.out.println("DEBUG: Cleaned email: [" + cleanEmail + "]");
+
+        HrcEmployeeMst emp = employeeRepo.findByEmpEmailIgnoreCase(cleanEmail).orElse(null);
+        if (emp == null) {
+            return MessageResponse.of("OTP sent to registered email if account exists");
+        }
+        
+        SysmUserloginMst user = userRepo.findByUsrEmployeeIdEmp(emp.getEmpEmployeeId()).orElse(null);
+        if (user == null || user.getUsrIsactive() != null && !user.getUsrIsactive()) {
+            return MessageResponse.of("OTP sent to registered email if account exists");
+        }
+
+        String otp = UUID.randomUUID().toString().replaceAll("[^0-9]", "").substring(0, 8);
+        if (otp.length() < 8) {
+            otp = String.format("%08d", (int)(Math.random() * 100000000));
+        }
+        
+        otpCache.put(req.email().trim().toLowerCase(), new OtpDetails(otp, LocalDateTime.now().plusMinutes(15)));
+
+        try {
+            SimpleMailMessage msg = new SimpleMailMessage();
+            if (mailFromAddress != null && !mailFromAddress.isBlank()) {
+                msg.setFrom(mailFromAddress);
+            }
+            msg.setTo(emp.getEmpEmail());
+            System.out.println("OTP Cache updated. Sending email to: " + emp.getEmpEmail());
+            msg.setSubject("CAITS Account Update");
+            msg.setText("Hello,\n\n" +
+                    "A password reset was requested for your account.\n\n" +
+                    "Your 8-digit OTP is: " + otp + "\n\n" +
+                    "This OTP is valid for 15 minutes.\n\n" +
+                    "If you did not request this reset, please contact the administrator immediately.");
+            mailSender.send(msg);
+            System.out.println("Successfully dispatched email to SMTP server!");
+        } catch (Exception e) {
+            System.err.println("SMTP Error sending OTP: " + e.getMessage());
+            try {
+                java.nio.file.Files.writeString(
+                    java.nio.file.Paths.get("mail-error.txt"), 
+                    e.toString() + "\n" + (e.getCause() != null ? e.getCause().toString() : "")
+                );
+            } catch (Exception ignore) {}
+        }
+
+        return MessageResponse.of("OTP sent to registered email if account exists");
+    }
+
+    @Transactional
+    public MessageResponse resetPasswordOtp(ResetPasswordOtpRequest req) {
+        if (req == null || req.email() == null || req.otp() == null || req.newPassword() == null) {
+            throw ApiException.badRequest("Missing required fields");
+        }
+        if (!req.newPassword().equals(req.confirmPassword())) {
+            throw ApiException.badRequest("Passwords do not match");
+        }
+
+        String emailKey = req.email().trim().toLowerCase();
+        OtpDetails details = otpCache.get(emailKey);
+        
+        if (details == null || details.expiryTime().isBefore(LocalDateTime.now()) || !details.otp().equals(req.otp().trim())) {
+            throw ApiException.badRequest("Invalid or expired OTP");
+        }
+        
+        HrcEmployeeMst emp = employeeRepo.findByEmpEmailIgnoreCase(emailKey)
+                .orElseThrow(() -> ApiException.badRequest("Invalid or expired OTP"));
+        SysmUserloginMst user = userRepo.findByUsrEmployeeIdEmp(emp.getEmpEmployeeId())
+                .orElseThrow(() -> ApiException.badRequest("Invalid or expired OTP"));
+
+        user.setUsrPasswordHash(passwordEncoder.encode(req.newPassword()));
+        user.setUsrForcePasswordReset(false);
+        user.setUsrModifiedBy("SYSTEM");
+        user.setUsrModifiedOn(LocalDateTime.now());
+        userRepo.save(user);
+        
+        otpCache.remove(emailKey);
+        
+        return MessageResponse.of("Password has been reset successfully");
     }
 
     private static String nullSafe(String s) {

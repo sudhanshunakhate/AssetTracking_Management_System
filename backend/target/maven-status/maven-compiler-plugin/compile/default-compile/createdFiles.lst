@@ -25,6 +25,7 @@ com\caits\modules\masters\service\DepartmentMastersService.class
 com\caits\domain\repository\SysmUserloginMstRepository.class
 com\caits\modules\transactions\TxnDtos$RejectRequest.class
 com\caits\domain\repository\InvVendorMstRepository.class
+com\caits\modules\auth\AuthDtos$ResetPasswordOtpRequest.class
 com\caits\ServletInitializer.class
 com\caits\modules\dashboard\DashboardDtos$ShortcutDto.class
 com\caits\modules\masters\SystemLocationService$1.class
@@ -172,6 +173,7 @@ com\caits\modules\masters\service\SecurityMastersService.class
 com\caits\domain\entity\SysmRolepermissionDtl.class
 com\caits\security\CurrentUser.class
 com\caits\domain\entity\DashRoleWidgetDtl.class
+com\caits\modules\auth\AuthService$OtpDetails.class
 com\caits\modules\masters\dto\MasterDtos$VendorDto.class
 com\caits\modules\dashboard\DashboardDtos$HomeResponse.class
 com\caits\modules\transactions\StockPostingRules$1.class
@@ -201,6 +203,7 @@ com\caits\CaitsApplication.class
 com\caits\modules\dashboard\DashboardHomeService$ResolvedWidget.class
 com\caits\modules\notifications\NotificationService$NotificationDraft.class
 com\caits\security\LoginRateLimitFilter.class
+com\caits\modules\notifications\NotificationService$WebhookPayload.class
 com\caits\modules\transactions\TxnDtos$ApproveRequest.class
 com\caits\modules\transactions\TxnDtos$InboundPartyInfo.class
 com\caits\config\SpaForwardController.class
@@ -218,6 +221,7 @@ com\caits\modules\dashboard\DashboardController.class
 com\caits\common\spec\SpecUtils.class
 com\caits\security\JwtAuthFilter.class
 com\caits\domain\entity\HrcDepartmentMst.class
+com\caits\modules\auth\AuthDtos$ForgotPasswordOtpRequest.class
 com\caits\domain\repository\HrcDepartmentMstRepository.class
 com\caits\security\EncryptedStringConverter$KeyBootstrap.class
 com\caits\domain\entity\SysmUseraccessExceptionDtl.class

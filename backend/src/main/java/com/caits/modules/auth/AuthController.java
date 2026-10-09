@@ -107,12 +107,24 @@ public class AuthController {
         return authService.changePassword(decoded);
     }
 
-    @PostMapping("/forgot-password")
-    public MessageResponse forgotPassword(@RequestBody EncryptedPayloadRequest request) {
+    @PostMapping("/forgot-password-otp")
+    public MessageResponse forgotPasswordOtp(@RequestBody EncryptedPayloadRequest request) {
         JsonNode plain = payloadCrypto.decryptPayload(request == null ? null : request.cipher());
-        ForgotPasswordRequest decoded = new ForgotPasswordRequest(
-                payloadCrypto.requireText(plain, "loginId")
+        ForgotPasswordOtpRequest decoded = new ForgotPasswordOtpRequest(
+                payloadCrypto.requireText(plain, "email")
         );
-        return authService.forgotPassword(decoded);
+        return authService.forgotPasswordOtp(decoded);
+    }
+
+    @PostMapping("/reset-password")
+    public MessageResponse resetPasswordOtp(@RequestBody EncryptedPayloadRequest request) {
+        JsonNode plain = payloadCrypto.decryptPayload(request == null ? null : request.cipher());
+        ResetPasswordOtpRequest decoded = new ResetPasswordOtpRequest(
+                payloadCrypto.requireText(plain, "email"),
+                payloadCrypto.requireText(plain, "otp"),
+                payloadCrypto.requireText(plain, "newPassword"),
+                payloadCrypto.requireText(plain, "confirmPassword")
+        );
+        return authService.resetPasswordOtp(decoded);
     }
 }

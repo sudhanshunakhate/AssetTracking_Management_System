@@ -8,7 +8,7 @@ import {
   StarBorder,
   TextType,
 } from '@/components/react-bits'
-import { forgotPasswordApi } from '@/api/client'
+import { forgotPasswordOtpApi, resetPasswordOtpApi } from '@/api/client'
 import { useAuth } from './AuthContext'
 
 const LOGO_SRC = '/logo/caits-login.png?v=2'
@@ -26,6 +26,13 @@ export function LoginPage() {
   const [info, setInfo] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [forgotBusy, setForgotBusy] = useState(false)
+  
+  const [mode, setMode] = useState<'login' | 'forgot' | 'reset'>('login')
+  const [resetEmail, setResetEmail] = useState('')
+  const [otp, setOtp] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+
   const [craftedIndex, setCraftedIndex] = useState(0)
   const [craftedVisible, setCraftedVisible] = useState(true)
 
@@ -66,21 +73,56 @@ export function LoginPage() {
     }
   }
 
-  const onForgot = async () => {
+  const onForgotSubmit = async (e: FormEvent) => {
+    e.preventDefault()
     setError('')
     setInfo('')
-    if (!loginId.trim()) {
-      setError('Enter your Login ID, then click Forgot password.')
+    if (!resetEmail.trim()) {
+      setError('Enter your registered email address.')
       return
     }
     setForgotBusy(true)
     try {
-      const res = await forgotPasswordApi(loginId.trim())
-      setInfo(res.message || 'If an account exists, a reset link was sent to the registered email.')
+      const res = await forgotPasswordOtpApi(resetEmail.trim())
+      setInfo(res.message || 'OTP sent to registered email if account exists.')
+      setMode('reset')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to request password reset')
+      setError(err instanceof Error ? err.message : 'Unable to request OTP')
     } finally {
       setForgotBusy(false)
+    }
+  }
+
+  const onResetSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setInfo('')
+    if (!otp.trim() || !newPassword || !confirmPassword) {
+      setError('Please fill in all fields.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await resetPasswordOtpApi({
+        email: resetEmail.trim(),
+        otp: otp.trim(),
+        newPassword,
+        confirmPassword,
+      })
+      setInfo(res.message || 'Password has been reset successfully. Please log in.')
+      setMode('login')
+      setOtp('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setResetEmail('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to reset password')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -154,75 +196,222 @@ export function LoginPage() {
                 />
               </div>
 
-              <div className="mb-1 text-[19px] font-bold text-[var(--text)]">Sign in</div>
-              <div className="mb-5 text-[12.5px] text-[var(--text3)]">
-                Enter your Login ID and password to continue
-              </div>
+              {mode === 'login' && (
+                <>
+                  <div className="mb-1 text-[19px] font-bold text-[var(--text)]">Sign in</div>
+                  <div className="mb-5 text-[12.5px] text-[var(--text3)]">
+                    Enter your Login ID and password to continue
+                  </div>
 
-              {error && (
-                <div className="mb-3.5 rounded-lg border border-[#fecaca] bg-[var(--danger-lt)] px-3 py-2 text-xs text-[var(--danger)]">
-                  {error}
-                </div>
+                  {error && (
+                    <div className="mb-3.5 rounded-lg border border-[#fecaca] bg-[var(--danger-lt)] px-3 py-2 text-xs text-[var(--danger)]">
+                      {error}
+                    </div>
+                  )}
+                  {info && (
+                    <div className="mb-3.5 rounded-lg border border-[#bbf7d0] bg-[var(--success-lt)] px-3 py-2 text-xs text-[var(--success)]">
+                      {info}
+                    </div>
+                  )}
+
+                  <div className="mb-3.5">
+                    <label className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text2)]">
+                      Login ID
+                    </label>
+                    <input
+                      value={loginId}
+                      onChange={(e) => setLoginId(e.target.value)}
+                      placeholder="firstname.lastname"
+                      autoFocus
+                      className="w-full rounded-lg border border-[var(--border2)] bg-[var(--surface2)] px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="mb-3.5">
+                    <label className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text2)]">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-lg border border-[var(--border2)] bg-[var(--surface2)] px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="mb-[18px] flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--text2)]">
+                      <input
+                        type="checkbox"
+                        checked={remember}
+                        onChange={(e) => setRemember(e.target.checked)}
+                        className="accent-[var(--accent)]"
+                      />
+                      Remember Login ID
+                    </label>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-[var(--accent)] hover:underline"
+                      onClick={() => {
+                        setMode('forgot')
+                        setError('')
+                        setInfo('')
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="brand-cta w-full rounded-lg py-[11px] text-[13.5px] font-bold text-white shadow-[var(--brand-glow)] disabled:opacity-60"
+                  >
+                    {submitting ? 'Signing in…' : 'Sign In'}
+                  </button>
+                </>
               )}
-              {info && (
-                <div className="mb-3.5 rounded-lg border border-[#bbf7d0] bg-[var(--success-lt)] px-3 py-2 text-xs text-[var(--success)]">
-                  {info}
-                </div>
+
+              {mode === 'forgot' && (
+                <>
+                  <div className="mb-1 text-[19px] font-bold text-[var(--text)]">Forgot Password</div>
+                  <div className="mb-5 text-[12.5px] text-[var(--text3)]">
+                    Enter your registered email address to receive an OTP.
+                  </div>
+
+                  {error && (
+                    <div className="mb-3.5 rounded-lg border border-[#fecaca] bg-[var(--danger-lt)] px-3 py-2 text-xs text-[var(--danger)]">
+                      {error}
+                    </div>
+                  )}
+                  {info && (
+                    <div className="mb-3.5 rounded-lg border border-[#bbf7d0] bg-[var(--success-lt)] px-3 py-2 text-xs text-[var(--success)]">
+                      {info}
+                    </div>
+                  )}
+
+                  <div className="mb-4">
+                    <label className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text2)]">
+                      Email Address
+                    </label>
+                    <input
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="user@example.com"
+                      autoFocus
+                      className="w-full rounded-lg border border-[var(--border2)] bg-[var(--surface2)] px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      className="w-1/3 rounded-lg border border-[var(--border2)] bg-[var(--surface1)] py-[11px] text-[13.5px] font-bold text-[var(--text)] transition hover:bg-[var(--surface2)]"
+                      onClick={() => {
+                        setMode('login')
+                        setError('')
+                        setInfo('')
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      disabled={forgotBusy}
+                      onClick={onForgotSubmit}
+                      className="brand-cta w-2/3 rounded-lg py-[11px] text-[13.5px] font-bold text-white shadow-[var(--brand-glow)] disabled:opacity-60"
+                    >
+                      {forgotBusy ? 'Sending…' : 'Send OTP'}
+                    </button>
+                  </div>
+                </>
               )}
 
-              <div className="mb-3.5">
-                <label className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text2)]">
-                  Login ID
-                </label>
-                <input
-                  value={loginId}
-                  onChange={(e) => setLoginId(e.target.value)}
-                  placeholder="firstname.lastname"
-                  autoFocus
-                  className="w-full rounded-lg border border-[var(--border2)] bg-[var(--surface2)] px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:bg-white"
-                />
-              </div>
+              {mode === 'reset' && (
+                <>
+                  <div className="mb-1 text-[19px] font-bold text-[var(--text)]">Reset Password</div>
+                  <div className="mb-5 text-[12.5px] text-[var(--text3)]">
+                    Enter the 8-digit OTP sent to your email, and choose a new password.
+                  </div>
 
-              <div className="mb-3.5">
-                <label className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text2)]">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full rounded-lg border border-[var(--border2)] bg-[var(--surface2)] px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:bg-white"
-                />
-              </div>
+                  {error && (
+                    <div className="mb-3.5 rounded-lg border border-[#fecaca] bg-[var(--danger-lt)] px-3 py-2 text-xs text-[var(--danger)]">
+                      {error}
+                    </div>
+                  )}
+                  {info && (
+                    <div className="mb-3.5 rounded-lg border border-[#bbf7d0] bg-[var(--success-lt)] px-3 py-2 text-xs text-[var(--success)]">
+                      {info}
+                    </div>
+                  )}
 
-              <div className="mb-[18px] flex items-center justify-between">
-                <label className="flex items-center gap-1.5 text-xs text-[var(--text2)]">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    className="accent-[var(--accent)]"
-                  />
-                  Remember Login ID
-                </label>
-                <button
-                  type="button"
-                  disabled={forgotBusy}
-                  className="text-xs font-semibold text-[var(--accent)] disabled:opacity-60"
-                  onClick={() => void onForgot()}
-                >
-                  {forgotBusy ? 'Sending…' : 'Forgot password?'}
-                </button>
-              </div>
+                  <div className="mb-3.5">
+                    <label className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text2)]">
+                      8-Digit OTP
+                    </label>
+                    <input
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      placeholder="Enter OTP"
+                      autoFocus
+                      maxLength={8}
+                      className="w-full rounded-lg border border-[var(--border2)] bg-[var(--surface2)] px-3 py-2.5 text-[13px] tracking-widest text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:bg-white"
+                    />
+                  </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="brand-cta w-full rounded-lg py-[11px] text-[13.5px] font-bold text-white shadow-[var(--brand-glow)] disabled:opacity-60"
-              >
-                {submitting ? 'Signing in…' : 'Sign In'}
-              </button>
+                  <div className="mb-3.5">
+                    <label className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text2)]">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-lg border border-[var(--border2)] bg-[var(--surface2)] px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="mb-5">
+                    <label className="mb-1.5 block text-[11.5px] font-semibold text-[var(--text2)]">
+                      Confirm Password
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-lg border border-[var(--border2)] bg-[var(--surface2)] px-3 py-2.5 text-[13px] text-[var(--text)] outline-none transition focus:border-[var(--accent)] focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      className="w-1/3 rounded-lg border border-[var(--border2)] bg-[var(--surface1)] py-[11px] text-[13.5px] font-bold text-[var(--text)] transition hover:bg-[var(--surface2)]"
+                      onClick={() => {
+                        setMode('login')
+                        setError('')
+                        setInfo('')
+                        setOtp('')
+                        setNewPassword('')
+                        setConfirmPassword('')
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={submitting}
+                      onClick={onResetSubmit}
+                      className="brand-cta w-2/3 rounded-lg py-[11px] text-[13.5px] font-bold text-white shadow-[var(--brand-glow)] disabled:opacity-60"
+                    >
+                      {submitting ? 'Resetting…' : 'Reset Password'}
+                    </button>
+                  </div>
+                </>
+              )}
             </form>
           </StarBorder>
         </div>

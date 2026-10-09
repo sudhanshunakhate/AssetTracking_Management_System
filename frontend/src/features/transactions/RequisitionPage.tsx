@@ -556,7 +556,7 @@ function RequisitionForm() {
                 <MasterEmployeeSearchLookup
                   value={form.requestedBy}
                   onChange={onRequestedByChange}
-                  options={employeeOptions}
+                  selectedLabel={employees.rows.find((e) => String(e.id) === String(form.requestedBy)) ? empLabel(employees.rows.find((e) => String(e.id) === String(form.requestedBy))!) : undefined}
                   placeholder="— Select Employee —"
                   disabled={readOnly}
                   invalid={Boolean(err('requestedBy'))}

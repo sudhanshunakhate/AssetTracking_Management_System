@@ -11,5 +11,6 @@ public interface HrcEmployeeMstRepository extends JpaRepository<HrcEmployeeMst, 
     Optional<HrcEmployeeMst> findByEmpEmployeeCodeIgnoreCase(String code);
     boolean existsByEmpEmployeeCodeIgnoreCase(String code);
     boolean existsByEmpEmailIgnoreCase(String email);
+    Optional<HrcEmployeeMst> findByEmpEmailIgnoreCase(String email);
     List<HrcEmployeeMst> findByEmpReportingToEmpIdEmp(Integer managerId);
 }

@@ -4,7 +4,7 @@ import { FilterableLookup, type FilterableOption } from '@/features/transactions
 
 function rowToOption(r: ApiMasterRow): FilterableOption {
   const code = String(r.code ?? '')
-  const name = String(r.name ?? '')
+  const name = String(r.firstName ? `${r.firstName} ${r.lastName ?? ''}`.trim() : (r.name ?? ''))
   const label = code && name ? `${code} - ${name}` : code || name || r.id
   return { value: r.id, label, searchText: `${code} ${name}` }
 }
@@ -37,8 +37,8 @@ export function MasterItemSearchLookup({
     if (value && !opts.some((o) => o.value === value)) {
       opts.unshift({
         value,
-        label: selectedLabel || value,
-        searchText: selectedLabel || value,
+        label: selectedLabel || 'Selected Record',
+        searchText: selectedLabel || '',
       })
     }
     if (allowClear) {
@@ -95,8 +95,8 @@ export function MasterEmployeeSearchLookup({
     if (value && !opts.some((o) => o.value === value)) {
       opts.unshift({
         value,
-        label: selectedLabel || value,
-        searchText: selectedLabel || value,
+        label: selectedLabel || 'Selected Record',
+        searchText: selectedLabel || '',
       })
     }
     if (allowClear) {

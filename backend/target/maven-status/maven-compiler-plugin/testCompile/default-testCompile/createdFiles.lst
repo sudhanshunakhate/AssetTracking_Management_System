@@ -1,4 +1,5 @@
 com\caits\security\UploadOwnershipRegistryTest.class
+com\caits\MailTest.class
 com\caits\security\DtoSecurityContractTest.class
 com\caits\security\PayloadCryptoServiceTest.class
 com\caits\modules\transactions\InspectionApprovalStatusTest.class

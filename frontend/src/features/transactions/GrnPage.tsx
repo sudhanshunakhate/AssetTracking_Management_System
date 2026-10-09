@@ -590,7 +590,7 @@ function GrnForm() {
               <MasterEmployeeSearchLookup
                 value={form.inspectedBy}
                 onChange={(v) => set('inspectedBy', v)}
-                options={inspectorOptions}
+                selectedLabel={employees.rows.find((e) => String(e.id) === String(form.inspectedBy)) ? empLabel(employees.rows.find((e) => String(e.id) === String(form.inspectedBy))!) : undefined}
                 placeholder="— Select —"
                 disabled={readOnly}
                 invalid={Boolean(err('inspectedBy'))}

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button'
 import { CsvImportButton } from '@/components/ui/CsvImportButton'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Field'
+import { Modal } from '@/components/ui/Modal'
 import type { ApiMasterRow } from '@/api/masters'
 import {
   ItemCodeOptions,
@@ -158,6 +159,16 @@ export function OpeningStockItemLines({
   const [pickItemId, setPickItemId] = useState('')
   const [pickQty, setPickQty] = useState('1')
   const [addError, setAddError] = useState('')
+
+  const [custodyPickerLineKey, setCustodyPickerLineKey] = useState<string | null>(null)
+  const [empSearch, setEmpSearch] = useState('')
+
+  const filteredEmployees = useMemo(() => {
+    if (!employees) return []
+    if (!empSearch) return employees
+    const term = empSearch.toLowerCase()
+    return employees.filter((e) => empLabel(e).toLowerCase().includes(term))
+  }, [employees, empSearch])
 
   const patch = useCallback(
     (key: string, changes: Partial<OpeningStockLine>) => {
@@ -477,14 +488,19 @@ export function OpeningStockItemLines({
                             </td>
                             {showIssuedTo && (
                               <td className={gridCell}>
-                                <MasterEmployeeSearchLookup
-                                  value={line.issuedToEmpId}
-                                  onChange={(v) => patch(line.key, { issuedToEmpId: v })}
-                                  options={employeeOptions}
+                                <Input
+                                  readOnly
+                                  value={
+                                    employeeOptions.find((o) => o.value === line.issuedToEmpId)
+                                      ?.label || ''
+                                  }
                                   placeholder="— Select Employee —"
-                                  disabled={linesLocked}
-                                  invalid={showLineErrors && issuedToMissing}
-                                  className={gridInput}
+                                  onClick={() => {
+                                    if (!linesLocked) setCustodyPickerLineKey(line.key)
+                                  }}
+                                  className={`${gridInput} ${
+                                    linesLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-[var(--accent)]'
+                                  } ${showLineErrors && issuedToMissing ? 'border-[var(--danger)]' : ''}`}
                                 />
                               </td>
                             )}
@@ -607,6 +623,44 @@ export function OpeningStockItemLines({
           </span>
         </div>
       </CardBody>
+
+      <Modal
+        open={Boolean(custodyPickerLineKey)}
+        onClose={() => {
+          setCustodyPickerLineKey(null)
+          setEmpSearch('')
+        }}
+        title="Select Custody (Employee)"
+      >
+        <div className="flex flex-col gap-3 p-4">
+          <Input
+            autoFocus
+            placeholder="Search employee code or name..."
+            value={empSearch}
+            onChange={(e) => setEmpSearch(e.target.value)}
+          />
+          <div className="flex max-h-[300px] flex-col overflow-y-auto rounded border border-[var(--border)]">
+            {filteredEmployees.map((e) => (
+              <button
+                key={e.id}
+                className="border-b border-[var(--border)] p-2 text-left text-sm last:border-0 hover:bg-[var(--surface2)]"
+                onClick={() => {
+                  if (custodyPickerLineKey) {
+                    patch(custodyPickerLineKey, { issuedToEmpId: e.id })
+                  }
+                  setCustodyPickerLineKey(null)
+                  setEmpSearch('')
+                }}
+              >
+                {empLabel(e)}
+              </button>
+            ))}
+            {filteredEmployees.length === 0 && (
+              <div className="p-3 text-center text-sm text-[var(--text3)]">No matches</div>
+            )}
+          </div>
+        </div>
+      </Modal>
     </Card>
   )
 }

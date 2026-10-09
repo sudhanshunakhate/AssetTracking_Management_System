@@ -49,8 +49,22 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 12MB
+  mail:
+    host: ${CAITS_MAIL_HOST:microproindia.icewarpcloud.in}
+    port: ${CAITS_MAIL_PORT:465}
+    username: ${CAITS_MAIL_USERNAME:caits@microproindia.com}
+    password: "${CAITS_MAIL_PASSWORD:Pass1234!@#$}"
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
 
 caits:
+  notifications:
+    # URL provided by the server team to receive HTTPS webhooks for notifications
+    webhook-url: ${CAITS_NOTIFICATION_WEBHOOK_URL:}
   security:
     # Override via CAITS_SECURITY_JWT_SECRET in production — never commit real secrets.
     jwt-secret: ${CAITS_SECURITY_JWT_SECRET:CAITS_Local_Dev_Secret_Change_Me_32chars_Min_Length_Required!!}

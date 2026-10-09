@@ -8,6 +8,7 @@ import { Field, Input, Select, Switch, Textarea } from '@/components/ui/Field'
 import { FormActions, PageHeader } from '@/components/ui/PageHeader'
 import { useAuth } from '@/features/auth/AuthContext'
 import { FilterableLookup } from '@/features/transactions/lineGrid'
+import { MasterEmployeeSearchLookup } from '@/features/transactions/MasterSearchLookup'
 import { confirmClearForm, scrollToFirstInvalid } from '@/lib/csvExport'
 import { validateFields, areRequiredFieldsFilled, HEADER_BEFORE_LINES_HINT, type ValidationRules } from './validation'
 
@@ -514,25 +515,23 @@ function MasterForm({
                       disabled={fieldReadOnly}
                     />
                   ) : f.type === 'employee' ? (
-                    <FilterableLookup
-                      value={String(values[f.name] ?? '')}
-                      onChange={(v) => {
-                        markTouched(f.name)
-                        set(f.name, v)
-                      }}
-                      options={(typeof f.options === 'function' ? f.options(values) : f.options ?? []).map(
-                        (o) => ({
-                          value: String(o.value),
-                          label: o.label,
-                          searchText: o.searchText ?? o.label,
-                        }),
-                      )}
-                      placeholder={f.placeholder ?? '— Select Employee —'}
-                      searchPlaceholder="Search employee code or name…"
-                      disabled={fieldReadOnly}
-                      invalid={Boolean(fieldError)}
-                      maxVisible={300}
-                    />
+                    (() => {
+                      const evaluatedOpts = (typeof f.options === 'function' ? f.options(values) : f.options ?? [])
+                      const selectedOpt = evaluatedOpts.find((o) => String(o.value) === String(values[f.name] ?? ''))
+                      return (
+                        <MasterEmployeeSearchLookup
+                          value={String(values[f.name] ?? '')}
+                          onChange={(v) => {
+                            markTouched(f.name)
+                            set(f.name, v)
+                          }}
+                          selectedLabel={selectedOpt?.label}
+                          placeholder={f.placeholder ?? '— Select Employee —'}
+                          disabled={fieldReadOnly}
+                          invalid={Boolean(fieldError)}
+                        />
+                      )
+                    })()
                   ) : f.type === 'select' ? (
                     (() => {
                       const overlay = f.selectSelectedContent?.(values) ?? null

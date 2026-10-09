@@ -765,6 +765,7 @@ function IssueForm() {
               <Field label="Issued To" required error={err('issuedTo')}>
                 <MasterEmployeeSearchLookup
                   value={form.issuedTo}
+                  selectedLabel={employees.rows.find((e) => String(e.id) === String(form.issuedTo)) ? empLabel(employees.rows.find((e) => String(e.id) === String(form.issuedTo))!) : undefined}
                   onChange={(v) => {
                     if ((form.reqSubtype ?? '').toUpperCase() !== 'EMPLOYEE') {
                       setForm((p) => ({ ...p, issuedTo: v }))
