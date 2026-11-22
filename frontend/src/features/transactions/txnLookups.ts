@@ -107,14 +107,29 @@ export function systemLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
   return rows.filter((l) => Boolean(l.isSystemLocation))
 }
 
-/** User-created operational locations (OU-specific, non-system). */
-export function nonSystemLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
-  return rows.filter((l) => !l.isSystemLocation)
+/** For Trading locations — Material Transfer and Gatepass only. */
+export function tradingLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return rows.filter((l) => Boolean(l.forTrading) && !l.isSystemLocation)
 }
 
-/** Operational pick lists — non-system locations only. */
+/** User-created operational locations (OU-specific, non-system, not For Trading). */
+export function nonSystemLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return rows.filter((l) => !l.isSystemLocation && !l.forTrading)
+}
+
+/** Operational pick lists — non-system, non-trading locations only. */
 export function operationalLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
   return nonSystemLocations(rows)
+}
+
+/** Active For Trading locations (Trading Gatepass outward only). */
+export function activeTradingLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return tradingLocations(rows).filter((l) => l.status !== 'Inactive')
+}
+
+/** Active system-derived locations (Against Transfer / New Outward). */
+export function activeSystemLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
+  return systemLocations(rows).filter((l) => l.status !== 'Inactive')
 }
 
 export function systemLocationsForOrg(rows: ApiMasterRow[], entityId: string): ApiMasterRow[] {

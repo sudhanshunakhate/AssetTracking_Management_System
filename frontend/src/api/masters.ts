@@ -165,7 +165,9 @@ export function useMasterSearch(
               firstName: row.firstName,
               lastName: row.lastName,
               status: activeStatus(row.isActive !== false),
-              designation: row.designation,
+              designation: row.designation ?? '',
+              departmentId: row.departmentId != null ? String(row.departmentId) : '',
+              department: row.departmentName != null ? String(row.departmentName) : '',
             } as ApiMasterRow
           })
           setRows(mapped)
@@ -490,9 +492,9 @@ export const mapItem = (i: ItemApi): ApiMasterRow => ({
   status: activeStatus(i.isActive),
 })
 
-/** Operational locations selectable for item scope — excludes system-derived stores. */
+/** Operational locations selectable for item scope — excludes system-derived and For Trading stores. */
 export function itemSelectableLocations(rows: ApiMasterRow[]): ApiMasterRow[] {
-  return rows.filter((l) => !l.isSystemLocation)
+  return rows.filter((l) => !l.isSystemLocation && !l.forTrading)
 }
 
 /** Items available at the selected store based on org / OU / location scope. */
@@ -603,6 +605,7 @@ export type LocationApi = {
   city?: string
   isActive?: boolean
   isSystemLocation?: boolean
+  forTrading?: boolean
   systemRole?: string
   printLocationName?: string
 }
@@ -616,6 +619,7 @@ export const mapLocation = (l: LocationApi): ApiMasterRow => ({
   ouCode: l.buId != null ? String(l.buId) : '',
   city: l.city ?? '',
   isSystemLocation: Boolean(l.isSystemLocation),
+  forTrading: Boolean(l.forTrading),
   systemRole: l.systemRole ?? '',
   printLocationName: l.printLocationName ?? '',
   status: activeStatus(l.isActive),

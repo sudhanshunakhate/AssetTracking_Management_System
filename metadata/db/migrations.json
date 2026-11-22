@@ -434,7 +434,7 @@
                            "description":  "Deactivate legacy OU-scoped system locations when org-global SYS-ENT rows exist, fixing NonUniqueResultException on GRN post.",
                            "applied":  {
                                            "local":  "2026-09-09",
-                                           "dev":  null
+                                           "dev":  "2026-11-21"
                                        }
                        },
                        {
@@ -442,7 +442,7 @@
                            "file":  "db_approach/048_seed_caits_schema_admin.sql",
                            "description":  "After cloning empty schema caits from caits_local (see clone-caits-local-structure-to-caits.ps1 / db_dump/caits_schema_from_caits_local.sql), seed single BCrypt admin login (micropro123).",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-11-21",
                                            "dev":  "2026-09-10"
                                        }
                        },
@@ -451,7 +451,7 @@
                            "file":  "db_approach/049_copy_lookups_caits_local_to_caits.sql",
                            "description":  "Copy gentype_mst / genmaster_mst reference lookups into empty caits schema from caits_local so dropdown APIs work.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-11-21",
                                            "dev":  "2026-09-10"
                                        }
                        },
@@ -460,7 +460,7 @@
                            "file":  "db_approach/050_widen_encrypted_sensitive_columns.sql",
                            "description":  "Widen vendor/entity/txn PAN+GSTIN columns to varchar(512) so AES-GCM ciphertext (enc:v1:â€¦) fits.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-11-21",
                                            "dev":  "2026-09-10"
                                        }
                        },
@@ -469,7 +469,7 @@
                            "file":  "db_approach/051_add_missing_menus_depm_iapr_to_caits.sql",
                            "description":  "Add DEPM (Department) and IAPR (Inspection Approval) menus + ADMIN perms to caits schema (present in caits_local only).",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-11-21",
                                            "dev":  "2026-09-11"
                                        }
                        },
@@ -478,7 +478,7 @@
                            "file":  "db_approach/052_copy_missing_seed_caits_local_to_caits.sql",
                            "description":  "Copy missing roles, permissions, widgets, units, categories, OUs, locations, departments from caits_local into caits.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-11-21",
                                            "dev":  "2026-09-11"
                                        }
                        },
@@ -487,7 +487,7 @@
                            "file":  "db_approach/053_copy_missing_vendors_items_to_caits.sql",
                            "description":  "Copy missing vendors, items, and item-location maps from caits_local into caits.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-11-21",
                                            "dev":  "2026-09-11"
                                        }
                        },
@@ -496,7 +496,7 @@
                            "file":  "db_approach/054_seed_micropro_employees.sql",
                            "description":  "Seed 129 Micropro employees into caits hrc_employee_mst (depts + reporting managers) from employee import CSV.",
                            "applied":  {
-                                           "local":  null,
+                                           "local":  "2026-11-21",
                                            "dev":  "2026-09-15"
                                        }
                        },
@@ -517,7 +517,16 @@
                                            "local":  "2026-10-01",
                                            "dev":  "2026-10-01"
                                        }
+                       },
+                       {
+                           "id":  "057-location-for-trading",
+                           "file":  "db_approach/057_location_for_trading.sql",
+                           "description":  "Add loc_for_trading on org_location_mst so trading locations appear only on Material Transfer and Gatepass.",
+                           "applied":  {
+                                           "local":  "2026-11-21",
+                                           "dev":  "2026-11-21"
+                                       }
                        }
                    ],
-    "updated":  "2026-10-01"
+    "updated":  "2026-11-21"
 }

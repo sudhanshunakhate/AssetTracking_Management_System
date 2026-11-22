@@ -260,12 +260,14 @@ export function GrnItemLines({
       setAddError('Quantity must be greater than 0')
       return
     }
-    if (isAsset && n > 200) {
-      setAddError('Max 200 asset units at a time')
+    const serialized = Boolean(item.isSerialized)
+    if (serialized && n > 200) {
+      setAddError('Max 200 serialized units at a time')
       return
     }
 
-    if (isAsset) {
+    // Serialized items → one unit row each (serial). Others (incl. non-serialized assets) → qty line.
+    if (serialized) {
       const created = Array.from({ length: n }, () => buildLine(item, 1, pickLocationId))
       onChange((prev) => {
         const keep = prev.filter((l) => l.itemId !== '')
@@ -454,7 +456,7 @@ export function GrnItemLines({
               />
             </label>
             <Button onClick={addUnits} disabled={linesLocked}>
-              {isAsset ? '+ Add Units' : '+ Add Line'}
+              {isAsset ? '+ Add Items' : '+ Add Line'}
             </Button>
             {!readOnly && (
               <CsvImportButton
@@ -504,14 +506,16 @@ export function GrnItemLines({
                 <tr>
                   <td colSpan={emptyColSpan} className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">
                     {isAsset
-                      ? 'No units yet — search an item & location, set qty, then Add Units.'
+                      ? 'No items yet — search an item & location, set qty, then Add Items.'
                       : 'No lines yet — search an item & location, set qty, then Add Line.'}
                   </td>
                 </tr>
               ) : (
                 filled.map((line, idx) => {
                   const unit = unitById.get(line.uomId)
-                  const serialMissing = isAsset && !line.serialNo.trim()
+                  const item = items.find((i) => i.id === line.itemId)
+                  const lineSerialized = Boolean(item?.isSerialized)
+                  const serialMissing = lineSerialized && !line.serialNo.trim()
                   const locationMissing = !line.locationId
                   const received = toNum(line.receivedQty)
                   const split = toNum(line.acceptedQty) + toNum(line.rejectedQty)
@@ -519,7 +523,6 @@ export function GrnItemLines({
                     line.itemId !== '' &&
                     received > 0 &&
                     Math.abs(split - received) > 0.0001
-                  const item = items.find((i) => i.id === line.itemId)
                   const locLock = lockedLocationForLine(
                     item,
                     toNum(line.acceptedQty),
@@ -553,51 +556,68 @@ export function GrnItemLines({
                         <Input value={unit ? String(unit.code ?? '') : ''} readOnly className={gridInput} />
                       </td>
                       {isAsset ? (
-                        <>
-                          <td className={gridCell}>
-                            <Input
-                              value={line.serialNo}
-                              onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
-                              disabled={linesLocked}
-                              maxLength={100}
-                              placeholder="SN-…"
-                              invalid={showLineErrors && serialMissing}
-                              className={gridInput}
-                            />
-                          </td>
-                          <td className={gridCell}>
-                            <Input
-                              value={line.ipAddress}
-                              onChange={(e) => patch(line.key, { ipAddress: e.target.value })}
-                              disabled={linesLocked}
-                              maxLength={45}
-                              placeholder="192.168.0.25"
-                              className={gridInput}
-                            />
-                          </td>
-                          <td className={gridCell}>
-                            <Input
-                              value={line.macAddress}
-                              onChange={(e) =>
-                                patch(line.key, { macAddress: e.target.value.toUpperCase() })
-                              }
-                              disabled={linesLocked}
-                              maxLength={17}
-                              placeholder="AA-BB-…"
-                              className={gridInput}
-                            />
-                          </td>
-                          <td className={gridCell}>
-                            <Input
-                              value={line.hostname}
-                              onChange={(e) => patch(line.key, { hostname: e.target.value })}
-                              disabled={linesLocked}
-                              maxLength={150}
-                              placeholder="host.local"
-                              className={gridInput}
-                            />
-                          </td>
-                        </>
+                        lineSerialized ? (
+                          <>
+                            <td className={gridCell}>
+                              <Input
+                                value={line.serialNo}
+                                onChange={(e) => patch(line.key, { serialNo: e.target.value.toUpperCase() })}
+                                disabled={linesLocked}
+                                maxLength={100}
+                                placeholder="SN-…"
+                                invalid={showLineErrors && serialMissing}
+                                className={gridInput}
+                              />
+                            </td>
+                            <td className={gridCell}>
+                              <Input
+                                value={line.ipAddress}
+                                onChange={(e) => patch(line.key, { ipAddress: e.target.value })}
+                                disabled={linesLocked}
+                                maxLength={45}
+                                placeholder="192.168.0.25"
+                                className={gridInput}
+                              />
+                            </td>
+                            <td className={gridCell}>
+                              <Input
+                                value={line.macAddress}
+                                onChange={(e) =>
+                                  patch(line.key, { macAddress: e.target.value.toUpperCase() })
+                                }
+                                disabled={linesLocked}
+                                maxLength={17}
+                                placeholder="AA-BB-…"
+                                className={gridInput}
+                              />
+                            </td>
+                            <td className={gridCell}>
+                              <Input
+                                value={line.hostname}
+                                onChange={(e) => patch(line.key, { hostname: e.target.value })}
+                                disabled={linesLocked}
+                                maxLength={150}
+                                placeholder="host.local"
+                                className={gridInput}
+                              />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className={gridCell}>
+                              <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                            </td>
+                            <td className={gridCell}>
+                              <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                            </td>
+                            <td className={gridCell}>
+                              <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                            </td>
+                            <td className={gridCell}>
+                              <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                            </td>
+                          </>
+                        )
                       ) : (
                         <td className={gridCell}>
                           <Input
@@ -616,7 +636,7 @@ export function GrnItemLines({
                           step="1"
                           value={line.receivedQty}
                           onChange={(e) => setReceived(line, e.target.value)}
-                          disabled={linesLocked || isAsset}
+                          disabled={linesLocked || lineSerialized}
                           className={gridInputRight}
                         />
                       </td>

@@ -10,7 +10,7 @@ import { mapLocation, useMasterList } from '@/api/masters'
 import { useAuth } from '@/features/auth/AuthContext'
 import { downloadCsv } from '@/lib/csvExport'
 import { formatStockQty } from '@/features/transactions/lineGrid'
-import { ReportTableScroll, reportThClass } from './ReportTableScroll'
+import { ReportTableScroll, reportThAlign } from './ReportTableScroll'
 
 type UnitRow = {
   blsId: string
@@ -38,7 +38,6 @@ type LedgerRow = {
   receiptDuringPeriod: number
   issueDuringPeriod: number
   closingBalance: number
-  ownerName: string
   units: UnitRow[]
 }
 
@@ -121,7 +120,6 @@ export function StockRegisterPage() {
           receiptDuringPeriod: Number(r.receiptDuringPeriod ?? 0),
           issueDuringPeriod: Number(r.issueDuringPeriod ?? 0),
           closingBalance: Number(r.closingBalance ?? 0),
-          ownerName: String(r.ownerName ?? '').trim() || '—',
           units: Array.isArray(r.units)
             ? (r.units as Record<string, unknown>[]).map(mapUnit)
             : [],
@@ -170,7 +168,6 @@ export function StockRegisterPage() {
         r.receiptDuringPeriod,
         r.issueDuringPeriod,
         r.closingBalance,
-        r.ownerName,
       ]
         .map((v) => String(v).toLowerCase())
         .some((s) => s.includes(q))
@@ -205,117 +202,115 @@ export function StockRegisterPage() {
     [visibleRows],
   )
 
-  const headers = [
-    'Sr No',
-    'Item Name',
-    'UOM',
+  const qtyCols = [
     'Opening Balance',
     'Receipt During the Period',
     'Issue During the Period',
     'Closing Balance for the Period',
-    'Owner Name for Individual Asset',
   ]
+  const qtyLabelSet = new Set(qtyCols)
+  const headers = ['Sr No', 'Item Name', 'UOM', ...qtyCols]
+  const colCount = headers.length
+  const colStyle = { width: `${100 / colCount}%` } as const
+  const cellTd = 'border-b border-[var(--border)] px-2 py-1.5 align-top'
+  const qtyTd = `${cellTd} text-right tabular-nums`
 
   return (
-    <FadeContent>
-      <PageHeader
-        title="Stock Ledger"
-        description="Opening / Receipt / Issue / Closing follow the date filter. Click Opening or Issue to expand live unit serials (clear To Date, or set it to today). Issue is period stock movement — not current allotment."
-        actions={
-          <Button
-            variant="ghost"
-            disabled={visibleRows.length === 0}
-            onClick={() =>
-              downloadCsv(
-                `stock-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
-                [
-                  'Sr No',
-                  'Item Name',
-                  'Description',
-                  'UOM',
-                  'Opening Balance',
-                  'Receipt During the Period',
-                  'Issue During the Period',
-                  'Closing Balance for the Period',
-                  'Owner Name for Individual Asset',
-                ],
-                visibleRows.map((r) => [
-                  r.srNo,
-                  r.itemName,
-                  r.itemDescription,
-                  r.uom,
-                  formatStockQty(r.openingBalance),
-                  formatStockQty(r.receiptDuringPeriod),
-                  formatStockQty(r.issueDuringPeriod),
-                  formatStockQty(r.closingBalance),
-                  r.ownerName,
-                ]),
-              )
-            }
-          >
-            Export
-          </Button>
-        }
-      />
-      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
-      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading stock ledger…</div>}
-      {unitsHistoricalNote && !loading && (
-        <div className="mb-2 rounded border border-[var(--border)] bg-[#f7f9fc] px-3 py-2 text-sm text-[var(--text2)]">
-          To Date is in the past — Closing is as of that date. Unit serial details are hidden here so they
-          are not confused with Closing. Clear To Date (or set it to today) to expand live on-hand units.
-        </div>
-      )}
-
-      <Card className="mb-3">
-        <CardHeader title="Filters" subtitle="Narrow by item, date range, or location" />
-        <CardBody>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
-            <Field label="Search (server)">
-              <Input
-                value={draft.search}
-                onChange={(e) => set('search', e.target.value)}
-                placeholder="Item name / code…"
-              />
-            </Field>
-            <Field label="Search all columns">
-              <Input
-                value={columnSearch}
-                onChange={(e) => setColumnSearch(e.target.value)}
-                placeholder="Serial, location, custodian, batch…"
-              />
-            </Field>
-            <Field label="From Date">
-              <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />
-            </Field>
-            <Field label="To Date">
-              <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
-            </Field>
-            <Field label="Location">
-              <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
-                <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.code} – {s.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+    <>
+      <FadeContent>
+        <PageHeader
+          title="Stock Ledger"
+          description="Opening / Receipt / Issue / Closing follow the date filter. Closing = Receipt − Issue. Issue includes Opening Stock custody and Store Issue. Click Issue qty to expand unit serials."
+          actions={
+            <Button
+              variant="ghost"
+              disabled={visibleRows.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  `stock-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+                  ['Sr No', 'Item Name', 'Description', 'UOM', ...qtyCols],
+                  visibleRows.map((r) => [
+                    r.srNo,
+                    r.itemName,
+                    r.itemDescription,
+                    r.uom,
+                    formatStockQty(r.openingBalance),
+                    formatStockQty(r.receiptDuringPeriod),
+                    formatStockQty(r.issueDuringPeriod),
+                    formatStockQty(r.closingBalance),
+                  ]),
+                )
+              }
+            >
+              Export
+            </Button>
+          }
+        />
+        {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
+        {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading stock ledger…</div>}
+        {unitsHistoricalNote && !loading && (
+          <div className="mb-2 rounded border border-[var(--border)] bg-[#f7f9fc] px-3 py-2 text-sm text-[var(--text2)]">
+            To Date is in the past — Closing is as of that date. Unit serial details are hidden here so they
+            are not confused with Closing. Clear To Date (or set it to today) to expand live on-hand units.
           </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="ghost" onClick={clearFilters}>Clear</Button>
-            <Button onClick={applyFilters}>Apply</Button>
-          </div>
-        </CardBody>
-      </Card>
+        )}
 
-      <Card className="overflow-visible">
+        <Card className="mb-3">
+          <CardHeader title="Filters" subtitle="Narrow by item, date range, or location" />
+          <CardBody>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
+              <Field label="Search (server)">
+                <Input
+                  value={draft.search}
+                  onChange={(e) => set('search', e.target.value)}
+                  placeholder="Item name / code…"
+                />
+              </Field>
+              <Field label="Search all columns">
+                <Input
+                  value={columnSearch}
+                  onChange={(e) => setColumnSearch(e.target.value)}
+                  placeholder="Serial, location, custodian, batch…"
+                />
+              </Field>
+              <Field label="From Date">
+                <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />
+              </Field>
+              <Field label="To Date">
+                <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
+              </Field>
+              <Field label="Location">
+                <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
+                  <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} – {s.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <Button variant="ghost" onClick={clearFilters}>Clear</Button>
+              <Button onClick={applyFilters}>Apply</Button>
+            </div>
+          </CardBody>
+        </Card>
+      </FadeContent>
+
+      {/* Outside FadeContent — motion transform breaks position:sticky */}
+      <Card className="overflow-hidden">
         <CardBody className="p-0">
           <ReportTableScroll>
-            <table className="w-full border-collapse text-xs">
+            <table className="w-full table-fixed border-collapse text-xs">
               <thead>
                 <tr>
                   {headers.map((h) => (
-                    <th key={h} className={reportThClass}>
+                    <th
+                      key={h}
+                      style={colStyle}
+                      className={`${reportThAlign(qtyLabelSet.has(h) ? 'right' : 'left')} whitespace-normal leading-tight`}
+                    >
                       {h}
                     </th>
                   ))}
@@ -330,6 +325,10 @@ export function StockRegisterPage() {
                   const unitHeaders = [
                     'Serial No.',
                     'Location',
+                    'Opening',
+                    'Receipt',
+                    'Issue',
+                    'Closing Stock',
                     'Custodian',
                     'Condition',
                     'IP Address',
@@ -337,11 +336,14 @@ export function StockRegisterPage() {
                     'Hostname',
                     ...(isConsumable ? (['Batch / Lot'] as const) : []),
                   ]
+                  const unitQtyRight = new Set(['Opening', 'Receipt', 'Issue', 'Closing Stock'])
                   return (
                     <Fragment key={r.id}>
                       <tr className="hover:bg-[#f0f5ff]">
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5 text-[var(--text3)]">{r.srNo}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">
+                        <td style={colStyle} className={`${cellTd} text-[var(--text3)]`}>
+                          {r.srNo}
+                        </td>
+                        <td style={colStyle} className={cellTd}>
                           {r.itemId ? (
                             <button
                               type="button"
@@ -361,24 +363,16 @@ export function StockRegisterPage() {
                             </div>
                           ) : null}
                         </td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">
-                          {canExpand ? (
-                            <button
-                              type="button"
-                              aria-expanded={isOpen}
-                              aria-label={`Show units for ${r.itemName} (opening)`}
-                              onClick={() => toggleExpand(r.id)}
-                              className="font-medium text-[var(--accent-deep)] hover:underline"
-                            >
-                              {formatStockQty(r.openingBalance)}
-                            </button>
-                          ) : (
-                            formatStockQty(r.openingBalance)
-                          )}
+                        <td style={colStyle} className={cellTd}>
+                          {r.uom}
                         </td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{formatStockQty(r.receiptDuringPeriod)}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">
+                        <td style={colStyle} className={qtyTd}>
+                          {formatStockQty(r.openingBalance)}
+                        </td>
+                        <td style={colStyle} className={qtyTd}>
+                          {formatStockQty(r.receiptDuringPeriod)}
+                        </td>
+                        <td style={colStyle} className={qtyTd}>
                           {canExpand ? (
                             <button
                               type="button"
@@ -393,23 +387,46 @@ export function StockRegisterPage() {
                             formatStockQty(r.issueDuringPeriod)
                           )}
                         </td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-semibold">{formatStockQty(r.closingBalance)}</td>
-                        <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.ownerName}</td>
+                        <td style={colStyle} className={`${qtyTd} font-semibold`}>
+                          {formatStockQty(r.closingBalance)}
+                        </td>
                       </tr>
                       {isOpen && (
                         <tr className="bg-[#f7f9fc]">
-                          <td colSpan={8} className="border-b border-[var(--border)] px-3 py-2.5">
+                          <td colSpan={colCount} className="border-b border-[var(--border)] px-3 py-2.5">
                             <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.5px] text-[var(--text3)]">
                               Units on hand — serial, custody and network details
                               {issuedUnits > 0 ? ` (${issuedUnits} issued to staff)` : ''}
                             </div>
-                            <table className="w-full border-collapse text-[11px]">
+                            <div className="mb-2 flex flex-wrap gap-4 text-[11px] text-[var(--text2)]">
+                              <span>
+                                Opening: <strong>{formatStockQty(r.openingBalance)}</strong>
+                              </span>
+                              <span>
+                                Receipt:{' '}
+                                <strong className="text-[var(--success)]">
+                                  {formatStockQty(r.receiptDuringPeriod)}
+                                </strong>
+                              </span>
+                              <span>
+                                Issue:{' '}
+                                <strong className="text-[var(--danger)]">
+                                  {formatStockQty(r.issueDuringPeriod)}
+                                </strong>
+                              </span>
+                              <span>
+                                Closing Stock: <strong>{formatStockQty(r.closingBalance)}</strong>
+                              </span>
+                            </div>
+                            <table className="w-full table-fixed border-collapse text-[11px]">
                               <thead>
                                 <tr>
                                   {unitHeaders.map((h) => (
                                     <th
                                       key={h}
-                                      className="border-b border-[var(--border)] px-2 py-1 text-left text-[9px] font-bold uppercase tracking-[0.4px] text-[var(--text3)]"
+                                      className={`border-b border-[var(--border)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.4px] text-[var(--text3)] ${
+                                        unitQtyRight.has(h) ? 'text-right' : 'text-left'
+                                      }`}
                                     >
                                       {h}
                                     </th>
@@ -417,48 +434,71 @@ export function StockRegisterPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {r.units.map((u) => (
-                                  <tr key={u.blsId || `${u.serialNo}-${u.locationCode}`}>
-                                    <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
-                                      {dash(u.serialNo)}
-                                    </td>
-                                    <td className="border-b border-[var(--border)] px-2 py-1">
-                                      {dash(u.locationName || u.locationCode)}
-                                    </td>
-                                    <td className="border-b border-[var(--border)] px-2 py-1">
-                                      {u.custodyMode === 'ISSUED_TO' ? (
-                                        <span>
-                                          <span className="font-medium text-amber-800">Issued</span>
-                                          <span className="text-[var(--text3)]"> · {dash(u.custodian)}</span>
-                                        </span>
-                                      ) : (
-                                        <span className="text-[var(--text3)]">In store</span>
-                                      )}
-                                    </td>
-                                    <td className="border-b border-[var(--border)] px-2 py-1">
-                                      {u.custodyMode === 'ISSUED_TO'
-                                        ? (u.itemCondition &&
-                                          u.itemCondition.toLowerCase() !== 'in stock'
-                                            ? u.itemCondition
-                                            : 'Issued')
-                                        : dash(u.itemCondition)}
-                                    </td>
-                                    <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
-                                      {dash(u.ipAddress)}
-                                    </td>
-                                    <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
-                                      {dash(u.macAddress)}
-                                    </td>
-                                    <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
-                                      {dash(u.hostname)}
-                                    </td>
-                                    {isConsumable && (
+                                {r.units.map((u, idx) => {
+                                  const issued = u.custodyMode === 'ISSUED_TO'
+                                  // Each serial is qty 1: allocate period Opening first, then Receipt.
+                                  const openingQty = idx < Math.max(0, Math.round(r.openingBalance)) ? 1 : 0
+                                  const receiptQty = openingQty === 1 ? 0 : 1
+                                  const issueQty = issued ? 1 : 0
+                                  const closingQty = Math.max(0, openingQty + receiptQty - issueQty)
+                                  return (
+                                    <tr key={u.blsId || `${u.serialNo}-${u.locationCode}`}>
                                       <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
-                                        {dash(u.batchLotNo)}
+                                        {dash(u.serialNo)}
                                       </td>
-                                    )}
-                                  </tr>
-                                ))}
+                                      <td className="border-b border-[var(--border)] px-2 py-1">
+                                        {dash(u.locationName || u.locationCode)}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1 text-right tabular-nums">
+                                        {formatStockQty(openingQty)}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1 text-right tabular-nums">
+                                        {formatStockQty(receiptQty)}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1 text-right tabular-nums">
+                                        {formatStockQty(issueQty)}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1 text-right tabular-nums">
+                                        {formatStockQty(closingQty)}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1">
+                                        {issued ? (
+                                          <span>
+                                            <span className="font-medium text-amber-800">Issued</span>
+                                            <span className="text-[var(--text3)]">
+                                              {' '}
+                                              · {dash(u.custodian)}
+                                            </span>
+                                          </span>
+                                        ) : (
+                                          <span className="text-[var(--text3)]">In store</span>
+                                        )}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1">
+                                        {issued
+                                          ? u.itemCondition &&
+                                            u.itemCondition.toLowerCase() !== 'in stock'
+                                            ? u.itemCondition
+                                            : 'Issued'
+                                          : dash(u.itemCondition)}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
+                                        {dash(u.ipAddress)}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
+                                        {dash(u.macAddress)}
+                                      </td>
+                                      <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
+                                        {dash(u.hostname)}
+                                      </td>
+                                      {isConsumable && (
+                                        <td className="border-b border-[var(--border)] px-2 py-1 font-mono">
+                                          {dash(u.batchLotNo)}
+                                        </td>
+                                      )}
+                                    </tr>
+                                  )
+                                })}
                               </tbody>
                             </table>
                           </td>
@@ -469,7 +509,7 @@ export function StockRegisterPage() {
                 })}
                 {!loading && visibleRows.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-[11px] py-8 text-center text-[var(--text3)]">
+                    <td colSpan={colCount} className="px-[11px] py-8 text-center text-[var(--text3)]">
                       No stock ledger rows for the selected filters.
                     </td>
                   </tr>
@@ -497,6 +537,6 @@ export function StockRegisterPage() {
           </div>
         </CardBody>
       </Card>
-    </FadeContent>
+    </>
   )
 }

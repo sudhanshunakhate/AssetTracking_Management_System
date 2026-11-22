@@ -19,7 +19,7 @@ import {
 } from './GatepassInwardItemLines'
 
 function isAssetItem(item: ApiMasterRow) {
-  return Boolean(item.isSerialized || item.itemType === 'asset')
+  return Boolean(item.isSerialized)
 }
 
 const headCell =

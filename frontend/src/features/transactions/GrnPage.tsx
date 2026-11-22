@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { StatusPill } from '@/components/ui/Badge'
@@ -37,6 +37,7 @@ import {
   vendorLabel,
   vendorOptions as toVendorOptions,
 } from './txnLookups'
+import { useTxnDocSession } from './docWorkspace/useTxnDocSession'
 
 const BASE = '/transactions/grn'
 const MENU = 'GRN'
@@ -81,6 +82,12 @@ function blankForm(employeeId?: number | null): FormState {
     attachmentName: '',
     status: '',
   }
+}
+
+type GrnBasket = {
+  form: FormState
+  itemType: ItemKind
+  lines: GrnLine[]
 }
 
 export function GrnPages() {
@@ -197,6 +204,8 @@ function GrnForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
+  const basketApplied = useRef(false)
+  const serverLoaded = useRef(false)
 
   /* Prefill prepared-by from session when /auth/me resolves after first paint */
   useEffect(() => {
@@ -215,6 +224,23 @@ function GrnForm() {
   const canEdit = isNew ? canCreateMenu(MENU) : canEditMenu(MENU)
   const statusEditable = EDITABLE_STATUSES.includes(form.status)
   const readOnly = !canEdit || !statusEditable
+
+  const basketDirty = useMemo(
+    () =>
+      !readOnly &&
+      (lines.some((l) => l.itemId !== '') ||
+        Boolean(form.supplier) ||
+        Boolean(form.invoiceNo.trim()) ||
+        Boolean(form.remarks.trim()) ||
+        Boolean(form.attachmentUrl)),
+    [readOnly, lines, form],
+  )
+  const basketData = useMemo<GrnBasket>(() => ({ form, itemType, lines }), [form, itemType, lines])
+
+  useEffect(() => {
+    basketApplied.current = false
+    serverLoaded.current = false
+  }, [id])
 
   /* ---- load existing document ---- */
   useEffect(() => {
@@ -267,6 +293,7 @@ function GrnForm() {
         if (firstType === 'consumable' || firstType === 'asset') {
           setItemType(firstType)
         }
+        serverLoaded.current = true
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load GRN')
       } finally {
@@ -336,8 +363,13 @@ function GrnForm() {
       )
     ) {
       found.lines = 'On every line, Accepted Qty plus Rejected Qty must equal Received Qty.'
-    } else if (itemType === 'asset' && filled.some((l) => !l.serialNo.trim())) {
-      found.lines = 'Serial No. is required on every asset unit line.'
+    } else if (
+      filled.some((l) => {
+        const item = items.rows.find((i) => i.id === l.itemId)
+        return Boolean(item?.isSerialized) && !l.serialNo.trim()
+      })
+    ) {
+      found.lines = 'Serial No. is required on every serialized item line.'
     } else if (filled.some((l) => !l.locationId)) {
       found.lines = 'Location is required on every item line.'
     } else if (lines.some((l) => l.itemCode !== '' && l.itemId === '')) {
@@ -392,9 +424,12 @@ function GrnForm() {
       lines: lines
         .filter((l) => l.itemId !== '')
         .map((l, i) => {
-          const received = itemType === 'asset' ? 1 : toNum(l.receivedQty)
-          const accepted = toNum(l.acceptedQty)
-          const rejected = toNum(l.rejectedQty)
+          const item = items.rows.find((i) => i.id === l.itemId)
+          const received = item?.isSerialized ? 1 : toNum(l.receivedQty)
+          const accepted = item?.isSerialized ? Math.min(1, toNum(l.acceptedQty)) : toNum(l.acceptedQty)
+          const rejected = item?.isSerialized
+            ? Math.max(0, received - accepted)
+            : toNum(l.rejectedQty)
           return {
             srNo: i + 1,
             itemId: Number(l.itemId),
@@ -418,6 +453,42 @@ function GrnForm() {
     }
   }
 
+  const { restored, hydrateDone, clearRestored, clearBasket } = useTxnDocSession({
+    data: basketData,
+    enabled: !loading && !readOnly && !saving,
+    dirty: basketDirty,
+    kind: 'GRN',
+    title: isNew ? 'New GRN' : form.grnNo ? `GRN ${form.grnNo}` : `GRN #${id}`,
+    subtitle: basketDirty ? 'Basket unsaved' : 'Basket saved',
+    silentDraft: {
+      intervalMs: 15_000,
+      canSave: () => {
+        if (readOnly || saving || Object.keys(errors).length > 0) return false
+        return Boolean(form.supplier) && lines.some((l) => l.itemId && l.locationId)
+      },
+      save: async () => {
+        const body = buildBody('SAVE_DRAFT')
+        if (isNew) {
+          const created = await createTxn(RESOURCE, body)
+          return { id: String(created.docId), docNo: created.docNo }
+        }
+        await updateTxn(RESOURCE, id, body)
+        return { id, docNo: form.grnNo }
+      },
+    },
+  })
+
+  useEffect(() => {
+    if (!hydrateDone || basketApplied.current || !restored) return
+    if (!isNew && (loading || !serverLoaded.current)) return
+    setForm(restored.form)
+    setItemType(restored.itemType)
+    setLines(restored.lines.length ? restored.lines : [emptyGrnLine()])
+    basketApplied.current = true
+    clearRestored()
+    setMessage('Restored from basket')
+  }, [hydrateDone, restored, isNew, loading, clearRestored])
+
   const save = async (action: 'SAVE_DRAFT' | 'SUBMIT') => {
     setSubmitted(true)
     setMessage(null)
@@ -432,6 +503,7 @@ function GrnForm() {
       if (isNew) {
         const created = await createTxn(RESOURCE, body)
         const docId = (created as { docId?: number })?.docId
+        clearBasket()
         if (action === 'SUBMIT') {
           navigate(BASE)
         } else {
@@ -441,6 +513,7 @@ function GrnForm() {
         }
       } else {
         await updateTxn(RESOURCE, id, body)
+        clearBasket()
         if (action === 'SUBMIT') navigate(BASE)
         else setMessage('GRN updated.')
       }
@@ -713,6 +786,7 @@ function GrnForm() {
               setTouched({})
               setError(null)
               setMessage(null)
+              clearBasket()
             }}
             disabled={saving}
           >

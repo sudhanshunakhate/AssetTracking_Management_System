@@ -131,6 +131,7 @@ export function FullReportPage() {
           const deptId = String(r.departmentId ?? '')
           const emp = empById[employeeId]
           const dept = deptById[deptId]
+          const apiEmployee = String(r.employee ?? '').trim()
           return {
             id: String(r.id ?? `${r.txnNo}-${r.itemId}`),
             docId: String(r.docId ?? ''),
@@ -154,7 +155,10 @@ export function FullReportPage() {
             organization: orgById[entityId]?.name ?? orgById[entityId]?.code ?? (entityId || '—'),
             operatingUnit: '—',
             department: dept ? String(dept.name ?? dept.code ?? '—') : '—',
-            employee: emp ? `${emp.firstName} ${emp.lastName}` : employeeId || '—',
+            employee: apiEmployee
+              || (emp ? `${emp.firstName} ${emp.lastName}`.trim() : '')
+              || employeeId
+              || '—',
             user: '—',
             status: String(r.status ?? ''),
             value: Number(r.value ?? 0),
@@ -333,6 +337,8 @@ export function FullReportPage() {
                 }}
                 placeholder="All Items"
                 allowClear
+                pageSize={50}
+                maxVisible={50}
               />
             </Field>
             <Field label="Serial No." className="relative z-10">

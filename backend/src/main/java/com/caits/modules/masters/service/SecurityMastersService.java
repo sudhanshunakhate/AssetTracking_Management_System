@@ -283,6 +283,8 @@ public class SecurityMastersService {
                                 e.getEmpFirstName(),
                                 e.getEmpLastName(),
                                 e.getEmpDesignation(),
+                                e.getEmpDepartmentIdDept(),
+                                null,
                                 e.getEmpIsactive()))
                         .toList());
     }

@@ -5,14 +5,13 @@ spring:
     activate:
       on-profile: "1"
   datasource:
-    # Same host/DB; schema selected via currentSchema + Hibernate default_schema.
-    # Localhost override (schema must be migration-complete; tables owned by app user):
-    # url: jdbc:postgresql://localhost:5432/caits?currentSchema=caits_local
+    url: jdbc:postgresql://localhost:5432/postgres?currentSchema=caits_local
+    username: postgres
+    password: ${CAITS_LOCAL_PW:pass121word}
+    # Shared host (when not on localhost):
+    # url: jdbc:postgresql://192.168.0.223:5432/caits?currentSchema=caits_local
     # username: caits
     # password: caits123
-    url: jdbc:postgresql://192.168.0.223:5432/caits?currentSchema=caits_local
-    username: caits
-    password: caits123
   jpa:
     properties:
       hibernate:

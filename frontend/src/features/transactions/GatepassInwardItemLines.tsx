@@ -51,9 +51,9 @@ export function emptyGatepassInwardLine(): GatepassInwardLine {
   }
 }
 
-function isAssetItem(item: ApiMasterRow | undefined, fallbackType = '') {
-  if (item?.isSerialized || item?.itemType === 'asset') return true
-  return String(fallbackType).toLowerCase() === 'asset'
+/** Serial / unit columns only when Item Master Serialized is on. */
+function isAssetItem(item: ApiMasterRow | undefined, _fallbackType = '') {
+  return Boolean(item?.isSerialized)
 }
 
 /** Resolve receive location from Item Master: home store, or Quarantine when inspection is needed. */

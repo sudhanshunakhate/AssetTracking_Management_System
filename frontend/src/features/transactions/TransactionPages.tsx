@@ -812,7 +812,7 @@ export function ReturnsPages() {
             )
             const qtyMap = allottedQtyByParty[key] ?? {}
             const allottedQty = qtyMap[item.id]
-            const isAsset = Boolean(item.isSerialized || item.itemType === 'asset')
+            const isAsset = Boolean(item.isSerialized)
             const serialPatch =
               match.length === 1
                 ? {
@@ -881,9 +881,7 @@ export function ReturnsPages() {
         onSave={async (id, values, action = 'SUBMIT') => {
           const itemType = String(values.itemType ?? '')
           const item = items.rows.find((i) => i.id === String(values.item ?? ''))
-          const isAsset = Boolean(
-            itemType === 'asset' || item?.isSerialized || item?.itemType === 'asset',
-          )
+          const isAsset = Boolean(item?.isSerialized)
           if (isAsset && !String(values.serialNo ?? '').trim()) {
             throw new Error('Serial No. is required when returning an asset')
           }

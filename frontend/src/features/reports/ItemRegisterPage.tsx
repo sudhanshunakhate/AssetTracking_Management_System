@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
@@ -23,11 +23,18 @@ type LedgerRow = {
   docType: string
   txnType: string
   docNo: string
-  batch: string
+  serialNo: string
+  location: string
+  ipAddress: string
   uom: string
+  openingBalance: number
   receipt: string
   issue: string
-  balance: number
+  closingBalance: number
+  periodReceipt: number
+  periodIssue: number
+  periodClosing: number
+  issuedTo: string
 }
 
 const emptyFilters = {
@@ -49,6 +56,17 @@ const qtyCell = (v: string | number | null | undefined) => {
   if (v === null || v === undefined || v === '') return '—'
   const n = Number(v)
   return Number.isFinite(n) ? formatStockQty(n) : '—'
+}
+
+const textCell = (v: unknown) => {
+  const s = String(v ?? '').trim()
+  return s || '—'
+}
+
+const qtyNum = (v: string | number | null | undefined) => {
+  if (v === null || v === undefined || v === '') return 0
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
 }
 
 export function ItemRegisterPage() {
@@ -96,11 +114,18 @@ export function ItemRegisterPage() {
           docType: String(r.docType ?? ''),
           txnType: String(r.txnType ?? r.docType ?? ''),
           docNo: String(r.docNo ?? ''),
-          batch: String(r.batch ?? '').trim() || '—',
-          uom: String(r.uomCode ?? '—'),
-          receipt: qtyCell(r.receipt as string | number | null),
-          issue: qtyCell(r.issue as string | number | null),
-          balance: Number(r.balance ?? 0),
+          serialNo: textCell(r.serialNo ?? r.batch),
+          location: textCell(r.location ?? r.locationName ?? r.locationCode),
+          ipAddress: textCell(r.ipAddress),
+          uom: textCell(r.uomCode ?? r.uomName),
+          openingBalance: Number(r.openingBalance ?? 0),
+          receipt: qtyCell((r.receiptDuringPeriod ?? r.receipt) as string | number | null),
+          issue: qtyCell((r.issueDuringPeriod ?? r.issue) as string | number | null),
+          closingBalance: Number(r.closingBalance ?? r.balance ?? 0),
+          periodReceipt: Number(r.periodReceipt ?? 0),
+          periodIssue: Number(r.periodIssue ?? 0),
+          periodClosing: Number(r.periodClosing ?? 0),
+          issuedTo: textCell(r.issuedTo),
         })),
       )
     } catch (err) {
@@ -122,7 +147,13 @@ export function ItemRegisterPage() {
     setApplied(emptyFilters)
   }
 
-  const numericHeaders = new Set(['Receipt', 'Issue', 'Balance'])
+  const qtyCols = [
+    'Opening Balance',
+    'Receipt During the Period',
+    'Issue During the Period',
+    'Closing Balance for the Period',
+  ]
+  const qtyLabelSet = new Set(qtyCols)
 
   const headers = showItemCols
     ? [
@@ -131,105 +162,159 @@ export function ItemRegisterPage() {
         'Item Name',
         'Doc. Type',
         'Doc. No.',
-        'Batch',
+        'Serial No.',
+        'Location',
+        'IP Address',
         'UOM',
-        'Receipt',
-        'Issue',
-        'Balance',
+        ...qtyCols,
+        'Issued To',
       ]
-    : ['Date', 'Doc. Type', 'Doc. No.', 'Batch', 'UOM', 'Receipt', 'Issue', 'Balance']
+    : [
+        'Date',
+        'Doc. Type',
+        'Doc. No.',
+        'Serial No.',
+        'Location',
+        'IP Address',
+        'UOM',
+        ...qtyCols,
+        'Issued To',
+      ]
+
+  const totals = useMemo(() => {
+    // Footer uses Stock Ledger period totals (Receipt − Issue), not sum of line closings.
+    if (rows.length === 0) return { opening: 0, receipt: 0, issue: 0, closing: 0 }
+    const byItem = new Map<string, LedgerRow>()
+    for (const r of rows) {
+      const key = r.itemCode || r.itemName || r.id
+      if (!byItem.has(key)) byItem.set(key, r)
+    }
+    let opening = 0
+    let closing = 0
+    let receipt = 0
+    let issue = 0
+    for (const r of byItem.values()) {
+      opening += r.openingBalance
+      receipt += r.periodReceipt
+      issue += r.periodIssue
+      closing += r.periodClosing > 0 ? r.periodClosing : Math.max(0, r.periodReceipt - r.periodIssue)
+    }
+    if (receipt === 0 && issue === 0) {
+      receipt = rows.reduce((s, r) => s + qtyNum(r.receipt), 0)
+      issue = rows.reduce((s, r) => s + qtyNum(r.issue), 0)
+      closing = Math.max(0, receipt - issue)
+    }
+    return { opening, receipt, issue, closing }
+  }, [rows])
+
+  const qtyTd =
+    'border-b border-[var(--border)] px-1.5 py-1.5 text-right tabular-nums w-16 min-w-[3.5rem] max-w-[4.5rem]'
 
   return (
-    <FadeContent>
-      <PageHeader
-        title="Item Ledger"
-        description="Running stock balance by document. Pick filters below and click Apply — changes are not loaded until you apply them."
-        actions={
-          <Button
-            variant="ghost"
-            disabled={rows.length === 0}
-            onClick={() =>
-              downloadCsv(
-                `item-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
-                headers,
-                rows.map((r) =>
-                  showItemCols
-                    ? [
-                        r.date,
-                        r.itemCode,
-                        r.itemName,
-                        r.docType,
-                        r.docNo,
-                        r.batch,
-                        r.uom,
-                        r.receipt,
-                        r.issue,
-                        formatStockQty(r.balance),
-                      ]
-                    : [
-                        r.date,
-                        r.docType,
-                        r.docNo,
-                        r.batch,
-                        r.uom,
-                        r.receipt,
-                        r.issue,
-                        formatStockQty(r.balance),
-                      ],
-                ),
-              )
-            }
-          >
-            Export
-          </Button>
-        }
-      />
-      {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
-      {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading item ledger…</div>}
+    <>
+      <FadeContent>
+        <PageHeader
+          title="Item Ledger"
+          description="Each line: Closing = Receipt − Issue. Footer Closing is the period total (same as Stock Ledger)."
+          actions={
+            <Button
+              variant="ghost"
+              disabled={rows.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  `item-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
+                  headers,
+                  rows.map((r) =>
+                    showItemCols
+                      ? [
+                          r.date,
+                          r.itemCode,
+                          r.itemName,
+                          r.docType,
+                          r.docNo,
+                          r.serialNo,
+                          r.location,
+                          r.ipAddress,
+                          r.uom,
+                          formatStockQty(r.openingBalance),
+                          r.receipt,
+                          r.issue,
+                          formatStockQty(r.closingBalance),
+                          r.issuedTo,
+                        ]
+                      : [
+                          r.date,
+                          r.docType,
+                          r.docNo,
+                          r.serialNo,
+                          r.location,
+                          r.ipAddress,
+                          r.uom,
+                          formatStockQty(r.openingBalance),
+                          r.receipt,
+                          r.issue,
+                          formatStockQty(r.closingBalance),
+                          r.issuedTo,
+                        ],
+                  ),
+                )
+              }
+            >
+              Export
+            </Button>
+          }
+        />
+        {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
+        {loading && <div className="mb-2 text-sm text-[var(--text3)]">Loading item ledger…</div>}
 
-      <Card className="mb-3">
-        <CardHeader title="Filters" subtitle="Narrow by item, serial no., date range, or store" />
-        <CardBody>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2.5">
-            <Field label="Item">
-              <MasterItemSearchLookup
-                value={draft.itemId}
-                onChange={(v) => set('itemId', v)}
-                placeholder="All Items"
-              />
-            </Field>
-            <Field label="Serial No.">
-              <Input
-                value={draft.serialNo}
-                onChange={(e) => set('serialNo', e.target.value)}
-                placeholder="Track serial…"
-              />
-            </Field>
-            <Field label="From Date">
-              <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />
-            </Field>
-            <Field label="To Date">
-              <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
-            </Field>
-            <Field label="Location">
-              <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
-                <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.code} – {s.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <Button variant="ghost" onClick={clearFilters}>Clear</Button>
-            <Button onClick={applyFilters}>Apply</Button>
-          </div>
-        </CardBody>
-      </Card>
+        <Card className="mb-3 overflow-visible">
+          <CardHeader title="Filters" subtitle="Narrow by item, serial no., date range, or store" />
+          <CardBody className="overflow-visible">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2.5 overflow-visible">
+              <Field label="Item" className="relative z-40">
+                <MasterItemSearchLookup
+                  value={draft.itemId}
+                  onChange={(v) => set('itemId', v)}
+                  placeholder="All Items"
+                  allowClear
+                  pageSize={50}
+                  maxVisible={50}
+                />
+              </Field>
+              <Field label="Serial No.">
+                <Input
+                  value={draft.serialNo}
+                  onChange={(e) => set('serialNo', e.target.value)}
+                  placeholder="Track serial…"
+                />
+              </Field>
+              <Field label="From Date">
+                <Input type="date" value={draft.from} onChange={(e) => set('from', e.target.value)} />
+              </Field>
+              <Field label="To Date">
+                <Input type="date" value={draft.to} onChange={(e) => set('to', e.target.value)} />
+              </Field>
+              <Field label="Location">
+                <Select value={draft.loc} onChange={(e) => set('loc', e.target.value)}>
+                  <option value="">{seesAllLocations ? 'All Locations' : 'My Locations'}</option>
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} – {s.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <Button variant="ghost" onClick={clearFilters}>Clear</Button>
+              <Button onClick={applyFilters}>Apply</Button>
+            </div>
+          </CardBody>
+        </Card>
+      </FadeContent>
 
-      <Card className="overflow-visible">
+      {/* Outside FadeContent — motion transform breaks position:sticky */}
+      <Card className="overflow-hidden">
         <CardBody className="p-0">
           <ReportTableScroll>
             <table className="w-full border-collapse text-xs">
@@ -238,7 +323,7 @@ export function ItemRegisterPage() {
                   {headers.map((h) => (
                     <th
                       key={h}
-                      className={reportThAlign(numericHeaders.has(h) ? 'right' : 'left')}
+                      className={reportThAlign(qtyLabelSet.has(h) ? 'right' : 'left', qtyLabelSet.has(h))}
                     >
                       {h}
                     </th>
@@ -283,13 +368,15 @@ export function ItemRegisterPage() {
                           r.docNo || '—'
                         )}
                       </td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.batch}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.serialNo}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.location}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.ipAddress}</td>
                       <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.uom}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 text-right tabular-nums">{r.receipt}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 text-right tabular-nums">{r.issue}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 text-right font-semibold tabular-nums">
-                        {formatStockQty(r.balance)}
-                      </td>
+                      <td className={qtyTd}>{formatStockQty(r.openingBalance)}</td>
+                      <td className={qtyTd}>{r.receipt}</td>
+                      <td className={qtyTd}>{r.issue}</td>
+                      <td className={`${qtyTd} font-semibold`}>{formatStockQty(r.closingBalance)}</td>
+                      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.issuedTo}</td>
                     </tr>
                   )
                 })}
@@ -312,10 +399,22 @@ export function ItemRegisterPage() {
               <div>
                 Lines: <strong>{rows.length}</strong>
               </div>
+              <div>
+                Opening: <strong>{formatStockQty(totals.opening)}</strong>
+              </div>
+              <div>
+                Receipt: <strong className="text-[var(--success)]">{formatStockQty(totals.receipt)}</strong>
+              </div>
+              <div>
+                Issue: <strong className="text-[var(--danger)]">{formatStockQty(totals.issue)}</strong>
+              </div>
+              <div>
+                Closing: <strong>{formatStockQty(totals.closing)}</strong>
+              </div>
             </div>
           )}
         </CardBody>
       </Card>
-    </FadeContent>
+    </>
   )
 }

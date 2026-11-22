@@ -503,6 +503,8 @@ export const ITEM_IMPORT_HEADERS = [
   'trackBatchLot',
   'trackExpiry',
   'allowNegativeStock',
+  'isSerialized',
+  'inspectionNeeded',
 ]
 
 /** Consumable-only bulk template (Item Master) — no asset columns. */
@@ -522,6 +524,8 @@ export const CONSUMABLE_ITEM_IMPORT_HEADERS = [
   'trackBatchLot',
   'trackExpiry',
   'allowNegativeStock',
+  'isSerialized',
+  'inspectionNeeded',
 ]
 
 /** Asset-only bulk template (Item Master). */
@@ -544,6 +548,8 @@ export const ASSET_ITEM_IMPORT_HEADERS = [
   'usefulLifeYears',
   'depreciationMethod',
   'depreciationRate',
+  'isSerialized',
+  'inspectionNeeded',
 ]
 
 export const ITEM_IMPORT_SAMPLE = [
@@ -569,6 +575,8 @@ export const ITEM_IMPORT_SAMPLE = [
   '',
   '',
   '',
+  'true',
+  'true',
 ]
 
 /** Second example row (consumable) included in the combined template. */
@@ -595,6 +603,8 @@ export const ITEM_IMPORT_SAMPLE_CONSUMABLE = [
   'false',
   'false',
   'false',
+  'false',
+  'false',
 ]
 
 export const CONSUMABLE_ITEM_IMPORT_SAMPLE = [
@@ -610,6 +620,8 @@ export const CONSUMABLE_ITEM_IMPORT_SAMPLE = [
   '10',
   'Blue ink pen',
   '',
+  'false',
+  'false',
   'false',
   'false',
   'false',
@@ -634,6 +646,8 @@ export const ASSET_ITEM_IMPORT_SAMPLE = [
   '4',
   '',
   '',
+  'true',
+  'true',
 ]
 
 function applyImportDefaults(
@@ -713,6 +727,8 @@ export type ItemImportDraft = MasterImportDraftBase & {
   trackBatchLot: boolean
   trackExpiry: boolean
   allowNegativeStock: boolean
+  isSerialized: boolean
+  inspectionNeeded: boolean
 }
 
 export function parseItemsFromCsv(
@@ -776,6 +792,14 @@ export function parseItemsFromCsv(
     const trackBatchLot = parseBool(cell(row, 'trackbatchlot', 'trackbatch'))
     const trackExpiry = parseBool(cell(row, 'trackexpiry'))
     const allowNegativeStock = parseBool(cell(row, 'allownegativestock'))
+    const isSerialized = parseBool(
+      cell(row, 'isserialized', 'serialized', 'serialflag', 'serialised'),
+      false,
+    )
+    const inspectionNeeded = parseBool(
+      cell(row, 'inspectionneeded', 'inspectionflag', 'inspection', 'needsinspection'),
+      false,
+    )
 
     const entity = entityCode ? byCode(ctx.entities, entityCode) : undefined
     const uom = uomCode ? byCode(ctx.units, uomCode) : undefined
@@ -838,6 +862,8 @@ export function parseItemsFromCsv(
       trackBatchLot,
       trackExpiry,
       allowNegativeStock,
+      isSerialized,
+      inspectionNeeded,
       error,
     }
     drafts.push(draft)
@@ -873,11 +899,12 @@ export function saveItemsFromDrafts(drafts: ItemImportDraft[]) {
       depreciationRate: isAsset ? d.depreciationRate ?? null : null,
       currentLocationId: d.currentLocationId ?? null,
       consumableType: !isAsset ? d.consumableType || null : null,
-      isSerialized: false,
+      // Serialized flag is meaningful for assets; consumables stay non-serialized.
+      isSerialized: isAsset ? d.isSerialized : false,
       isReturnable: false,
       isUnderAmc: false,
       isInsuranceRequired: false,
-      inspectionNeeded: false,
+      inspectionNeeded: d.inspectionNeeded,
       trackBatchLot: !isAsset ? d.trackBatchLot : false,
       trackExpiry: !isAsset ? d.trackExpiry : false,
       isConsumable: !isAsset,

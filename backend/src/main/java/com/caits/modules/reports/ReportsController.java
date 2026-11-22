@@ -152,8 +152,6 @@ public class ReportsController {
         Map<Integer, String> uomCodes = unitCodeMap();
         Map<Integer, HrcEmployeeMst> employees = employeeMap();
         Map<Integer, OrgLocationMst> locations = locationMap();
-        Map<String, IssueCustody> lastIssue = latestIssueCustodyByItemLocation();
-        Map<Integer, Integer> blsOwnerByItem = blsOwnerByItem();
         Map<Integer, List<Map<String, Object>>> unitsByItem =
                 stockLedgerUnitsByItem(locFilter, employees, locations, stocks);
         // Period movements (from–to). Baseline anchors so Opening/Closing stay consistent with live stock
@@ -198,15 +196,18 @@ public class ReportsController {
             PeriodQty toDateNet = sumPeriodForItem(throughTo, itemId, agg.locationIds);
             PeriodQty lifeNet = sumPeriodForItem(allTime, itemId, agg.locationIds);
 
-            // Undocumented / rule-drift stock so that as-of-today closing == live.
+            // Opening is anchored to live on-hand via stock-affecting movements only.
+            // Issue (display) includes custody; Closing = Receipt − Issue.
             BigDecimal baseline = liveClosing.subtract(lifeNet.receipt).add(lifeNet.issue);
-            BigDecimal closing = baseline.add(toDateNet.receipt).subtract(toDateNet.issue);
+            BigDecimal stockClosing = baseline.add(toDateNet.receipt).subtract(toDateNet.issue);
             BigDecimal receipt = pq.receipt;
-            BigDecimal issue = pq.issue;
-            BigDecimal opening = closing.subtract(receipt).add(issue);
+            BigDecimal stockIssue = pq.issue;
+            BigDecimal issue = pq.issue.add(pq.custodyIssue);
+            BigDecimal opening = stockClosing.subtract(receipt).add(stockIssue);
             if (opening.signum() < 0) {
                 opening = BigDecimal.ZERO;
             }
+            BigDecimal closing = receipt.subtract(issue);
             if (closing.signum() < 0) {
                 closing = BigDecimal.ZERO;
             }
@@ -216,21 +217,6 @@ public class ReportsController {
                     && issue.compareTo(BigDecimal.ZERO) == 0
                     && opening.compareTo(BigDecimal.ZERO) == 0) {
                 continue;
-            }
-
-            String ownerName = null;
-            Integer blsEmp = blsOwnerByItem.get(itemId);
-            if (blsEmp != null) {
-                ownerName = empLabel(employees.get(blsEmp));
-            }
-            if (ownerName == null) {
-                for (Integer locId : agg.locationIds) {
-                    IssueCustody issued = lastIssue.get(custodyKey(itemId, locId));
-                    if (issued != null && issued.empId != null) {
-                        ownerName = empLabel(employees.get(issued.empId));
-                        break;
-                    }
-                }
             }
 
             Map<String, Object> row = new LinkedHashMap<>();
@@ -247,7 +233,6 @@ public class ReportsController {
             row.put("receiptDuringPeriod", receipt);
             row.put("issueDuringPeriod", issue);
             row.put("closingBalance", closing);
-            row.put("ownerName", ownerName);
             // Unit serials are always live on-hand — only attach when Closing is also live.
             row.put("units", unitsMatchClosing ? unitsByItem.getOrDefault(itemId, List.of()) : List.of());
             row.put("unitsAsOf", unitsMatchClosing ? "LIVE" : "OMITTED_HISTORICAL");
@@ -673,6 +658,8 @@ public class ReportsController {
         }
 
         Map<Integer, String> uomCodes = unitCodeMap();
+        Map<String, String> uomNamesByCode = unitNameByCodeMap();
+        Map<Integer, HrcEmployeeMst> employees = employeeMap();
         Map<Integer, List<TxnDetailDtl>> linesByHeader = linesByHeaderIds(
                 headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
         List<LedgerEvent> events = new ArrayList<>();
@@ -699,22 +686,38 @@ public class ReportsController {
                 .thenComparing(e -> e.detailId == null ? 0 : e.detailId)
                 .thenComparing(e -> e.subOrder));
 
-        Map<String, BigDecimal> balanceByKey = new HashMap<>();
+        // Period Opening / Closing match Stock Ledger (item-level), not a running per-line balance.
+        Set<Integer> eventItemIds = new HashSet<>();
+        for (LedgerEvent e : events) {
+            if (e.itemId != null) eventItemIds.add(e.itemId);
+        }
+        Map<Integer, ItemPeriodBal> periodByItem =
+                itemPeriodBalances(fromDate, toDate, locationId, eventItemIds);
+
         List<Map<String, Object>> rows = new ArrayList<>();
         for (LedgerEvent e : events) {
             boolean beforeFrom = fromDate != null && e.date != null && e.date.isBefore(fromDate);
             boolean afterTo = toDate != null && e.date != null && e.date.isAfter(toDate);
-            String balKey = ledgerBalanceKey(e.itemId, locationId);
-            BigDecimal bal = balanceByKey.getOrDefault(balKey, BigDecimal.ZERO);
-            if (beforeFrom) {
-                balanceByKey.put(balKey, bal.add(e.receipt).subtract(e.issue));
-                continue;
+            if (beforeFrom || afterTo) continue;
+
+            // Opening Stock custody: show Issue qty (same as Stock Ledger) while keeping receipt.
+            BigDecimal displayIssue = e.issue;
+            String displayDocType = e.docType;
+            if (e.issuedToEmpId != null) {
+                if (displayIssue.compareTo(BigDecimal.ZERO) == 0 && e.receipt.compareTo(BigDecimal.ZERO) > 0) {
+                    displayIssue = e.receipt;
+                }
+                if ("OPENING_STOCK".equals(e.txnType) && "Opening".equals(nullToEmpty(e.docType))) {
+                    displayDocType = "Opening · Issued";
+                }
             }
-            if (afterTo) continue;
 
-            bal = bal.add(e.receipt).subtract(e.issue);
-            balanceByKey.put(balKey, bal);
-
+            ItemPeriodBal period = periodByItem.getOrDefault(e.itemId, ItemPeriodBal.ZERO);
+            // Per-line Closing = Receipt − Issue (not the item period total).
+            BigDecimal lineClosing = e.receipt.subtract(displayIssue);
+            if (lineClosing.signum() < 0) {
+                lineClosing = BigDecimal.ZERO;
+            }
             String rowId = e.rowSuffix == null || e.rowSuffix.isBlank()
                     ? String.valueOf(e.detailId)
                     : e.detailId + "-" + e.rowSuffix;
@@ -725,21 +728,102 @@ public class ReportsController {
             row.put("itemId", e.itemId);
             row.put("itemCode", e.itemCode);
             row.put("itemName", e.itemName);
-            row.put("docType", e.docType);
+            row.put("docType", displayDocType);
             row.put("txnType", e.txnType);
             row.put("docNo", e.docNo);
             row.put("batch", e.batch);
+            row.put("serialNo", e.serialNo);
+            row.put("ipAddress", e.ipAddress);
             row.put("uomCode", e.uomCode);
+            row.put("uomName", e.uomCode == null ? null : uomNamesByCode.get(e.uomCode.trim().toUpperCase()));
             row.put("locationId", e.locationId);
             row.put("locationCode", e.locationCode);
             row.put("locationName", e.locationName);
+            row.put("location", firstNonBlank(
+                    e.locationCode != null && e.locationName != null
+                            ? e.locationCode + " - " + e.locationName
+                            : null,
+                    e.locationName,
+                    e.locationCode));
+            // Period Opening matches Stock Ledger; line Closing = line Receipt − line Issue.
+            row.put("openingBalance", period.opening);
+            row.put("closingBalance", lineClosing);
+            row.put("periodReceipt", period.receipt);
+            row.put("periodIssue", period.issue);
+            row.put("periodClosing", period.closing);
+            // Line movement qty within the period.
             row.put("receipt", e.receipt.compareTo(BigDecimal.ZERO) == 0 ? null : e.receipt);
-            row.put("issue", e.issue.compareTo(BigDecimal.ZERO) == 0 ? null : e.issue);
-            row.put("balance", bal);
+            row.put("receiptDuringPeriod", e.receipt.compareTo(BigDecimal.ZERO) == 0 ? null : e.receipt);
+            row.put("issue", displayIssue.compareTo(BigDecimal.ZERO) == 0 ? null : displayIssue);
+            row.put("issueDuringPeriod", displayIssue.compareTo(BigDecimal.ZERO) == 0 ? null : displayIssue);
+            row.put("balance", lineClosing);
+            row.put("issuedToEmpId", e.issuedToEmpId);
+            row.put("issuedTo", empLabel(e.issuedToEmpId == null ? null : employees.get(e.issuedToEmpId)));
             rows.add(row);
         }
 
         return pageOf(rows, page, pageSize);
+    }
+
+    /**
+     * Same Opening / Receipt / Issue / Closing math as Stock Ledger, keyed by item.
+     */
+    private Map<Integer, ItemPeriodBal> itemPeriodBalances(
+            LocalDate fromDate,
+            LocalDate toDate,
+            Integer locationId,
+            Set<Integer> itemIds
+    ) {
+        Map<Integer, ItemPeriodBal> out = new HashMap<>();
+        if (itemIds == null || itemIds.isEmpty()) {
+            return out;
+        }
+        List<Integer> locFilter = accessScope.resolveLocationFilter(locationId);
+        Map<String, PeriodQty> period = periodReceiptIssue(fromDate, toDate, locFilter);
+        Map<String, PeriodQty> throughTo = toDate == null
+                ? periodReceiptIssue(null, null, locFilter)
+                : periodReceiptIssue(null, toDate, locFilter);
+        Map<String, PeriodQty> allTime = periodReceiptIssue(null, null, locFilter);
+
+        List<InvStockMst> stocks = stockRepo.findAll((root, query, cb) -> {
+            List<Predicate> preds = new ArrayList<>();
+            preds.add(cb.isTrue(root.get("stkIsactive")));
+            preds.add(root.get("stkItemIdItm").in(itemIds));
+            if (locFilter != null) {
+                preds.add(locFilter.isEmpty() ? cb.disjunction() : root.get("stkLocationIdLoc").in(locFilter));
+            }
+            return cb.and(preds.toArray(Predicate[]::new));
+        });
+
+        Map<Integer, BigDecimal> liveClosing = new HashMap<>();
+        Map<Integer, Set<Integer>> locsByItem = new HashMap<>();
+        for (InvStockMst s : stocks) {
+            Integer id = s.getStkItemIdItm();
+            if (id == null) continue;
+            liveClosing.merge(id, nz(s.getStkCurrentQty()), BigDecimal::add);
+            if (s.getStkLocationIdLoc() != null) {
+                locsByItem.computeIfAbsent(id, k -> new LinkedHashSet<>()).add(s.getStkLocationIdLoc());
+            }
+        }
+
+        for (Integer itemId : itemIds) {
+            Set<Integer> locs = locsByItem.getOrDefault(itemId, Set.of());
+            PeriodQty pq = sumPeriodForItem(period, itemId, locs);
+            PeriodQty toDateNet = sumPeriodForItem(throughTo, itemId, locs);
+            PeriodQty lifeNet = sumPeriodForItem(allTime, itemId, locs);
+            BigDecimal live = liveClosing.getOrDefault(itemId, BigDecimal.ZERO);
+            BigDecimal baseline = live.subtract(lifeNet.receipt).add(lifeNet.issue);
+            BigDecimal stockClosing = baseline.add(toDateNet.receipt).subtract(toDateNet.issue);
+            BigDecimal receipt = pq.receipt;
+            BigDecimal stockIssue = pq.issue;
+            BigDecimal issue = pq.issue.add(pq.custodyIssue);
+            BigDecimal opening = stockClosing.subtract(receipt).add(stockIssue);
+            if (opening.signum() < 0) opening = BigDecimal.ZERO;
+            BigDecimal closing = receipt.subtract(issue);
+            if (closing.signum() < 0) closing = BigDecimal.ZERO;
+            out.put(itemId, new ItemPeriodBal(opening, receipt, issue, closing));
+        }
+        return out;
     }
 
     /**
@@ -894,6 +978,7 @@ public class ReportsController {
                 headers.stream().map(TxnHeaderMst::getTxhTxnHeaderId).toList());
         Map<Integer, OrgLocationMst> locations = locationMap();
         Map<Integer, InvVendorMst> vendors = vendorMap(headers);
+        Map<Integer, HrcEmployeeMst> employees = employeeMap();
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (TxnHeaderMst h : headers) {
@@ -904,7 +989,7 @@ public class ReportsController {
                 }
                 if (!matchesSerialFilter(serialNo, d.getTxdSerialNo(), d.getTxdBatchLotNo())) continue;
                 InvItemMst item = items.get(d.getTxdItemIdItm());
-                rows.addAll(fullReportRowsForLine(h, d, item, grnById, locations, vendors));
+                rows.addAll(fullReportRowsForLine(h, d, item, grnById, locations, vendors, employees));
             }
         }
         if (journeyFocus) {
@@ -924,17 +1009,18 @@ public class ReportsController {
             InvItemMst item,
             Map<Integer, TxnHeaderMst> grnById,
             Map<Integer, OrgLocationMst> locations,
-            Map<Integer, InvVendorMst> vendors
+            Map<Integer, InvVendorMst> vendors,
+            Map<Integer, HrcEmployeeMst> employees
     ) {
         String docType = header.getTxhDocType();
         if ("GRN".equals(docType)) {
-            return fullReportGrnRows(header, line, item);
+            return fullReportGrnRows(header, line, item, employees);
         }
         if ("INSPECTION_APPROVAL".equals(docType)) {
-            return fullReportInspectionRows(header, line, item, grnById);
+            return fullReportInspectionRows(header, line, item, grnById, employees);
         }
         if ("GATEPASS_OUTWARD".equals(docType) || "GATEPASS_INWARD".equals(docType)) {
-            return List.of(fullReportGatepassRow(header, line, item, locations, vendors));
+            return List.of(fullReportGatepassRow(header, line, item, locations, vendors, employees));
         }
         BigDecimal qty = line.getTxdQty() != null ? line.getTxdQty() : nz(line.getTxdAcceptedQty());
         Integer fromLoc = header.getTxhFromLocationIdLoc();
@@ -948,7 +1034,7 @@ public class ReportsController {
             fromLoc = reqLoc;
             toLoc = reqLoc;
         }
-        return List.of(buildFullReportRow(header, line, item, qty, fromLoc, toLoc, header.getTxhStatus(), null));
+        return List.of(buildFullReportRow(header, line, item, qty, fromLoc, toLoc, header.getTxhStatus(), null, employees));
     }
 
     private Map<String, Object> fullReportGatepassRow(
@@ -956,7 +1042,8 @@ public class ReportsController {
             TxnDetailDtl line,
             InvItemMst item,
             Map<Integer, OrgLocationMst> locations,
-            Map<Integer, InvVendorMst> vendors
+            Map<Integer, InvVendorMst> vendors,
+            Map<Integer, HrcEmployeeMst> employees
     ) {
         BigDecimal qty = line.getTxdQty() != null ? line.getTxdQty() : nz(line.getTxdAcceptedQty());
         Integer storeId = line.getTxdLocationIdLoc() != null
@@ -987,7 +1074,7 @@ public class ReportsController {
             fromId = null;
             fromName = party;
         }
-        Map<String, Object> row = buildFullReportRow(header, line, item, qty, fromId, toId, header.getTxhStatus(), null);
+        Map<String, Object> row = buildFullReportRow(header, line, item, qty, fromId, toId, header.getTxhStatus(), null, employees);
         if (fromName != null && !fromName.isBlank()) {
             row.put("fromLocation", fromName);
         }
@@ -1050,7 +1137,10 @@ public class ReportsController {
     }
 
     private List<Map<String, Object>> fullReportGrnRows(
-            TxnHeaderMst header, TxnDetailDtl line, InvItemMst item
+            TxnHeaderMst header,
+            TxnDetailDtl line,
+            InvItemMst item,
+            Map<Integer, HrcEmployeeMst> employees
     ) {
         List<Map<String, Object>> rows = new ArrayList<>();
         BigDecimal rejectedQty = nz(line.getTxdRejectedQty());
@@ -1060,7 +1150,7 @@ public class ReportsController {
         if (rejectedQty.compareTo(BigDecimal.ZERO) > 0) {
             Integer rejectedLoc = systemLocForGrnStore(header.getTxhLocationIdLoc(), SystemLocationRole.REJECTED);
             rows.add(buildFullReportRow(
-                    header, line, item, rejectedQty, null, rejectedLoc, header.getTxhStatus(), "rej"));
+                    header, line, item, rejectedQty, null, rejectedLoc, header.getTxhStatus(), "rej", employees));
         }
         if (acceptedQty.compareTo(BigDecimal.ZERO) > 0) {
             Integer targetLoc;
@@ -1072,7 +1162,7 @@ public class ReportsController {
                         : header.getTxhLocationIdLoc();
             }
             rows.add(buildFullReportRow(
-                    header, line, item, acceptedQty, null, targetLoc, header.getTxhStatus(), "acc"));
+                    header, line, item, acceptedQty, null, targetLoc, header.getTxhStatus(), "acc", employees));
         }
         return rows;
     }
@@ -1081,7 +1171,8 @@ public class ReportsController {
             TxnHeaderMst header,
             TxnDetailDtl line,
             InvItemMst item,
-            Map<Integer, TxnHeaderMst> grnById
+            Map<Integer, TxnHeaderMst> grnById,
+            Map<Integer, HrcEmployeeMst> employees
     ) {
         List<Map<String, Object>> rows = new ArrayList<>();
         BigDecimal qty = firstNonNullBigDecimal(line.getTxdQty(), line.getTxdAcceptedQty());
@@ -1095,16 +1186,16 @@ public class ReportsController {
 
         if (rejected) {
             Integer rejectedLoc = rejectedLocForGrnRef(header.getTxhRefTxnHeaderIdTxh(), grnById);
-            rows.add(buildFullReportRow(header, line, item, qty, quarantineLoc, rejectedLoc, status, "rej"));
+            rows.add(buildFullReportRow(header, line, item, qty, quarantineLoc, rejectedLoc, status, "rej", employees));
         } else {
             Integer homeLoc = line.getTxdLocationIdLoc();
             if (homeLoc == null && item != null) {
                 homeLoc = item.getItmCurrentLocationIdLoc();
             }
             if ("Approved".equalsIgnoreCase(status) || isMovementEligibleStatus(status)) {
-                rows.add(buildFullReportRow(header, line, item, qty, quarantineLoc, homeLoc, status, null));
+                rows.add(buildFullReportRow(header, line, item, qty, quarantineLoc, homeLoc, status, null, employees));
             } else {
-                rows.add(buildFullReportRow(header, line, item, qty, null, quarantineLoc, status, null));
+                rows.add(buildFullReportRow(header, line, item, qty, null, quarantineLoc, status, null, employees));
             }
         }
         return rows;
@@ -1118,12 +1209,22 @@ public class ReportsController {
             Integer fromLocationId,
             Integer toLocationId,
             String status,
-            String rowSuffix
+            String rowSuffix,
+            Map<Integer, HrcEmployeeMst> employees
     ) {
-                Map<String, Object> row = new HashMap<>();
+        Map<String, Object> row = new HashMap<>();
         String id = rowSuffix == null
                 ? String.valueOf(line.getTxdTxnDetailId())
                 : line.getTxdTxnDetailId() + "-" + rowSuffix;
+        // Prefer line custody (Opening Stock Issued / Issue lines), then header issued-to / initiator.
+        Integer employeeId = line.getTxdIssuedToEmpIdEmp();
+        if (employeeId == null) {
+            employeeId = header.getTxhHandedOverToEmpIdEmp();
+        }
+        if (employeeId == null) {
+            employeeId = header.getTxhInitiatedByEmpIdEmp();
+        }
+        HrcEmployeeMst emp = employeeId == null || employees == null ? null : employees.get(employeeId);
         row.put("id", id);
         row.put("docId", header.getTxhTxnHeaderId());
         row.put("date", header.getTxhDocDate());
@@ -1131,15 +1232,18 @@ public class ReportsController {
         row.put("txnType", header.getTxhDocType());
         row.put("txnNo", header.getTxhDocNo());
         row.put("itemId", line.getTxdItemIdItm());
-                row.put("item", item == null ? null : item.getItmItemName());
-                row.put("categoryId", item == null ? null : item.getItmCategoryIdCat());
+        row.put("item", item == null ? null : item.getItmItemName());
+        row.put("categoryId", item == null ? null : item.getItmCategoryIdCat());
         row.put("qty", qty);
         row.put("uomId", line.getTxdUomIdUnt());
         row.put("fromLocationId", fromLocationId);
         row.put("toLocationId", toLocationId);
         row.put("entityId", header.getTxhEntityIdEnt());
-        row.put("employeeId", header.getTxhInitiatedByEmpIdEmp());
-        row.put("departmentId", header.getTxhDepartmentIdDept());
+        row.put("employeeId", employeeId);
+        row.put("employee", empLabel(emp));
+        row.put("departmentId", header.getTxhDepartmentIdDept() != null
+                ? header.getTxhDepartmentIdDept()
+                : (emp == null ? null : emp.getEmpDepartmentIdDept()));
         row.put("status", status);
         row.put("value", lineValueForQty(line, qty));
         row.put("serialNo", firstNonBlank(line.getTxdSerialNo(), line.getTxdBatchLotNo()));
@@ -1363,6 +1467,16 @@ public class ReportsController {
         return filterLedgerEventsByLocation(events, locationFilter);
     }
 
+    private static Integer ledgerIssuedToEmpId(TxnHeaderMst header, TxnDetailDtl line) {
+        if (line.getTxdIssuedToEmpIdEmp() != null) {
+            return line.getTxdIssuedToEmpIdEmp();
+        }
+        if ("MATERIAL_ISSUE".equals(header.getTxhDocType())) {
+            return header.getTxhInitiatedByEmpIdEmp();
+        }
+        return null;
+    }
+
     private void addLedgerReceipt(
             List<LedgerEvent> events,
             TxnHeaderMst header,
@@ -1393,12 +1507,15 @@ public class ReportsController {
                 header.getTxhDocType(),
                 header.getTxhDocNo(),
                 batch,
+                firstNonBlank(line.getTxdSerialNo(), batch),
+                firstNonBlank(line.getTxdIpAddress()),
                 uomCode,
                 locationId,
                 ledgerLocationCode(locations, locationId),
                 ledgerLocationName(locations, locationId),
                 qty,
-                BigDecimal.ZERO
+                BigDecimal.ZERO,
+                ledgerIssuedToEmpId(header, line)
         ));
     }
 
@@ -1432,12 +1549,15 @@ public class ReportsController {
                 header.getTxhDocType(),
                 header.getTxhDocNo(),
                 batch,
+                firstNonBlank(line.getTxdSerialNo(), batch),
+                firstNonBlank(line.getTxdIpAddress()),
                 uomCode,
                 locationId,
                 ledgerLocationCode(locations, locationId),
                 ledgerLocationName(locations, locationId),
                 BigDecimal.ZERO,
-                qty
+                qty,
+                ledgerIssuedToEmpId(header, line)
         ));
     }
 
@@ -1595,6 +1715,10 @@ public class ReportsController {
                                 && item.getItmItemType() != null
                                 && !"consumable".equalsIgnoreCase(item.getItmItemType());
                         if (asset) {
+                            if (fromLoc != null) {
+                                PeriodQty fromPq = map.computeIfAbsent(periodKey(d.getTxdItemIdItm(), fromLoc), k -> new PeriodQty());
+                                fromPq.custodyIssue = fromPq.custodyIssue.add(qty);
+                            }
                             continue;
                         }
                         if (fromLoc != null) {
@@ -1665,7 +1789,14 @@ public class ReportsController {
                             : h.getTxhLocationIdLoc());
                 String key = periodKey(d.getTxdItemIdItm(), loc);
                 PeriodQty pq = map.computeIfAbsent(key, k -> new PeriodQty());
-                if (receipt) pq.receipt = pq.receipt.add(qty);
+                if (receipt) {
+                    pq.receipt = pq.receipt.add(qty);
+                    // Opening Stock (etc.) with Custody — count as Issue for report visibility;
+                    // stock on-hand is unchanged so this stays in custodyIssue, not stock issue.
+                    if (d.getTxdIssuedToEmpIdEmp() != null) {
+                        pq.custodyIssue = pq.custodyIssue.add(qty);
+                    }
+                }
                 if (issue) pq.issue = pq.issue.add(qty);
             }
         }
@@ -1798,6 +1929,23 @@ public class ReportsController {
     private Map<Integer, String> unitCodeMap() {
         Map<Integer, String> map = new HashMap<>();
         unitRepo.findAll().forEach(u -> map.put(u.getUntUnitId(), u.getUntUnitCode()));
+        return map;
+    }
+
+    private Map<Integer, String> unitNameMap() {
+        Map<Integer, String> map = new HashMap<>();
+        unitRepo.findAll().forEach(u ->
+                map.put(u.getUntUnitId(), firstNonBlank(u.getUntUnitName(), u.getUntUnitCode())));
+        return map;
+    }
+
+    private Map<String, String> unitNameByCodeMap() {
+        Map<String, String> map = new HashMap<>();
+        unitRepo.findAll().forEach(u -> {
+            if (u.getUntUnitCode() == null || u.getUntUnitCode().isBlank()) return;
+            String name = firstNonBlank(u.getUntUnitName(), u.getUntUnitCode());
+            map.put(u.getUntUnitCode().trim().toUpperCase(), name);
+        });
         return map;
     }
 
@@ -2205,26 +2353,43 @@ public class ReportsController {
             String txnType,
             String docNo,
             String batch,
+            String serialNo,
+            String ipAddress,
             String uomCode,
             Integer locationId,
             String locationCode,
             String locationName,
             BigDecimal receipt,
-            BigDecimal issue
+            BigDecimal issue,
+            Integer issuedToEmpId
     ) {}
 
     private static final class PeriodQty {
         static final PeriodQty ZERO = new PeriodQty();
         BigDecimal receipt = BigDecimal.ZERO;
+        /** Stock-affecting issue (consumable out / store transfer out). */
         BigDecimal issue = BigDecimal.ZERO;
+        /** Custody assignment with no on-hand change (Opening Stock Issued / asset same-store Issue). */
+        BigDecimal custodyIssue = BigDecimal.ZERO;
 
         PeriodQty add(PeriodQty other) {
             if (other == null) return this;
             PeriodQty n = new PeriodQty();
             n.receipt = this.receipt.add(other.receipt);
             n.issue = this.issue.add(other.issue);
+            n.custodyIssue = this.custodyIssue.add(other.custodyIssue);
             return n;
         }
+    }
+
+    private record ItemPeriodBal(
+            BigDecimal opening,
+            BigDecimal receipt,
+            BigDecimal issue,
+            BigDecimal closing
+    ) {
+        static final ItemPeriodBal ZERO = new ItemPeriodBal(
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
     }
 
     private static final class StockLedgerAgg {

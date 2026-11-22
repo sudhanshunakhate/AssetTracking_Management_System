@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { ClickSpark, FadeContent } from '@/components/react-bits'
 import { useAuth } from '@/features/auth/AuthContext'
+import { DocTabBar } from '@/features/transactions/docWorkspace/DocTabBar'
+import { DocWorkspaceProvider } from '@/features/transactions/docWorkspace/DocWorkspaceContext'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { LoginNotificationPopup, NotificationToasts, WindowsPushPrompt } from '@/features/notifications/NotificationBell'
@@ -22,7 +24,8 @@ export function AppShell() {
   if (!user) return <Navigate to="/login" replace />
 
   return (
-    <ClickSpark className="min-h-screen" sparkColor="#0ea5e9" sparkCount={6}>
+    <DocWorkspaceProvider>
+      <ClickSpark className="min-h-screen" sparkColor="#0ea5e9" sparkCount={6}>
         <div className="flex min-h-screen w-full">
           <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
           <div
@@ -31,6 +34,7 @@ export function AppShell() {
             }`}
           >
             <Topbar />
+            <DocTabBar />
             <main className="flex-1 px-[18px] py-3.5">
               <FadeContent key={pathname} blur>
                 <Outlet />
@@ -40,7 +44,8 @@ export function AppShell() {
         </div>
         <LoginNotificationPopup />
         <WindowsPushPrompt />
-      <NotificationToasts />
-    </ClickSpark>
+        <NotificationToasts />
+      </ClickSpark>
+    </DocWorkspaceProvider>
   )
 }

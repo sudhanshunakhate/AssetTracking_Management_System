@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useMasterSearch, type ApiMasterRow } from '@/api/masters'
 import { FilterableLookup, type FilterableOption } from '@/features/transactions/lineGrid'
 
@@ -19,6 +19,8 @@ export function MasterItemSearchLookup({
   className,
   selectedLabel,
   allowClear = false,
+  pageSize = 50,
+  maxVisible = 50,
 }: {
   value: string
   onChange: (value: string) => void
@@ -30,8 +32,10 @@ export function MasterItemSearchLookup({
   selectedLabel?: string
   /** Adds an empty option so the user can clear back to “all”. */
   allowClear?: boolean
+  pageSize?: number
+  maxVisible?: number
 }) {
-  const { setQ, rows, loading } = useMasterSearch('items')
+  const { setQ, rows, loading } = useMasterSearch('items', { pageSize })
   const options = useMemo(() => {
     const opts = rows.map(rowToOption)
     if (value && !opts.some((o) => o.value === value)) {
@@ -57,6 +61,7 @@ export function MasterItemSearchLookup({
       placeholder={placeholder}
       searchPlaceholder="Search item code or name…"
       className={className}
+      maxVisible={maxVisible}
       onSearchChange={setQ}
       searching={loading}
     />
@@ -77,7 +82,8 @@ export function MasterEmployeeSearchLookup({
   allowClear = false,
 }: {
   value: string
-  onChange: (value: string) => void
+  /** Second arg is the matched search/catalog row when available (designation, dept, …). */
+  onChange: (value: string, row?: ApiMasterRow) => void
   disabled?: boolean
   invalid?: boolean
   placeholder?: string
@@ -86,8 +92,13 @@ export function MasterEmployeeSearchLookup({
   options?: FilterableOption[]
   allowClear?: boolean
 }) {
-  const server = useMasterSearch('employees')
+  const server = useMasterSearch('employees', { pageSize: 50 })
   const useLocal = localOptions != null
+  const rowCacheRef = useRef(new Map<string, ApiMasterRow>())
+  useEffect(() => {
+    for (const r of server.rows) rowCacheRef.current.set(r.id, r)
+  }, [server.rows])
+
   const options = useMemo(() => {
     const opts = useLocal
       ? [...localOptions]
@@ -108,7 +119,12 @@ export function MasterEmployeeSearchLookup({
   return (
     <FilterableLookup
       value={value}
-      onChange={onChange}
+      onChange={(id) => {
+        const row = !useLocal
+          ? rowCacheRef.current.get(id) ?? server.rows.find((r) => r.id === id)
+          : undefined
+        onChange(id, row)
+      }}
       options={options}
       disabled={disabled}
       invalid={invalid}

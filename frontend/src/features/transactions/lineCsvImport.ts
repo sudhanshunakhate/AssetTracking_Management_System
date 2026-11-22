@@ -212,7 +212,6 @@ function resolveOpeningRowKind(item: ApiMasterRow, rowType: string, itemCode: st
 
 export function importGrnLines(rows: Record<string, string>[], ctx: ResolveCtx): GrnLine[] {
   const out: GrnLine[] = []
-  const isAsset = ctx.activeItemType === 'asset'
 
   rows.forEach((row, idx) => {
     const item = resolveItem(ctx, row.itemcode ?? '', row.itemtype ?? '')
@@ -230,8 +229,9 @@ export function importGrnLines(rows: Record<string, string>[], ctx: ResolveCtx):
       amount: row.amount ?? '',
     }
 
-    if (isAsset) {
-      if (!base.serialNo.trim()) throw new Error(`Row ${idx + 2}: serialNo is required for asset lines`)
+    const serialized = Boolean(item?.isSerialized)
+    if (serialized) {
+      if (!base.serialNo.trim()) throw new Error(`Row ${idx + 2}: serialNo is required for serialized items`)
       out.push({
         ...base,
         receivedQty: '1',
@@ -294,8 +294,8 @@ export function importOpeningStockLines(
         issuedToEmpId: '',
       }
 
-      if (kind === 'asset') {
-        if (!line.serialNo.trim()) throw new Error('serialNo is required for asset lines')
+      if (Boolean(item.isSerialized)) {
+        if (!line.serialNo.trim()) throw new Error('serialNo is required for serialized items')
         const custody = csvVal(row, 'custodyemployeecode', 'custody', 'employee', 'issuedto')
         const issued = line.itemCondition.trim().toLowerCase().startsWith('issued')
         if (issued && !custody) {
@@ -305,7 +305,7 @@ export function importOpeningStockLines(
         line.qty = '1'
       } else {
         const qty = toNum(csvVal(row, 'qty', 'receivedqty') || '0')
-        if (qty <= 0) throw new Error('qty must be > 0 for consumable lines')
+        if (qty <= 0) throw new Error('qty must be > 0 for non-serialized lines')
         line.qty = String(qty)
       }
 

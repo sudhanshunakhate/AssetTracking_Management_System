@@ -83,7 +83,7 @@ export function isIssuedCondition(
 const DATALIST_ID = 'opening-stock-item-options'
 
 /**
- * Opening Stock Item Details — pick Item Type, then Add Units.
+ * Opening Stock Item Details — pick Item Type, then Add Items.
  * Asset + qty N expands into N unit lines (qty 1) with instance fields
  * (serial / IP / MAC / hostname). Consumable stays one line with quantity.
  * When any asset line has Condition = Issued, an Issued To employee column appears.
@@ -200,13 +200,14 @@ export function OpeningStockItemLines({
       setAddError('Quantity must be greater than 0')
       return
     }
-    if (isAsset && n > 200) {
-      setAddError('Max 200 asset units at a time')
+    const serialized = Boolean(item.isSerialized)
+    if (serialized && n > 200) {
+      setAddError('Max 200 serialized units at a time')
       return
     }
 
-    if (isAsset) {
-      // One physical unit per line — common catalog fields copied, unique fields blank.
+    // Serialized → one unit row each. Non-serialized (incl. assets) → single qty line.
+    if (serialized) {
       const created = Array.from({ length: n }, () => buildLineFromItem(item, 1))
       onChange((prev) => {
         const keep = prev.filter((l) => l.itemId !== '')
@@ -273,7 +274,7 @@ export function OpeningStockItemLines({
           !headerReady
             ? 'Complete opening date before selecting items.'
             : isAsset
-              ? 'Select Asset, enter qty, then Add Units — each unit becomes its own line for serial / network details'
+              ? 'Select Asset, enter qty, then Add Items — serialized items become unit lines; others use qty'
               : 'Select Consumable and quantity, then Add Line'
         }
       />
@@ -321,7 +322,7 @@ export function OpeningStockItemLines({
               />
             </label>
             <Button onClick={addUnits} disabled={linesLocked}>
-              {isAsset ? '+ Add Units' : '+ Add Line'}
+              {isAsset ? '+ Add Items' : '+ Add Line'}
             </Button>
             {!readOnly && (
               <CsvImportButton
@@ -397,7 +398,7 @@ export function OpeningStockItemLines({
                     className="px-3 py-6 text-center text-[12px] text-[var(--text3)]"
                   >
                     {isAsset
-                      ? 'No units yet — choose an asset and qty, then click Add Units.'
+                      ? 'No items yet — choose an asset and qty, then click Add Items.'
                       : 'No lines yet — choose a consumable and qty, then click Add Line.'}
                   </td>
                 </tr>
@@ -406,10 +407,13 @@ export function OpeningStockItemLines({
                   .filter((l) => l.itemId !== '')
                   .map((line, idx) => {
                     const unit = unitById.get(line.uomId)
-                    const serialMissing = isAsset && !line.serialNo.trim()
+                    const item = items.find((i) => i.id === line.itemId)
+                    const lineSerialized = Boolean(item?.isSerialized)
+                    const serialMissing = lineSerialized && !line.serialNo.trim()
                     const locationMissing = !line.locationId
-                    const qtyMissing = !isAsset && toNum(line.qty) <= 0
-                    const issuedToMissing = isAsset && !line.issuedToEmpId
+                    const qtyMissing = !lineSerialized && toNum(line.qty) <= 0
+                    const issuedToMissing =
+                      lineSerialized && !line.issuedToEmpId
                     return (
                       <tr key={line.key} className="border-b border-[var(--border)] align-middle">
                         <td className={`${gridCell} text-center text-[var(--text3)]`}>{idx + 1}</td>
@@ -427,6 +431,7 @@ export function OpeningStockItemLines({
                           />
                         </td>
                         {isAsset ? (
+                          lineSerialized ? (
                           <>
                             <td className={gridCell}>
                               <Input
@@ -505,6 +510,33 @@ export function OpeningStockItemLines({
                               </td>
                             )}
                           </>
+                          ) : (
+                          <>
+                            <td className={gridCell} colSpan={showIssuedTo ? 5 : 4}>
+                              <div className="flex items-center gap-2">
+                                <span className="shrink-0 text-[11px] text-[var(--text3)]">Qty</span>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="1"
+                                  value={line.qty}
+                                  onChange={(e) => patch(line.key, { qty: e.target.value })}
+                                  disabled={linesLocked}
+                                  invalid={showLineErrors && qtyMissing}
+                                  className={gridInputRight}
+                                />
+                                <span className="text-[11px] text-[var(--text3)]">
+                                  (non-serialized — no serial units)
+                                </span>
+                              </div>
+                            </td>
+                            {showIssuedTo && (
+                              <td className={gridCell}>
+                                <span className="px-1 text-[11px] text-[var(--text3)]">—</span>
+                              </td>
+                            )}
+                          </>
+                          )
                         ) : (
                           <>
                             <td className={gridCell}>

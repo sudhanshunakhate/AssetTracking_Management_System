@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import type { ApiMasterRow } from '@/api/masters'
 import { fetchAvailableStock, fetchStockMap } from '@/api/transactions'
 import { Input, Select } from '@/components/ui/Field'
@@ -376,8 +377,10 @@ export function FilterableLookup({
   searching?: boolean
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>({})
 
   const selected = options.find((o) => o.value === value)
   const remote = Boolean(onSearchChange)
@@ -391,10 +394,45 @@ export function FilterableLookup({
     return list.slice(0, maxVisible)
   }, [options, query, maxVisible, remote])
 
+  const placePanel = useCallback(() => {
+    const el = rootRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const width = Math.max(rect.width, 260)
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+    const preferBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove
+    const maxH = Math.min(360, Math.max(160, preferBelow ? spaceBelow : spaceAbove))
+    setPanelStyle({
+      position: 'fixed',
+      left: Math.min(rect.left, window.innerWidth - width - 8),
+      width,
+      zIndex: 10000,
+      maxHeight: maxH,
+      ...(preferBelow
+        ? { top: rect.bottom + 4 }
+        : { bottom: window.innerHeight - rect.top + 4 }),
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    placePanel()
+    const onReposition = () => placePanel()
+    window.addEventListener('resize', onReposition)
+    window.addEventListener('scroll', onReposition, true)
+    return () => {
+      window.removeEventListener('resize', onReposition)
+      window.removeEventListener('scroll', onReposition, true)
+    }
+  }, [open, placePanel, filtered.length, searching])
+
   useEffect(() => {
     if (!open) return
     const onDoc = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (rootRef.current?.contains(t) || panelRef.current?.contains(t)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
@@ -412,6 +450,74 @@ export function FilterableLookup({
     setOpen(false)
     setQuery('')
   }
+
+  const panel =
+    open &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={panelStyle}
+        className="flex flex-col overflow-hidden rounded-md border border-[var(--border)] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]"
+      >
+        <div className="shrink-0 border-b border-[var(--border)] bg-white p-1.5">
+          <Input
+            value={query}
+            onChange={(e) => {
+              const next = e.target.value
+              setQuery(next)
+              onSearchChange?.(next)
+            }}
+            placeholder={searchPlaceholder}
+            autoFocus
+            className="px-2 py-1 text-[12px]"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setOpen(false)
+              if (e.key === 'Enter' && filtered[0]) pick(filtered[0].value)
+            }}
+          />
+        </div>
+        <ul
+          role="listbox"
+          className="min-h-0 flex-1 overflow-y-scroll overscroll-contain bg-white py-0.5 text-[12px] [scrollbar-gutter:stable]"
+        >
+          {searching ? (
+            <li className="px-2.5 py-2 text-[var(--text3)]">Searching…</li>
+          ) : filtered.length === 0 ? (
+            <li className="px-2.5 py-2 text-[var(--text3)]">No matches</li>
+          ) : (
+            filtered.map((o) => (
+              <li key={o.value || '__clear'} role="option" aria-selected={o.value === value}>
+                <button
+                  type="button"
+                  className={`block w-full truncate px-2.5 py-1.5 text-left hover:bg-[var(--surface2)] ${
+                    o.value === value ? 'bg-[#f0f5ff] font-medium text-[var(--accent)]' : ''
+                  }`}
+                  onClick={() => pick(o.value)}
+                >
+                  {o.label}
+                </button>
+              </li>
+            ))
+          )}
+        </ul>
+        {!remote && options.length > maxVisible && !query.trim() && (
+          <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+            Showing {filtered.length} of {options.length} — type to search
+          </div>
+        )}
+        {!remote && query.trim() && filtered.length >= maxVisible && (
+          <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+            First {maxVisible} matches — refine your search
+          </div>
+        )}
+        {remote && (
+          <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
+            Type to search the catalog
+          </div>
+        )}
+      </div>,
+      document.body,
+    )
 
   return (
     <div ref={rootRef} className="relative w-full min-w-0">
@@ -432,68 +538,7 @@ export function FilterableLookup({
         </span>
         <span className="shrink-0 text-[10px] text-[var(--text3)]">{open ? '▴' : '▾'}</span>
       </button>
-
-      {open && (
-        <div className="absolute left-0 top-full z-[9999] mt-0.5 flex max-h-[280px] w-full min-w-[240px] flex-col overflow-hidden rounded-md border border-[var(--border)] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.18)]">
-          <div className="shrink-0 border-b border-[var(--border)] bg-white p-1.5">
-            <Input
-              value={query}
-              onChange={(e) => {
-                const next = e.target.value
-                setQuery(next)
-                onSearchChange?.(next)
-              }}
-              placeholder={searchPlaceholder}
-              autoFocus
-              className="px-2 py-1 text-[12px]"
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setOpen(false)
-                if (e.key === 'Enter' && filtered[0]) pick(filtered[0].value)
-              }}
-            />
-          </div>
-          <ul
-            role="listbox"
-            className="min-h-0 flex-1 overflow-y-scroll overscroll-contain bg-white py-0.5 text-[12px] [scrollbar-gutter:stable]"
-            style={{ maxHeight: 180 }}
-          >
-            {searching ? (
-              <li className="px-2.5 py-2 text-[var(--text3)]">Searching…</li>
-            ) : filtered.length === 0 ? (
-              <li className="px-2.5 py-2 text-[var(--text3)]">No matches</li>
-            ) : (
-              filtered.map((o) => (
-                <li key={o.value} role="option" aria-selected={o.value === value}>
-                  <button
-                    type="button"
-                    className={`block w-full truncate px-2.5 py-1.5 text-left hover:bg-[var(--surface2)] ${
-                      o.value === value ? 'bg-[#f0f5ff] font-medium text-[var(--accent)]' : ''
-                    }`}
-                    onClick={() => pick(o.value)}
-                  >
-                    {o.label}
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
-          {!remote && options.length > maxVisible && !query.trim() && (
-            <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
-              Showing {filtered.length} of {options.length} — type to search
-            </div>
-          )}
-          {!remote && query.trim() && filtered.length >= maxVisible && (
-            <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
-              First {maxVisible} matches — refine your search
-            </div>
-          )}
-          {remote && (
-            <div className="shrink-0 border-t border-[var(--border)] px-2.5 py-1 text-[10px] text-[var(--text3)]">
-              Type to search the catalog
-            </div>
-          )}
-        </div>
-      )}
+      {panel}
     </div>
   )
 }

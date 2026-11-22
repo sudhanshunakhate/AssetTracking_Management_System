@@ -405,6 +405,12 @@ export function StoresMaster() {
           '—'
         ),
     },
+    {
+      key: 'forTrading',
+      header: 'For Trading',
+      searchText: (r) => (r.forTrading ? 'yes' : 'no'),
+      render: (r) => (r.forTrading ? 'Yes' : '—'),
+    },
     { key: 'type', header: 'Type', searchText: (r) => r.storeType, render: (r) => r.storeType },
     {
       key: 'ou',
@@ -473,6 +479,13 @@ export function StoresMaster() {
       hint: 'System locations are global per Organization and shared across all OUs',
       span: 2,
     },
+    {
+      name: 'forTrading',
+      label: 'For Trading',
+      type: 'switch',
+      hint: 'Shown only on Material Transfer and Gatepass — hidden from other transactions',
+      span: 2,
+    },
     { name: 'status', label: 'Active Location', type: 'switch', span: 4 },
   ]
 
@@ -501,7 +514,7 @@ export function StoresMaster() {
         base="/masters/stores"
         menuCode="STR"
         title="Location Master"
-        description="Operational locations are OU-specific. System Derived locations are global per Organization and shared across all OUs."
+        description="Operational locations are OU-specific. System Derived locations are global per Organization. For Trading locations appear only on Material Transfer and Gatepass."
         rows={rows as never}
         columns={columns as never}
         fields={fields}
@@ -511,7 +524,7 @@ export function StoresMaster() {
         readOnlyFields={(values) =>
           // System locations keep identity fields locked; print name + system flag stay editable for all.
           values.isSystemLocation
-            ? ['code', 'name', 'orgCode', 'ouCode', 'storeType', 'status', 'city']
+            ? ['code', 'name', 'orgCode', 'ouCode', 'storeType', 'status', 'city', 'forTrading']
             : []
         }
         onFieldChange={(name, _value, values) => {
@@ -520,6 +533,12 @@ export function StoresMaster() {
             if (ou && String(ou.orgCode) !== String(values.orgCode)) {
               return { ouCode: '' }
             }
+          }
+          if (name === 'isSystemLocation' && values.isSystemLocation) {
+            return { forTrading: false }
+          }
+          if (name === 'forTrading' && values.forTrading) {
+            return { isSystemLocation: false }
           }
           return {}
         }}
@@ -534,6 +553,7 @@ export function StoresMaster() {
             isActive: isActiveFromForm(values.status),
             printLocationName: String(values.printLocationName ?? ''),
             isSystemLocation: Boolean(values.isSystemLocation),
+            forTrading: Boolean(values.forTrading) && !Boolean(values.isSystemLocation),
           }
           if (id === 'new') await createMaster('locations', body)
           else await updateMaster('locations', id, body)

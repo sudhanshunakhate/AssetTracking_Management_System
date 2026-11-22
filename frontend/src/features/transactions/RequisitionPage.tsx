@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { StatusPill } from '@/components/ui/Badge'
@@ -35,6 +35,7 @@ import {
   useGenLookup,
   useTxnFormLookups,
 } from './txnLookups'
+import { useTxnDocSession } from './docWorkspace/useTxnDocSession'
 
 const BASE = '/transactions/requisitions'
 const MENU = 'SR'
@@ -89,6 +90,11 @@ function blankForm(): FormState {
     approvedDate: '',
     status: '',
   }
+}
+
+type RequisitionBasket = {
+  form: FormState
+  lines: RequisitionLine[]
 }
 
 export function RequisitionsPages() {
@@ -238,6 +244,8 @@ function RequisitionForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
+  const basketApplied = useRef(false)
+  const serverLoaded = useRef(false)
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }))
@@ -248,6 +256,23 @@ function RequisitionForm() {
   const readOnly = !canEdit || !statusEditable
 
   const employeeById = useMemo(() => new Map(employees.rows.map((e) => [e.id, e])), [employees.rows])
+
+  const basketDirty = useMemo(
+    () =>
+      !readOnly &&
+      (lines.some((l) => l.itemId !== '') ||
+        Boolean(form.departmentId) ||
+        Boolean(form.requestedBy) ||
+        Boolean(form.remark.trim()) ||
+        Boolean(form.attachmentUrl)),
+    [readOnly, lines, form],
+  )
+  const basketData = useMemo<RequisitionBasket>(() => ({ form, lines }), [form, lines])
+
+  useEffect(() => {
+    basketApplied.current = false
+    serverLoaded.current = false
+  }, [id])
 
   /* ---- load existing document ---- */
   useEffect(() => {
@@ -289,6 +314,7 @@ function RequisitionForm() {
           remark: l.remark ?? '',
         }))
         setLines(mapped.length ? mapped : [emptyLine()])
+        serverLoaded.current = true
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load requisition')
       } finally {
@@ -306,20 +332,69 @@ function RequisitionForm() {
     setLines((prev) => enrichLinesFromItems(prev, items.rows))
   }, [items.rows, lineItemKey])
 
-  /* Employee variant auto-fills identity fields from the selected employee. */
-  const onRequestedByChange = (empId: string) => {
-    const emp = employeeById.get(empId)
+  /* Employee variant auto-fills identity fields from the selected employee.
+   * Designation is stored as the gen value name (free text on the txn header). */
+  const designationOptions = useMemo(() => {
+    const opts = designations.rows.map((r) => ({
+      value: String(r.valueName ?? ''),
+      label: String(r.valueName ?? ''),
+    }))
+    const current = String(form.designation ?? '').trim()
+    if (current && !opts.some((o) => o.value === current)) {
+      opts.unshift({ value: current, label: current })
+    }
+    return opts
+  }, [designations.rows, form.designation])
+
+  const resolveDesignationLabel = useCallback(
+    (raw: string) => {
+      const t = String(raw ?? '').trim()
+      if (!t) return ''
+      const byName = designations.rows.find(
+        (r) =>
+          String(r.valueName ?? '').localeCompare(t, undefined, { sensitivity: 'accent' }) === 0 ||
+          String(r.valueCode ?? '').localeCompare(t, undefined, { sensitivity: 'accent' }) === 0 ||
+          String(r.genmasterId ?? '').localeCompare(t, undefined, { sensitivity: 'accent' }) === 0,
+      )
+      return byName?.valueName ?? t
+    },
+    [designations.rows],
+  )
+
+  const onRequestedByChange = (empId: string, searchRow?: import('@/api/masters').ApiMasterRow) => {
+    const catalogEmp = employeeById.get(empId)
+    // Prefer non-empty fields from either the catalog row or the live search hit.
+    const emp = catalogEmp ?? searchRow
     setForm((p) => {
       const next = { ...p, requestedBy: empId }
-      if (emp) {
-        next.employeeCode = String(emp.code ?? '')
-        if (p.reqType === 'EMPLOYEE') {
-          const deptId = String((emp as { departmentId?: string }).departmentId ?? '')
-          const dept = departments.rows.find((d) => d.id === deptId)
-          next.departmentName = dept?.name ?? String(emp.department ?? '')
-          next.departmentId = deptId
-          if (!p.designation) next.designation = String(emp.designation ?? '')
-        }
+      if (!empId) {
+        next.employeeCode = ''
+        next.departmentName = ''
+        next.departmentId = ''
+        next.designation = ''
+        return next
+      }
+      if (!emp && !searchRow) return next
+
+      const code = String(searchRow?.code ?? catalogEmp?.code ?? emp?.code ?? '')
+      next.employeeCode = code
+
+      if (p.reqType === 'EMPLOYEE') {
+        const deptId = String(
+          (searchRow as { departmentId?: string } | undefined)?.departmentId ||
+            (catalogEmp as { departmentId?: string } | undefined)?.departmentId ||
+            '',
+        )
+        const dept = deptId ? departments.rows.find((d) => d.id === deptId) : undefined
+        next.departmentId = deptId
+        next.departmentName =
+          dept?.name ??
+          String(searchRow?.department ?? catalogEmp?.department ?? emp?.department ?? '')
+
+        const rawDesignation = String(
+          searchRow?.designation || catalogEmp?.designation || emp?.designation || '',
+        )
+        next.designation = resolveDesignationLabel(rawDesignation)
       }
       return next
     })
@@ -417,6 +492,41 @@ function RequisitionForm() {
     }
   }
 
+  const { restored, hydrateDone, clearRestored, clearBasket } = useTxnDocSession({
+    data: basketData,
+    enabled: !loading && !readOnly && !saving,
+    dirty: basketDirty,
+    kind: 'Requisition',
+    title: isNew ? 'New Requisition' : form.reqNo ? `Requisition ${form.reqNo}` : `Requisition #${id}`,
+    subtitle: basketDirty ? 'Basket unsaved' : 'Basket saved',
+    silentDraft: {
+      intervalMs: 15_000,
+      canSave: () => {
+        if (readOnly || saving || Object.keys(errors).length > 0) return false
+        return lines.some((l) => l.itemId && l.locationId && Number(l.requestedQty) > 0)
+      },
+      save: async () => {
+        const body = buildBody('SAVE_DRAFT')
+        if (isNew) {
+          const created = await createTxn(RESOURCE, body)
+          return { id: String(created.docId), docNo: created.docNo }
+        }
+        await updateTxn(RESOURCE, id, body)
+        return { id, docNo: form.reqNo }
+      },
+    },
+  })
+
+  useEffect(() => {
+    if (!hydrateDone || basketApplied.current || !restored) return
+    if (!isNew && (loading || !serverLoaded.current)) return
+    setForm(restored.form)
+    setLines(restored.lines.length ? restored.lines : [emptyLine()])
+    basketApplied.current = true
+    clearRestored()
+    setMessage('Restored from basket')
+  }, [hydrateDone, restored, isNew, loading, clearRestored])
+
   const save = async (action: 'SAVE_DRAFT' | 'SUBMIT') => {
     setSubmitted(true)
     setMessage(null)
@@ -434,6 +544,7 @@ function RequisitionForm() {
       } else {
         await updateTxn(RESOURCE, id, body)
       }
+      clearBasket()
       navigate(BASE)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed')
@@ -443,7 +554,15 @@ function RequisitionForm() {
   }
 
   /* ---- quick-add configs ---- */
-  const addDesignation = quickAddGenValue('Add Designation', GEN_TYPE.DESIGNATION, designations)
+  const addDesignationBase = quickAddGenValue('Add Designation', GEN_TYPE.DESIGNATION, designations)
+  const addDesignation = {
+    ...addDesignationBase,
+    onCreate: async (values: Record<string, string>) => {
+      const created = await addDesignationBase.onCreate(values)
+      // Form stores designation by name (matches employee master / txn header).
+      return { value: created.label, label: created.label }
+    },
+  }
 
   const employeeOptions = toEmployeeOptions(employees.rows)
   const lineLocations = nonSystemLocations(locations.rows)
@@ -586,7 +705,7 @@ function RequisitionForm() {
                   label="Designation"
                   value={form.designation}
                   onChange={(v) => set('designation', v)}
-                  options={designations.options.map((d) => ({ value: d.label, label: d.label }))}
+                  options={designationOptions}
                   placeholder="— Select Designation —"
                   disabled={readOnly}
                   quickAdd={addDesignation}
@@ -640,6 +759,7 @@ function RequisitionForm() {
               setLines([emptyLine()])
               setSubmitted(false)
               setTouched({})
+              clearBasket()
             }}
             disabled={saving}
           >

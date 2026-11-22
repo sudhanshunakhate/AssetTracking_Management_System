@@ -1,13 +1,18 @@
 # Profile 2 — schema caits (structure + admin seed)
-# Activate: CAITS_DB=2  or  spring.profiles.active=2  (default)
+# Activate: CAITS_DB=2  or  spring.profiles.active:2  (default)
 spring:
   config:
     activate:
       on-profile: "2"
   datasource:
-    url: jdbc:postgresql://192.168.0.223:5432/caits?currentSchema=caits
-    username: caits
-    password: caits123
+    # Local (active):
+    url: jdbc:postgresql://localhost:5432/postgres?currentSchema=caits
+    username: postgres
+    password: ${CAITS_LOCAL_PW:pass121word}
+    # Shared host:
+    # url: jdbc:postgresql://192.168.0.223:5432/caits?currentSchema=caits
+    # username: caits
+    # password: ${CAITS_DEV_PW:caits123}
   jpa:
     properties:
       hibernate:

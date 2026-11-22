@@ -41,6 +41,10 @@ function kindOf(item: ApiMasterRow | undefined, fallback = ''): ItemKind | '' {
   return ''
 }
 
+function lineNeedsSerial(item: ApiMasterRow | undefined): boolean {
+  return Boolean(item?.isSerialized)
+}
+
 /**
  * Items to Transfer — open the multi-step popup (From → Type → Item → To).
  * Document From/To locations are set from the popup result.
@@ -126,7 +130,8 @@ export function TransferItemLines({
         const next: Record<string, AvailableSerialUnit[]> = {}
         for (const line of lines) {
           if (!line.itemId) continue
-          if (kindOf(undefined, line.itemType) === 'consumable') continue
+          const item = items.find((i) => i.id === line.itemId)
+          if (!lineNeedsSerial(item) && !line.serialNo.trim()) continue
           next[line.key] = units.filter((u) => String(u.itemId) === String(line.itemId))
         }
         setSerialOptions(next)
@@ -154,8 +159,8 @@ export function TransferItemLines({
     for (const entry of batch.lines) {
       const item = items.find((i) => i.id === entry.itemId)
       if (!item) continue
-      const isAsset = entry.itemKind === 'asset'
-      const qtyNum = Number(entry.qty) || (isAsset ? 1 : 0)
+      const serialized = Boolean(item.isSerialized) || Boolean(entry.serial)
+      const qtyNum = Number(entry.qty) || (serialized ? 1 : 0)
       if (qtyNum <= 0) continue
       if (qtyNum > entry.stock) continue
       newLines.push({
@@ -164,7 +169,7 @@ export function TransferItemLines({
         itemType: entry.itemKind,
         availableStock: wholeQtyStr(entry.stock),
         serialNo: entry.serial?.serialNo ?? '',
-        transferQty: isAsset ? '1' : wholeQtyStr(qtyNum),
+        transferQty: serialized ? '1' : wholeQtyStr(qtyNum),
       })
     }
 
@@ -295,9 +300,10 @@ export function TransferItemLines({
               <tbody>
                 {lines.map((line, idx) => {
                   const unit = unitById.get(line.uomId)
-                  const lineKind =
-                    kindOf(items.find((i) => i.id === line.itemId), line.itemType) || 'asset'
+                  const item = items.find((i) => i.id === line.itemId)
+                  const lineKind = kindOf(item, line.itemType) || 'asset'
                   const isAsset = lineKind === 'asset'
+                  const needsSerial = lineNeedsSerial(item) || Boolean(line.serialNo.trim())
                   const shownStock = stockLoading[line.key]
                     ? '…'
                     : line.availableStock !== ''
@@ -362,7 +368,7 @@ export function TransferItemLines({
                         />
                       </td>
                       <td className={gridCell}>
-                        {isAsset && line.itemId ? (
+                        {needsSerial && line.itemId ? (
                           <Select
                             className={gridInput}
                             value={line.serialNo}
@@ -403,7 +409,7 @@ export function TransferItemLines({
                           className={gridInputRight}
                           value={line.transferQty}
                           placeholder="0"
-                          disabled={readOnly || isAsset}
+                          disabled={readOnly || needsSerial}
                           invalid={shortfall}
                           onChange={(e) => {
                             const raw = e.target.value

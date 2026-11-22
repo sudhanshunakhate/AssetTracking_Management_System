@@ -63,6 +63,7 @@ export interface Store {
   ouCode: string
   city: string
   isSystemLocation?: boolean
+  forTrading?: boolean
   systemRole?: string
   printLocationName?: string
   status: Status

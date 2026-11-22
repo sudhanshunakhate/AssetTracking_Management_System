@@ -1187,14 +1187,8 @@ public class TxnDocumentService {
             if (line.itemId() == null) continue;
             InvItemMst item = itemRepo.findById(line.itemId()).orElse(null);
             if (item == null) continue;
-            boolean serialized = Boolean.TRUE.equals(item.getItmIsSerialized());
-            boolean asset = item.getItmItemType() != null
-                    && !"consumable".equalsIgnoreCase(item.getItmItemType());
-            boolean mustHaveSerial = serialized
-                    || ((docType == DocType.MATERIAL_ISSUE
-                            || docType == DocType.MATERIAL_RETURN
-                            || docType == DocType.GATEPASS_OUTWARD
-                            || docType == DocType.GATEPASS_INWARD) && asset);
+            // Serial required only when Item Master "Serialized" is on — not for every asset.
+            boolean mustHaveSerial = Boolean.TRUE.equals(item.getItmIsSerialized());
             if (!mustHaveSerial) continue;
             String serial = line.serialNo() == null ? "" : line.serialNo().trim();
             if (serial.isEmpty()) {
@@ -1265,13 +1259,15 @@ public class TxnDocumentService {
         }
         Integer locId = req.locationId() != null ? req.locationId() : req.fromLocationId();
         if (locId == null) {
-            throw ApiException.badRequest("System location is required for new outward gatepass");
+            throw ApiException.badRequest("Location is required for new outward / trading gatepass");
         }
         OrgLocationMst loc = locationRepo.findById(locId)
                 .orElseThrow(() -> ApiException.badRequest("Location not found: " + locId));
-        if (!Boolean.TRUE.equals(loc.getLocIsSystemLocation())) {
+        boolean systemLoc = Boolean.TRUE.equals(loc.getLocIsSystemLocation());
+        boolean tradingLoc = Boolean.TRUE.equals(loc.getLocForTrading()) && !systemLoc;
+        if (!systemLoc && !tradingLoc) {
             throw ApiException.badRequest(
-                    "New outward gatepass can only issue stock from system-derived locations");
+                    "Standalone outward can only issue from system-derived or For Trading locations");
         }
         if (req.lines() != null) {
             for (int i = 0; i < req.lines().size(); i++) {
@@ -1279,7 +1275,7 @@ public class TxnDocumentService {
                 Integer lineLoc = line.locationId() != null ? line.locationId() : locId;
                 if (!locId.equals(lineLoc)) {
                     throw ApiException.badRequest(
-                            "Line " + (i + 1) + " location must match the outward system location");
+                            "Line " + (i + 1) + " location must match the outward location");
                 }
             }
         }

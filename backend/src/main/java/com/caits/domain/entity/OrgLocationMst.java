@@ -48,6 +48,9 @@ public class OrgLocationMst {
     @Column(name = "loc_is_system_location", nullable = false)
     private Boolean locIsSystemLocation = false;
 
+    @Column(name = "loc_for_trading", nullable = false)
+    private Boolean locForTrading = false;
+
     @Column(name = "loc_system_role")
     private String locSystemRole;
 
@@ -104,6 +107,9 @@ public class OrgLocationMst {
 
     public Boolean getLocIsSystemLocation() { return locIsSystemLocation; }
     public void setLocIsSystemLocation(Boolean locIsSystemLocation) { this.locIsSystemLocation = locIsSystemLocation; }
+
+    public Boolean getLocForTrading() { return locForTrading; }
+    public void setLocForTrading(Boolean locForTrading) { this.locForTrading = locForTrading; }
 
     public String getLocSystemRole() { return locSystemRole; }
     public void setLocSystemRole(String locSystemRole) { this.locSystemRole = locSystemRole; }

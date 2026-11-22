@@ -67,8 +67,8 @@ export function linesFromOutwardPicker(
 }
 
 /**
- * Display grid for normal outward lines after system-location picker selection.
- * System location sits with the item grid (not in the header card).
+ * Display grid for outward lines after location picker selection.
+ * Location sits with the item grid (not in the header card).
  */
 export function GatepassOutwardItemLines({
   lines,
@@ -80,6 +80,7 @@ export function GatepassOutwardItemLines({
   onOpenPicker,
   readOnly = false,
   error,
+  locationKind = 'system',
 }: {
   lines: GatepassOutwardLine[]
   onChange: Dispatch<SetStateAction<GatepassOutwardLine[]>>
@@ -90,9 +91,12 @@ export function GatepassOutwardItemLines({
   onOpenPicker: () => void
   readOnly?: boolean
   error?: string
+  locationKind?: 'system' | 'trading'
 }) {
   const unitById = useCodeIndex(units)
   const filled = lines.filter((l) => l.itemId)
+  const isTrading = locationKind === 'trading'
+  const pickLabel = isTrading ? 'Select From Trade Location…' : 'Select From System Location…'
   const storeLabel = useMemo(() => {
     if (!storeLocationId) return ''
     const loc = locations.find((l) => l.id === storeLocationId)
@@ -116,7 +120,9 @@ export function GatepassOutwardItemLines({
         subtitle={
           storeLocationId
             ? `${filled.length} line(s) selected — review qty / serial, then submit.`
-            : 'Pick a system location and free items. Only system-derived locations are allowed.'
+            : isTrading
+              ? 'Pick a trade location and free items. Only For Trading locations are allowed.'
+              : 'Pick a system location and free items. Only system-derived locations are allowed.'
         }
       />
       <CardBody className="p-0">
@@ -129,17 +135,22 @@ export function GatepassOutwardItemLines({
         <div className="flex flex-wrap items-center gap-2.5 border-b border-[var(--border)] bg-[var(--surface2)] px-3.5 py-3">
           {!readOnly && (
             <Button type="button" onClick={onOpenPicker}>
-              {storeLocationId ? 'Change Selection…' : 'Select From System Location…'}
+              {storeLocationId ? 'Change Selection…' : pickLabel}
             </Button>
           )}
           <div className="min-w-0 flex-1 text-[12.5px] text-[var(--text2)]">
             {storeLocationId ? (
               <>
-                <b className="text-[var(--text)]">System location:</b> {storeLabel}
+                <b className="text-[var(--text)]">
+                  {isTrading ? 'Trade location:' : 'System location:'}
+                </b>{' '}
+                {storeLabel}
               </>
             ) : (
               <span className="text-[var(--text3)]">
-                Opens a table of system locations with free stock, then item type and quantities.
+                {isTrading
+                  ? 'Opens a table of trade locations with free stock, then item type and quantities.'
+                  : 'Opens a table of system locations with free stock, then item type and quantities.'}
               </span>
             )}
           </div>
@@ -166,8 +177,7 @@ export function GatepassOutwardItemLines({
                     colSpan={readOnly ? 7 : 8}
                     className="px-3 py-10 text-center text-[12.5px] text-[var(--text3)]"
                   >
-                    No items yet. Use <b className="text-[var(--text2)]">Select From System Location…</b>{' '}
-                    to add lines.
+                    No items yet. Use <b className="text-[var(--text2)]">{pickLabel}</b> to add lines.
                   </td>
                 </tr>
               ) : (

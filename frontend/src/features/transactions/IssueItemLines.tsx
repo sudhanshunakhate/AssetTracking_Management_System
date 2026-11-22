@@ -355,8 +355,9 @@ export function IssueItemLines({
                 {lines.map((line, idx) => {
                   const unit = unitById.get(line.uomId)
                   const location = locationById.get(line.locationId || storeLocationId)
-                  const isAsset =
-                    line.itemType === 'asset' || items.find((i) => i.id === line.itemId)?.itemType === 'asset'
+                  const isAsset = Boolean(
+                    items.find((i) => i.id === line.itemId)?.isSerialized,
+                  )
                   const shownStock = displayStock(line)
                   const shortfall =
                     line.itemId !== '' &&

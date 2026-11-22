@@ -55,8 +55,8 @@ function clampQty(qty: number, stock: number) {
 }
 
 /**
- * Normal outward: System location → type → items (qty / serials).
- * Only system-derived locations are listed; stock is free (not allotted) qty.
+ * Outward picker: location → type → items (qty / serials).
+ * Pass system locations for New Outward, or For Trading locations for Trading Gatepass.
  */
 export function GatepassNormalOutwardPickerModal({
   open,
@@ -66,6 +66,7 @@ export function GatepassNormalOutwardPickerModal({
   items,
   units,
   initialLocationId = '',
+  variant = 'system',
 }: {
   open: boolean
   onClose: () => void
@@ -74,9 +75,11 @@ export function GatepassNormalOutwardPickerModal({
   items: ApiMasterRow[]
   units: ApiMasterRow[]
   initialLocationId?: string
+  variant?: 'system' | 'trading'
 }) {
   const unitById = useCodeIndex(units)
   const locationById = useCodeIndex(systemLocations)
+  const isTrading = variant === 'trading'
 
   const [step, setStep] = useState<Step>('location')
   const [search, setSearch] = useState('')
@@ -229,15 +232,12 @@ export function GatepassNormalOutwardPickerModal({
   const itemRows = useMemo(() => {
     return baseItemRows
       .map((r) => {
-        const kind = String(r.itemType).toLowerCase() === 'consumable' ? 'consumable' : 'asset'
-        if (kind !== 'asset') return r
+        if (!r.isSerialized) return r
         if (!(r.key in serialByKey)) return r
         return { ...r, stock: (serialByKey[r.key] ?? []).length }
       })
       .filter(
-        (r) =>
-          Number(r.stock) > 0 ||
-          (String(r.itemType).toLowerCase() !== 'consumable' && !serialsLoaded),
+        (r) => Number(r.stock) > 0 || (Boolean(r.isSerialized) && !serialsLoaded),
       )
   }, [baseItemRows, serialByKey, serialsLoaded])
 
@@ -251,7 +251,7 @@ export function GatepassNormalOutwardPickerModal({
         if (cancelled) return
         const next: Record<string, AvailableSerialUnit[]> = {}
         for (const r of baseItemRows) {
-          if (String(r.itemType).toLowerCase() === 'consumable') continue
+          if (!r.isSerialized) continue
           next[r.key] = unitsAtLoc.filter((u) => String(u.itemId) === String(r.itemId))
         }
         setSerialByKey(next)
@@ -283,7 +283,7 @@ export function GatepassNormalOutwardPickerModal({
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase()
     const rows = itemRows.filter((r) => {
-      if (String(r.itemType).toLowerCase() !== 'consumable' && serialsLoaded && Number(r.stock) <= 0) {
+      if (Boolean(r.isSerialized) && serialsLoaded && Number(r.stock) <= 0) {
         return false
       }
       return true
@@ -301,7 +301,7 @@ export function GatepassNormalOutwardPickerModal({
   const selectedUnitCount = useMemo(() => pickList.reduce((s, p) => s + p.qty, 0), [pickList])
 
   const availableForPick = (p: RowPick) => {
-    if (p.kind === 'asset' && p.row.key in serialByKey) {
+    if (p.row.isSerialized && p.row.key in serialByKey) {
       return (serialByKey[p.row.key] ?? []).length
     }
     return Math.floor(Number(p.row.stock) || 0)
@@ -314,7 +314,7 @@ export function GatepassNormalOutwardPickerModal({
       if (p.qty > stock) {
         errs.push(`${p.row.itemCode}: qty exceeds available stock (${formatStockQty(stock)})`)
       }
-      if (p.kind === 'asset' && p.serials.length !== p.qty) {
+      if (p.row.isSerialized && p.serials.length !== p.qty) {
         errs.push(
           `${p.row.itemCode}: select exactly ${p.qty} serial number${p.qty === 1 ? '' : 's'} (selected ${p.serials.length})`,
         )
@@ -337,7 +337,7 @@ export function GatepassNormalOutwardPickerModal({
     const lines: OutwardPickerLine[] = []
     for (const p of pickList) {
       const stock = availableForPick(p)
-      if (p.kind === 'asset') {
+      if (p.row.isSerialized) {
         for (const serial of p.serials) {
           lines.push({
             itemId: p.row.itemId,
@@ -377,7 +377,7 @@ export function GatepassNormalOutwardPickerModal({
       }
       const existing = prev[row.key]
       let serials = existing?.serials ?? []
-      if (kind === 'asset') {
+      if (row.isSerialized) {
         const pool = serialByKey[row.key] ?? []
         if (serials.length > qty) {
           serials = serials.slice(0, qty)
@@ -432,14 +432,15 @@ export function GatepassNormalOutwardPickerModal({
   }
 
   const stepTitle: Record<Step, string> = {
-    location: '1. Select System Location',
+    location: isTrading ? '1. Select Trading Location' : '1. Select System Location',
     type: '2. Select Item Type',
     item: '3. Select Items & Quantity',
   }
 
   const stepSubtitle: Record<Step, string> = {
-    location:
-      'Only system-derived locations. Free items column shows transferable qty (not allotted/issued).',
+    location: isTrading
+      ? 'Only For Trading locations. Free items column shows transferable qty (not allotted/issued).'
+      : 'Only system-derived locations. Free items column shows transferable qty (not allotted/issued).',
     type: locationLabel
       ? `From: ${locationLabel}. Choose All, Asset, or Consumable.`
       : 'Choose which item types to send outward.',
@@ -525,8 +526,12 @@ export function GatepassNormalOutwardPickerModal({
                 <tr>
                   <td colSpan={4} className="h-[400px] px-3 text-center align-middle text-[12px] text-[var(--text3)]">
                     {search.trim()
-                      ? 'No system locations match your search.'
-                      : 'No system-derived locations found.'}
+                      ? isTrading
+                        ? 'No trading locations match your search.'
+                        : 'No system locations match your search.'
+                      : isTrading
+                        ? 'No For Trading locations found. Mark locations as For Trading in Location Master.'
+                        : 'No system-derived locations found.'}
                   </td>
                 </tr>
               ) : (
@@ -677,6 +682,7 @@ export function GatepassNormalOutwardPickerModal({
                     const qty = pick?.qty ?? 0
                     const serials = serialByKey[r.key] ?? []
                     const over = qty > stock
+                    const needsSerial = Boolean(r.isSerialized)
                     return (
                       <tr
                         key={r.key}
@@ -714,14 +720,14 @@ export function GatepassNormalOutwardPickerModal({
                             className="w-full text-right text-[12px]"
                             onChange={(e) => setRowQty(r, kind, e.target.value)}
                             title={
-                              kind === 'asset'
+                              needsSerial
                                 ? `Type 1 or more (max ${formatStockQty(stock)}). Serials are selected automatically.`
                                 : `Max ${formatStockQty(stock)}`
                             }
                           />
                         </td>
                         <td className={bodyCell}>
-                          {kind === 'asset' ? (
+                          {needsSerial ? (
                             <div className="flex max-h-[88px] flex-wrap gap-1 overflow-y-auto">
                               {serials.length === 0 ? (
                                 <span className="text-[11px] text-[var(--text3)]">No free serials</span>

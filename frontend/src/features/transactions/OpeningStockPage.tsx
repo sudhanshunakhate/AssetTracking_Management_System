@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { StatusPill } from '@/components/ui/Badge'
@@ -38,6 +38,7 @@ import {
   resolveTxnHeaderFromLines,
   useTxnFormLookups,
 } from './txnLookups'
+import { useTxnDocSession } from './docWorkspace/useTxnDocSession'
 
 const BASE = '/transactions/opening-stock'
 const MENU = 'OPN'
@@ -154,6 +155,12 @@ function OpeningStockList() {
 
 /* -------------------------------------------------------------- form ---- */
 
+type OpeningBasket = {
+  form: FormState
+  itemType: ItemKind
+  lines: OpeningStockLine[]
+}
+
 function OpeningStockForm() {
   const { id = 'new' } = useParams()
   const isNew = id === 'new'
@@ -171,6 +178,8 @@ function OpeningStockForm() {
   const [message, setMessage] = useState<string | null>(null)
   const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [submitted, setSubmitted] = useState(false)
+  const basketApplied = useRef(false)
+  const serverLoaded = useRef(false)
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((p) => ({ ...p, [key]: value }))
@@ -179,6 +188,26 @@ function OpeningStockForm() {
   const canEdit = isNew ? canCreateMenu(MENU) : canEditMenu(MENU)
   const statusEditable = EDITABLE_STATUSES.includes(form.status)
   const readOnly = !canEdit || (!isNew && !statusEditable)
+
+  const basketDirty = useMemo(
+    () =>
+      !readOnly &&
+      (lines.some((l) => l.itemId !== '') ||
+        Boolean(form.remarks.trim()) ||
+        Boolean(form.attachmentUrl) ||
+        form.openingDate !== todayIso()),
+    [readOnly, lines, form],
+  )
+
+  const basketData = useMemo<OpeningBasket>(
+    () => ({ form, itemType, lines }),
+    [form, itemType, lines],
+  )
+
+  useEffect(() => {
+    basketApplied.current = false
+    serverLoaded.current = false
+  }, [id])
 
   useEffect(() => {
     if (isNew) return
@@ -222,6 +251,7 @@ function OpeningStockForm() {
         if (firstType === 'consumable' || firstType === 'asset') {
           setItemType(firstType)
         }
+        serverLoaded.current = true
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load opening stock')
       } finally {
@@ -258,18 +288,29 @@ function OpeningStockForm() {
     const filled = lines.filter((l) => l.itemId !== '')
     if (filled.length === 0) next.lines = 'Add at least one item line'
     else if (filled.some((l) => toNum(l.qty) <= 0)) next.lines = 'Quantity must be greater than 0 on every line'
-    else if (itemType === 'asset' && filled.some((l) => !l.serialNo.trim())) {
-      next.lines = 'Serial No. is required on every asset unit line'
+    else if (
+      filled.some((l) => {
+        const item = items.rows.find((i) => i.id === l.itemId)
+        return Boolean(item?.isSerialized) && !l.serialNo.trim()
+      })
+    ) {
+      next.lines = 'Serial No. is required on every serialized item line'
     } else if (
-      itemType === 'asset' &&
-      filled.some((l) => isIssuedCondition(l.itemCondition, conditionOpts) && !l.issuedToEmpId)
+      filled.some((l) => {
+        const item = items.rows.find((i) => i.id === l.itemId)
+        return (
+          Boolean(item?.isSerialized) &&
+          isIssuedCondition(l.itemCondition, conditionOpts) &&
+          !l.issuedToEmpId
+        )
+      })
     ) {
       next.lines = 'Custody employee is required when Condition is Issued'
     } else if (filled.some((l) => !l.locationId)) {
       next.lines = 'Location is required on every item line'
     }
     return next
-  }, [form, headerFields, lines, readOnly, itemType, conditionOpts])
+  }, [form, headerFields, lines, readOnly, itemType, conditionOpts, items.rows])
 
   const headerReady = useMemo(
     () => areRequiredFieldsFilled(headerFields, form as unknown as Record<string, unknown>),
@@ -306,7 +347,8 @@ function OpeningStockForm() {
       totalAmount: 0,
       docSubmitAction: action,
       lines: filled.map((l, i) => {
-        const qty = itemType === 'asset' ? 1 : toNum(l.qty)
+        const item = items.rows.find((i) => i.id === l.itemId)
+        const qty = item?.isSerialized ? 1 : toNum(l.qty)
         return {
           srNo: i + 1,
           itemId: Number(l.itemId),
@@ -332,6 +374,43 @@ function OpeningStockForm() {
     }
   }
 
+  const { restored, hydrateDone, clearRestored, clearBasket } = useTxnDocSession({
+    data: basketData,
+    enabled: !loading && !readOnly && !saving,
+    dirty: basketDirty,
+    kind: 'Opening Stock',
+    title: isNew ? 'New Opening Stock' : form.entryNo ? `Opening Stock ${form.entryNo}` : `Opening Stock #${id}`,
+    subtitle: basketDirty ? 'Basket unsaved' : 'Basket saved',
+    silentDraft: {
+      intervalMs: 15_000,
+      canSave: () => {
+        if (readOnly || saving || Object.keys(errors).length > 0) return false
+        return lines.some((l) => l.itemId && l.locationId && toNum(l.qty) > 0)
+      },
+      save: async () => {
+        const body = buildBody('SAVE_DRAFT')
+        if (isNew) {
+          const created = await createTxn(RESOURCE, body)
+          return { id: String(created.docId), docNo: created.docNo }
+        }
+        await updateTxn(RESOURCE, id, body)
+        return { id, docNo: form.entryNo }
+      },
+    },
+  })
+
+  // Restore basket after server load (or immediately for /new).
+  useEffect(() => {
+    if (!hydrateDone || basketApplied.current || !restored) return
+    if (!isNew && (loading || !serverLoaded.current)) return
+    setForm(restored.form)
+    setItemType(restored.itemType)
+    setLines(restored.lines.length ? restored.lines : [emptyOpeningStockLine()])
+    basketApplied.current = true
+    clearRestored()
+    setMessage('Restored from basket')
+  }, [hydrateDone, restored, isNew, loading, clearRestored])
+
   const save = async (action: 'SAVE_DRAFT' | 'SUBMIT') => {
     setSubmitted(true)
     if (Object.keys(errors).length > 0) {
@@ -345,6 +424,7 @@ function OpeningStockForm() {
       const body = buildBody(action)
       if (isNew) await createTxn(RESOURCE, body)
       else await updateTxn(RESOURCE, id, body)
+      clearBasket()
       setMessage(action === 'SUBMIT' ? 'Opening stock saved and posted.' : 'Opening stock saved.')
       navigate(BASE)
     } catch (e) {
@@ -467,6 +547,7 @@ function OpeningStockForm() {
               setTouched({})
               setError(null)
               setMessage(null)
+              clearBasket()
             }}
             disabled={saving}
           >

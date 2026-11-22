@@ -250,12 +250,15 @@ export function TransferItemPickerModal({
   const itemRows = useMemo(() => {
     return baseItemRows
       .map((r) => {
-        const kind = String(r.itemType).toLowerCase() === 'consumable' ? 'consumable' : 'asset'
-        if (kind !== 'asset') return r
+        // Only serialized items use free-serial count as available stock.
+        if (!r.isSerialized) return r
         if (!(r.key in serialByKey)) return r
         return { ...r, stock: (serialByKey[r.key] ?? []).length }
       })
-      .filter((r) => Number(r.stock) > 0 || (String(r.itemType).toLowerCase() !== 'consumable' && !serialsLoaded))
+      .filter(
+        (r) =>
+          Number(r.stock) > 0 || (Boolean(r.isSerialized) && !serialsLoaded),
+      )
   }, [baseItemRows, serialByKey, serialsLoaded])
 
   useEffect(() => {
@@ -268,7 +271,7 @@ export function TransferItemPickerModal({
         if (cancelled) return
         const next: Record<string, AvailableSerialUnit[]> = {}
         for (const r of baseItemRows) {
-          if (String(r.itemType).toLowerCase() === 'consumable') continue
+          if (!r.isSerialized) continue
           next[r.key] = units.filter((u) => String(u.itemId) === String(r.itemId))
         }
         setSerialByKey(next)
@@ -299,8 +302,8 @@ export function TransferItemPickerModal({
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase()
     const rows = itemRows.filter((r) => {
-      // Hide assets with no transferable serials once serials are known.
-      if (String(r.itemType).toLowerCase() !== 'consumable' && serialsLoaded && Number(r.stock) <= 0) {
+      // Hide serialized items with no transferable serials once serials are known.
+      if (Boolean(r.isSerialized) && serialsLoaded && Number(r.stock) <= 0) {
         return false
       }
       return true
@@ -322,7 +325,7 @@ export function TransferItemPickerModal({
   )
 
   const availableForPick = (p: RowPick) => {
-    if (p.kind === 'asset' && p.row.key in serialByKey) {
+    if (p.row.isSerialized && p.row.key in serialByKey) {
       return (serialByKey[p.row.key] ?? []).length
     }
     return Math.floor(Number(p.row.stock) || 0)
@@ -335,7 +338,7 @@ export function TransferItemPickerModal({
       if (p.qty > stock) {
         errs.push(`${p.row.itemCode}: qty exceeds available stock (${formatStockQty(stock)})`)
       }
-      if (p.kind === 'asset') {
+      if (p.row.isSerialized) {
         if (p.serials.length !== p.qty) {
           errs.push(
             `${p.row.itemCode}: select exactly ${p.qty} serial number${p.qty === 1 ? '' : 's'} (selected ${p.serials.length})`,
@@ -360,7 +363,7 @@ export function TransferItemPickerModal({
     const lines: TransferPickerLine[] = []
     for (const p of pickList) {
       const stock = availableForPick(p)
-      if (p.kind === 'asset') {
+      if (p.row.isSerialized) {
         for (const serial of p.serials) {
           lines.push({
             itemId: p.row.itemId,
@@ -377,6 +380,7 @@ export function TransferItemPickerModal({
           locationId: p.row.locationId || fromId,
           stock,
           qty: wholeQtyStr(p.qty),
+          // Non-serialized assets post as qty lines (consumable-style).
           itemKind: 'consumable',
         })
       }
@@ -858,12 +862,13 @@ function ItemQtyTable({
           rows.map((r) => {
             const kind: ItemKind =
               String(r.itemType ?? '').toLowerCase() === 'consumable' ? 'consumable' : 'asset'
+            const needsSerial = Boolean(r.isSerialized)
             const pick = picks[r.key]
             const stock = Math.floor(Number(r.stock) || 0)
             const qty = pick?.qty ?? 0
             const serials = serialByKey[r.key] ?? []
             const over = qty > stock
-            const serialOk = kind !== 'asset' || qty === 0 || (pick?.serials.length ?? 0) === qty
+            const serialOk = !needsSerial || qty === 0 || (pick?.serials.length ?? 0) === qty
 
             return (
               <tr
@@ -904,7 +909,7 @@ function ItemQtyTable({
                   )}
                 </td>
                 <td className={bodyCell}>
-                  {kind === 'asset' ? (
+                  {needsSerial ? (
                     serials.length === 0 ? (
                       <span className="text-[11px] text-[var(--text3)]">No serials available</span>
                     ) : (

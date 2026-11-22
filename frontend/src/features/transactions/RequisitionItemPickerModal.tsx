@@ -21,6 +21,8 @@ export type RequisitionPickerRow = {
   stock: number
   uomCode: string
   itemType?: string
+  /** From Item Master — drives serial UI, not itemType alone. */
+  isSerialized?: boolean
 }
 
 function locationLabel(locationId: string, locationById: Map<string, ApiMasterRow>) {
@@ -100,6 +102,7 @@ export function buildRequisitionPickerRows(
         stock: loc.qty,
         uomCode: uom ? String(uom.code ?? '—') : '—',
         itemType: String(item.itemType ?? ''),
+        isSerialized: Boolean(item.isSerialized),
       })
     }
   }
@@ -115,8 +118,8 @@ const headCell =
   'sticky top-0 z-10 border-b-2 border-[var(--border)] bg-[var(--surface2)] px-3 py-2 text-left text-[9.5px] font-bold tracking-[0.6px] text-[var(--text3)] uppercase whitespace-nowrap'
 const bodyCell = 'border-b border-[var(--border)] px-3 py-2 text-[12px] align-middle'
 
-function isAssetRow(row: RequisitionPickerRow) {
-  return String(row.itemType ?? '').toLowerCase() === 'asset'
+function isSerializedRow(row: RequisitionPickerRow) {
+  return Boolean(row.isSerialized)
 }
 
 export function RequisitionItemPickerModal({
@@ -210,7 +213,7 @@ export function RequisitionItemPickerModal({
       setSerialLoading(false)
       return
     }
-    const assetKeys = locationRows.filter(isAssetRow)
+    const assetKeys = locationRows.filter(isSerializedRow)
     if (assetKeys.length === 0) {
       setSerialByKey({})
       setSerialLoading(false)
@@ -284,7 +287,7 @@ export function RequisitionItemPickerModal({
         : `${totalItems} item${totalItems === 1 ? '' : 's'}`
 
   const applyRow = (r: RequisitionPickerRow, serialNo?: string) => {
-    if (!showSerialColumn || !isAssetRow(r)) {
+    if (!showSerialColumn || !isSerializedRow(r)) {
       onSelect(r.itemId, r.locationId)
       return
     }
@@ -423,7 +426,7 @@ export function RequisitionItemPickerModal({
                 ) : (
                   filteredLocations.map((r) => {
                     const isSelected = r.key === selectedKey
-                    const asset = showSerialColumn && isAssetRow(r)
+                    const asset = showSerialColumn && isSerializedRow(r)
                     const serials = serialByKey[r.key] ?? []
                     return (
                       <tr

@@ -163,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(PERMS_KEY)
     sessionStorage.removeItem(SCOPE_KEY)
     sessionStorage.removeItem(FAVS_KEY)
+    void import('@/features/transactions/docWorkspace/store').then((m) => m.clearAllDocWorkspace())
     clearSession()
     setMenuPermissions([])
     setFavouriteMenuCodesState([])

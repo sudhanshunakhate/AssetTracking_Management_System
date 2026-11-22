@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FadeContent } from '@/components/react-bits'
 import { Button } from '@/components/ui/Button'
@@ -21,7 +21,7 @@ type MovementRow = {
   docId: string
   docType: string
   date: string
-  assetId: string
+  serialNo: string
   assetName: string
   fromLocation: string
   toLocation: string
@@ -45,8 +45,108 @@ const emptyFilters = {
 
 const dash = (v: string) => (v.trim() ? v : '—')
 
-export function StockMovementReportPage() {
+function mapMovementRow(r: Record<string, unknown>): MovementRow {
+  const serialNo = String(r.assetId ?? r.serialNo ?? r.itemCode ?? '').trim()
+  const assetName = String(r.assetName ?? r.itemName ?? '').trim()
+  const fromLocation = String(r.fromLocation ?? r.fromStore ?? '').trim()
+  const toLocation = String(r.toLocation ?? r.toStore ?? '').trim()
+  const custodian = String(r.custodian ?? r.employee ?? '').trim()
+  const movementType = String(r.movementType ?? r.docType ?? '').trim()
+  const document = String(r.document ?? r.docNo ?? '').trim()
+  return {
+    id: String(r.id ?? `${document}-${serialNo}`),
+    docId: String(r.docId ?? ''),
+    docType: String(r.docType ?? '').trim(),
+    date: String(r.date ?? ''),
+    serialNo: serialNo || '—',
+    assetName: assetName || '—',
+    fromLocation: dash(fromLocation),
+    toLocation: dash(toLocation),
+    fromDept: dash(String(r.fromDept ?? '')),
+    toDept: dash(String(r.toDept ?? '')),
+    custodian: dash(custodian),
+    movementType: movementType || '—',
+    reason: dash(String(r.reason ?? '')),
+    document: document || '—',
+  }
+}
+
+const headers = [
+  'Date',
+  'Serial No.',
+  'Asset Name',
+  'From Location',
+  'To Location',
+  'From Dept.',
+  'To Dept.',
+  'Custodian',
+  'Movement Type',
+  'Reason',
+  'Document',
+]
+
+function MovementCells({
+  r,
+  onSerialClick,
+  serialExpanded,
+}: {
+  r: MovementRow
+  onSerialClick?: (serialNo: string) => void
+  serialExpanded?: boolean
+}) {
   const navigate = useNavigate()
+  const detailPath = txnDetailPath(r.docType, r.docId)
+
+  return (
+    <>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5 whitespace-nowrap">{r.date}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">
+        {onSerialClick && r.serialNo !== '—' ? (
+          <button
+            type="button"
+            className={`font-medium text-[var(--accent-deep)] hover:underline ${
+              serialExpanded ? 'underline' : ''
+            }`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSerialClick(r.serialNo)
+            }}
+          >
+            {r.serialNo}
+          </button>
+        ) : (
+          r.serialNo
+        )}
+      </td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.assetName}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.fromLocation}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.toLocation}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.fromDept}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.toDept}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.custodian}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.movementType}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.reason}</td>
+      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">
+        {detailPath ? (
+          <button
+            type="button"
+            className="font-mono text-[var(--accent-deep)] hover:underline"
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(detailPath)
+            }}
+          >
+            {r.document}
+          </button>
+        ) : (
+          r.document
+        )}
+      </td>
+    </>
+  )
+}
+
+export function StockMovementReportPage() {
   const { seesAllLocations } = useAuth()
   const [draft, setDraft] = useState(emptyFilters)
   const [applied, setApplied] = useState(emptyFilters)
@@ -54,6 +154,9 @@ export function StockMovementReportPage() {
   const [rows, setRows] = useState<MovementRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [expandedSerial, setExpandedSerial] = useState<string | null>(null)
+  const [serialRows, setSerialRows] = useState<MovementRow[]>([])
+  const [serialLoading, setSerialLoading] = useState(false)
 
   const mapLoc = useCallback(mapLocation, [])
 
@@ -78,33 +181,7 @@ export function StockMovementReportPage() {
         fromDate: applied.from || undefined,
         toDate: applied.to || undefined,
       })
-      setRows(
-        (page.data ?? []).map((r) => {
-          const assetId = String(r.assetId ?? r.serialNo ?? r.itemCode ?? '').trim()
-          const assetName = String(r.assetName ?? r.itemName ?? '').trim()
-          const fromLocation = String(r.fromLocation ?? r.fromStore ?? '').trim()
-          const toLocation = String(r.toLocation ?? r.toStore ?? '').trim()
-          const custodian = String(r.custodian ?? r.employee ?? '').trim()
-          const movementType = String(r.movementType ?? r.docType ?? '').trim()
-          const document = String(r.document ?? r.docNo ?? '').trim()
-          return {
-            id: String(r.id ?? `${document}-${assetId}`),
-            docId: String(r.docId ?? ''),
-            docType: String(r.docType ?? '').trim(),
-            date: String(r.date ?? ''),
-            assetId: assetId || '—',
-            assetName: assetName || '—',
-            fromLocation: dash(fromLocation),
-            toLocation: dash(toLocation),
-            fromDept: dash(String(r.fromDept ?? '')),
-            toDept: dash(String(r.toDept ?? '')),
-            custodian: dash(custodian),
-            movementType: movementType || '—',
-            reason: dash(String(r.reason ?? '')),
-            document: document || '—',
-          }
-        }),
-      )
+      setRows((page.data ?? []).map((r) => mapMovementRow(r as Record<string, unknown>)))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load asset movement register')
       setRows([])
@@ -117,32 +194,75 @@ export function StockMovementReportPage() {
     void reload()
   }, [reload])
 
-  const applyFilters = () => setApplied({ ...draft })
+  useEffect(() => {
+    if (!expandedSerial) {
+      setSerialRows([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      setSerialLoading(true)
+      try {
+        const page = await fetchStockMovement({
+          page: 1,
+          pageSize: 200,
+          serialNo: expandedSerial,
+          fromDate: applied.from || undefined,
+          toDate: applied.to || undefined,
+          locationId: applied.loc || undefined,
+        })
+        if (!cancelled) {
+          setSerialRows((page.data ?? []).map((r) => mapMovementRow(r as Record<string, unknown>)))
+        }
+      } catch {
+        if (!cancelled) setSerialRows([])
+      } finally {
+        if (!cancelled) setSerialLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [expandedSerial, applied.from, applied.to, applied.loc])
+
+  const applyFilters = () => {
+    setExpandedSerial(null)
+    setApplied({ ...draft })
+  }
 
   const clearFilters = () => {
     setDraft(emptyFilters)
     setApplied(emptyFilters)
+    setExpandedSerial(null)
   }
 
-  const headers = [
-    'Date',
-    'Asset ID',
-    'Asset Name',
-    'From Location',
-    'To Location',
-    'From Dept.',
-    'To Dept.',
-    'Custodian',
-    'Movement Type',
-    'Reason',
-    'Document',
-  ]
+  const toggleSerial = (serialNo: string) => {
+    setExpandedSerial((prev) => (prev === serialNo ? null : serialNo))
+  }
+
+  /** When a serial is expanded, show only that serial’s rows in the main grid. */
+  const visibleRows = useMemo(() => {
+    if (!expandedSerial) return rows
+    return rows.filter((r) => r.serialNo === expandedSerial)
+  }, [rows, expandedSerial])
+
+  /** Expand under the first visible row for that serial. */
+  const expandUnderId = useMemo(() => {
+    if (!expandedSerial) return null
+    return visibleRows.find((r) => r.serialNo === expandedSerial)?.id ?? null
+  }, [visibleRows, expandedSerial])
+
+  const historyRows = useMemo(() => {
+    if (!expandedSerial) return []
+    const list = serialRows.length > 0 ? serialRows : visibleRows
+    return list
+  }, [expandedSerial, serialRows, visibleRows])
 
   return (
     <FadeContent>
       <PageHeader
         title="Asset Movement Register"
-        description="Track asset movements across locations and custodians. Pick filters below and click Apply — changes are not loaded until you apply them."
+        description="Track asset movements across locations and custodians. Click a Serial No. to filter and expand that asset’s related transactions."
         actions={
           <Button
             variant="ghost"
@@ -151,9 +271,9 @@ export function StockMovementReportPage() {
               downloadCsv(
                 `asset-movement-register-${new Date().toISOString().slice(0, 10)}.csv`,
                 headers,
-                rows.map((r) => [
+                (expandedSerial ? historyRows : rows).map((r) => [
                   r.date,
-                  r.assetId,
+                  r.serialNo,
                   r.assetName,
                   r.fromLocation,
                   r.toLocation,
@@ -198,6 +318,8 @@ export function StockMovementReportPage() {
                 placeholder="All Assets"
                 allowClear
                 className="w-full"
+                pageSize={50}
+                maxVisible={50}
               />
             </Field>
             <Field label="Owner" className="relative z-20 min-w-0">
@@ -238,6 +360,18 @@ export function StockMovementReportPage() {
 
       <Card className="overflow-visible">
         <CardBody className="p-0">
+          {expandedSerial && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f0f5ff] px-3.5 py-2 text-[12.5px] text-[var(--text2)]">
+              <div>
+                Filtered to serial <strong className="font-mono text-[var(--text)]">{expandedSerial}</strong>
+                {serialLoading ? ' — loading history…' : ` — ${historyRows.length} movement(s)`}
+              </div>
+              <Button variant="ghost" className="text-xs" onClick={() => setExpandedSerial(null)}>
+                Clear serial filter
+              </Button>
+            </div>
+          )}
+
           <ReportTableScroll>
             <table className="w-full border-collapse text-xs">
               <thead>
@@ -250,34 +384,59 @@ export function StockMovementReportPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
-                  const detailPath = txnDetailPath(r.docType, r.docId)
-                  const rowClass = detailPath
-                    ? 'cursor-pointer hover:bg-[#f0f5ff]'
-                    : 'hover:bg-[#f0f5ff]'
+                {visibleRows.map((r) => {
+                  const showExpand = expandUnderId === r.id
                   return (
-                    <tr
-                      key={r.id}
-                      className={rowClass}
-                      onClick={() => {
-                        if (detailPath) navigate(detailPath)
-                      }}
-                    >
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 whitespace-nowrap">{r.date}</td>
-                      <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.assetId}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.assetName}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.fromLocation}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.toLocation}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.fromDept}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.toDept}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.custodian}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.movementType}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5">{r.reason}</td>
-                    <td className="border-b border-[var(--border)] px-[11px] py-1.5 font-mono">{r.document}</td>
-                  </tr>
+                    <Fragment key={r.id}>
+                      <tr className={showExpand ? 'bg-[#f0f5ff]' : 'hover:bg-[#f0f5ff]'}>
+                        <MovementCells
+                          r={r}
+                          onSerialClick={toggleSerial}
+                          serialExpanded={expandedSerial === r.serialNo}
+                        />
+                      </tr>
+                      {showExpand && (
+                        <tr className="bg-[#f7f9fc]">
+                          <td colSpan={11} className="border-b border-[var(--border)] px-3 py-2.5">
+                            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.5px] text-[var(--text3)]">
+                              Related movements for {expandedSerial}
+                            </div>
+                            {serialLoading && historyRows.length === 0 ? (
+                              <div className="py-3 text-sm text-[var(--text3)]">Loading…</div>
+                            ) : historyRows.length === 0 ? (
+                              <div className="py-3 text-sm text-[var(--text3)]">
+                                No related transactions for this serial.
+                              </div>
+                            ) : (
+                              <table className="w-full border-collapse text-[11px]">
+                                <thead>
+                                  <tr>
+                                    {headers.map((h) => (
+                                      <th
+                                        key={h}
+                                        className="border-b border-[var(--border)] px-2 py-1 text-left text-[9px] font-bold uppercase tracking-[0.4px] text-[var(--text3)]"
+                                      >
+                                        {h}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {historyRows.map((h) => (
+                                    <tr key={`hist-${h.id}`} className="hover:bg-[#eef2f7]">
+                                      <MovementCells r={h} />
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
-                {!loading && rows.length === 0 && (
+                {!loading && visibleRows.length === 0 && (
                   <tr>
                     <td colSpan={11} className="px-[11px] py-8 text-center text-[var(--text3)]">
                       No asset movements for the selected filters.
@@ -290,7 +449,10 @@ export function StockMovementReportPage() {
 
           <div className="flex flex-wrap gap-7 border-t border-[var(--border)] px-3.5 py-3 text-[12.5px] text-[var(--text2)]">
             <div>
-              Movements: <strong>{rows.length}</strong>
+              Movements: <strong>{visibleRows.length}</strong>
+              {expandedSerial && rows.length !== visibleRows.length ? (
+                <span className="text-[var(--text3)]"> of {rows.length}</span>
+              ) : null}
             </div>
           </div>
         </CardBody>

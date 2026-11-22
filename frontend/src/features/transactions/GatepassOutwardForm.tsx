@@ -41,11 +41,17 @@ import {
   type OutwardPickerBatch,
 } from './GatepassNormalOutwardPickerModal'
 import { normalizeTransferType, transferTypeLabel } from './transferTypes'
-import { locLabel, systemLocations, quickAddVendor, vendorOptions as toVendorOptions } from './txnLookups'
+import {
+  locLabel,
+  activeSystemLocations,
+  activeTradingLocations,
+  quickAddVendor,
+  vendorOptions as toVendorOptions,
+} from './txnLookups'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import { toNum } from './lineGrid'
 
-type OutwardMode = 'against-transfer' | 'normal'
+type OutwardMode = 'against-transfer' | 'normal' | 'trading'
 
 function ouLabel(ouId: string, ous: { id: string; code?: unknown; name?: unknown }[]) {
   if (!ouId) return '—'
@@ -122,10 +128,9 @@ export function GatepassOutwardForm() {
   const [normalLines, setNormalLines] = useState<GatepassOutwardLine[]>([emptyGatepassOutwardLine()])
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  const systemStores = useMemo(
-    () => systemLocations(stores).filter((l) => l.status !== 'Inactive'),
-    [stores],
-  )
+  const systemStores = useMemo(() => activeSystemLocations(stores), [stores])
+  const tradingStores = useMemo(() => activeTradingLocations(stores), [stores])
+  const pickerStores = mode === 'trading' ? tradingStores : systemStores
 
   const resolveVendorFromName = useCallback(
     (name: string) => {
@@ -270,7 +275,9 @@ export function GatepassOutwardForm() {
         mapped.length
           ? party
             ? `Selected ${mapped.length} line(s). Vendor / Party filled from GRN or Opening Stock.`
-            : `Selected ${mapped.length} line(s) from system location — confirm Returnable flag, then submit.`
+            : mode === 'trading'
+              ? `Selected ${mapped.length} line(s) from trading location — confirm Returnable flag, then submit.`
+              : `Selected ${mapped.length} line(s) from system location — confirm Returnable flag, then submit.`
           : '',
       )
     })()
@@ -348,17 +355,30 @@ export function GatepassOutwardForm() {
       return
     }
     if (!outwardForm.store) {
-      setError('Select items from a system location first')
+      setError(
+        mode === 'trading'
+          ? 'Select items from a For Trading location first'
+          : 'Select items from a system location first',
+      )
       return
     }
     const storeMeta = stores.find((s) => s.id === outwardForm.store)
-    if (!storeMeta?.isSystemLocation) {
+    if (mode === 'trading') {
+      if (!storeMeta?.forTrading || storeMeta.isSystemLocation) {
+        setError('Trading Gatepass can only issue from For Trading locations')
+        return
+      }
+    } else if (!storeMeta?.isSystemLocation) {
       setError('New outward can only issue from system-derived locations')
       return
     }
     const filled = normalLines.filter((l) => l.itemId)
     if (filled.length === 0) {
-      setError('Add at least one item line from a system location')
+      setError(
+        mode === 'trading'
+          ? 'Add at least one item line from a For Trading location'
+          : 'Add at least one item line from a system location',
+      )
       return
     }
     setSaving(true)
@@ -375,7 +395,7 @@ export function GatepassOutwardForm() {
           throw new Error(`Line ${i + 1}: Qty ${qty} exceeds available free stock ${avail}`)
         }
         const item = items.find((it) => it.id === l.itemId)
-        const needsSerial = Boolean(item?.isSerialized || item?.itemType === 'asset')
+        const needsSerial = Boolean(item?.isSerialized)
         const serialNo = l.serialNo.trim().toUpperCase()
         if (needsSerial && !serialNo) {
           throw new Error(`Line ${i + 1}: Serial No. is required for asset outward`)
@@ -574,7 +594,7 @@ export function GatepassOutwardForm() {
     <FadeContent>
       <PageHeader
         title="Outward Form"
-        description="Issue material out of the store gate — against a pending material transfer, or as a new outward."
+        description="Issue material out of the store gate — against a pending material transfer, as a new system outward, or as a trading outward."
       />
 
       <div className="mb-4 flex flex-wrap gap-2.5 border-b border-[var(--border)] pb-3.5">
@@ -593,23 +613,40 @@ export function GatepassOutwardForm() {
           onClick={() => {
             setMode('normal')
             clearLinkedTransfer()
+            resetNormalForm()
             setMessage('')
             setError('')
           }}
         >
           New Outward Form
         </Button>
+        <Button
+          variant={mode === 'trading' ? 'primary' : 'ghost'}
+          onClick={() => {
+            setMode('trading')
+            clearLinkedTransfer()
+            resetNormalForm()
+            setMessage('')
+            setError('')
+          }}
+        >
+          Trading Gatepass
+        </Button>
       </div>
 
       {error && <div className="mb-2 text-sm text-[var(--danger)]">{error}</div>}
       {message && <div className="mb-2 text-sm text-[var(--accent)]">{message}</div>}
 
-      {mode === 'normal' ? (
+      {mode === 'normal' || mode === 'trading' ? (
         <>
           <Card>
             <CardHeader
-              title="Outward Details"
-              subtitle="Manual outward without a linked transfer — system location and items are selected together below."
+              title={mode === 'trading' ? 'Trading Outward Details' : 'Outward Details'}
+              subtitle={
+                mode === 'trading'
+                  ? 'Trading Gatepass — only For Trading locations and stock at those locations. Not used for Against Transfer or New Outward.'
+                  : 'Manual outward without a linked transfer — system location and items are selected together below.'
+              }
             />
             <CardBody>
               <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-4">
@@ -685,11 +722,16 @@ export function GatepassOutwardForm() {
             onChange={setNormalLines}
             items={items}
             units={units}
-            locations={stores}
+            locations={pickerStores}
             storeLocationId={outwardForm.store}
+            locationKind={mode === 'trading' ? 'trading' : 'system'}
             onOpenPicker={() => {
               if (!normalHeaderReady) {
                 setError('Set Returnable / Non Returnable before selecting items')
+                return
+              }
+              if (mode === 'trading' && tradingStores.length === 0) {
+                setError('No For Trading locations found. Enable For Trading on Location Master first.')
                 return
               }
               setPickerOpen(true)
@@ -700,10 +742,11 @@ export function GatepassOutwardForm() {
             open={pickerOpen}
             onClose={() => setPickerOpen(false)}
             onComplete={applyNormalPicker}
-            systemLocations={systemStores}
+            systemLocations={pickerStores}
             items={items}
             units={units}
             initialLocationId={outwardForm.store}
+            variant={mode === 'trading' ? 'trading' : 'system'}
           />
 
           <FormActions
@@ -712,7 +755,7 @@ export function GatepassOutwardForm() {
             onSaveDraft={canSaveGp ? () => void saveNormalOutward('SAVE_DRAFT') : undefined}
             draftLabel={saving ? 'Saving…' : 'Save Draft'}
             onSave={canSaveGp ? () => void saveNormalOutward('SUBMIT') : undefined}
-            saveLabel={saving ? 'Saving…' : 'Submit Outward'}
+            saveLabel={saving ? 'Saving…' : mode === 'trading' ? 'Submit Trading Outward' : 'Submit Outward'}
           />
         </>
       ) : !fromTransferOutward ? (

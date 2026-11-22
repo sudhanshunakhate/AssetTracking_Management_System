@@ -258,6 +258,9 @@ public class OrgMastersService {
         e.setLocIsSystemLocation(false);
         applyLoc(e, req);
         e.setLocIsSystemLocation(Boolean.TRUE.equals(req.isSystemLocation()));
+        if (Boolean.TRUE.equals(e.getLocIsSystemLocation())) {
+            e.setLocForTrading(false);
+        }
         e.setLocIsactive(req.isActive() == null || req.isActive());
         e.setLocCreatedBy(SecurityUtils.requireLoginId());
         e.setLocCreatedOn(LocalDateTime.now());
@@ -279,6 +282,9 @@ public class OrgMastersService {
         applyLoc(e, req);
         if (req.isSystemLocation() != null) {
             e.setLocIsSystemLocation(req.isSystemLocation());
+        }
+        if (Boolean.TRUE.equals(e.getLocIsSystemLocation())) {
+            e.setLocForTrading(false);
         }
         e.setLocModifiedBy(SecurityUtils.requireLoginId());
         e.setLocModifiedOn(LocalDateTime.now());
@@ -313,17 +319,20 @@ public class OrgMastersService {
             e.setLocCity(req.city());
             if (req.isActive() != null) e.setLocIsactive(req.isActive());
             if (req.printLocationName() != null) e.setLocPrintLocationName(req.printLocationName());
+            if (req.forTrading() != null) e.setLocForTrading(req.forTrading());
         } else {
             if (req.locationName() != null) e.setLocLocationName(req.locationName());
             if (req.printLocationName() != null) e.setLocPrintLocationName(req.printLocationName());
             if (req.city() != null) e.setLocCity(req.city());
+            // System locations are never trading locations.
+            e.setLocForTrading(false);
         }
     }
 
     private LocationDto toLocDto(OrgLocationMst e, String message) {
         return new LocationDto(e.getLocLocationId(), e.getLocLocationCode(), e.getLocLocationName(), e.getLocLocationType(),
                 e.getLocEntityIdEnt(), e.getLocBuIdBu(), e.getLocManagerEmpIdEmp(), e.getLocCity(), e.getLocIsactive(),
-                e.getLocIsSystemLocation(), e.getLocSystemRole(), e.getLocPrintLocationName(),
+                e.getLocIsSystemLocation(), Boolean.TRUE.equals(e.getLocForTrading()), e.getLocSystemRole(), e.getLocPrintLocationName(),
                 e.getLocCreatedBy(), e.getLocCreatedOn(), e.getLocModifiedBy(), e.getLocModifiedOn(), message);
     }
 

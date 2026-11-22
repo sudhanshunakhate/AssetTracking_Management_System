@@ -1394,6 +1394,16 @@ function ItemList() {
           },
           { key: 'cat', header: 'Category', render: (r) => r.categoryCode || '—' },
           { key: 'sub', header: 'Sub-Cat', render: (r) => r.subcategoryCode || '—' },
+          {
+            key: 'serialized',
+            header: 'Serialized',
+            render: (r) => (r.isSerialized ? 'Yes' : 'No'),
+          },
+          {
+            key: 'inspection',
+            header: 'Inspection',
+            render: (r) => (r.inspectionNeeded ? 'Yes' : 'No'),
+          },
         ]}
         saving={savingImport}
         result={importResult}

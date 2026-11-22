@@ -56,11 +56,11 @@ public final class MasterDtos {
 
     public record LocationDto(Integer locationId, String locationCode, String locationName, String locationType,
                               Integer entityId, Integer buId, Integer managerEmpId, String city, Boolean isActive,
-                              Boolean isSystemLocation, String systemRole, String printLocationName,
+                              Boolean isSystemLocation, Boolean forTrading, String systemRole, String printLocationName,
                               String createdBy, LocalDateTime createdOn, String modifiedBy, LocalDateTime modifiedOn, String message) {}
     public record LocationRequest(Integer locationId, String locationCode, String locationName, String locationType,
                                   Integer entityId, Integer buId, Integer managerEmpId, String city, Boolean isActive,
-                                  String printLocationName, Boolean isSystemLocation) {}
+                                  String printLocationName, Boolean isSystemLocation, Boolean forTrading) {}
 
     public record ItemDto(Integer itemId, String itemCode, String itemName, String itemType, Integer categoryId,
                           Integer subcategoryId, Integer uomId, BigDecimal standardCost, String imageUrl, String desc,
@@ -134,7 +134,7 @@ public final class MasterDtos {
                               String modifiedBy, LocalDateTime modifiedOn, String message) {}
 
     public record LookupEmployeeDto(Integer employeeId, String employeeCode, String firstName, String lastName,
-                                    String designation, Boolean isActive) {}
+                                    String designation, Integer departmentId, String departmentName, Boolean isActive) {}
 
     public record EmployeeRequest(Integer employeeId, String employeeCode, String firstName, String lastName,
                                   String gender, java.time.LocalDate dob, java.time.LocalDate joiningDate,

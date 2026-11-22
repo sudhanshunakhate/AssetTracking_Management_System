@@ -97,7 +97,7 @@ export function ReturnAllottedPickerModal({
           item: i,
           allottedQty: qtyShown,
           homeLabel: home ? locLabel(home) : '-',
-          isAsset: Boolean(i.isSerialized || i.itemType === 'asset'),
+          isAsset: Boolean(i.isSerialized),
         }
       })
       .sort((a, b) =>

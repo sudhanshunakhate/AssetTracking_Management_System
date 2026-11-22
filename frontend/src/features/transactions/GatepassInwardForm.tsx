@@ -21,7 +21,7 @@ import { useAuth } from '@/features/auth/AuthContext'
 import { wholeQtyStr } from './lineGrid'
 import { AttachmentFields, attachmentPayload } from './AttachmentSection'
 import { GATEPASS_BASE } from './gatepassNavigation'
-import { quickAddVendor, inspectorEmployees, systemLocations, vendorOptions as toVendorOptions, employeeOptions as toEmployeeOptions } from './txnLookups'
+import { quickAddVendor, inspectorEmployees, activeSystemLocations, vendorOptions as toVendorOptions, employeeOptions as toEmployeeOptions } from './txnLookups'
 import { MasterEmployeeSearchLookup } from './MasterSearchLookup'
 import { AUTO_DOC_NO_LABEL } from './txnConstants'
 import {
@@ -57,10 +57,7 @@ export function GatepassInwardForm() {
   const mapVend = useCallback(mapVendor, [])
   const { rows: employees } = useMasterList('employees', mapEmp)
   const { rows: stores } = useMasterList('locations', mapLoc)
-  const systemStores = useMemo(
-    () => systemLocations(stores).filter((l) => l.status !== 'Inactive'),
-    [stores],
-  )
+  const systemStores = useMemo(() => activeSystemLocations(stores), [stores])
   const { rows: items } = useMasterList('items', mapItm)
   const { rows: units } = useMasterList('units', mapUnt)
   const vendors = useMasterList('vendors', mapVend)
@@ -329,7 +326,7 @@ export function GatepassInwardForm() {
         const qty = numOrUndef(l.qty) ?? 0
         if (qty <= 0) throw new Error(`Line ${i + 1}: Qty must be greater than 0`)
         const item = items.find((it) => it.id === l.itemId)
-        const needsSerial = Boolean(item?.isSerialized || item?.itemType === 'asset')
+        const needsSerial = Boolean(item?.isSerialized)
         const serialNo = l.serialNo.trim().toUpperCase()
         if (needsSerial && !serialNo) {
           throw new Error(`Line ${i + 1}: Serial No. is required for this item`)
